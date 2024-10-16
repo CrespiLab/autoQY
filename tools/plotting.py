@@ -20,6 +20,8 @@ class MplCanvas(FigureCanvas):
         self.press_event = None
         self.line_positions = []
 
+        self.colours = ["#000000","#808080","#346aa9","#7dadce","#e16203","#872f17"]
+
         self.idx = idx  # Store the idx for this canvas
 
         self.mpl_connect('button_press_event', self.on_press)
@@ -296,7 +298,7 @@ class MplCanvas(FigureCanvas):
 
         self.draw()  # Redraw the canvas
 
-    def PlotAndSave(self, LEDwavelength,
+    def PlotResults(self, LEDwavelength,
                     timestamps, 
                     conc_opt,
                     absorbance,
@@ -304,67 +306,85 @@ class MplCanvas(FigureCanvas):
                     total_abs_fit,
                     residuals,
                     QY_AB_opt, QY_BA_opt, 
-                    error_QY_AB, error_QY_BA):
-        # ToSave = input("Save plots (Yes or No)? ")
-        # ToSave = "No" ## for testing
-        ##################################################
+                    error_QY_AB, error_QY_BA,
+                    SaveResults = "No",
+                    SaveFileName = ""):
         
         ######################
         self.fig.clear()  # Clear the entire figure
 
+        if SaveResults == "Yes": # re-define fig for savefig
+            self.fig = Figure(figsize=(8, 4),dpi=600,constrained_layout=True)
+
         gs = gridspec.GridSpec(4, 2, figure=self.fig)
         
-        self.fig.suptitle(f'{LEDwavelength} nm: Integration Method')
+        self.fig.suptitle(f'{LEDwavelength} nm irradiation: Integration Method')
         
+        ##################################################
         axresults_conc = self.fig.add_subplot(gs[0:3, 0])
         axresults_Abs = self.fig.add_subplot(gs[0:3, 1])
         axresults_res = self.fig.add_subplot(gs[3, 1])
         axresults_notes = self.fig.add_subplot(gs[3, 0])
         
+        ##################################################
+        ############### CONCENTRATIONS ###################
+        ##################################################
         axresults_conc.set_title("Concentrations over time")
         
-        axresults_conc.plot(timestamps, conc_opt[:,0], label="Species A")
-        axresults_conc.plot(timestamps, conc_opt[:,1], label = "Species B")
+        axresults_conc.plot(timestamps, conc_opt[:,0], color = self.colours[2], label = "Reactant")
+        axresults_conc.plot(timestamps, conc_opt[:,1], color = self.colours[4], label = "Product")
         
         axresults_conc.set_ylabel("Concentration (M)")
-        axresults_conc.yaxis.set_minor_locator(AutoMinorLocator(2))
+        # axresults_conc.yaxis.set_minor_locator(AutoMinorLocator(2))
         axresults_conc.set_xlabel("Time (s)")
         
-        axresults_conc.legend()
+        # axresults_conc.legend()
         
         ##################################################
-        ################ NOTES ################
+        ###################### NOTES #####################
         axresults_notes.axis("off")
         # axresults_notes.text(0, 0, f"Starting Percentage A: {StartPercentage_A} %")
         ##################################################
+        
         #### Plot the experimental data and the fitted total absorbance curve
         axresults_Abs.plot(timestamps, absorbance[index,:], linestyle='-', 
-                    color="#DCEEFF", linewidth=5, label='Experimental Data')
-        axresults_Abs.plot(timestamps, total_abs_fit[:,index], linestyle='--', color="#9ACCFF", 
-                    label=f"Fitted Total Absorbance Curve\nQY_AB: {QY_AB_opt:.3f}"+u"\u00B1"+f"{error_QY_AB:.3f}\
-                    \nQY_BA: {QY_BA_opt:.3f}"+u"\u00B1"+f"{error_QY_BA:.3f}")
-        axresults_Abs.set_title('Absorbance over time')
-        axresults_Abs.set_xlabel('Time (s)')
+                    color=self.colours[4], linewidth=8, alpha=0.5, label='Experimental Data')
+        axresults_Abs.plot(timestamps, total_abs_fit[:,index], linestyle='--', color=self.colours[2], 
+                    label=f"Fit:\nQY_AB: {QY_AB_opt:.3f} "+u"\u00B1 "+f"{error_QY_AB:.3f}\
+                    \nQY_BA: {QY_BA_opt:.3f} "+u"\u00B1 "+f"{error_QY_BA:.3f}")
+        axresults_Abs.set_title('Fit vs Experimental')
+        # axresults_Abs.set_xlabel('Time (s)')
+        axresults_Abs.set_xticklabels([]) ## put this before set_xlim, otherwise it resets the xlim
+        
         axresults_Abs.set_ylabel('Absorbance')
-        axresults_Abs.legend()
+        # axresults_Abs.legend()
         
-        #### Plot the residuals over time
-        axresults_res.plot(timestamps, residuals[index,:], color="#FF952A", label='Residuals')
+        #################### RESIDUALS ###################
+        axresults_res.plot(timestamps, residuals[index,:], color=self.colours[4], label='Residuals')
         axresults_res.set_xlabel('Time (s)')
-        axresults_res.set_ylabel('Residual Abs')
+        axresults_res.set_ylabel('Residuals Abs')
+        ##################################################
         
-        #### SAVE PLOTS ####
-        # if ToSave == "Yes":
-        #     # savefilename = datafolder+"\\"+"QY-Integrated_"+str(LEDwavelength)+"nm_"+filename
-        #     # plt.savefig(savefilename+".svg",bbox_inches="tight")
-        #     # plt.savefig(savefilename+".png",bbox_inches="tight")
-        #     print("Saved plots")
-        # elif ToSave == "No":
-        #     print("Plots not saved")
-        # else:
-        #     print("Wrong ToSave input")
-        ####################
-        # plt.show()
+        for i in [axresults_conc, axresults_Abs, axresults_res]:
+            i.xaxis.set_minor_locator(AutoMinorLocator(2))
+            i.yaxis.set_minor_locator(AutoMinorLocator(2))
+
+        for i in [axresults_conc, axresults_Abs]:
+            i.legend(frameon=False)
+            
+        ##################################################
+        #################### SAVE ########################
+        ##################################################
+        if SaveResults == "Yes":
+            savefilename = SaveFileName
+            self.fig.savefig(savefilename+".svg",bbox_inches="tight")
+            self.fig.savefig(savefilename+".png",bbox_inches="tight")
+            print("Saved plots")
+        elif SaveResults == "No":
+            print("Plots not saved")
+        else:
+            print("Wrong ToSave input")
+
         self.draw()  # Redraw the canvas
         ##################################################
 

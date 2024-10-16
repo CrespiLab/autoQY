@@ -1,9 +1,10 @@
 """
-Created on Mon Feb 12 11:03:16 2024
-@author: Anouk
-Modified by: Jorn, Aug 23rd 2024
+@author: Alfredo and Jorn
+=============================================================================
+autoQuant
 
-This script is used for processing of the data measured with the 
+=============================================================================
+The PowerProcessing part is used for processing of the data measured with the 
     Optical Power Monitor (OPM) software.
 - Baseline correction
 - Fit to get value of power with standard deviation
@@ -19,13 +20,16 @@ The data is recorded in the following sequence:
 Interactive Feature:
 - Pick the x-coordinates of the areas for baseline correction interactively
 
-TO DO:
-[] add feature: pick two or more input files; 
-   then perform averaging and error calculation to yield final result
+=============================================================================
 
+TO DO:
+[DONE] add feature: pick two or more input files; 
+   then perform averaging and error calculation to yield final result
+[] Output a Results file containing all the input values (incl. Exp. Param.)
 
 GUI features to add:
-[] Pop-up window to select file
+[DONE] Pop-up window to select file
+=============================================================================
 
 """
 import sys, os
@@ -100,6 +104,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.calculatePowerButton.clicked.connect(self.calculate_total_power)
 
         self.radioButton.toggled.connect(self.handle_radio_selection)
+        # self.radioButton_2.toggled.connect(self.handle_radio_selection)
         self.radioButton_2.toggled.connect(self.handle_radio_selection)
         self.radioButton_3.toggled.connect(self.handle_radio_selection)
         self.radioButton_4.toggled.connect(self.handle_radio_selection)
@@ -110,6 +115,9 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.LoadTrans.clicked.connect(lambda: self.load_file("Epsilons A"))
         self.LoadCis.clicked.connect(lambda: self.load_file("Epsilons B"))
         self.LoadSpectra.clicked.connect(lambda: self.load_file("Spectral Data"))
+        self.LoadLog.clicked.connect(lambda: self.load_file("Log Irr"))
+
+        self.SaveResultsBtn.clicked.connect(self.Save_QY)
 
         #self.label.setText("Total Power: -- mW ± -- mW")
 
@@ -147,12 +155,12 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.baseline_corrected_data = None
         self.filename_LED = None
 
-        self.loadDataButton.setEnabled(False)
-        self.baselineCorrectionButton.setEnabled(False)
-        self.calculatePowerButton.setEnabled(False)
-        self.LoadLED.setEnabled(False)
-        #self.radioButton_5.setEnabled(False)
-        #self.radioButton_6.setEnabled(False)
+        #self.radioButton_3.setEnabled(True) # Power Manual: default enabled in qt.ui    
+        self.loadDataButton.setEnabled(False) # default Manual Power input
+        self.baselineCorrectionButton.setEnabled(False) # default Manual Power input
+        self.calculatePowerButton.setEnabled(False) # default Manual Power input
+        #self.radioButton_2.setEnabled(False) # Irradiation Integration: default enabled in qt.ui
+        self.LoadLED.setEnabled(True) # default Integration Mode
 
     # Update methods for the parameters
     def update_V(self):
@@ -487,6 +495,9 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         elif file_type == "Spectral Data":
             self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = Integration.Import_SpectralData("Spectragryph", file_path, 
                                                                                                              self.wavelength_low, self.wavelength_high, self.LEDw) #HARDCODED IN THE WRONG PLACE
+        # elif file_type == "Log Irr":
+        #      self.timestamps = self.GetTimestamps(file_path)
+        ##!!! another format
 
     def load_csv(self, file_path, file_type):
         """Load the data file depending on its format (.csv or .dat)."""
@@ -505,7 +516,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         elif file_type == "Spectral Data":
             self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = Integration.Import_SpectralData("Not", file_path, 
                                                                                                                         self.wavelength_low, self.wavelength_high, self.LEDw) #HARDCODED IN THE WRONG PLACE
-
+        elif file_type == "Log Irr":
+             self.timestamps = self.GetTimestamps(file_path)
 
     ##DEFINE OUTSIDE OF CLASS    
     def plot_LEDprocessed(self,canvas):
@@ -554,10 +566,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             Integration.CreateParameters(self.SpectralData_Abs, self.SpectralData_Wavelengths,
                                         self.epsilon_A_interp, self.emission_interp)
 
-        log_file = self.filename_LED
-        I0_list = self.GetPowerList(self.I0_avg, self.I0_err)   
-        self.timestamps = self.GetTimestamps(log_file)
         
+        I0_list = self.GetPowerList(self.I0_avg, self.I0_err)   
         N, fit_results = Integration.MinimizeQYs(I0_list, normalized_emission,
                                                 lambda_meters, 
                                                 initial_conc_A, initial_conc_B,
@@ -588,7 +598,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         QtWidgets.QMessageBox.information(self, "Success", "Results extracted, plotted, and saved!")
 
     def Plot_QY(self, canvas):
-        canvas.PlotAndSave(self.LEDw,
+        canvas.PlotResults(self.LEDw,
                            self.timestamps,
                            self.conc_opt,
                            self.SpectralData_Abs,
@@ -598,18 +608,41 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
                            self.QY_AB_opt, self.QY_BA_opt,
                            self.error_QY_AB, self.error_QY_BA)
 
+    def Save_QY(self):
+        """Save results"""
+        options = QtWidgets.QFileDialog.Options()
+
+        # File dialog for selecting files
+        savefilename, _ = QtWidgets.QFileDialog.getSaveFileName(self, 
+                                                             "Choose name of savefile", "",
+                                                             options=options)
+        
+        canvas = MplCanvas(self)
+        
+        canvas.PlotResults(self.LEDw,
+                           self.timestamps,
+                           self.conc_opt,
+                           self.SpectralData_Abs,
+                           self.SpectralData_Index,
+                           self.total_abs_fit,
+                           self.residuals,
+                           self.QY_AB_opt, self.QY_BA_opt,
+                           self.error_QY_AB, self.error_QY_BA,
+                           SaveResults = "Yes",
+                           SaveFileName = savefilename)
+
+        QtWidgets.QMessageBox.information(self, "Success", f"{savefilename} file saved successfully!")
+
+
     def GetPowerList(self, I0_avg, I0_err): ###??????????
         I0_list = [I0_avg, I0_avg+I0_err, I0_avg-I0_err]
         return I0_list
 
     def GetTimestamps(self, LogFile):
-        LogFile = r'C:\Users\jorst136\Documents\Postdoc\Projects\Setup_QY\GUI-QY\SteGUI_v0.5\ExampleData\Azobenzene_340nm_log.csv'
-        #LogFile = 'c:/Users/Hallina 9000/Desktop/SteGUI/ExampleData_autoQuant/Azobenzene_340nm_log.csv' 
         #CSV not DAT
         log = pd.read_csv(LogFile,
                         sep = ",", decimal = ".", skiprows = 1, header=None,)
         log_t=log[log[3] == 'Measure']
-        # print("#################", log_t)
         t=log_t[2]
         timestamps=t.to_numpy()
         return timestamps
