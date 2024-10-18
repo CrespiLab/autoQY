@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-def load_data(file_path):
+def load_powerdata(file_path):
     """Load data from a CSV file."""
     try:
         data = pd.read_csv(file_path, skiprows=14)

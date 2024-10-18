@@ -204,7 +204,7 @@ class MplCanvas(FigureCanvas):
                     linestyle='--', color="red", label='Baseline')
 
             ax1.set_xlabel('Index')
-            ax1.set_ylabel('Power (W)')
+            ax1.set_ylabel('Power (mW)')
             ax1.legend()
 
             # Second plot (ax2) will be the baseline-corrected power
@@ -213,7 +213,7 @@ class MplCanvas(FigureCanvas):
                     baselined[sections["end_1"]:sections["end_4"]],
                     color="#FF952A", label='Power, baseline corrected')
             ax2.set_xlabel('Index')
-            ax2.set_ylabel('Power (W)')
+            ax2.set_ylabel('Power (mW)')
             ax2.legend()
 
         # Redraw the figure and adjust layout to prevent overlap
@@ -233,8 +233,12 @@ class MplCanvas(FigureCanvas):
         # Add subplots using self.fig.add_subplot and GridSpec
         ax1 = self.fig.add_subplot(gs[0])
 
-        for i in range(0,absorbance.shape[0]):
+        # print(f"absorbance.shape: {absorbance.shape}")
+
+
+        for i in range(0,absorbance.shape[1]):
             ax1.plot(wavelengths, absorbance.T[i])
+            # print(i)
 
         # Set common x-axis properties for both subplots
         ax1.set_xlabel("Wavelength (nm)")

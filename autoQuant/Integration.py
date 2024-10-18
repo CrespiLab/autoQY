@@ -77,6 +77,8 @@ def Processing_LEDemission(wavelengths_LED, intensity_LED, threshold):
     first_index = above_threshold_indices[0]
     last_index = above_threshold_indices[-1]
     
+    # print(f"first_index: {first_index}\nlast_index: {last_index}")
+    
     low = wavelengths_LED[first_index]
     high = wavelengths_LED[last_index]
     #print(f"wavelength_low: {low}\nwavelength_high: {high}")
@@ -126,33 +128,36 @@ def Import_SpectralData(FileFormat, file, wl_low, wl_high, wavelength_of_interes
 ###################### PLOT ######################
 ##################################################
 
-def Plot_LEDemission_Processed_(absorbance, wavelengths,
-                               em_wl, em_int,
-                               index_first,index_last,
-                               em_int_proc):
-    fig, axdata = plt.subplots(2,1,figsize=(6,6),
-                                dpi=600,constrained_layout=True)
+# def Plot_LEDemission_Processed_(absorbance, wavelengths,
+#                                em_wl, em_int,
+#                                index_first,index_last,
+#                                em_int_proc):
+#     fig, axdata = plt.subplots(2,1,figsize=(6,6),
+#                                 dpi=600,constrained_layout=True)
     
-    for i in range(0,absorbance.shape[1]):
-        axdata[0].plot(wavelengths, absorbance.T[i])
+#     print(f"absorbance.shape: {absorbance.shape}")
     
-    for i in axdata:
-        i.set_xlabel("Wavelength (nm)")
-        i.set_xlim(220,650)
+#     for i in range(0,absorbance.shape[1]):
+#         axdata[0].plot(wavelengths, absorbance.T[i])
+#         print(i)
     
-    axdata[0].set_title("Spectral Data")
-    axdata[0].set_ylabel("Absorbance")
-    axdata[0].set_ylim(-0.05,2.5)
+#     for i in axdata:
+#         i.set_xlabel("Wavelength (nm)")
+#         i.set_xlim(220,650)
     
-    axdata[1].plot(em_wl,em_int,
-                    label="Untreated (in this .py file at least)")
-    axdata[1].plot(em_wl[index_first:index_last],
-                    em_int_proc[index_first:index_last],
-                    label="Smoothed, removed zeroes\nand applied threshold")
-    axdata[1].legend(fontsize=8)
-    axdata[1].set_title("LED emission")
-    axdata[1].set_ylabel("Intensity")
-    plt.show()
+#     axdata[0].set_title("Spectral Data")
+#     axdata[0].set_ylabel("Absorbance")
+#     axdata[0].set_ylim(-0.05,2.5)
+    
+#     axdata[1].plot(em_wl,em_int,
+#                     label="Untreated (in this .py file at least)")
+#     axdata[1].plot(em_wl[index_first:index_last],
+#                     em_int_proc[index_first:index_last],
+#                     label="Smoothed, removed zeroes\nand applied threshold")
+#     axdata[1].legend(fontsize=8)
+#     axdata[1].set_title("LED emission")
+#     axdata[1].set_ylabel("Intensity")
+#     plt.show()
     ####################################
 
 ##################!!! N.B.: COMMENTED TO MERGE WITH MAIN.PY!
@@ -335,8 +340,9 @@ def MinimizeQYs(I0_list,
     ### loop over the powers in the list 
     fit_results=[]
     for total_power in I0_list:
-        power_at_each_wavelength = emission_norm * total_power * 1e-6 ## Photon flux in mmol/s per wavelength
-        N = power_at_each_wavelength / (h * c / lambda_meters) / Avogadro * 1000  
+        # power_at_each_wavelength = emission_norm * total_power * 1e-6 ## Photon flux in mmol/s per wavelength # for microwatt
+        power_at_each_wavelength = emission_norm * total_power * 1e-3 ## Photon flux in mmol/s per wavelength # for milliwatt
+        N = power_at_each_wavelength / (h * c / lambda_meters) / Avogadro * 1000
         
         ## Add wavelength-specific parameters to the lmfit Parameters object
         params = Parameters()

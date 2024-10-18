@@ -41,7 +41,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 import autoQuant.Integration as Integration
 import autoQuant.ExpParam as ExpParam
-from tools.power_data import load_data
+from tools.power_data import load_powerdata
 from tools.plotting import MplCanvas
 from tools.processing import choose_sections
 #from tools.style import apply_dark_theme
@@ -76,7 +76,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.eps_file_a = None
         self.eps_file_b = None
 
-        self.loaded_data = [] 
+        self.loaded_powerdata = [] 
         self.line_positions = [] 
         self.all_corrected_power = []
 
@@ -127,8 +127,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.k_BA = 7.240e-7         # Thermal back reaction rate s-1
 
         ######## POWER ########
-        self.I0_avg = 743             # Photon flux in microWatt
-        self.I0_err = 4                # Error on photon fplux in microWatt
+        self.I0_avg = 0.743             # Photon flux in milliWatt
+        self.I0_err = 0.004                # Error on photon flux in milliWatt
         self.LEDw = 340
 
         # Set text in QPlainTextEdit using setPlainText
@@ -179,14 +179,14 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
     def update_I0_avg(self):
         try:
-            self.I0_avg = int(self.plainTextEdit_3.toPlainText())  # Convert the input to an integer
+            self.I0_avg = float(self.plainTextEdit_3.toPlainText())  # Convert the input to an integer
             print(f"Updated I0_avg to {self.I0_avg}")
         except ValueError:
             pass
 
     def update_I0_err(self):
         try:
-            self.I0_err = int(self.plainTextEdit_4.toPlainText())  # Convert the input to an integer
+            self.I0_err = float(self.plainTextEdit_4.toPlainText())  # Convert the input to an integer
             print(f"Updated I0_err to {self.I0_err}")
         except ValueError:
             pass
@@ -242,15 +242,15 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             self.filename = file_name
             self.x, self.RefPower = self.load_and_validate_data(self.filename)
             # Save x and RefPower without overwriting
-            self.loaded_data.append((self.x, self.RefPower))
+            self.loaded_powerdata.append((self.x, self.RefPower))
 
             if self.RefPower is not None and self.x is not None:
-                self.add_new_tab(self.plot_power_data, f"Loaded Data {self.count}", self.count)
+                self.add_new_tab(self.plot_power_data, f"Power Data {self.count+1}", self.count)
             self.count += 1
 
     def load_and_validate_data(self, file_name):
         """Load data and handle errors."""
-        x, RefPower = load_data(file_name)
+        x, RefPower = load_powerdata(file_name) # from tools.power_data.py: converts W (raw data) to mW
         if RefPower is None or x is None:
             print("Failed to load data.")
         return x, RefPower
@@ -274,7 +274,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
         # Call the plotting function to plot on the canvas
         if idx is not None:
-            print('plot nr',idx)
+            print(f'plot nr {idx+1}') # start from 1
             plot_func(canvas, idx, *args)  # Pass idx only if it's provided
             #self.tabWidget.tabCloseRequested.connect(self.close_tab,idx)
         else:
@@ -304,10 +304,10 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
                 self.idx.remove(idx)  # Remove idx from self.idx list
                 print(f"Removed idx: {idx} from self.idx")
             
-            if idx in self.loaded_data:
-                self.loaded_data[idx] = None# Remove the corresponding data from loaded_data
+            if idx in self.loaded_powerdata:
+                self.loaded_powerdata[idx] = None# Remove the corresponding data from loaded_powerdata
                 self.line_positions[idx] = None
-                print(f"Removed data for idx: {idx} from loaded_data")
+                print(f"Removed data for idx: {idx} from loaded_powerdata")
         
         # Remove the tab
         self.tabWidget.removeTab(index)
@@ -330,17 +330,17 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
     def baseline_correction(self):
         """Apply baseline correction to each loaded dataset and create a new tab for each."""
-        if not self.loaded_data:
+        if not self.loaded_powerdata:
             QtWidgets.QMessageBox.warning(self, "Error", "No data loaded")
             return
 
         # Iterate over each loaded dataset using the saved idx (self.count)
-        for idx in range(len(self.loaded_data)):
+        for idx in range(len(self.loaded_powerdata)):
             # Baseline correction: no jacket, no cuvette
-            self.add_new_tab(self.plot_baseline_corrected_no, f"Baseline correction: no jacket, no cuvette {idx}", idx)
+            self.add_new_tab(self.plot_baseline_corrected_no, f"Bl corr: no jacket, no cuv {idx+1}", idx)
             
             # Baseline correction: jacket, cuvette with solvent
-            self.add_new_tab(self.plot_baseline_corrected_yes, f"Baseline correction: jacket, cuvette with solvent {idx}", idx)
+            self.add_new_tab(self.plot_baseline_corrected_yes, f"Bl corr: jacket, cuv+solvent {idx+1}", idx)
 
     def calculate_baseline_and_power_no(self, x, RefPower, sections):
         """Calculate baseline and baseline-corrected power."""
@@ -357,7 +357,9 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         baseline_1 = np.polyval(popt, x)
         baselined_1 = RefPower - baseline_1
 
-        return baselined_1, baseline_1
+        section_on_no = baselined_1[sections["start_1"]:sections["end_1"]]
+
+        return baselined_1, baseline_1, section_on_no
     
     def calculate_baseline_and_power_yes(self, x, RefPower, sections):
         # Baseline correction: jacket, cuvette with solvent
@@ -366,14 +368,23 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         x_masked = x_masked[~np.isnan(y_masked)]
         y_masked = y_masked[~np.isnan(y_masked)]
 
-        # Polynomial fit (n = 6)
-        n = 6
-        p0 = np.full(n, 0.000000001)
+        # Polynomial fit (n = 6) ##!!! Jorn: why did you change n, Alfredo?
+        # n = 6
+        # p0 = np.full(n, 0.000000001)
+        
+        # Polynomial fit (n = 3)
+        n = 3  # Degree of polynomial for baseline correction
+        p0 = np.full(n + 1, 0.000000001)  # Initial guess of baseline coefficients
+
+        
         popt, _ = curve_fit(fit_func, x_masked, y_masked, p0=p0)
         baseline_2 = np.polyval(popt, x)
         baselined_2 = RefPower - baseline_2
 
-        return baselined_2, baseline_2
+        section_on_yes = baselined_2[sections["start_3"]:sections["end_3"]]
+        # power_std = np.nanstd(baselined_2[sections["start_3"]:sections["end_3"]])
+
+        return baselined_2, baseline_2, section_on_yes
 
     def get_sorted_line_positions(self, canvas):
         """Get and sort the x-positions of vertical lines."""
@@ -383,7 +394,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
     def plot_baseline_corrected_no(self, canvas, idx):
         case = 0 # no cuvette
-        x, RefPower = self.loaded_data[idx]
+        x, RefPower = self.loaded_powerdata[idx]
         line_positions = self.line_positions[idx]
         #print(line_positions)
         #filename = f"Baseline Corrected {idx+1}"
@@ -394,15 +405,17 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         #if idx == 1:
             # Proceed with baseline correction
         sections = choose_sections(line_positions)
-        baselined, baseline = self.calculate_baseline_and_power_no(x, RefPower, sections)#baseline_correction(RefPower, x, sections)
-        self.all_corrected_power.append(baselined)
+        baselined, baseline, section_on_no = self.calculate_baseline_and_power_no(x, RefPower, sections)#baseline_correction(RefPower, x, sections)
+        
+        self.all_corrected_power.append(section_on_no) # power values LED ON, no cuvette, no jacket
+        
         """Plot the baseline-corrected data."""
         canvas.plot_baseline_correction(x, RefPower, baseline, baselined, sections, case)
 
 
     def plot_baseline_corrected_yes(self, canvas, idx):
         case = 1 # yes cuvette
-        x, RefPower = self.loaded_data[idx]
+        x, RefPower = self.loaded_powerdata[idx]
         line_positions = self.line_positions[idx]
         #print(line_positions)
         #filename = f"Baseline Corrected {idx+1}"
@@ -412,8 +425,10 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             return
 
         sections = choose_sections(line_positions)
-        baselined, baseline = self.calculate_baseline_and_power_yes(x, RefPower, sections) #baseline_correction(RefPower, x, sections)
-        self.all_corrected_power.append(baselined)
+        baselined, baseline, section_on_yes = self.calculate_baseline_and_power_yes(x, RefPower, sections) #baseline_correction(RefPower, x, sections)
+
+        self.all_corrected_power.append(section_on_yes) # power values LED ON, yes cuvette, yes jacket
+        
         """Plot the baseline-corrected data."""
         canvas.plot_baseline_correction(x, RefPower, baseline, baselined, sections, case)
 
@@ -484,17 +499,27 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         if file_type == "LED Emission":
             self.emission_wavelengths, self.emission_Intensity = Integration.Import_LEDemission("Spectragryph", file_path)
             self.filename_LED = file_path
-            threshold_LED = 500     #!!! HARDCODED IN THE WRONG PLACE ###############################
+            
+            #!!! HARDCODED IN THE WRONG PLACE 
+                ###MOVE TO process_LED
+                ###AND ADD ADJUSTABLE TEXT FIELD TO GUI
+            
+            threshold_LED = 500     
             self.emission_Intensity_proc, self.LEDindex_first, self.LEDindex_last, self.wavelength_low, self.wavelength_high = \
                 Integration.Processing_LEDemission(
                     self.emission_wavelengths, self.emission_Intensity, threshold_LED)
+        
+        
         elif file_type == "Epsilons A":
             self.epsilon_A_wavelengths, self.epsilon_A_values = Integration.Import_Epsilons("Spectragryph", file_path)
         elif file_type == "Epsilons B":
             self.epsilon_B_wavelengths, self.epsilon_B_values = Integration.Import_Epsilons("Spectragryph", file_path)
         elif file_type == "Spectral Data":
-            self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = Integration.Import_SpectralData("Spectragryph", file_path, 
-                                                                                                             self.wavelength_low, self.wavelength_high, self.LEDw) #HARDCODED IN THE WRONG PLACE
+            self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = Integration.Import_SpectralData("Spectragryph",
+                                                                                                                            file_path, 
+                                                                                                             self.wavelength_low, 
+                                                                                                             self.wavelength_high, 
+                                                                                                             self.LEDw) #HARDCODED IN THE WRONG PLACE
         # elif file_type == "Log Irr":
         #      self.timestamps = self.GetTimestamps(file_path)
         ##!!! another format
@@ -522,6 +547,9 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
     ##DEFINE OUTSIDE OF CLASS    
     def plot_LEDprocessed(self,canvas):
             
+        # print(f"self.SpectralData_Abs: {self.SpectralData_Abs}")
+        # print(f"self.SpectralData_Wavelengths: {self.SpectralData_Wavelengths}")
+        
         canvas.Plot_LEDemission_Processed(self.SpectralData_Abs, self.SpectralData_Wavelengths,
             self.emission_wavelengths, self.emission_Intensity,
             self.LEDindex_first, self.LEDindex_last, 
