@@ -360,7 +360,7 @@ class MplCanvas(FigureCanvas):
         # axresults_Abs.set_xlabel('Time (s)')
         axresults_Abs.set_xticklabels([]) ## put this before set_xlim, otherwise it resets the xlim
         
-        axresults_Abs.set_ylabel('Absorbance')
+        axresults_Abs.set_ylabel(r'Absorbance at $\lambda_{irr}$')
         # axresults_Abs.legend()
         
         #################### RESIDUALS ###################

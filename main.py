@@ -219,13 +219,15 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             self.calculatePowerButton.setEnabled(True)
         
         if self.radioButton.isChecked():
-            self.plainTextEdit_5.setEnabled(True)
+            self.plainTextEdit_7.setEnabled(True)
+            self.plainTextEdit_5.setEnabled(False)
             self.LoadLED.setEnabled(False)
             #self.radioButton_5.setEnabled(False)
             #self.radioButton_6.setEnabled(False)
 
         if self.radioButton_2.isChecked():
-            self.plainTextEdit_5.setEnabled(False)
+            self.plainTextEdit_7.setEnabled(False)
+            self.plainTextEdit_5.setEnabled(True)
             self.LoadLED.setEnabled(True)
             #self.radioButton_5.setEnabled(True)
             #self.radioButton_6.setEnabled(True)
