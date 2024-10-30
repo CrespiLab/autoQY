@@ -56,8 +56,10 @@ def Import_LEDemission(FileFormat, file_LEDemission_raw):
         emission_data = pd.read_csv(file_LEDemission_raw, delimiter=',') # in meters #MISSING DELIMITER ALFREDO
     
     #ALFREDO: I think this is not necessary
-    # Clean up the column names by stripping leading/trailing spaces and invisible characters
-    emission_data.columns = emission_data.columns.str.strip()
+    # emission_data.columns = emission_data.columns.str.strip() # Clean up the column names by stripping leading/trailing spaces and invisible characters
+
+    ##!!! DONE INSTEAD: RENAME COLUMNS TO WAVELENGTH AND INTENSITY
+    emission_data.columns = ['Wavelength [nm]', 'Intensity'] ## rename columns
 
     emission_wavelengths = emission_data['Wavelength [nm]'].values
     emission_Intensity = emission_data['Intensity'].values ## not normalised
@@ -176,7 +178,9 @@ def Import_Epsilons(FileFormat,
     #    epsilon_B_data= pd.read_csv(B, delimiter='\t', 
     #                                usecols = lambda x: x not in ["Wavenumbers [1/cm]"])
     elif FileFormat == "Not":
-        epsilon_A_data = pd.read_csv(A, delimiter=',')
+        # epsilon_A_data = pd.read_csv(A, delimiter=',')
+        epsilon_A_data = pd.read_csv(A, delimiter=',', 
+                                     skiprows=1, usecols=[0,1]) ##!!! TRY
     #    epsilon_B_data = pd.read_csv(B, delimiter=',')
         
     epsilon_A_data.columns = ['Wavelengths', 'Epsilons'] ## rename columns

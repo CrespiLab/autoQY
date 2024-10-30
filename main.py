@@ -26,9 +26,11 @@ TO DO:
 [DONE] add feature: pick two or more input files; 
    then perform averaging and error calculation to yield final result
 [] Output a Results file containing all the input values (incl. Exp. Param.)
+[] Add feature to input starting concentrations
 
 GUI features to add:
 [DONE] Pop-up window to select file
+[] Show percentages at PSS
 =============================================================================
 
 """
