@@ -126,12 +126,12 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
         ############# EXPERIMENTAL PARAMETERS #############
         self.V = 3.0                 # Volume in ml
-        self.k_BA = 7.240e-7         # Thermal back reaction rate s-1
+        self.k_BA = 0.0         # Thermal back reaction rate s-1
 
         ######## POWER ########
-        self.I0_avg = 0.743             # Photon flux in milliWatt
-        self.I0_err = 0.004                # Error on photon flux in milliWatt
-        self.LEDw = 340
+        self.I0_avg = 0.0             # Photon flux in milliWatt
+        self.I0_err = 0.0                # Error on photon flux in milliWatt
+        self.LEDw = 0
 
         # Set text in QPlainTextEdit using setPlainText
         self.plainTextEdit.setPlainText(str(self.V))
