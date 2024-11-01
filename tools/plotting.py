@@ -284,8 +284,8 @@ class MplCanvas(FigureCanvas):
         ax1 = self.fig.add_subplot(gs[0])
         
         # Plot epsilons on the first subplot
-        ax1.plot(wavelengths, e_A_inter, label="A")
-        ax1.plot(wavelengths, e_B_inter, label="B")
+        ax1.plot(wavelengths, e_A_inter, label="Reactant")
+        ax1.plot(wavelengths, e_B_inter, label="Product")
         ax1.legend(fontsize=12)
         ax1.set_xlabel("Wavelength (nm)")
         ax1.set_xlim(220, 650)
@@ -354,8 +354,8 @@ class MplCanvas(FigureCanvas):
         axresults_Abs.plot(timestamps, absorbance[index,:], linestyle='-', 
                     color=self.colours[4], linewidth=8, alpha=0.5, label='Experimental Data')
         axresults_Abs.plot(timestamps, total_abs_fit[:,index], linestyle='--', color=self.colours[2], 
-                    label=f"Fit:\nQY_AB: {QY_AB_opt:.3f} "+u"\u00B1 "+f"{error_QY_AB:.3f}\
-                    \nQY_BA: {QY_BA_opt:.3f} "+u"\u00B1 "+f"{error_QY_BA:.3f}")
+                    label=f"Fit:\nQY_RtoP: {QY_AB_opt:.3f} "+u"\u00B1 "+f"{error_QY_AB:.3f}\
+                    \nQY_PtoR: {QY_BA_opt:.3f} "+u"\u00B1 "+f"{error_QY_BA:.3f}")
         axresults_Abs.set_title('Fit vs Experimental')
         # axresults_Abs.set_xlabel('Time (s)')
         axresults_Abs.set_xticklabels([]) ## put this before set_xlim, otherwise it resets the xlim

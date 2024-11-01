@@ -419,8 +419,8 @@ def CalculateConcentrations(lambda_meters,
     PSS_A = conc_opt[-1,0]/(init_conc_A+init_conc_B)*100
     PSS_B = conc_opt[-1,1]/(init_conc_A+init_conc_B)*100
     
-    print(f"At the PSS, {PSS_A:.2f} % of A and {PSS_B:.2f} % of B")
-    return conc_opt
+    print(f"At the PSS, {PSS_A:.2f} % of Reactant and {PSS_B:.2f} % of Product")
+    return conc_opt, PSS_A, PSS_B
 ##################################################
 def GetFittedAbs(fit_results, conc_opt,
                  e_A_inter, e_B_inter,

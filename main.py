@@ -611,7 +611,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.QY_AB_opt, self.QY_BA_opt, self.error_QY_AB, self.error_QY_BA = Integration.ExtractResults(fit_results)
 
         # Calculate optimized concentrations
-        self.conc_opt = Integration.CalculateConcentrations(lambda_meters,
+        self.conc_opt, self.PSS_Reactant, self.PSS_Product = Integration.CalculateConcentrations(lambda_meters,
                                                     initial_conc_A, initial_conc_B, 
                                                     self.timestamps,
                                                     self.QY_AB_opt, self.QY_BA_opt, 
@@ -624,6 +624,13 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
                                                             self.timestamps,
                                                             self.SpectralData_Wavelengths)
         # print('##########################',self.timestamps)
+        
+        ## Update labels
+        self.textEdit_QY_RtoP.setText(f"{self.QY_AB_opt:.3f}")
+        self.textEdit_QY_PtoR.setText(f"{self.QY_BA_opt:.3f}")
+        
+        self.textEdit_PSS_R.setText(f"{self.PSS_Reactant:.1f}")
+        self.textEdit_PSS_P.setText(f"{self.PSS_Product:.1f}")
         
         # Plot and save the results
         self.add_new_tab(self.Plot_QY, "QY")
