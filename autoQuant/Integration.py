@@ -32,14 +32,14 @@ from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 import matplotlib.gridspec as gridspec
+import autoQuant.ExpParams as ExpParams
+import autoQuant.Constants as Constants
 
-#import Constants
-#import ExpParam
 
-k_BA = 7.240e-7  ####################N.B.: COMMENTED ExpParam
-h = 6.626e-34           # Planck's constant in J·s
-c = 299792458           # Speed of light in m/s
-Avogadro = 6.022e23     # Avogadro's number
+# k_BA = 7.240e-7  ####################N.B.: COMMENTED ExpParam
+# h = 6.626e-34           # Planck's constant in J·s
+# c = 299792458           # Speed of light in m/s
+# Avogadro = 6.022e23     # Avogadro's number
 
 ############# ANALYSIS PARAMETERS #################
 # threshold_LED = 500     # Threshold for part of spectrum where there is LED emission 
@@ -92,13 +92,22 @@ def Processing_LEDemission(wavelengths_LED, intensity_LED, threshold):
 ################### ABSORBANCE ###################
 ##################################################
 
-def Import_SpectralData(FileFormat, file, wl_low, wl_high, wavelength_of_interest):
-    ## Import Absorbance data_file (.dat from Spectragryph, so with Wavenumbers column)
+def Import_SpectralData(FileFormat, file):
+    """ 
+    Import Absorbance data_file 
+    .dat from Spectragryph is with Wavenumbers column
+    """
     if FileFormat == "Spectragryph":
         data_pd = pd.read_csv(file, sep='\t', usecols=lambda x: x not in ["Wavenumbers [1/cm]"])  # in nanometers
     elif FileFormat == "Not":
         data_pd = pd.read_csv(file, delimiter=',', header=0)  # in nanometers ####ALFREDO: FIXED?
 
+    return data_pd
+
+##!!! MAKE SEPARATE DEF FOR PROCESSING SPECTRAL DATA: to cut it according to the part of the spectrum used of the LED Emission
+
+def Process_SpectralData(data_pd, wl_low, wl_high, wavelength_of_interest):
+    """ Process Spectral Data """
     # Clean up the first column by splitting space-separated values and selecting the first one
     def clean_column(value):
         if isinstance(value, str):
@@ -301,6 +310,9 @@ def rate_equations(concentrations, time,
         List with the functions for the changes in concentration over time
 
     """
+    ##!!! ADD K_BA HERE CORRECTLY
+    k_BA = ExpParams.k_BA
+    
     A, B = concentrations
     total_absorbance = A * epsilon_A_lambda + B * epsilon_B_lambda
 
@@ -340,6 +352,10 @@ def MinimizeQYs(I0_list,
                 timestamps, absorbance_values,
                 e_A_inter, e_B_inter,
                 V):
+    
+    h = Constants.h
+    c = Constants.c
+    Avogadro = Constants.Avogadro
     
     ### loop over the powers in the list 
     fit_results=[]

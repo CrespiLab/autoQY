@@ -30,7 +30,7 @@ TO DO:
 
 GUI features to add:
 [DONE] Pop-up window to select file
-[] Show percentages at PSS
+[DONE] Show percentages at PSS
 =============================================================================
 
 """
@@ -42,7 +42,7 @@ from PyQt5 import QtWidgets, uic
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 import autoQuant.Integration as Integration
-import autoQuant.ExpParam as ExpParam
+import autoQuant.ExpParams as ExpParams
 from tools.power_data import load_powerdata
 from tools.plotting import MplCanvas
 from tools.processing import choose_sections
@@ -65,6 +65,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         #Change style  *************
         ############################
         #self.setStyleSheet(get_stylesheet())
+
+        ##!!! REMOVE UNNECESSARY VARIABLES HERE
 
         self.filename = None
         self.RefPower = None
@@ -125,27 +127,43 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
 
         ############# EXPERIMENTAL PARAMETERS #############
-        self.V = 3.0                 # Volume in ml
-        self.k_BA = 0.0         # Thermal back reaction rate s-1
+        # self.V = 3.0                 # Volume in ml
+        # self.k_BA = 0.0         # Thermal back reaction rate s-1
 
-        ######## POWER ########
-        self.I0_avg = 0.0             # Photon flux in milliWatt
-        self.I0_err = 0.0                # Error on photon flux in milliWatt
-        self.LEDw = 0
+        # self.I0_avg = 0.0             # Photon flux in milliWatt
+        # self.I0_err = 0.0                # Error on photon flux in milliWatt
+        # self.LEDw = 0
 
+        # self.plainTextEdit.setPlainText(str(self.V))
+        # self.plainTextEdit_2.setPlainText(str(self.k_BA))
+        # self.plainTextEdit_3.setPlainText(str(self.I0_avg))
+        # self.plainTextEdit_4.setPlainText(str(self.I0_err))
+        # self.plainTextEdit_5.setPlainText(str(self.LEDw))
+
+        #############
+        
+        ############### using ExpParams.py #############
+        
         # Set text in QPlainTextEdit using setPlainText
-        self.plainTextEdit.setPlainText(str(self.V))
-        self.plainTextEdit_2.setPlainText(str(self.k_BA))
-        self.plainTextEdit_3.setPlainText(str(self.I0_avg))
-        self.plainTextEdit_4.setPlainText(str(self.I0_err))
-        self.plainTextEdit_5.setPlainText(str(self.LEDw))
+        self.plainTextEdit.setPlainText(str(ExpParams.V)) # volume
+        self.plainTextEdit_2.setPlainText(str(ExpParams.k_BA)) # rate constant
+        self.plainTextEdit_3.setPlainText(str(ExpParams.I0_avg)) # Power Manual
+        self.plainTextEdit_4.setPlainText(str(ExpParams.I0_err)) # Power Manual
+        self.plainTextEdit_5.setPlainText(str(ExpParams.LEDw)) # Integration Mode (default)
+
+        self.plainTextEdit_6.setPlainText(str(ExpParams.I0_avg)) # PowerProcessing: Calculated Power
+        self.plainTextEdit_8.setPlainText(str(ExpParams.I0_err)) # PowerProcessing: Error
+        self.plainTextEdit_9.setPlainText(str(ExpParams.threshold)) # Threshold for LED Emission spectrum
 
         # Connect the textChanged signal to the update functions
         self.plainTextEdit.textChanged.connect(self.update_V)
         self.plainTextEdit_2.textChanged.connect(self.update_k_BA)
         self.plainTextEdit_3.textChanged.connect(self.update_I0_avg)
         self.plainTextEdit_4.textChanged.connect(self.update_I0_err)
-        self.plainTextEdit_5.textChanged.connect(self.update_LEDw)
+        self.plainTextEdit_5.textChanged.connect(self.update_LEDw_Integration) # Integration Mode
+        self.plainTextEdit_7.textChanged.connect(self.update_LEDw_SingleWl) # SingleWavelength Mode
+
+        self.plainTextEdit_9.textChanged.connect(self.update_threshold) # 
 
         # Adding new buttons for custom plot functions from your scripts
         self.plotLEDButton.clicked.connect(self.process_LED)
@@ -167,41 +185,66 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
     # Update methods for the parameters
     def update_V(self):
         try:
-            self.V = float(self.plainTextEdit.toPlainText())  # Convert the input to a float
-            print(f"Updated V to {self.V}")
+            # self.V = float(self.plainTextEdit.toPlainText())  # Convert the input to a float
+            ExpParams.V = float(self.plainTextEdit.toPlainText())  # Convert the input to a float
+            print(f"Updated V to {ExpParams.V}")
         except ValueError:
             pass  # Handle the case where the input is not a valid number
 
     def update_k_BA(self):
         try:
-            self.k_BA = float(self.plainTextEdit_2.toPlainText())  # Convert the input to a float
-            print(f"Updated k_BA to {self.k_BA}")
+            # self.k_BA = float(self.plainTextEdit_2.toPlainText())  # Convert the input to a float
+            ExpParams.k_BA = float(self.plainTextEdit_2.toPlainText())  # Convert the input to a float
+            print(f"Updated k_BA to {ExpParams.k_BA}")
         except ValueError:
             pass
 
     def update_I0_avg(self):
         try:
-            self.I0_avg = float(self.plainTextEdit_3.toPlainText())  # Convert the input to an integer
-            print(f"Updated I0_avg to {self.I0_avg}")
+            # self.I0_avg = float(self.plainTextEdit_3.toPlainText())  # Convert the input to an integer
+            ExpParams.I0_avg = float(self.plainTextEdit_3.toPlainText())  # Convert the input to an integer
+            print(f"Updated I0_avg to {ExpParams.I0_avg}")
         except ValueError:
             pass
 
     def update_I0_err(self):
         try:
-            self.I0_err = float(self.plainTextEdit_4.toPlainText())  # Convert the input to an integer
-            print(f"Updated I0_err to {self.I0_err}")
+            # self.I0_err = float(self.plainTextEdit_4.toPlainText())  # Convert the input to an integer
+            ExpParams.I0_err = float(self.plainTextEdit_4.toPlainText())  # Convert the input to an integer
+            print(f"Updated I0_err to {ExpParams.I0_err}")
         except ValueError:
             pass
 
-    def update_LEDw(self):
+    def update_LEDw_SingleWl(self):
+        """ For SingleWavelength Mode """
         try:
-            self.LEDw = int(self.plainTextEdit_5.toPlainText())  # Convert the input to an integer
-            print(f"Updated LEDw to {self.LEDw}")
+            # self.LEDw = int(self.plainTextEdit_5.toPlainText())  # Convert the input to an integer
+            ExpParams.LEDw = int(self.plainTextEdit_7.toPlainText())  # Convert the input to an integer
+            print(f"Updated LEDw to {ExpParams.LEDw}")
+        except ValueError:
+            pass
+
+    def update_LEDw_Integration(self):
+        """ For Integration Mode (default) """
+        try:
+            # self.LEDw = int(self.plainTextEdit_5.toPlainText())  # Convert the input to an integer
+            ExpParams.LEDw = int(self.plainTextEdit_5.toPlainText())  # Convert the input to an integer
+            print(f"Updated LEDw to {ExpParams.LEDw}")
+        except ValueError:
+            pass
+
+    def update_threshold(self):
+        """ Update value for threshold used for LED emission spectrum """
+        try:
+            ExpParams.threshold = int(self.plainTextEdit_9.toPlainText())  # Convert the input to an integer
+            print(f"Updated threshold to {ExpParams.threshold}")
         except ValueError:
             pass
 
     def handle_radio_selection(self):
-        if self.radioButton_3.isChecked():
+        if self.radioButton_3.isChecked(): # Power Manual Input
+            self.update_I0_avg # set I0_avg to current text
+            self.update_I0_err # set I0_err to current text
             # Enable TextLabel and disable Load button
             self.plainTextEdit_3.setEnabled(True)
             self.plainTextEdit_4.setEnabled(True)
@@ -210,27 +253,25 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             self.baselineCorrectionButton.setEnabled(False)
             self.calculatePowerButton.setEnabled(False)
         
-        if self.radioButton_4.isChecked():
+        if self.radioButton_4.isChecked(): # PowerProcessing
             # Disable TextLabel and enable Load button
-            self.plainTextEdit_3.setEnabled(False)
-            self.plainTextEdit_4.setEnabled(False)
+            self.plainTextEdit_3.setEnabled(False) # turn off Manual Input: Power
+            self.plainTextEdit_4.setEnabled(False) # turn off Manual Input: Error
             self.loadDataButton.setEnabled(True)
             self.baselineCorrectionButton.setEnabled(True)
             self.calculatePowerButton.setEnabled(True)
         
-        if self.radioButton.isChecked():
+        if self.radioButton.isChecked(): # LED SingleWavelength Mode
+            self.update_LEDw_SingleWl # set variable to current text
             self.plainTextEdit_7.setEnabled(True)
             self.plainTextEdit_5.setEnabled(False)
             self.LoadLED.setEnabled(False)
-            #self.radioButton_5.setEnabled(False)
-            #self.radioButton_6.setEnabled(False)
 
-        if self.radioButton_2.isChecked():
+        if self.radioButton_2.isChecked(): # LED Integration Mode
+            self.update_LEDw_Integration # set variable to current text
             self.plainTextEdit_7.setEnabled(False)
             self.plainTextEdit_5.setEnabled(True)
             self.LoadLED.setEnabled(True)
-            #self.radioButton_5.setEnabled(True)
-            #self.radioButton_6.setEnabled(True)
 
     def update_display(self, idx, line_index, new_x):
         self.line_positions[idx][line_index] = new_x 
@@ -438,6 +479,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
     def calculate_total_power(self):
         """Calculate the total power and standard deviation from all baseline-corrected data."""
+        ##!!! ?? MAKE SEPARATE VARIABLES FOR INPUTS: 1) MANUAL, 2) POWERPROCESSING
+        
         if not self.all_corrected_power:
             QtWidgets.QMessageBox.warning(self, "Error", "No baseline correction has been applied yet.")
             #self.label.setText("Total Power: missing data")
@@ -454,7 +497,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             std_power = np.nanstd(corrected_data)
             means.append(mean_power)
             stds.append(std_power)
-            print(f" Power: {mean_power:.7f} mW ± {std_power:.7f} mW")
+            # print(f" Power: {mean_power:.7f} mW ± {std_power:.7f} mW")
         #if len(means) != 3 or len(stds) != 3:
         #    QtWidgets.QMessageBox.warning(self, "Error", "Missing some baseline corrections")
         #    return
@@ -463,12 +506,16 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         total_variance = np.sum(np.square(stds)) / len(means)
         total_std = np.sqrt(total_variance)
 
-        self.plainTextEdit_3.setPlainText(f"{total_power:.2f}")
-        self.plainTextEdit_4.setPlainText(f"{total_std:.2f}")
-        self.I0_avg = total_power
-        self.I0_err = total_std
-        #self.label.setText(f"Total Power: {total_power:.7f} mW ± {total_std:.7f} mW")
-        #print(f"Total Power: {total_power:.7f} mW ± {total_std:.7f} mW")
+        # self.plainTextEdit_3.setPlainText(f"{total_power:.2f}") # Manual Input
+        # self.plainTextEdit_4.setPlainText(f"{total_std:.2f}") # Manual Input
+        
+        self.plainTextEdit_6.setPlainText(f"{total_power:.2f}") # PowerProcessing: Power
+        self.plainTextEdit_8.setPlainText(f"{total_std:.2f}") # PowerProcessing: Error
+        ExpParams.I0_avg = total_power # set to calculated power
+        ExpParams.I0_err = total_std # set to calculated error
+        
+        print(f"I0_avg: {ExpParams.I0_avg}\nI0_err: {ExpParams.I0_err}")
+        
     ####################################################################################################################################
 
     def load_file(self, file_type):
@@ -504,29 +551,24 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             self.emission_wavelengths, self.emission_Intensity = Integration.Import_LEDemission("Spectragryph", file_path)
             self.filename_LED = file_path
             
-            #!!! HARDCODED IN THE WRONG PLACE 
-                ###MOVE TO process_LED
-                ###AND ADD ADJUSTABLE TEXT FIELD TO GUI
-            
-            threshold_LED = 500     
-            self.emission_Intensity_proc, self.LEDindex_first, self.LEDindex_last, self.wavelength_low, self.wavelength_high = \
-                Integration.Processing_LEDemission(
-                    self.emission_wavelengths, self.emission_Intensity, threshold_LED)
-        
-        
         elif file_type == "Epsilons A":
             self.epsilon_A_wavelengths, self.epsilon_A_values = Integration.Import_Epsilons("Spectragryph", file_path)
         elif file_type == "Epsilons B":
             self.epsilon_B_wavelengths, self.epsilon_B_values = Integration.Import_Epsilons("Spectragryph", file_path)
+        ########################################
+        # elif file_type == "Spectral Data":
+        #     self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = \
+        #         Integration.Import_SpectralData("Spectragryph",file_path, self.wavelength_low, self.wavelength_high, ExpParams.LEDw) #HARDCODED IN THE WRONG PLACE
+        ##!!! SEPARATE LOADING DATA FROM PROCESSING IT
         elif file_type == "Spectral Data":
-            self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = Integration.Import_SpectralData("Spectragryph",
-                                                                                                                            file_path, 
-                                                                                                             self.wavelength_low, 
-                                                                                                             self.wavelength_high, 
-                                                                                                             self.LEDw) #HARDCODED IN THE WRONG PLACE
+            self.SpectralData_Full = \
+                Integration.Import_SpectralData("Spectragryph",file_path) #HARDCODED IN THE WRONG PLACE # STILL??
+        print(f"SpectralData_Full: {self.SpectralData_Full}")
+        ########################################
+        ##!!! ADD in case of .dat format
         # elif file_type == "Log Irr":
         #      self.timestamps = self.GetTimestamps(file_path)
-        ##!!! another format
+
 
     def load_csv(self, file_path, file_type):
         """Load the data file depending on its format (.csv or .dat)."""
@@ -534,19 +576,29 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         if file_type == "LED Emission": ###### A LOT OF PROBLEMS WITH '
             self.emission_wavelengths, self.emission_Intensity = Integration.Import_LEDemission("Not", file_path)
             self.filename_LED = file_path
-            threshold_LED = 500     #!!! HARDCODED IN THE WRONG PLACE ###############################
-            self.emission_Intensity_proc, self.LEDindex_first, self.LEDindex_last, self.wavelength_low, self.wavelength_high = \
-                Integration.Processing_LEDemission(
-                    self.emission_wavelengths, self.emission_Intensity, threshold_LED)
+            
+            # # threshold_LED = 500     #!!! HARDCODED IN THE WRONG PLACE ## NEED IT STILL? 
+            # threshold_LED = ExpParams.threshold
+            # self.emission_Intensity_proc, self.LEDindex_first, self.LEDindex_last, self.wavelength_low, self.wavelength_high = \
+            #     Integration.Processing_LEDemission(
+            #         self.emission_wavelengths, self.emission_Intensity, threshold_LED)
         elif file_type == "Epsilons A":
             self.epsilon_A_wavelengths, self.epsilon_A_values = Integration.Import_Epsilons("Not", file_path)
         elif file_type == "Epsilons B":
             self.epsilon_B_wavelengths, self.epsilon_B_values = Integration.Import_Epsilons("Not", file_path)
+
+        # elif file_type == "Spectral Data":
+        #     self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = \
+        #         Integration.Import_SpectralData("Not", file_path, self.wavelength_low, self.wavelength_high, ExpParams.LEDw) #HARDCODED IN THE WRONG PLACE
         elif file_type == "Spectral Data":
-            self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = Integration.Import_SpectralData("Not", file_path, 
-                                                                                                                        self.wavelength_low, self.wavelength_high, self.LEDw) #HARDCODED IN THE WRONG PLACE
+            self.SpectralData_Full = \
+                Integration.Import_SpectralData("Not", file_path) #HARDCODED IN THE WRONG PLACE # STILL?
+
+
         elif file_type == "Log Irr":
              self.timestamps = self.GetTimestamps(file_path)
+        ##!!! SEPARATE LOADING DATA FROM PROCESSING IT
+
 
     ##DEFINE OUTSIDE OF CLASS    
     def plot_LEDprocessed(self,canvas):
@@ -561,9 +613,23 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             
     def process_LED(self):
         """Process and visualize the data based on the loaded files."""
-        if self.emission_wavelengths is None or self.emission_Intensity is None or self.SpectralData_Abs is None:
+        # if self.emission_wavelengths is None or self.emission_Intensity is None or self.SpectralData_Abs is None:
+        if self.emission_wavelengths is None or self.emission_Intensity is None or self.SpectralData_Full is None:
             QtWidgets.QMessageBox.warning(self, "Error", "Please load LED emission file and Spectra.")
             return
+        
+        ########################################
+        ##!!! MOVED HERE FROM load_dat
+        threshold_LED = ExpParams.threshold
+        self.emission_Intensity_proc, self.LEDindex_first, self.LEDindex_last, self.wavelength_low, self.wavelength_high = \
+            Integration.Processing_LEDemission(
+                self.emission_wavelengths, self.emission_Intensity, threshold_LED)
+        
+        ########################################
+        ## Process Spectral data: cut to part of spectrum according to LED emission band
+        self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = \
+            Integration.Process_SpectralData(self.SpectralData_Full, self.wavelength_low, self.wavelength_high, ExpParams.LEDw)
+        
         self.add_new_tab(self.plot_LEDprocessed, "LED Emission and Spectral Data")
         
         
@@ -588,7 +654,10 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.add_new_tab(plot_func, "Epsilons")
 
     def plot_auto_quant(self, canvas):
-        """Extract quantum yields, calculate concentrations, and plot/save results."""
+        """
+        Calculate quantum yields by numerically solving the differential equations.
+        Then calculate the concentrations, and plot the results.
+        """
         #if not hasattr(self, 'fit_results') or not hasattr(self, 'N'):
         #    QtWidgets.QMessageBox.warning(self, "Error", "Please complete the quantum yield minimization first.")
         #    return
@@ -599,13 +668,21 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
                                         self.epsilon_A_interp, self.emission_interp)
 
         
-        I0_list = self.GetPowerList(self.I0_avg, self.I0_err)   
+        I0_list = self.GetPowerList(ExpParams.I0_avg, ExpParams.I0_err)   
+        # N, fit_results = Integration.MinimizeQYs(I0_list, normalized_emission,
+        #                                         lambda_meters, 
+        #                                         initial_conc_A, initial_conc_B,
+        #                                         self.timestamps, self.SpectralData_Abs,
+        #                                         self.epsilon_A_interp, self.epsilon_B_interp,
+        #                                         self.V)
+
         N, fit_results = Integration.MinimizeQYs(I0_list, normalized_emission,
                                                 lambda_meters, 
                                                 initial_conc_A, initial_conc_B,
                                                 self.timestamps, self.SpectralData_Abs,
                                                 self.epsilon_A_interp, self.epsilon_B_interp,
-                                                self.V)
+                                                ExpParams.V)
+
 
         # Extract results from the fit
         self.QY_AB_opt, self.QY_BA_opt, self.error_QY_AB, self.error_QY_BA = Integration.ExtractResults(fit_results)
@@ -616,7 +693,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
                                                     self.timestamps,
                                                     self.QY_AB_opt, self.QY_BA_opt, 
                                                     self.epsilon_A_interp, self.epsilon_B_interp,
-                                                    N, self.V)
+                                                    N, ExpParams.V)
 
         # Calculate total absorbance and residuals
         self.total_abs_fit, self.residuals = Integration.GetFittedAbs(fit_results, self.conc_opt,
@@ -637,7 +714,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         QtWidgets.QMessageBox.information(self, "Success", "Results extracted, plotted, and saved!")
 
     def Plot_QY(self, canvas):
-        canvas.PlotResults(self.LEDw,
+        canvas.PlotResults(ExpParams.LEDw,
                            self.timestamps,
                            self.conc_opt,
                            self.SpectralData_Abs,
@@ -658,7 +735,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         
         canvas = MplCanvas(self)
         
-        canvas.PlotResults(self.LEDw,
+        canvas.PlotResults(ExpParams.LEDw,
                            self.timestamps,
                            self.conc_opt,
                            self.SpectralData_Abs,
