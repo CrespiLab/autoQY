@@ -23,7 +23,7 @@ GUI TO DO:
 [] add note/message in GUI: use raw (nanometer) data of LED emission
 
 """
-import os
+# import os
 import numpy as np
 import pandas as pd
 from scipy.integrate import trapezoid,odeint
@@ -35,16 +35,6 @@ import matplotlib.gridspec as gridspec
 import autoQuant.ExpParams as ExpParams
 import autoQuant.Constants as Constants
 
-
-# k_BA = 7.240e-7  ####################N.B.: COMMENTED ExpParam
-# h = 6.626e-34           # Planck's constant in J·s
-# c = 299792458           # Speed of light in m/s
-# Avogadro = 6.022e23     # Avogadro's number
-
-############# ANALYSIS PARAMETERS #################
-# threshold_LED = 500     # Threshold for part of spectrum where there is LED emission 
-##!!! make this a user-defined option
-
 ##################################################
 ###################### LED #######################
 ##################################################
@@ -54,11 +44,7 @@ def Import_LEDemission(FileFormat, file_LEDemission_raw):
         emission_data = pd.read_csv(file_LEDemission_raw, sep = '\t', usecols = lambda x: x not in ["Wavenumbers [1/cm]"]) # in nanometers
     elif FileFormat == "Not":
         emission_data = pd.read_csv(file_LEDemission_raw, delimiter=',') # in meters #MISSING DELIMITER ALFREDO
-    
-    #ALFREDO: I think this is not necessary
-    # emission_data.columns = emission_data.columns.str.strip() # Clean up the column names by stripping leading/trailing spaces and invisible characters
 
-    ##!!! DONE INSTEAD: RENAME COLUMNS TO WAVELENGTH AND INTENSITY
     emission_data.columns = ['Wavelength [nm]', 'Intensity'] ## rename columns
 
     emission_wavelengths = emission_data['Wavelength [nm]'].values
@@ -79,11 +65,8 @@ def Processing_LEDemission(wavelengths_LED, intensity_LED, threshold):
     first_index = above_threshold_indices[0]
     last_index = above_threshold_indices[-1]
     
-    # print(f"first_index: {first_index}\nlast_index: {last_index}")
-    
     low = wavelengths_LED[first_index]
     high = wavelengths_LED[last_index]
-    #print(f"wavelength_low: {low}\nwavelength_high: {high}")
     
     return emission_Intensity_proc, first_index, last_index, low, high
     ####################################
@@ -104,10 +87,8 @@ def Import_SpectralData(FileFormat, file):
 
     return data_pd
 
-##!!! MAKE SEPARATE DEF FOR PROCESSING SPECTRAL DATA: to cut it according to the part of the spectrum used of the LED Emission
-
 def Process_SpectralData(data_pd, wl_low, wl_high, wavelength_of_interest):
-    """ Process Spectral Data """
+    """ Process Spectral Data (the spectra recorded during irradiation) """
     # Clean up the first column by splitting space-separated values and selecting the first one
     def clean_column(value):
         if isinstance(value, str):
@@ -118,58 +99,16 @@ def Process_SpectralData(data_pd, wl_low, wl_high, wavelength_of_interest):
     data_pd.iloc[:, 0] = data_pd.iloc[:, 0].apply(clean_column)
     data = data_pd.to_numpy()  # Convert DataFrame to Numpy array
 
-    # Perform operations on the cleaned numeric data
-    #(data)
+    ## Perform operations on the cleaned numeric data
     low = np.argmin(np.abs(data[:, 0].astype(float) - wl_low))
     high = np.argmin(np.abs(data[:, 0].astype(float) - wl_high))
 
     wavelengths_lowhigh = data[low:high, 0]
-    #print(data[low:high, :].shape)
     absorbance_lowhigh = data[low:high, 1:]
-    #print('shape : ', data[low:high, 1:].shape)
 
     index = np.abs(wavelengths_lowhigh - wavelength_of_interest).argmin()
 
-    #print(wavelengths_lowhigh)
-    #print(absorbance_lowhigh)
-
     return wavelengths_lowhigh, absorbance_lowhigh, index
-
-##################################################
-###################### PLOT ######################
-##################################################
-
-# def Plot_LEDemission_Processed_(absorbance, wavelengths,
-#                                em_wl, em_int,
-#                                index_first,index_last,
-#                                em_int_proc):
-#     fig, axdata = plt.subplots(2,1,figsize=(6,6),
-#                                 dpi=600,constrained_layout=True)
-    
-#     print(f"absorbance.shape: {absorbance.shape}")
-    
-#     for i in range(0,absorbance.shape[1]):
-#         axdata[0].plot(wavelengths, absorbance.T[i])
-#         print(i)
-    
-#     for i in axdata:
-#         i.set_xlabel("Wavelength (nm)")
-#         i.set_xlim(220,650)
-    
-#     axdata[0].set_title("Spectral Data")
-#     axdata[0].set_ylabel("Absorbance")
-#     axdata[0].set_ylim(-0.05,2.5)
-    
-#     axdata[1].plot(em_wl,em_int,
-#                     label="Untreated (in this .py file at least)")
-#     axdata[1].plot(em_wl[index_first:index_last],
-#                     em_int_proc[index_first:index_last],
-#                     label="Smoothed, removed zeroes\nand applied threshold")
-#     axdata[1].legend(fontsize=8)
-#     axdata[1].set_title("LED emission")
-#     axdata[1].set_ylabel("Intensity")
-#     plt.show()
-    ####################################
 
 ##################!!! N.B.: COMMENTED TO MERGE WITH MAIN.PY!
 def Import_Epsilons(FileFormat, 
@@ -268,14 +207,10 @@ def CreateParameters(absorbance_values, wavelengths_data,
     initial_conc_B = initial_conc_B_0/100*(100-StartPercentage_A)
 #########################################
 #########################################
-    # epsilon_A = epsilon_A_interp            # array of epsilon_A values
-    # epsilon_B = epsilon_B_interp            # array of epsilon_B values
     total_absorbance = absorbance_values.T  # array of total_absorbance values
-    # time = timestamps
-
     lambda_meters = wavelengths_data * 1e-9  ## Convert to meters
 
-    ## Normalize the emission spectrum to ensure the area under the curve is 1
+    ## Normalize the LED emission spectrum to ensure the area under the curve is 1
     normalized_emission = emission_inter / trapezoid(emission_inter, lambda_meters)
 
     return initial_conc_A, initial_conc_B, total_absorbance, lambda_meters, normalized_emission
@@ -310,7 +245,6 @@ def rate_equations(concentrations, time,
         List with the functions for the changes in concentration over time
 
     """
-    ##!!! ADD K_BA HERE CORRECTLY
     k_BA = ExpParams.k_BA
     
     A, B = concentrations
@@ -382,6 +316,7 @@ def MinimizeQYs(I0_list,
 
 #########################################
 
+##!!! MOVE TO TOOLS
 def ExtractResults(fit_results):
     """ Extract optimised QYs and errors """
     result_lmfit=fit_results[0] ## results using I0_avg
@@ -419,6 +354,7 @@ def ExtractResults(fit_results):
     return QY_AB_opt, QY_BA_opt, error_QY_AB, error_QY_BA
 
 ##################################################
+##!!! MOVE TO TOOLS
 def CalculateConcentrations(lambda_meters, 
                             init_conc_A, init_conc_B,
                             timestamps,

@@ -43,6 +43,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 import autoQuant.Integration as Integration
 import autoQuant.ExpParams as ExpParams
+import autoQuant.SingleWavelength as SingleWavelength
 from tools.power_data import load_powerdata
 from tools.plotting import MplCanvas
 from tools.processing import choose_sections
@@ -215,6 +216,22 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         except ValueError:
             pass
 
+    def update_I0_avg_PP(self):
+        try:
+            # self.I0_avg = float(self.plainTextEdit_3.toPlainText())  # Convert the input to an integer
+            ExpParams.I0_avg = float(self.plainTextEdit_6.toPlainText())  # Convert the input to an integer
+            print(f"Updated I0_avg to {ExpParams.I0_avg}")
+        except ValueError:
+            pass
+
+    def update_I0_err_PP(self):
+        try:
+            # self.I0_err = float(self.plainTextEdit_4.toPlainText())  # Convert the input to an integer
+            ExpParams.I0_err = float(self.plainTextEdit_8.toPlainText())  # Convert the input to an integer
+            print(f"Updated I0_err to {ExpParams.I0_err}")
+        except ValueError:
+            pass
+
     def update_LEDw_SingleWl(self):
         """ For SingleWavelength Mode """
         try:
@@ -254,6 +271,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             self.calculatePowerButton.setEnabled(False)
         
         if self.radioButton_4.isChecked(): # PowerProcessing
+            self.update_I0_avg_PP # set I0_avg to current text in PowerProcessing field
+            self.update_I0_err_PP # set I0_err to current text in PowerProcessing field
             # Disable TextLabel and enable Load button
             self.plainTextEdit_3.setEnabled(False) # turn off Manual Input: Power
             self.plainTextEdit_4.setEnabled(False) # turn off Manual Input: Error
@@ -266,12 +285,14 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             self.plainTextEdit_7.setEnabled(True)
             self.plainTextEdit_5.setEnabled(False)
             self.LoadLED.setEnabled(False)
+            self.CalculationMethod = "SingleWavelength"
 
         if self.radioButton_2.isChecked(): # LED Integration Mode
             self.update_LEDw_Integration # set variable to current text
             self.plainTextEdit_7.setEnabled(False)
             self.plainTextEdit_5.setEnabled(True)
             self.LoadLED.setEnabled(True)
+            self.CalculationMethod = "Integration"
 
     def update_display(self, idx, line_index, new_x):
         self.line_positions[idx][line_index] = new_x 
@@ -555,11 +576,6 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             self.epsilon_A_wavelengths, self.epsilon_A_values = Integration.Import_Epsilons("Spectragryph", file_path)
         elif file_type == "Epsilons B":
             self.epsilon_B_wavelengths, self.epsilon_B_values = Integration.Import_Epsilons("Spectragryph", file_path)
-        ########################################
-        # elif file_type == "Spectral Data":
-        #     self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = \
-        #         Integration.Import_SpectralData("Spectragryph",file_path, self.wavelength_low, self.wavelength_high, ExpParams.LEDw) #HARDCODED IN THE WRONG PLACE
-        ##!!! SEPARATE LOADING DATA FROM PROCESSING IT
         elif file_type == "Spectral Data":
             self.SpectralData_Full = \
                 Integration.Import_SpectralData("Spectragryph",file_path) #HARDCODED IN THE WRONG PLACE # STILL??
@@ -576,36 +592,20 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         if file_type == "LED Emission": ###### A LOT OF PROBLEMS WITH '
             self.emission_wavelengths, self.emission_Intensity = Integration.Import_LEDemission("Not", file_path)
             self.filename_LED = file_path
-            
-            # # threshold_LED = 500     #!!! HARDCODED IN THE WRONG PLACE ## NEED IT STILL? 
-            # threshold_LED = ExpParams.threshold
-            # self.emission_Intensity_proc, self.LEDindex_first, self.LEDindex_last, self.wavelength_low, self.wavelength_high = \
-            #     Integration.Processing_LEDemission(
-            #         self.emission_wavelengths, self.emission_Intensity, threshold_LED)
         elif file_type == "Epsilons A":
             self.epsilon_A_wavelengths, self.epsilon_A_values = Integration.Import_Epsilons("Not", file_path)
         elif file_type == "Epsilons B":
             self.epsilon_B_wavelengths, self.epsilon_B_values = Integration.Import_Epsilons("Not", file_path)
-
-        # elif file_type == "Spectral Data":
-        #     self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = \
-        #         Integration.Import_SpectralData("Not", file_path, self.wavelength_low, self.wavelength_high, ExpParams.LEDw) #HARDCODED IN THE WRONG PLACE
         elif file_type == "Spectral Data":
             self.SpectralData_Full = \
-                Integration.Import_SpectralData("Not", file_path) #HARDCODED IN THE WRONG PLACE # STILL?
-
+                Integration.Import_SpectralData("Not", file_path)
 
         elif file_type == "Log Irr":
              self.timestamps = self.GetTimestamps(file_path)
-        ##!!! SEPARATE LOADING DATA FROM PROCESSING IT
-
 
     ##DEFINE OUTSIDE OF CLASS    
     def plot_LEDprocessed(self,canvas):
             
-        # print(f"self.SpectralData_Abs: {self.SpectralData_Abs}")
-        # print(f"self.SpectralData_Wavelengths: {self.SpectralData_Wavelengths}")
-        
         canvas.Plot_LEDemission_Processed(self.SpectralData_Abs, self.SpectralData_Wavelengths,
             self.emission_wavelengths, self.emission_Intensity,
             self.LEDindex_first, self.LEDindex_last, 
@@ -613,23 +613,35 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             
     def process_LED(self):
         """Process and visualize the data based on the loaded files."""
-        # if self.emission_wavelengths is None or self.emission_Intensity is None or self.SpectralData_Abs is None:
-        if self.emission_wavelengths is None or self.emission_Intensity is None or self.SpectralData_Full is None:
-            QtWidgets.QMessageBox.warning(self, "Error", "Please load LED emission file and Spectra.")
-            return
         
-        ########################################
-        ##!!! MOVED HERE FROM load_dat
-        threshold_LED = ExpParams.threshold
-        self.emission_Intensity_proc, self.LEDindex_first, self.LEDindex_last, self.wavelength_low, self.wavelength_high = \
-            Integration.Processing_LEDemission(
-                self.emission_wavelengths, self.emission_Intensity, threshold_LED)
+        if self.CalculationMethod == "Integration":
+            
+            if self.emission_wavelengths is None or self.emission_Intensity is None or self.SpectralData_Full is None:
+                QtWidgets.QMessageBox.warning(self, "Error", "Please load LED emission file and Spectra.")
+                return
+            
+            ########################################
+            threshold_LED = ExpParams.threshold
+            self.emission_Intensity_proc, self.LEDindex_first, self.LEDindex_last, self.wavelength_low, self.wavelength_high = \
+                Integration.Processing_LEDemission(
+                    self.emission_wavelengths, self.emission_Intensity, threshold_LED)
+            
+            ########################################
+            ## Process Spectral data: cut to part of spectrum according to LED emission band
+            self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = \
+                Integration.Process_SpectralData(self.SpectralData_Full, self.wavelength_low, self.wavelength_high, ExpParams.LEDw)
+            
+        ##!!! ADD CODE TO PLOT SPECTRA AND ONLY INDICATE EITHER
+            ## PART OF SPECTRUM
+            ## VERTICAL LINE: SINGLE WAVELENGTH
         
-        ########################################
-        ## Process Spectral data: cut to part of spectrum according to LED emission band
-        self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = \
-            Integration.Process_SpectralData(self.SpectralData_Full, self.wavelength_low, self.wavelength_high, ExpParams.LEDw)
+        elif self.CalculationMethod == "SingleWavelength":
+            ##!!! DO SOMETHING
+            print("something")
+        else:
+            QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the self.CalculationMethod variable")
         
+        #############
         self.add_new_tab(self.plot_LEDprocessed, "LED Emission and Spectral Data")
         
         
@@ -662,28 +674,38 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         #    QtWidgets.QMessageBox.warning(self, "Error", "Please complete the quantum yield minimization first.")
         #    return
 
-        # Create parameters needed for fitting
-        initial_conc_A, initial_conc_B, total_absorbance, lambda_meters, normalized_emission = \
-            Integration.CreateParameters(self.SpectralData_Abs, self.SpectralData_Wavelengths,
-                                        self.epsilon_A_interp, self.emission_interp)
+        I0_list = self.GetPowerList(ExpParams.I0_avg, ExpParams.I0_err) # obtain the three values for I0
 
-        
-        I0_list = self.GetPowerList(ExpParams.I0_avg, ExpParams.I0_err)   
-        # N, fit_results = Integration.MinimizeQYs(I0_list, normalized_emission,
-        #                                         lambda_meters, 
-        #                                         initial_conc_A, initial_conc_B,
-        #                                         self.timestamps, self.SpectralData_Abs,
-        #                                         self.epsilon_A_interp, self.epsilon_B_interp,
-        #                                         self.V)
+        if self.CalculationMethod == "Integration":
+            # Create parameters needed for fitting
+            initial_conc_A, initial_conc_B, total_absorbance, lambda_meters, normalized_emission = \
+                Integration.CreateParameters(self.SpectralData_Abs, self.SpectralData_Wavelengths,
+                                            self.epsilon_A_interp, self.emission_interp)
+    
+            
+            N, fit_results = Integration.MinimizeQYs(I0_list, normalized_emission,
+                                                    lambda_meters, 
+                                                    initial_conc_A, initial_conc_B,
+                                                    self.timestamps, self.SpectralData_Abs,
+                                                    self.epsilon_A_interp, self.epsilon_B_interp,
+                                                    ExpParams.V)
 
-        N, fit_results = Integration.MinimizeQYs(I0_list, normalized_emission,
-                                                lambda_meters, 
-                                                initial_conc_A, initial_conc_B,
-                                                self.timestamps, self.SpectralData_Abs,
-                                                self.epsilon_A_interp, self.epsilon_B_interp,
-                                                ExpParams.V)
+        elif self.CalculationMethod == "SingleWavelength":
+            ##!!! WORKING ON THIS
+            
+            # Create parameters needed for fitting
+            initial_conc_A, initial_conc_B, total_absorbance, lambda_meters = \
+                SingleWavelength.CreateParameters(self.SpectralData_Abs, self.SpectralData_Wavelengths, ExpParams.epsilon_R)
+            
+            SingleWavelength.MinimizeQYs
+            
+        else:
+            QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the self.CalculationMethod variable")
+            
 
 
+        ######################################################################
+        ##!!! MOVE TO SEPARATE PY SCRIPT (TOOLS OR SOMETHING)
         # Extract results from the fit
         self.QY_AB_opt, self.QY_BA_opt, self.error_QY_AB, self.error_QY_BA = Integration.ExtractResults(fit_results)
 
@@ -700,14 +722,18 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
                                                             self.epsilon_A_interp, self.epsilon_B_interp,
                                                             self.timestamps,
                                                             self.SpectralData_Wavelengths)
-        # print('##########################',self.timestamps)
+        
+        ######################################################################
         
         ## Update labels
-        self.textEdit_QY_RtoP.setText(f"{self.QY_AB_opt:.3f}")
-        self.textEdit_QY_PtoR.setText(f"{self.QY_BA_opt:.3f}")
+        self.textEdit_QY_RtoP.setText(f"{self.QY_AB_opt:.3f}") # optimised QY R to P
+        self.textEdit_QY_PtoR.setText(f"{self.QY_BA_opt:.3f}") # optimised QY P to R
         
-        self.textEdit_PSS_R.setText(f"{self.PSS_Reactant:.1f}")
-        self.textEdit_PSS_P.setText(f"{self.PSS_Product:.1f}")
+        self.textEdit_QYerror_RtoP.setText(f"{self.error_QY_AB:.3f}") # error R to P
+        self.textEdit_QYerror_PtoR.setText(f"{self.error_QY_BA:.3f}") # error P to R
+        
+        self.textEdit_PSS_R.setText(f"{self.PSS_Reactant:.1f}") # %R at PSS
+        self.textEdit_PSS_P.setText(f"{self.PSS_Product:.1f}") # %P at PSS
         
         # Plot and save the results
         self.add_new_tab(self.Plot_QY, "QY")
@@ -744,8 +770,11 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
                            self.residuals,
                            self.QY_AB_opt, self.QY_BA_opt,
                            self.error_QY_AB, self.error_QY_BA,
+                           self.CalculationMethod,
                            SaveResults = "Yes",
                            SaveFileName = savefilename)
+
+        ##!!! ADD: output a "Results" file containing all the used parameters and the obtained results
 
         QtWidgets.QMessageBox.information(self, "Success", f"{savefilename} file saved successfully!")
 

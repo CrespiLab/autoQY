@@ -311,6 +311,7 @@ class MplCanvas(FigureCanvas):
                     residuals,
                     QY_AB_opt, QY_BA_opt, 
                     error_QY_AB, error_QY_BA,
+                    CalculationMethod,
                     SaveResults = "No",
                     SaveFileName = ""):
         
@@ -322,7 +323,8 @@ class MplCanvas(FigureCanvas):
 
         gs = gridspec.GridSpec(4, 2, figure=self.fig)
         
-        self.fig.suptitle(f'{LEDwavelength} nm irradiation: Integration Method')
+        # self.fig.suptitle(f'{LEDwavelength} nm irradiation: Integration Method')
+        self.fig.suptitle(f'{LEDwavelength} nm irradiation: {CalculationMethod} Method')
         
         ##################################################
         axresults_conc = self.fig.add_subplot(gs[0:3, 0])
@@ -380,7 +382,7 @@ class MplCanvas(FigureCanvas):
         #################### SAVE ########################
         ##################################################
         if SaveResults == "Yes":
-            savefilename = SaveFileName
+            savefilename = SaveFileName+f"_{CalculationMethod}"
             self.fig.savefig(savefilename+".svg",bbox_inches="tight")
             self.fig.savefig(savefilename+".png",bbox_inches="tight")
             print("Saved plots")
