@@ -1783,6 +1783,11 @@
                <height>30</height>
               </size>
              </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
             </widget>
            </item>
           </layout>
@@ -1814,6 +1819,11 @@
                <width>60</width>
                <height>30</height>
               </size>
+             </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
              </property>
             </widget>
            </item>

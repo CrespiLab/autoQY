@@ -1,0 +1,8 @@
+V = 2 ml
+k_PtoR = 0 s-1
+I0_avg: 2.9611267501957443 mW
+I0_err: 0.0029134073389196356 mW
+
+At 395 nm:
+- epsilon_A = 8563 ## Molar absorptivity of A at wavelength in M-1 cm-1 ## Jacob's
+- epsilon_B = 4467 ## Molar absorptivity of B at wavelength in M-1 cm-1 ## Jacob's

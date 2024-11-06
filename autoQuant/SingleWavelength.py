@@ -13,9 +13,9 @@ TO DO:
 
 """
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
+# import pandas as pd
+# import matplotlib.pyplot as plt
+# import matplotlib.gridspec as gridspec
 from scipy.integrate import odeint
 from lmfit import Model, Parameters
 
@@ -115,25 +115,30 @@ def find_closest_index(array_2d, target_value):
     return closest_index
 
 
-def CreateParameters(absorbance_data,wavelengths_data,
+def CreateParameters(absorbance_data,LEDw_nm,
                      epsilon_R):
-
-    index=find_closest_index(absorbance_data, wavelengths_data)
+    """ 
+    Find the Absorbance values at the wavelength of interest (LEDw)
+    """
+    print(f"CreateParameters absorbance_data:\n {absorbance_data}")
+    
+    index=find_closest_index(absorbance_data, LEDw_nm)
     absorbance_values = absorbance_data[index, 1:]
     
     ## Initial concentration of A (based on the first experimental value)
     initial_conc_R = absorbance_values[0] / epsilon_R
     initial_conc_P = 0.0
 
-    total_absorbance = absorbance_values.T  # array of total_absorbance values
-    lambda_meters = wavelengths_data * 1e-9  ## Convert to meters
+    # total_absorbance = absorbance_values.T  # array of total_absorbance values
+    # lambda_meters = wavelengths_data * 1e-9  ## Convert to meters
 
-    return initial_conc_R, initial_conc_P, total_absorbance, lambda_meters
+    return initial_conc_R, initial_conc_P, absorbance_values #, lambda_meters
 
 
 
 #%% CALCULATE QYs, PLOT AND SAVE
-def rate_equations(concentrations, time, 
+def rate_equations(init_conc_R, init_conc_P,
+                   time, 
                    QY_AB, QY_BA,
                    epsilon_R, epsilon_P,
                    N, V):
@@ -159,7 +164,8 @@ def rate_equations(concentrations, time,
 
     """
     k_BA = ExpParams.k_BA
-    A, B = concentrations
+    A = init_conc_R
+    B = init_conc_P
     total_absorbance = A * epsilon_R + B * epsilon_P
 
     dAdt = (N/V) * ((1 - 10 ** (-total_absorbance ))/total_absorbance) \
@@ -170,7 +176,10 @@ def rate_equations(concentrations, time,
     return [dAdt, dBdt]
 
 
-def absorbance_func(time, QY_AB, QY_BA, initial_concentrations): 
+def absorbance_func(time, QY_AB, QY_BA, 
+                    initial_concentration_A, initial_concentration_B,
+                    epsilon_R, epsilon_P,
+                    N, V): 
     """
     Calculating concentrations and then converting to absorbance to match 
     the output of the experimental data
@@ -193,39 +202,66 @@ def absorbance_func(time, QY_AB, QY_BA, initial_concentrations):
         Ordinary Differential Equation to solve
 
     """
-    initial_concentration_A, initial_concentration_B = initial_concentrations
-    concentrations_ode = odeint(rate_equations, initial_concentrations, time, 
-                                args = (QY_AB, QY_BA) )
-    total_absorbance_ode = concentrations_ode[:, 0] * epsilon_A \
-                            + concentrations_ode[:, 1] * epsilon_B
+    # initial_concentration_A, initial_concentration_B = initial_concentrations
+    
+    # concentrations_ode = odeint(rate_equations, 
+    #                             initial_concentration_A, initial_concentration_B,
+    #                             time, 
+    #                             args = (QY_AB, QY_BA) )
+    
+    concentrations_ode = odeint(rate_equations, 
+                                initial_concentration_A, initial_concentration_B,
+                                time, 
+                                args = (QY_AB, QY_BA,
+                                        epsilon_R, epsilon_P,
+                                        N, V)
+                                )
+    
+    total_absorbance_ode = concentrations_ode[:, 0] * epsilon_R \
+                            + concentrations_ode[:, 1] * epsilon_P
+    
     return total_absorbance_ode
 
+def MinimizeQYs(I0_list,
+                LEDw_nm, 
+                init_conc_A, init_conc_B,
+                timestamps, absorbance_values,
+                epsilon_R, epsilon_P,
+                V):
+        
+    h = Constants.h
+    c = Constants.c
+    Avogadro = Constants.Avogadro
     
-I0_list=[I0_avg, I0_avg+I0_err, I0_avg-I0_err]
-fit_results=[]
-
-# Solve for the QYs for each of photon fluxes
-for I0 in I0_list:
-    I0_watt = I0 * 1e-6                              # Convert to watts
-    lambda_meters = wavelength_nm * 1e-9             # Convert to meters
-    N = I0_watt/(h*c/lambda_meters)/Avogadro * 1000  # Photon flux in mmol/s
+    fit_results=[]
     
-    # Creating a model from the absorbance function
-    absorbance_model=Model(absorbance_func, 
-                           independent_vars=['time', 'initial_concentrations'])
-    
-    params = Parameters()
-    params.add('QY_AB', value=0.5, min=0, max=1) ## with boundaries
-    params.add('QY_BA', value=0.5, min=0, max=1) ## with boundaries
-    
-    # Fitting the data with the parameters
-    result_lmfit=absorbance_model.fit(absorbance_values, params, 
-                                        time=timestamps, 
-                                        initial_concentrations=initial_conc)
-    print(f"Results for I0={I0} mW: ")
-    print(result_lmfit.fit_report())
-    print("\n")
-    fit_results.append(result_lmfit)
+    # Solve for the QYs for each of photon fluxes
+    for I0 in I0_list:
+        I0_watt = I0 * 1e-6                              # Convert to watts
+        LEDw_meters = LEDw_nm * 1e-9             # Convert to meters
+        N = I0_watt/(h*c/LEDw_meters)/Avogadro * 1000  # Photon flux in mmol/s
+        
+        # Creating a model from the absorbance function
+        absorbance_model=Model(absorbance_func, 
+                               independent_vars=['time', 'initial_concentrations'])
+        
+        params = Parameters()
+        params.add('QY_AB', value=0.5, min=0, max=1) ## with boundaries
+        params.add('QY_BA', value=0.5, min=0, max=1) ## with boundaries
+        
+        # Fitting the data with the parameters
+        result_lmfit=absorbance_model.fit(absorbance_values, params, 
+                                            time = timestamps, 
+                                            initial_concentration_A = init_conc_A,
+                                            initial_concentration_B = init_conc_B,
+                                            epsilon_R = epsilon_R, epsilon_P = epsilon_P,
+                                            N = N, V = V)
+        
+        # print(f"Results for I0={I0} mW: ")
+        # print(result_lmfit.fit_report())
+        # print("\n")
+        
+        fit_results.append(result_lmfit)
 
 #####################################################
 ############ RETRIEVE PARAMETERS ####################

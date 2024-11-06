@@ -207,13 +207,13 @@ def CreateParameters(absorbance_values, wavelengths_data,
     initial_conc_B = initial_conc_B_0/100*(100-StartPercentage_A)
 #########################################
 #########################################
-    total_absorbance = absorbance_values.T  # array of total_absorbance values
+    # total_absorbance = absorbance_values.T  # array of total_absorbance values
     lambda_meters = wavelengths_data * 1e-9  ## Convert to meters
 
     ## Normalize the LED emission spectrum to ensure the area under the curve is 1
     normalized_emission = emission_inter / trapezoid(emission_inter, lambda_meters)
 
-    return initial_conc_A, initial_conc_B, total_absorbance, lambda_meters, normalized_emission
+    return initial_conc_A, initial_conc_B, lambda_meters, normalized_emission
 
 def rate_equations(concentrations, time, 
                    lambda_meters,
