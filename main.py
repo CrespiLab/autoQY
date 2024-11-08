@@ -43,10 +43,12 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 import autoQuant.Integration as Integration
 import autoQuant.ExpParams as ExpParams
+import autoQuant.LoadedData as LoadedData
 import autoQuant.SingleWavelength as SingleWavelength
 from tools.power_data import load_powerdata
 from tools.plotting import MplCanvas
-from tools.processing import choose_sections
+from tools.baseline_power import choose_sections
+import tools.extractresults as ExtractResults
 #from tools.style import apply_dark_theme
 from scipy.optimize import curve_fit #change in baseline correction
 
@@ -179,11 +181,12 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.baseline_corrected_data = None
         self.filename_LED = None
 
-        #self.radioButton_3.setEnabled(True) # Power Manual: default enabled in qt.ui    
+        self.radioButton_3.setEnabled(True) # Power Manual: default enabled
         self.loadDataButton.setEnabled(False) # default Manual Power input
         self.baselineCorrectionButton.setEnabled(False) # default Manual Power input
         self.calculatePowerButton.setEnabled(False) # default Manual Power input
-        #self.radioButton_2.setEnabled(False) # Irradiation Integration: default enabled in qt.ui
+        
+        self.radioButton_2.setEnabled(True) # Irradiation Integration: default 
         self.LoadLED.setEnabled(True) # default Integration Mode
 
     # Update methods for the parameters
@@ -464,6 +467,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         # n = 6
         # p0 = np.full(n, 0.000000001)
         
+        ##!!! USE FUNCTION FROM baseline.py INSTEAD
+        
         # Polynomial fit (n = 3)
         n = 3  # Degree of polynomial for baseline correction
         p0 = np.full(n + 1, 0.000000001)  # Initial guess of baseline coefficients
@@ -603,9 +608,9 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         elif file_type == "Epsilons B":
             self.epsilon_B_wavelengths, self.epsilon_B_values = Integration.Import_Epsilons("Spectragryph", file_path)
         elif file_type == "Spectral Data":
-            self.SpectralData_Full = \
+            LoadedData.SpectralData_Full = \
                 Integration.Import_SpectralData("Spectragryph",file_path) #HARDCODED IN THE WRONG PLACE # STILL??
-        # print(f"load_dat SpectralData_Full: {self.SpectralData_Full}")
+        # print(f"load_dat SpectralData_Full: {LoadedData.SpectralData_Full}")
         ########################################
         ##!!! ADD in case of .dat format
         # elif file_type == "Log Irr":
@@ -623,7 +628,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         elif file_type == "Epsilons B":
             self.epsilon_B_wavelengths, self.epsilon_B_values = Integration.Import_Epsilons("Not", file_path)
         elif file_type == "Spectral Data":
-            self.SpectralData_Full = \
+            LoadedData.SpectralData_Full = \
                 Integration.Import_SpectralData("Not", file_path)
 
         elif file_type == "Log Irr":
@@ -641,8 +646,12 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         """Process and visualize the data based on the loaded files."""
         
         if self.CalculationMethod == "Integration":
-            if self.emission_wavelengths is None or self.emission_Intensity is None or self.SpectralData_Full is None:
+            if self.emission_wavelengths is None or self.emission_Intensity is None or LoadedData.SpectralData_Full is None:
                 QtWidgets.QMessageBox.warning(self, "Error", "Please load LED emission file and Spectra.")
+                return
+            
+            if ExpParams.LEDw is None:
+                QtWidgets.QMessageBox.warning(self, "Error", "Please set Wavelength (nm).")
                 return
             
             ########################################
@@ -654,21 +663,21 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             ########################################
             ## Process Spectral data: cut to part of spectrum according to LED emission band
             self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = \
-                Integration.Process_SpectralData(self.SpectralData_Full, self.wavelength_low, self.wavelength_high, ExpParams.LEDw)
+                Integration.Process_SpectralData(LoadedData.SpectralData_Full, self.wavelength_low, self.wavelength_high, ExpParams.LEDw)
         
         ##!!! ADJUST CODE TO PLOT SPECTRA AND ONLY INDICATE 
             ## PART OF SPECTRUM
             self.add_new_tab(self.plot_LEDprocessed, "LED Emission and Spectral Data")
         
         elif self.CalculationMethod == "SingleWavelength":
-            if self.SpectralData_Full is None:
+            if LoadedData.SpectralData_Full is None:
                 QtWidgets.QMessageBox.warning(self, "Error", "Please load Spectra.")
                 return
 
 
         ##!!! WORKING ON IT HERE NOT FINISHED YET AAAHHH
             self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = \
-                SingleWavelength.Process_SpectralData(self.SpectralData_Full, self.wavelength_low, self.wavelength_high, ExpParams.LEDw)
+                SingleWavelength.Process_SpectralData(LoadedData.SpectralData_Full, self.wavelength_low, self.wavelength_high, ExpParams.LEDw)
 
             ##!!! ADJUST CODE TO PLOT SPECTRA AND ONLY INDICATE EITHER
                 ## VERTICAL LINE: SINGLE WAVELENGTH
@@ -746,7 +755,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         ######################################################################
         ##!!! MOVE TO SEPARATE PY SCRIPT (TOOLS OR SOMETHING)
         # Extract results from the fit
-        self.QY_AB_opt, self.QY_BA_opt, self.error_QY_AB, self.error_QY_BA = Integration.ExtractResults(fit_results)
+        # self.QY_AB_opt, self.QY_BA_opt, self.error_QY_AB, self.error_QY_BA = Integration.ExtractResults(fit_results)
+        self.QY_AB_opt, self.QY_BA_opt, self.error_QY_AB, self.error_QY_BA = ExtractResults.ExtractResults(fit_results)
 
         # Calculate optimized concentrations
         self.conc_opt, self.PSS_Reactant, self.PSS_Product = Integration.CalculateConcentrations(spectraldata_meters,
