@@ -620,67 +620,77 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
     def load_file(self, file_type):
         """Load a file (LED emission, spectral data, epsilons) based on the file type."""
-        options = QtWidgets.QFileDialog.Options()
+        try:
+            options = QtWidgets.QFileDialog.Options()
 
-        # File dialog for selecting files
-        file_name, _ = QtWidgets.QFileDialog.getOpenFileName(self, 
-                                                             f"Load {file_type} File", "",
-                                                             "CSV, DAT Files (*.csv *dat);;DAT Files (*.dat);;All Files (*)", 
-                                                             options=options)
-        if not file_name:
-            QtWidgets.QMessageBox.warning(self, "Error", f"No {file_type} file selected")
-            return
+            # File dialog for selecting files
+            file_name, _ = QtWidgets.QFileDialog.getOpenFileName(self, 
+                                                                f"Load {file_type} File", "",
+                                                                "CSV, DAT Files (*.csv *dat);;DAT Files (*.dat);;All Files (*)", 
+                                                                options=options)
+            if not file_name:
+                QtWidgets.QMessageBox.warning(self, "Error", f"No {file_type} file selected")
+                return
 
-        ##################################################
-        ## Move Load to .utils
-        ##################################################
-        # Store the file path in the appropriate attribute based on the file type
-        file_ext = os.path.splitext(file_name)[1].lower()
-        if file_ext == '.csv':
-            self.load_csv(file_name, file_type)
-        elif file_ext == '.dat':
-            self.load_dat(file_name, file_type)
-        else:
-            QtWidgets.QMessageBox.warning(self, "Error", f"Unknown file type: {file_type}")
+            ##################################################
+            ## Move Load to .utils
+            ##################################################
+            # Store the file path in the appropriate attribute based on the file type
+            file_ext = os.path.splitext(file_name)[1].lower()
+            if file_ext == '.csv':
+                self.load_csv(file_name, file_type)
+            elif file_ext == '.dat':
+                self.load_dat(file_name, file_type)
+            else:
+                QtWidgets.QMessageBox.warning(self, "Error", f"Unknown file type: {file_type}")
 
-        QtWidgets.QMessageBox.information(self, "Success", f"{file_type} file loaded successfully!")
+            QtWidgets.QMessageBox.information(self, "Success", f"{file_type} file loaded successfully!")
+        except Exception as e:
+                QtWidgets.QMessageBox.critical(self, "Error", f"Failed to load {file_type} file: {e}")
 
     def load_dat(self, file_path, file_type):
         """Load the data file depending on its format (.csv or .dat)."""
-        if file_type == "LED Emission":
-            self.emission_wavelengths, self.emission_Intensity = Integration.Import_LEDemission("Spectragryph", file_path)
-            self.filename_LED = file_path
-            
-        elif file_type == "Epsilons A":
-            self.epsilon_A_wavelengths, self.epsilon_A_values = Integration.Import_Epsilons("Spectragryph", file_path)
-        elif file_type == "Epsilons B":
-            self.epsilon_B_wavelengths, self.epsilon_B_values = Integration.Import_Epsilons("Spectragryph", file_path)
-        elif file_type == "Spectral Data":
-            LoadedData.SpectralData_Full = \
-                Integration.Import_SpectralData("Spectragryph",file_path) #HARDCODED IN THE WRONG PLACE # STILL??
-        # print(f"load_dat SpectralData_Full: {LoadedData.SpectralData_Full}")
-        ########################################
-        ##!!! ADD in case of .dat format
-        # elif file_type == "Log Irr":
-        #      self.timestamps = self.GetTimestamps(file_path)
-
+        try:
+            if file_type == "LED Emission":
+                self.emission_wavelengths, self.emission_Intensity = Integration.Import_LEDemission("Spectragryph", file_path)
+                self.filename_LED = file_path
+                
+            elif file_type == "Epsilons A":
+                self.epsilon_A_wavelengths, self.epsilon_A_values = Integration.Import_Epsilons("Spectragryph", file_path)
+            elif file_type == "Epsilons B":
+                self.epsilon_B_wavelengths, self.epsilon_B_values = Integration.Import_Epsilons("Spectragryph", file_path)
+            elif file_type == "Spectral Data":
+                LoadedData.SpectralData_Full = \
+                    Integration.Import_SpectralData("Spectragryph",file_path) #HARDCODED IN THE WRONG PLACE # STILL??
+            # print(f"load_dat SpectralData_Full: {LoadedData.SpectralData_Full}")
+            ########################################
+            ##!!! ADD in case of .dat format
+            # elif file_type == "Log Irr":
+            #      self.timestamps = self.GetTimestamps(file_path)
+            else:
+                    raise ValueError(f"Unknown file type: {file_type}")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"Failed to process .dat file for {file_type}: {e}")
 
     def load_csv(self, file_path, file_type):
         """Load the data file depending on its format (.csv or .dat)."""
-        
-        if file_type == "LED Emission": ###### A LOT OF PROBLEMS WITH '
-            self.emission_wavelengths, self.emission_Intensity = Integration.Import_LEDemission("Not", file_path)
-            self.filename_LED = file_path
-        elif file_type == "Epsilons A":
-            self.epsilon_A_wavelengths, self.epsilon_A_values = Integration.Import_Epsilons("Not", file_path)
-        elif file_type == "Epsilons B":
-            self.epsilon_B_wavelengths, self.epsilon_B_values = Integration.Import_Epsilons("Not", file_path)
-        elif file_type == "Spectral Data":
-            LoadedData.SpectralData_Full = \
-                Integration.Import_SpectralData("Not", file_path)
-
-        elif file_type == "Log Irr":
-             self.timestamps = self.GetTimestamps(file_path)
+        try:       
+            if file_type == "LED Emission": ###### A LOT OF PROBLEMS WITH '
+                self.emission_wavelengths, self.emission_Intensity = Integration.Import_LEDemission("Not", file_path)
+                self.filename_LED = file_path
+            elif file_type == "Epsilons A":
+                self.epsilon_A_wavelengths, self.epsilon_A_values = Integration.Import_Epsilons("Not", file_path)
+            elif file_type == "Epsilons B":
+                self.epsilon_B_wavelengths, self.epsilon_B_values = Integration.Import_Epsilons("Not", file_path)
+            elif file_type == "Spectral Data":
+                LoadedData.SpectralData_Full = \
+                    Integration.Import_SpectralData("Not", file_path)
+            elif file_type == "Log Irr":
+                self.timestamps = self.GetTimestamps(file_path)
+            else:
+                    raise ValueError(f"Unknown file type: {file_type}")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"Failed to process .csv file for {file_type}: {e}")
 
     ##DEFINE OUTSIDE OF CLASS    
     def plot_LEDprocessed(self,canvas):
