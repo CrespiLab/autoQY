@@ -55,6 +55,18 @@ from scipy.optimize import curve_fit #change in baseline correction
 def fit_func(x, *coeffs):  #not used
     return np.polyval(coeffs, x)
 
+class PlotWindow(QtWidgets.QDialog):
+    """A separate window for plotting."""
+    def __init__(self, plot_widget, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Plot Window")
+        self.resize(800, 600)
+
+        # Layout to hold the plot
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(plot_widget)
+        self.setLayout(layout)
+
 class PowerProcessingApp(QtWidgets.QMainWindow):
         ############################
         #Error Handling  ***********
@@ -339,7 +351,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             self.loaded_powerdata.append((self.x, self.RefPower))
 
             if self.RefPower is not None and self.x is not None:
-                self.add_new_tab(self.plot_power_data, f"Power Data {self.count+1}", self.count)
+                self.add_new_window(self.plot_power_data, f"Power Data {self.count+1}", self.count)
             self.count += 1
 
     def load_and_validate_data(self, file_name):
@@ -349,7 +361,43 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             print("Failed to load data.")
         return x, RefPower
 
-    def add_new_tab(self, plot_func, title, idx=None, *args):
+    def add_new_window(self, plot_func, title="New Plot", idx=None, *args):
+        """Open a new standalone window with the given plot widget."""
+        # Create a new window widget
+        window = QtWidgets.QWidget()
+        window.setWindowTitle(title)
+
+        # Create a layout for the window
+        layout = QtWidgets.QVBoxLayout()
+        window.setLayout(layout)
+
+        # Create the custom MplCanvas
+        canvas = MplCanvas(self, idx)  # Pass idx for initialization
+
+        # Create a navigation toolbar
+        toolbar = NavigationToolbar(canvas, self)
+
+        # Add the toolbar and canvas to the layout
+        layout.addWidget(toolbar)  # Toolbar at the top
+        layout.addWidget(canvas)   # Canvas below the toolbar
+
+        # Call the plotting function to populate the canvas
+        if idx is not None:
+            print(f'plot nr {idx + 1}')  # Start from 1
+            plot_func(canvas, idx, *args)  # Pass idx only if provided
+        else:
+            print('plot nr None')
+            plot_func(canvas, *args)  # No idx passed
+
+        # Show the window
+        window.show()
+
+        # Keep a reference to the window to prevent it from being garbage collected
+        if not hasattr(self, "_open_windows"):
+            self._open_windows = []  # Create a list to store open windows
+        self._open_windows.append(window)  # Store the window
+
+    def add_new_tab(self, plot_func, title):#, idx=None, *args):
         """Create a new tab with a plot and a navigation toolbar."""
         tab = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout()  # Use QVBoxLayout to stack toolbar and canvas vertically
@@ -367,13 +415,13 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         tab.setLayout(layout)
 
         # Call the plotting function to plot on the canvas
-        if idx is not None:
-            print(f'plot nr {idx+1}') # start from 1
-            plot_func(canvas, idx, *args)  # Pass idx only if it's provided
-            #self.tabWidget.tabCloseRequested.connect(self.close_tab,idx)
-        else:
-            print('plot nr None')
-            plot_func(canvas, *args)  # Don't pass idx if it's None
+        #if idx is not None:
+        #    print(f'plot nr {idx+1}') # start from 1
+        #    plot_func(canvas, idx, *args)  # Pass idx only if it's provided
+        #    #self.tabWidget.tabCloseRequested.connect(self.close_tab,idx)
+        #else:
+        #    print('plot nr None')
+        #    plot_func(canvas, *args)  # Don't pass idx if it's None
 
         # Add the new tab to the tab widget
         self.tabWidget.addTab(tab, title)
@@ -432,10 +480,10 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         # Iterate over each loaded dataset using the saved idx (self.count)
         for idx in range(len(self.loaded_powerdata)):
             # Baseline correction: no jacket, no cuvette
-            self.add_new_tab(self.plot_baseline_corrected_no, f"Bl corr: no jacket, no cuv {idx+1}", idx)
+            self.add_new_window(self.plot_baseline_corrected_no, f"Bl corr: no jacket, no cuv {idx+1}", idx)
             
             # Baseline correction: jacket, cuvette with solvent
-            self.add_new_tab(self.plot_baseline_corrected_yes, f"Bl corr: jacket, cuv+solvent {idx+1}", idx)
+            self.add_new_window(self.plot_baseline_corrected_yes, f"Bl corr: jacket, cuv+solvent {idx+1}", idx)
 
     def calculate_baseline_and_power_no(self, x, RefPower, sections):
         """Calculate baseline and baseline-corrected power."""
