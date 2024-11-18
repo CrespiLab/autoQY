@@ -116,6 +116,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.wavelength_high = None
         self.epsilon_A_interp = None
         self.epsilon_B_interp = None
+        
+        self.CalculationMethod = None # default Calculation Method
 
         # Button connections
         self.loadDataButton.clicked.connect(self.load_power)
