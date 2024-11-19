@@ -430,8 +430,6 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             # Make tabs closable
             self.tabWidget.setTabsClosable(True)
 
-            # Connect the tab close request to a custom method to handle closing
-            self.tabWidget.tabCloseRequested.connect(self.close_tab)
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Error", f"Failed to add new tab: {e}")
 
