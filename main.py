@@ -365,97 +365,76 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
     def add_new_window(self, plot_func, title="New Plot", idx=None, *args):
         """Open a new standalone window with the given plot widget."""
-        # Create a new window widget
-        window = QtWidgets.QWidget()
-        window.setWindowTitle(title)
+        try:
+            # Create a new window widget
+            window = QtWidgets.QWidget()
+            window.setWindowTitle(title)
 
-        # Create a layout for the window
-        layout = QtWidgets.QVBoxLayout()
-        window.setLayout(layout)
+            # Create a layout for the window
+            layout = QtWidgets.QVBoxLayout()
+            window.setLayout(layout)
 
-        # Create the custom MplCanvas
-        canvas = MplCanvas(self, idx)  # Pass idx for initialization
+            # Create the custom MplCanvas
+            canvas = MplCanvas(self, idx)  # Pass idx for initialization
 
-        # Create a navigation toolbar
-        toolbar = NavigationToolbar(canvas, self)
+            # Create a navigation toolbar
+            toolbar = NavigationToolbar(canvas, self)
 
-        # Add the toolbar and canvas to the layout
-        layout.addWidget(toolbar)  # Toolbar at the top
-        layout.addWidget(canvas)   # Canvas below the toolbar
+            # Add the toolbar and canvas to the layout
+            layout.addWidget(toolbar)  # Toolbar at the top
+            layout.addWidget(canvas)   # Canvas below the toolbar
 
-        # Call the plotting function to populate the canvas
-        if idx is not None:
-            print(f'plot nr {idx + 1}')  # Start from 1
-            plot_func(canvas, idx, *args)  # Pass idx only if provided
-        else:
-            print('plot nr None')
-            plot_func(canvas, *args)  # No idx passed
+            # Call the plotting function to populate the canvas
+            if idx is not None:
+                print(f'plot nr {idx + 1}')  # Start from 1
+                plot_func(canvas, idx, *args)  # Pass idx only if provided
+            else:
+                print('plot nr None')
+                plot_func(canvas, *args)  # No idx passed
 
-        # Show the window
-        window.show()
+            # Show the window
+            window.show()
 
-        # Keep a reference to the window to prevent it from being garbage collected
-        if not hasattr(self, "_open_windows"):
-            self._open_windows = []  # Create a list to store open windows
-        self._open_windows.append(window)  # Store the window
+            # Keep a reference to the window to prevent it from being garbage collected
+            if not hasattr(self, "_open_windows"):
+                self._open_windows = []  # Create a list to store open windows
+            self._open_windows.append(window)  # Store the window
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"Failed to create new window: {e}")
 
-    def add_new_tab(self, plot_func, title):#, idx=None, *args):
+    def add_new_tab(self, plot_func, title):  # , idx=None, *args
         """Create a new tab with a plot and a navigation toolbar."""
-        tab = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout()  # Use QVBoxLayout to stack toolbar and canvas vertically
+        try:
+            tab = QtWidgets.QWidget()
+            layout = QtWidgets.QVBoxLayout()  # Use QVBoxLayout to stack toolbar and canvas vertically
 
-        # Create the custom MplCanvas, passing idx
-        canvas = MplCanvas(self)  # Now idx will be passed correctly
+            # Create the custom MplCanvas
+            canvas = MplCanvas(self)  # idx not required in this implementation
 
-        # Create the navigation toolbar for the canvas
-        toolbar = NavigationToolbar(canvas, self)
+            # Create the navigation toolbar for the canvas
+            toolbar = NavigationToolbar(canvas, self)
 
-        # Add the toolbar and canvas to the layout
-        layout.addWidget(toolbar)  # Add the toolbar at the top
-        layout.addWidget(canvas)   # Add the canvas (plot area) below the toolbar
+            # Add the toolbar and canvas to the layout
+            layout.addWidget(toolbar)  # Add the toolbar at the top
+            layout.addWidget(canvas)   # Add the canvas (plot area) below the toolbar
 
-        tab.setLayout(layout)
+            tab.setLayout(layout)
 
-        # Call the plotting function to plot on the canvas
-        #if idx is not None:
-        #    print(f'plot nr {idx+1}') # start from 1
-        #    plot_func(canvas, idx, *args)  # Pass idx only if it's provided
-        #    #self.tabWidget.tabCloseRequested.connect(self.close_tab,idx)
-        #else:
-        #    print('plot nr None')
-        #    plot_func(canvas, *args)  # Don't pass idx if it's None
+            # Call the plotting function to populate the canvas
+            # idx functionality removed as it's unused in this version
+            plot_func(canvas)
 
-        # Add the new tab to the tab widget
-        self.tabWidget.addTab(tab, title)
-        # Make tabs closable
-        self.tabWidget.setTabsClosable(True)
+            # Add the new tab to the tab widget
+            self.tabWidget.addTab(tab, title)
 
-        # Connect the tab close request to a custom method to handle closing
-        self.tabWidget.tabCloseRequested.connect(self.close_tab)
-        ##!!! ADD CODE: FORGET LOADED DATA upon closing tab
+            # Make tabs closable
+            self.tabWidget.setTabsClosable(True)
 
-    def close_tab(self, index):
-        """Handle the tab close request."""
-        # Get the tab to be closed
-        tab = self.tabWidget.widget(index)
+            # Connect the tab close request to a custom method to handle closing
+            self.tabWidget.tabCloseRequested.connect(self.close_tab)
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"Failed to add new tab: {e}")
 
-        # Handle any cleanup for idx and loaded data
-        if hasattr(tab, 'idx') and tab.idx is not None:
-            idx = tab.idx
-            print(f"Closing tab with idx: {idx}")
-
-            # Remove idx and loaded data
-            if idx in self.idx:
-                self.idx.remove(idx)  # Remove idx from self.idx list
-                print(f"Removed idx: {idx} from self.idx")
-            
-            if idx in self.loaded_powerdata:
-                self.loaded_powerdata[idx] = None# Remove the corresponding data from loaded_powerdata
-                self.line_positions[idx] = None
-                print(f"Removed data for idx: {idx} from loaded_powerdata")
-        
-        # Remove the tab
-        self.tabWidget.removeTab(index)
 
     def plot_power_data(self, canvas, idx):
         """Plot the loaded data using the MplCanvas."""
