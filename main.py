@@ -117,7 +117,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.epsilon_A_interp = None
         self.epsilon_B_interp = None
         
-        self.CalculationMethod = None # default Calculation Method
+        self.CalculationMethod = "Integration" # default Calculation Method
 
         # Button connections
         self.loadDataButton.clicked.connect(self.load_power)
@@ -405,7 +405,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         layout = QtWidgets.QVBoxLayout()  # Use QVBoxLayout to stack toolbar and canvas vertically
 
         # Create the custom MplCanvas, passing idx
-        canvas = MplCanvas(self, idx)  # Now idx will be passed correctly
+        canvas = MplCanvas(self)  # Now idx will be passed correctly
 
         # Create the navigation toolbar for the canvas
         toolbar = NavigationToolbar(canvas, self)
