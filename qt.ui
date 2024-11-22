@@ -1116,24 +1116,6 @@
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_7">
            <item>
-            <widget class="QPushButton" name="baselineCorrectionButton">
-             <property name="maximumSize">
-              <size>
-               <width>125</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>10</pointsize>
-              </font>
-             </property>
-             <property name="text">
-              <string>Baseline Correction</string>
-             </property>
-            </widget>
-           </item>
-           <item>
             <widget class="QPushButton" name="loadDataButton">
              <property name="maximumSize">
               <size>
@@ -1148,6 +1130,24 @@
              </property>
              <property name="text">
               <string>Load Data</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="baselineCorrectionButton">
+             <property name="maximumSize">
+              <size>
+               <width>125</width>
+               <height>25</height>
+              </size>
+             </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
+             <property name="text">
+              <string>Baseline Correction</string>
              </property>
             </widget>
            </item>
@@ -1264,24 +1264,6 @@
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_8">
            <item>
-            <widget class="QPushButton" name="baselineCorrectionButton_2">
-             <property name="maximumSize">
-              <size>
-               <width>125</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>10</pointsize>
-              </font>
-             </property>
-             <property name="text">
-              <string>Baseline Correction</string>
-             </property>
-            </widget>
-           </item>
-           <item>
             <widget class="QPushButton" name="loadDataButton_2">
              <property name="maximumSize">
               <size>
@@ -1296,6 +1278,24 @@
              </property>
              <property name="text">
               <string>Load Data</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="baselineCorrectionButton_2">
+             <property name="maximumSize">
+              <size>
+               <width>125</width>
+               <height>25</height>
+              </size>
+             </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
+             <property name="text">
+              <string>Baseline Correction</string>
              </property>
             </widget>
            </item>
@@ -1412,24 +1412,6 @@
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_11">
            <item>
-            <widget class="QPushButton" name="baselineCorrectionButton_3">
-             <property name="maximumSize">
-              <size>
-               <width>125</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>10</pointsize>
-              </font>
-             </property>
-             <property name="text">
-              <string>Baseline Correction</string>
-             </property>
-            </widget>
-           </item>
-           <item>
             <widget class="QPushButton" name="loadDataButton_3">
              <property name="maximumSize">
               <size>
@@ -1444,6 +1426,24 @@
              </property>
              <property name="text">
               <string>Load Data</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="baselineCorrectionButton_3">
+             <property name="maximumSize">
+              <size>
+               <width>125</width>
+               <height>25</height>
+              </size>
+             </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
+             <property name="text">
+              <string>Baseline Correction</string>
              </property>
             </widget>
            </item>
@@ -2244,7 +2244,7 @@
  <connections/>
  <buttongroups>
   <buttongroup name="buttonGroup_3"/>
-  <buttongroup name="buttonGroup_2"/>
   <buttongroup name="buttonGroup"/>
+  <buttongroup name="buttonGroup_2"/>
  </buttongroups>
 </ui>

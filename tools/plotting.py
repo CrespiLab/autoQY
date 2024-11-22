@@ -32,7 +32,7 @@ class MplCanvas(FigureCanvas):
         self.ax.plot(x, RefPower,alpha=0.5,color='black',label="Power")
         self.ax.set_ylabel("Power (mW)")
         self.ax.set_xlabel("Index")
-        self.ax.set_title(filename)
+        self.ax.set_title(filename.split("/")[-1])
 
         #############################
         ## Adding initial vertical lines
@@ -158,7 +158,8 @@ class MplCanvas(FigureCanvas):
 #        self.draw()  # Render the plot
 #
 #
-    def plot_baseline_correction(self, x, RefPower, baseline, baselined, sections, case):
+    def plot_baseline_correction(self, x, RefPower, baseline, baselined, sections,
+                                 case, filename):
         """Plot baseline-corrected power for both cases."""
         self.fig.clear()  # Clear the entire figure
         
@@ -168,7 +169,7 @@ class MplCanvas(FigureCanvas):
             # First plot (ax1) will be the original power and baseline
             ax1 = self.fig.add_subplot(gs[0])
 
-            ax1.set_title('Baseline corrected - No Jacket, No Cuvette')
+            ax1.set_title(f'{filename.split("/")[-1]}\nNo Jacket and No Cuvette')
 
             # Plot original power and baseline for no jacket, no cuvette
             ax1.plot(x[sections["start_0"]:sections["start_2"]],
@@ -193,7 +194,7 @@ class MplCanvas(FigureCanvas):
 
         elif case == 1:
             ax1 = self.fig.add_subplot(gs[0])
-            ax1.set_title('Baseline corrected - Jacket, Cuvette with Solvent')
+            ax1.set_title(f'{filename.split("/")[-1]}\nWith Jacket and Cuvette with Solvent')
 
             # Plot original power and baseline for jacket, cuvette with solvent
             ax1.plot(x[sections["end_1"]:sections["end_4"]],
