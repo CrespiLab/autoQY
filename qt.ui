@@ -1569,7 +1569,7 @@
              </property>
              <property name="maximumSize">
               <size>
-               <width>135</width>
+               <width>160</width>
                <height>25</height>
               </size>
              </property>
@@ -1579,7 +1579,7 @@
               </font>
              </property>
              <property name="text">
-              <string>Calculate Total Power</string>
+              <string>Calculate Averaged Power</string>
              </property>
             </widget>
            </item>
@@ -2243,8 +2243,8 @@
  <resources/>
  <connections/>
  <buttongroups>
-  <buttongroup name="buttonGroup_3"/>
-  <buttongroup name="buttonGroup"/>
   <buttongroup name="buttonGroup_2"/>
+  <buttongroup name="buttonGroup"/>
+  <buttongroup name="buttonGroup_3"/>
  </buttongroups>
 </ui>
