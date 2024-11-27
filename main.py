@@ -100,12 +100,11 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.CalculationMethod = "Integration" # default Calculation Method
 
         ## Button connections
-        self.loadDataButton.clicked.connect(self.OpenWindow_PowerProcessing) 
-            ##!!! ADD ARGUMENT: to store results, re-name window title, etc.
-        
-        # self.loadDataButton_2.clicked.connect(self.load_power) 
-        # self.loadDataButton_3.clicked.connect(self.load_power) 
-        
+        ##!!! SOMEHOW ADD ARGUMENT: to store results, re-name window title, etc.            
+        self.loadDataButton.clicked.connect(self.OpenWindow_PowerProcessing_1)
+        self.loadDataButton_2.clicked.connect(self.OpenWindow_PowerProcessing_2)
+        self.loadDataButton_3.clicked.connect(self.OpenWindow_PowerProcessing_3)
+
         # self.baselineCorrectionButton.clicked.connect(self.baseline_correction) ##!!! MOVE TO PowerProcessing Window
         
         self.calculatePowerButton.clicked.connect(self.calculate_total_power) ## Calculates average power+error
@@ -316,8 +315,21 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             self.LoadLED.setEnabled(True)
             self.CalculationMethod = "Integration"
 
-    def OpenWindow_PowerProcessing(self):
+    def OpenWindow_PowerProcessing_1(self):
         """Load the power data from a file and plot it in a new window."""
+        LoadedData.count = 1
+        self.window_PP = WindowPowerProcessing.WindowPowerProcessing() # load Class that includes loadUi
+        self.window_PP.show()
+
+    def OpenWindow_PowerProcessing_2(self):
+        """Load the power data from a file and plot it in a new window."""
+        LoadedData.count = 2
+        self.window_PP = WindowPowerProcessing.WindowPowerProcessing() # load Class that includes loadUi
+        self.window_PP.show()
+
+    def OpenWindow_PowerProcessing_3(self):
+        """Load the power data from a file and plot it in a new window."""
+        LoadedData.count = 3
         self.window_PP = WindowPowerProcessing.WindowPowerProcessing() # load Class that includes loadUi
         self.window_PP.show()
 
@@ -354,104 +366,6 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
     ############################################################################################################
     ############################ plot_sections ############################
     ############################################################################################################
-
-    # def baseline_correction(self):
-    #     """Apply baseline correction to each loaded dataset and create a new tab for each."""
-    #     if not self.loaded_powerdata:
-    #         QtWidgets.QMessageBox.warning(self, "Error", "No data loaded")
-    #         return
-
-    #     # Iterate over each loaded dataset using the saved idx (LoadedData.count)
-    #     for idx in range(len(self.loaded_powerdata)):
-    #         # Baseline correction: no jacket, no cuvette
-    #         # self.add_new_window(self.plot_baseline_corrected_no, f"Baseline correction: No Jacket and No Cuvette (Power Data {idx+1})", idx)
-    #         self.add_new_tab_PowerData(self.plot_baseline_corrected_no, f"Baseline correction: No Jacket and No Cuvette (Power Data {idx+1})", idx)
-            
-    #         # Baseline correction: jacket, cuvette with solvent
-    #         # self.add_new_window(self.plot_baseline_corrected_yes, f"Baseline correction: With Jacket and Cuvette with Solvent (Power Data {idx+1})", idx)
-    #         self.add_new_tab_PowerData(self.plot_baseline_corrected_yes, f"Baseline correction: With Jacket and Cuvette with Solvent (Power Data {idx+1})", idx)
-
-    # def calculate_baseline_and_power_no(self, x, Power, sections):
-    #     """Calculate baseline and baseline-corrected power."""
-    #     # Baseline correction: no jacket, no cuvette
-    #     x_masked = np.concatenate((x[sections["start_0"]:sections["end_0"]], x[sections["start_0_1"]:sections["end_0_1"]]))
-    #     y_masked = np.concatenate((Power[sections["start_0"]:sections["end_0"]], Power[sections["start_0_1"]:sections["end_0_1"]]))
-    #     x_masked = x_masked[~np.isnan(y_masked)]
-    #     y_masked = y_masked[~np.isnan(y_masked)]
-
-    #     # Polynomial fit (n = 3)
-    #     n = 3
-    #     p0 = np.full(n, 0.000000001)
-    #     popt, _ = curve_fit(BaselinePower.fit_func, x_masked, y_masked, p0=p0)
-    #     baseline_1 = np.polyval(popt, x)
-    #     baselined_1 = Power - baseline_1
-
-    #     section_on_no = baselined_1[sections["start_1"]:sections["end_1"]]
-
-    #     return baselined_1, baseline_1, section_on_no
-    
-    # def calculate_baseline_and_power_yes(self, x, Power, sections):
-    #     # Baseline correction: jacket, cuvette with solvent
-    #     x_masked = np.concatenate((x[sections["start_2"]:sections["end_2"]], x[sections["start_4"]:sections["end_4"]]))
-    #     y_masked = np.concatenate((Power[sections["start_2"]:sections["end_2"]], Power[sections["start_4"]:sections["end_4"]]))
-    #     x_masked = x_masked[~np.isnan(y_masked)]
-    #     y_masked = y_masked[~np.isnan(y_masked)]
-
-    #     # Polynomial fit (n = 6) 
-    #     # n = 6
-    #     # p0 = np.full(n, 0.000000001)
-        
-    #     # Polynomial fit (n = 3)
-    #     n = 3  # Degree of polynomial for baseline correction
-    #     p0 = np.full(n + 1, 0.000000001)  # Initial guess of baseline coefficients
-
-        
-    #     popt, _ = curve_fit(BaselinePower.fit_func, x_masked, y_masked, p0=p0)
-    #     baseline_2 = np.polyval(popt, x)
-    #     baselined_2 = Power - baseline_2
-
-    #     section_on_yes = baselined_2[sections["start_3"]:sections["end_3"]]
-    #     # power_std = np.nanstd(baselined_2[sections["start_3"]:sections["end_3"]])
-
-    #     return baselined_2, baseline_2, section_on_yes
-
-    # def plot_baseline_corrected_no(self, canvas, idx):
-    #     case = 0 # no cuvette
-    #     x, Power = self.loaded_powerdata[idx]
-    #     line_positions = self.line_positions[idx]
-        
-    #     if len(line_positions) != 12: # Ensure 12 positions are selected
-    #         QtWidgets.QMessageBox.warning(self, "Error", "You need to select exactly 12 line positions.")
-    #         return
-    #     #if idx == 1:
-    #         # Proceed with baseline correction
-    #     sections = BaselinePower.choose_sections(line_positions)
-    #     baselined, baseline, section_on_no = self.calculate_baseline_and_power_no(x, Power, sections)#baseline_correction(Power, x, sections)
-        
-    #     self.all_corrected_power.append(section_on_no) # power values LED ON, no cuvette, no jacket
-        
-    #     """Plot the baseline-corrected data."""
-    #     canvas.plot_baseline_correction(x, Power, baseline, baselined, sections,
-    #                                     case, LoadedData.filename_power)
-
-
-    # def plot_baseline_corrected_yes(self, canvas, idx):
-    #     case = 1 # yes cuvette
-    #     x, Power = self.loaded_powerdata[idx]
-    #     line_positions = self.line_positions[idx]
-        
-    #     if len(line_positions) != 12: # Ensure 12 positions are selected
-    #         QtWidgets.QMessageBox.warning(self, "Error", "You need to select exactly 12 line positions.")
-    #         return
-
-    #     sections = BaselinePower.choose_sections(line_positions)
-    #     baselined, baseline, section_on_yes = self.calculate_baseline_and_power_yes(x, Power, sections) #baseline_correction(Power, x, sections)
-
-    #     self.all_corrected_power.append(section_on_yes) # power values LED ON, yes cuvette, yes jacket
-        
-    #     """Plot the baseline-corrected data."""
-    #     canvas.plot_baseline_correction(x, Power, baseline, baselined, sections,
-    #                                     case, LoadedData.filename_power)
 
     def calculate_total_power(self):
         """Calculate the total power and standard deviation from all baseline-corrected data."""

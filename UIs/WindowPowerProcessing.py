@@ -26,11 +26,16 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         uic.loadUi('UIs/WindowPowerProcessing.ui', self)  # Load the UI file you provided
         
         
+        self.x = None
+        self.Power = None
+        self.loaded_powerdata = [] 
+        self.power_baselined_noyes = []
+        
         self.line_positions = [] ## list of line positions (this is the parent window of MplCanvas in plotting.py)
         
-        ##!!! ELABORATE THIS WINDOW WITH BUTTONS: BASELINE CORR; CALCULATE POWER
+        ##!!! ELABORATE THIS WINDOW WITH BUTTONS: CALCULATE POWER
 
-        # self.WindowPP_baselineCorrectionButton.clicked.connect(self.)
+        self.WindowPP_baselineCorrectionButton.clicked.connect(self.baseline_correction)
         
         
         options = QtWidgets.QFileDialog.Options()
@@ -62,15 +67,27 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
     def load_power(self,file_name):
         """Load the data from a file and plot it in a new window."""
         if file_name:
-            LoadedData.filename_power = file_name
-            LoadedData.x, LoadedData.Power = self.load_and_validate_data(LoadedData.filename_power)
+            # LoadedData.filename_power = file_name
+            # LoadedData.x, LoadedData.Power = self.load_and_validate_data(LoadedData.filename_power)
             
-            # Save x and Power without overwriting
-            LoadedData.loaded_powerdata.append((LoadedData.x, LoadedData.Power))
+            self.filename_power = file_name
+            self.x, self.Power = self.load_and_validate_data(self.filename_power)
+            
+            ## Save x and Power without overwriting
+            # LoadedData.loaded_powerdata.append((LoadedData.x, LoadedData.Power))
+            self.loaded_powerdata.append((self.x, self.Power))
+
+
+            if self.Power is not None and self.x is not None:
+                self.add_new_tab_PowerData(self.plot_power_data, f"Power Data {LoadedData.count}", LoadedData.count)
+            
+            print(f"WPP-load_power===LoadedData.count:{LoadedData.count}")
+            
+            # LoadedData.count += 1
     
-            if LoadedData.Power is not None and LoadedData.x is not None:
-                self.add_new_tab_PowerData(self.plot_power_data, f"Power Data {LoadedData.count+1}", LoadedData.count)
-            LoadedData.count += 1
+            # if LoadedData.Power is not None and LoadedData.x is not None:
+            #     self.add_new_tab_PowerData(self.plot_power_data, f"Power Data {LoadedData.count+1}", LoadedData.count)
+            # LoadedData.count += 1
     
     def add_new_tab_PowerData(self, plot_func, title, idx=None, *args):
         """Create a new tab with a plot and a navigation toolbar."""
@@ -92,7 +109,7 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
 
             # Call the plotting function to populate the canvas
             if idx is not None:
-                print(f'plot nr {idx + 1}')  # Start from 1
+                print(f'plot nr {idx}')  # Start from 1
                 plot_func(canvas, idx, *args)  # Pass idx only if provided
             else:
                 print('plot nr None')
@@ -109,13 +126,19 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
     
     def plot_power_data(self,canvas, idx):
         """Plot the loaded data using the MplCanvas."""
-        if LoadedData.x is None or LoadedData.Power is None:
+        # if LoadedData.x is None or LoadedData.Power is None:
+        #     QtWidgets.QMessageBox.warning("Error", "No data loaded")
+        #     return
+
+        if self.x is None or self.Power is None:
             QtWidgets.QMessageBox.warning("Error", "No data loaded")
             return
         
         self.line_positions.extend([[0] * 12 for _ in range(idx - len(self.line_positions) + 1)])
         ### Use the plot_power method from MplCanvas
-        canvas.plot_power(LoadedData.x, LoadedData.Power, LoadedData.filename_power)
+        
+        # canvas.plot_power(LoadedData.x, LoadedData.Power, LoadedData.filename_power)
+        canvas.plot_power(self.x, self.Power, self.filename_power)
         self.line_positions[idx] = self.get_sorted_line_positions(canvas)
     
     def get_sorted_line_positions(self,canvas):
@@ -128,7 +151,7 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         if self.line_positions is not None:
             self.line_positions[idx][line_index] = new_x 
         else:
-            print("LoadedData.line_positions is empty")
+            print("self.line_positions is empty")
 
     ############################################################################################################
     ############################ BASELINE CORRECTION ############################
@@ -143,14 +166,69 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         ##!!! HERE: ADD NEW TAB IN POWERDATA-WINDOW
 
         # Iterate over each loaded dataset using the saved idx (LoadedData.count)
-        for idx in range(len(self.loaded_powerdata)):
-            # Baseline correction: no jacket, no cuvette
-            # self.add_new_window(self.plot_baseline_corrected_no, f"Baseline correction: No Jacket and No Cuvette (Power Data {idx+1})", idx)
-            self.add_new_tab_PowerData(self.plot_baseline_corrected_no, f"Baseline correction: No Jacket and No Cuvette (Power Data {idx+1})", idx)
+        print(f"WPP-baseline_correction===len(self.loaded_powerdata):{len(self.loaded_powerdata)}")
+        # for idx in range(len(self.loaded_powerdata)):
+        #     ## Baseline correction: no jacket, no cuvette
+        #     self.add_new_tab_PowerData(self.plot_baseline_corrected_no, f"Baseline correction: No Jacket and No Cuvette (Power Data {idx+1})", idx)
             
-            # Baseline correction: jacket, cuvette with solvent
-            # self.add_new_window(self.plot_baseline_corrected_yes, f"Baseline correction: With Jacket and Cuvette with Solvent (Power Data {idx+1})", idx)
-            self.add_new_tab_PowerData(self.plot_baseline_corrected_yes, f"Baseline correction: With Jacket and Cuvette with Solvent (Power Data {idx+1})", idx)
+        #     # Baseline correction: jacket, cuvette with solvent
+        #     self.add_new_tab_PowerData(self.plot_baseline_corrected_yes, f"Baseline correction: With Jacket and Cuvette with Solvent (Power Data {idx+1})", idx)
+
+        self.add_new_tab_PowerData(self.plot_baseline_corrected_no, f"Baseline correction {LoadedData.count}: No Jacket and No Cuvette", LoadedData.count)
+        print("WPP-baseline_correction===after self.plot_baseline_corrected_no")
+        self.add_new_tab_PowerData(self.plot_baseline_corrected_yes, f"Baseline correction {LoadedData.count}: With Jacket and Cuvette with Solvent", LoadedData.count)
+
+    def plot_baseline_corrected_no(self, canvas, idx):
+        
+        # print(f"WPP-plot_baseline_corrected_no===self.loaded_powerdata:{self.loaded_powerdata}")
+        # print(f"WPP-plot_baseline_corrected_no===self.loaded_powerdata[0]:{self.loaded_powerdata[0]}")
+
+        case = 0 # no cuvette
+        # x, Power = self.loaded_powerdata[idx]
+        # line_positions = self.line_positions[idx]
+
+        # print(f"WPP-plot_baseline_corrected_no===self.line_positions:{self.line_positions}")
+        # print(f"WPP-plot_baseline_corrected_no===self.line_positions[1]:{self.line_positions[1]}")
+        
+        x, Power = self.loaded_powerdata[0]
+        # print(f"WPP-plot_baseline_corrected_no===x:{x}")
+        # print(f"WPP-plot_baseline_corrected_no===Power:{Power}")
+
+        line_positions = self.line_positions[1]
+        
+        if len(line_positions) != 12: # Ensure 12 positions are selected
+            QtWidgets.QMessageBox.warning(self, "Error", "You need to select exactly 12 line positions.")
+            return
+        #if idx == 1:
+            # Proceed with baseline correction
+        sections = BaselinePower.choose_sections(line_positions)
+        baselined, baseline, section_on_no = self.calculate_baseline_and_power_no(x, Power, sections)#baseline_correction(Power, x, sections)
+        
+        self.power_baselined_noyes.append(section_on_no) # power values LED ON, no cuvette, no jacket
+        
+        """Plot the baseline-corrected data."""
+        canvas.plot_baseline_correction(x, Power, baseline, baselined, sections,
+                                        case, self.filename_power)
+
+
+    def plot_baseline_corrected_yes(self, canvas, idx):
+    ##!!! MOVE TO WindowPowerProcessing.py
+        case = 1 # yes cuvette
+        x, Power = self.loaded_powerdata[0]
+        line_positions = self.line_positions[1]
+        
+        if len(line_positions) != 12: # Ensure 12 positions are selected
+            QtWidgets.QMessageBox.warning(self, "Error", "You need to select exactly 12 line positions.")
+            return
+
+        sections = BaselinePower.choose_sections(line_positions)
+        baselined, baseline, section_on_yes = self.calculate_baseline_and_power_yes(x, Power, sections) #baseline_correction(Power, x, sections)
+
+        self.power_baselined_noyes.append(section_on_yes) # power values LED ON, yes cuvette, yes jacket
+        
+        """Plot the baseline-corrected data."""
+        canvas.plot_baseline_correction(x, Power, baseline, baselined, sections,
+                                        case, self.filename_power)
 
     def calculate_baseline_and_power_no(self, x, Power, sections):
         """Calculate baseline and baseline-corrected power."""
@@ -170,24 +248,17 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         section_on_no = baselined_1[sections["start_1"]:sections["end_1"]]
 
         return baselined_1, baseline_1, section_on_no
-    
+
     def calculate_baseline_and_power_yes(self, x, Power, sections):
         # Baseline correction: jacket, cuvette with solvent
         x_masked = np.concatenate((x[sections["start_2"]:sections["end_2"]], x[sections["start_4"]:sections["end_4"]]))
         y_masked = np.concatenate((Power[sections["start_2"]:sections["end_2"]], Power[sections["start_4"]:sections["end_4"]]))
         x_masked = x_masked[~np.isnan(y_masked)]
         y_masked = y_masked[~np.isnan(y_masked)]
-
-        # Polynomial fit (n = 6) ##!!! Jorn: why did you change n, Alfredo?
-        # n = 6
-        # p0 = np.full(n, 0.000000001)
-        
-        ##!!! USE FUNCTION FROM baseline.py INSTEAD
         
         # Polynomial fit (n = 3)
         n = 3  # Degree of polynomial for baseline correction
         p0 = np.full(n + 1, 0.000000001)  # Initial guess of baseline coefficients
-
         
         popt, _ = curve_fit(BaselinePower.fit_func, x_masked, y_masked, p0=p0)
         baseline_2 = np.polyval(popt, x)
@@ -197,45 +268,4 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         # power_std = np.nanstd(baselined_2[sections["start_3"]:sections["end_3"]])
 
         return baselined_2, baseline_2, section_on_yes
-
-    def plot_baseline_corrected_no(self, canvas, idx):
-    ##!!! MOVE TO WindowPowerProcessing.py
-        
-        case = 0 # no cuvette
-        x, Power = self.loaded_powerdata[idx]
-        line_positions = self.line_positions[idx]
-        
-        if len(line_positions) != 12: # Ensure 12 positions are selected
-            QtWidgets.QMessageBox.warning(self, "Error", "You need to select exactly 12 line positions.")
-            return
-        #if idx == 1:
-            # Proceed with baseline correction
-        sections = BaselinePower.choose_sections(line_positions)
-        baselined, baseline, section_on_no = self.calculate_baseline_and_power_no(x, Power, sections)#baseline_correction(Power, x, sections)
-        
-        self.all_corrected_power.append(section_on_no) # power values LED ON, no cuvette, no jacket
-        
-        """Plot the baseline-corrected data."""
-        canvas.plot_baseline_correction(x, Power, baseline, baselined, sections,
-                                        case, LoadedData.filename_power)
-
-
-    def plot_baseline_corrected_yes(self, canvas, idx):
-    ##!!! MOVE TO WindowPowerProcessing.py
-        case = 1 # yes cuvette
-        x, Power = self.loaded_powerdata[idx]
-        line_positions = self.line_positions[idx]
-        
-        if len(line_positions) != 12: # Ensure 12 positions are selected
-            QtWidgets.QMessageBox.warning(self, "Error", "You need to select exactly 12 line positions.")
-            return
-
-        sections = BaselinePower.choose_sections(line_positions)
-        baselined, baseline, section_on_yes = self.calculate_baseline_and_power_yes(x, Power, sections) #baseline_correction(Power, x, sections)
-
-        self.all_corrected_power.append(section_on_yes) # power values LED ON, yes cuvette, yes jacket
-        
-        """Plot the baseline-corrected data."""
-        canvas.plot_baseline_correction(x, Power, baseline, baselined, sections,
-                                        case, LoadedData.filename_power)
 
