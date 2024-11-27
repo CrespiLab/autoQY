@@ -69,10 +69,7 @@ class MplCanvas(FigureCanvas):
         blue = ['blue']
         colours = red + blue + red*2 + blue + red  # Extend colors if needed
 
-        # Ensure line_positions is initialized for the given idx
-        
-        print(f"plotting-update_boxes === self.idx:{self.idx} and type:{type(self.idx)}")
-        
+        ## Ensure line_positions is initialized for the given idx
         if self.idx is not None:
             if len(self.parent_window.line_positions) <= self.idx:
                 # Initialize with default positions if idx is out of range
@@ -80,42 +77,24 @@ class MplCanvas(FigureCanvas):
             
             line_positions = self.parent_window.line_positions[self.idx]
 
-            print(f"plotting-update_boxes === self.idx is not None. self.idx: {self.idx}")
-
-            # if len(LoadedData.line_positions) <= self.idx:
-            #     print(f"plotting-update_boxes-iflen === len: {len(LoadedData.line_positions)}")
-            #     # print("plotting-update_boxes === self.idx is not None")
-                
-            #     # Initialize with default positions if idx is out of range
-            #     LoadedData.line_positions.append([0] * 12)
-            
-            
-            # print(f"plotting-update_boxes-ifselfidx === LoadedData.line_positions: {LoadedData.line_positions}")
-            # print(f"plotting-update_boxes-ifselfidx === LoadedData.line_positions[self.idx]: {LoadedData.line_positions[self.idx]}")
-            # line_positions = LoadedData.line_positions[self.idx]
-            
         else:
             line_positions = self.line_positions
 
-        # Create new boxes based on updated line positions
-        print(f"plotting-update_boxes === line_positions: {line_positions}")
-        
+        ## Create new boxes based on updated line positions
         for i in range(0, len(line_positions) - 1, 2):
             box = self.ax.axvspan(line_positions[i], 
                                 line_positions[i+1], 
                                 color=colours[int(i/2)], alpha=0.1)
             self.boxes.append(box)
 
-        # Redraw the canvas to reflect changes
+        ## Redraw the canvas to reflect changes
         self.draw()
-
-
 
     def on_press(self, event):
         if event.inaxes != self.ax:
             return
 
-        # Check if the mouse is near any line
+        ## Check if the mouse is near any line
         for line in self.lines:
             if line.contains(event)[0]:
                 self.selected_line = line
@@ -136,23 +115,17 @@ class MplCanvas(FigureCanvas):
 
         # Update the corresponding label and line position variable with the new x position
         line_index = self.lines.index(self.selected_line)
-        print(f"ON_MOTION === self.idx:{self.idx}")
         self.parent_window.update_display(self.idx, line_index, new_x)  # Pass self.idx here
-        
-        ##!!! CHANGE ALL TO LoadedData.line_positions??
         
         self.parent_window.line_positions[self.idx][line_index] = new_x  # Update using self.idx
         self.line_positions[line_index] = new_x
-        #print(self.parent_window.line_positions)
-        #print('test')
+
         ## Update the boxes
         self.update_boxes()
-
 
     def on_release(self, event):
         self.selected_line = None
         self.press_event = None
-
 
 
     def plot_baseline_correction(self, x, RefPower, baseline, baselined, sections,
