@@ -56,20 +56,20 @@ import tools.extractresults as ExtractResults
 #from tools.style import apply_dark_theme
 from scipy.optimize import curve_fit #change in baseline correction
 
-def fit_func(x, *coeffs):  #not used
+def fit_func(x, *coeffs):  #not used; Jorn: it is used, though, right?
     return np.polyval(coeffs, x)
 
-class PlotWindow(QtWidgets.QDialog):
-    """A separate window for plotting."""
-    def __init__(self, plot_widget, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Plot Window")
-        self.resize(800, 600)
+# class PlotWindow(QtWidgets.QDialog):
+#     """A separate window for plotting."""
+#     def __init__(self, plot_widget, parent=None):
+#         super().__init__(parent)
+#         self.setWindowTitle("Plot Window")
+#         self.resize(800, 600)
 
-        # Layout to hold the plot
-        layout = QtWidgets.QVBoxLayout()
-        layout.addWidget(plot_widget)
-        self.setLayout(layout)
+#         # Layout to hold the plot
+#         layout = QtWidgets.QVBoxLayout()
+#         layout.addWidget(plot_widget)
+#         self.setLayout(layout)
 
 class PowerProcessingApp(QtWidgets.QMainWindow):
         ############################
@@ -77,7 +77,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         ############################
     def __init__(self):
         super(PowerProcessingApp, self).__init__()
-        uic.loadUi('qt.ui', self)  # Load the UI file you provided
+        uic.loadUi('UIs/qt.ui', self)  # Load the UI file you provided
 
 
         ############################
@@ -86,12 +86,6 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         #self.setStyleSheet(get_stylesheet())
 
         ##!!! REMOVE UNNECESSARY VARIABLES HERE
-
-        # LoadedData.filename_power = None
-        # LoadedData.Power = None
-        # LoadedData.x = None
-
-        # self.count = 0
 
         self.led_file = None
         self.spectral_data_path = './'
@@ -123,9 +117,10 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         
         self.CalculationMethod = "Integration" # default Calculation Method
 
-        # Button connections
+        ## Button connections
         # self.loadDataButton.clicked.connect(self.load_power)
-        self.loadDataButton.clicked.connect(self.OpenWindow_PowerProcessing) ##!!! ADD ARGUMENT
+        self.loadDataButton.clicked.connect(self.OpenWindow_PowerProcessing) 
+            ##!!! ADD ARGUMENT: also re-name affect window title
         
         # self.loadDataButton_2.clicked.connect(self.load_power) 
         # self.loadDataButton_3.clicked.connect(self.load_power) 
@@ -372,8 +367,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             self.LoadLED.setEnabled(True)
             self.CalculationMethod = "Integration"
 
-    def update_display(self, idx, line_index, new_x):
-        self.line_positions[idx][line_index] = new_x 
+    # def update_display(self, idx, line_index, new_x):
+    #     self.line_positions[idx][line_index] = new_x 
 
     def OpenWindow_PowerProcessing(self):
         """Load the data from a file and plot it in a new window."""

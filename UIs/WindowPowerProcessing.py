@@ -22,7 +22,7 @@ import tools.baseline_power as BaselinePower
 
 
 class WindowPowerProcessing(QtWidgets.QMainWindow):
-    """Dialog class for IrrKin mode."""
+    """Class for PowerProcessing module."""
     def __init__(self):
         super(WindowPowerProcessing, self).__init__()
         uic.loadUi('UIs/WindowPowerProcessing.ui', self)  # Load the UI file you provided
@@ -30,7 +30,8 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         
         
         
-        
+        ##!!! ELABORATE THIS WINDOW WITH BUTTONS: BASELINE CORR; CALCULATE POWER
+
         # self.WindowPP_baselineCorrectionButton.clicked.connect(self.)
         
         
@@ -82,7 +83,6 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
             
     # def add_new_window_PowerData(self, plot_func, title="New Plot", idx=None, *args):
     #     """Open a new standalone window with the given plot widget."""
-    #     ##!!! ELABORATE THIS WINDOW WITH BUTTONS: BASELINE CORR; CALCULATE POWER
     #     try:
     #         # Create a new window widget
     #         window = QtWidgets.QWidget()
@@ -125,6 +125,7 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         """Create a new tab with a plot and a navigation toolbar."""
         try:
             tab = QtWidgets.QWidget()
+            print(f"tab: {tab}")
             layout = QtWidgets.QVBoxLayout()  # Use QVBoxLayout to stack toolbar and canvas vertically
 
             # Create the custom MplCanvas
@@ -179,3 +180,6 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         line_positions.sort()
         return line_positions
     
+    def update_display(self, idx, line_index, new_x):
+        LoadedData.line_positions[idx][line_index] = new_x 
+
