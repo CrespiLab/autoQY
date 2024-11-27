@@ -28,7 +28,7 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         uic.loadUi('UIs/WindowPowerProcessing.ui', self)  # Load the UI file you provided
         
         
-        
+        self.line_positions = []
         
         ##!!! ELABORATE THIS WINDOW WITH BUTTONS: BASELINE CORR; CALCULATE POWER
 
@@ -80,56 +80,17 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
             if LoadedData.Power is not None and LoadedData.x is not None:
                 self.add_new_tab_PowerData(self.plot_power_data, f"Power Data {LoadedData.count+1}", LoadedData.count)
             LoadedData.count += 1
-            
-    # def add_new_window_PowerData(self, plot_func, title="New Plot", idx=None, *args):
-    #     """Open a new standalone window with the given plot widget."""
-    #     try:
-    #         # Create a new window widget
-    #         window = QtWidgets.QWidget()
-    #         window.setWindowTitle(title)
-    
-    #         # Create a layout for the window
-    #         layout = QtWidgets.QVBoxLayout()
-    #         window.setLayout(layout)
-    
-    #         # Create the custom MplCanvas
-    #         canvas = MplCanvas(self, idx)  # Pass idx for initialization
-    
-    #         # Create a navigation toolbar
-    #         toolbar = NavigationToolbar(canvas, self)
-    
-    #         # Add the toolbar and canvas to the layout
-    #         layout.addWidget(toolbar)  # Toolbar at the top
-    #         layout.addWidget(canvas)   # Canvas below the toolbar
-    
-    #         # Call the plotting function to populate the canvas
-    #         if idx is not None:
-    #             print(f'plot nr {idx + 1}')  # Start from 1
-    #             plot_func(canvas, idx, *args)  # Pass idx only if provided
-    #         else:
-    #             print('plot nr None')
-    #             plot_func(canvas, *args)  # No idx passed
-    
-    #         # Show the window
-    #         window.show()
-    
-    #         # Keep a reference to the window to prevent it from being garbage collected
-    #         if not hasattr(self, "_open_windows"):
-    #             self._open_windows = []  # Create a list to store open windows
-    #         self._open_windows.append(window)  # Store the window
-    #     except Exception as e:
-    #         QtWidgets.QMessageBox.critical(self, "Error", f"Failed to create new window: {e}")
-    
     
     def add_new_tab_PowerData(self, plot_func, title, idx=None, *args):
         """Create a new tab with a plot and a navigation toolbar."""
         try:
             tab = QtWidgets.QWidget()
-            print(f"tab: {tab}")
             layout = QtWidgets.QVBoxLayout()  # Use QVBoxLayout to stack toolbar and canvas vertically
 
             # Create the custom MplCanvas
-            canvas = MplCanvas(self)  # idx not required in this implementation
+            canvas = MplCanvas(self, idx)  # Pass idx for initialization
+
+            print(f"WPP-add_new_tab_PowerData === idx:{idx} and type:{type(idx)}")
 
             # Create the navigation toolbar for the canvas
             toolbar = NavigationToolbar(canvas, self)
@@ -169,10 +130,12 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning("Error", "No data loaded")
             return
         
-        LoadedData.line_positions.extend([[0] * 12 for _ in range(idx - len(LoadedData.line_positions) + 1)])
+        print(f"WPP-plot_power_data === LoadedData.line_positions: {LoadedData.line_positions} and type {type(LoadedData.line_positions)}")
+        
+        self.line_positions.extend([[0] * 12 for _ in range(idx - len(self.line_positions) + 1)])
         ### Use the plot_power method from MplCanvas
         canvas.plot_power(LoadedData.x, LoadedData.Power, LoadedData.filename_power)
-        LoadedData.line_positions[idx] = self.get_sorted_line_positions(canvas)
+        self.line_positions[idx] = self.get_sorted_line_positions(canvas)
     
     def get_sorted_line_positions(self,canvas):
         """Get and sort the x-positions of vertical lines."""
@@ -181,5 +144,8 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         return line_positions
     
     def update_display(self, idx, line_index, new_x):
-        LoadedData.line_positions[idx][line_index] = new_x 
+        if self.line_positions is not None:
+            self.line_positions[idx][line_index] = new_x 
+        else:
+            print("LoadedData.line_positions is empty")
 

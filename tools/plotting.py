@@ -5,6 +5,8 @@ from matplotlib.figure import Figure
 import matplotlib.gridspec as gridspec
 from matplotlib.ticker import AutoMinorLocator
 import numpy as np
+import autoQuant.LoadedData as LoadedData
+
 
 class MplCanvas(FigureCanvas):
     """Widget class to render plots."""
@@ -68,17 +70,36 @@ class MplCanvas(FigureCanvas):
         colours = red + blue + red*2 + blue + red  # Extend colors if needed
 
         # Ensure line_positions is initialized for the given idx
+        
+        print(f"plotting-update_boxes === self.idx:{self.idx} and type:{type(self.idx)}")
+        
         if self.idx is not None:
             if len(self.parent_window.line_positions) <= self.idx:
                 # Initialize with default positions if idx is out of range
                 self.parent_window.line_positions.append([0] * 12)
             
             line_positions = self.parent_window.line_positions[self.idx]
+
+            print(f"plotting-update_boxes === self.idx is not None. self.idx: {self.idx}")
+
+            # if len(LoadedData.line_positions) <= self.idx:
+            #     print(f"plotting-update_boxes-iflen === len: {len(LoadedData.line_positions)}")
+            #     # print("plotting-update_boxes === self.idx is not None")
+                
+            #     # Initialize with default positions if idx is out of range
+            #     LoadedData.line_positions.append([0] * 12)
+            
+            
+            # print(f"plotting-update_boxes-ifselfidx === LoadedData.line_positions: {LoadedData.line_positions}")
+            # print(f"plotting-update_boxes-ifselfidx === LoadedData.line_positions[self.idx]: {LoadedData.line_positions[self.idx]}")
+            # line_positions = LoadedData.line_positions[self.idx]
             
         else:
             line_positions = self.line_positions
 
         # Create new boxes based on updated line positions
+        print(f"plotting-update_boxes === line_positions: {line_positions}")
+        
         for i in range(0, len(line_positions) - 1, 2):
             box = self.ax.axvspan(line_positions[i], 
                                 line_positions[i+1], 
@@ -112,10 +133,14 @@ class MplCanvas(FigureCanvas):
         self.selected_line.set_xdata([new_x, new_x])
         self.press_event = event
         self.ax.figure.canvas.draw()
-        #print(self.parent_window.line_positions)
+
         # Update the corresponding label and line position variable with the new x position
         line_index = self.lines.index(self.selected_line)
+        print(f"ON_MOTION === self.idx:{self.idx}")
         self.parent_window.update_display(self.idx, line_index, new_x)  # Pass self.idx here
+        
+        ##!!! CHANGE ALL TO LoadedData.line_positions??
+        
         self.parent_window.line_positions[self.idx][line_index] = new_x  # Update using self.idx
         self.line_positions[line_index] = new_x
         #print(self.parent_window.line_positions)
@@ -129,35 +154,7 @@ class MplCanvas(FigureCanvas):
         self.press_event = None
 
 
-#    def plot_sections(self, x, RefPower, sections, filename):
-#        """
-#        Plot the power measurements with highlighted sections.
-#        """
-#        self.ax.clear()  # Clear previous plot
-#        self.ax.set_title(filename)
-#        self.ax.plot(x, RefPower, label="Power", color="black")
-#
-#        # Highlighting sections
-#        self.ax.axvspan(sections["start_0"], sections["end_0"], alpha=0.1, color='red')
-#        self.ax.axvspan(sections["start_1"], sections["end_1"], alpha=0.1, color='blue')
-#        self.ax.axvspan(sections["start_0_1"], sections["end_0_1"], alpha=0.1, color='red')
-#        self.ax.axvspan(sections["start_2"], sections["end_2"], alpha=0.1, color='red')
-#        self.ax.axvspan(sections["start_3"], sections["end_3"], alpha=0.1, color='blue')
-#        self.ax.axvspan(sections["start_4"], sections["end_4"], alpha=0.1, color='red')
-#
-#        self.ax.set_ylabel("Power (mW)")
-#        self.ax.set_xlabel("Index")
-#        self.ax.legend()
-#
-#        # Add vertical lines to mark the sections
-#        self.lines = []  # Reset the lines list
-#        for key in ["start_0", "end_0", "start_1", "end_1", "start_0_1", "end_0_1", "start_2", "end_2", "start_3", "end_3", "start_4", "end_4"]:
-#            line = self.ax.axvline(x=sections[key], linestyle='--', color='green')
-#            self.lines.append(line)  # Store the lines
-#        print(f"Generated {len(self.lines)} lines for section markers.")
-#        self.draw()  # Render the plot
-#
-#
+
     def plot_baseline_correction(self, x, RefPower, baseline, baselined, sections,
                                  case, filename):
         """Plot baseline-corrected power for both cases."""

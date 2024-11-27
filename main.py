@@ -601,7 +601,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
     #     return line_positions
 
     def plot_baseline_corrected_no(self, canvas, idx):
-        ##!!! MOVE TO baseline_power.py
+    ##!!! MOVE TO WindowPowerProcessing.py
         
         case = 0 # no cuvette
         x, Power = self.loaded_powerdata[idx]
@@ -623,6 +623,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
 
     def plot_baseline_corrected_yes(self, canvas, idx):
+    ##!!! MOVE TO WindowPowerProcessing.py
         case = 1 # yes cuvette
         x, Power = self.loaded_powerdata[idx]
         line_positions = self.line_positions[idx]
