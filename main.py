@@ -53,7 +53,7 @@ import tools.baseline_power as BaselinePower
 import tools.extractresults as ExtractResults
 #from tools.style import apply_dark_theme
 
-import UIs.WindowPowerProcessing as WindowPowerProcessing
+import tools.WindowPowerProcessing as WindowPowerProcessing
 
 class PowerProcessingApp(QtWidgets.QMainWindow):
         ############################
