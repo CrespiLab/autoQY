@@ -1116,7 +1116,31 @@
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_7">
            <item>
-            <widget class="QPushButton" name="loadDataButton">
+            <widget class="QLabel" name="label_Powers_1">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>50</width>
+               <height>50</height>
+              </size>
+             </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
+             <property name="text">
+              <string>Power 1</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="loadDataButton_1">
              <property name="maximumSize">
               <size>
                <width>125</width>
@@ -1130,48 +1154,6 @@
              </property>
              <property name="text">
               <string>Load Data</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="baselineCorrectionButton">
-             <property name="maximumSize">
-              <size>
-               <width>125</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>10</pointsize>
-              </font>
-             </property>
-             <property name="text">
-              <string>Baseline Correction</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="label_Powers_1">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>16777215</width>
-               <height>50</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>10</pointsize>
-              </font>
-             </property>
-             <property name="text">
-              <string>Power 1</string>
              </property>
             </widget>
            </item>
@@ -1245,7 +1227,7 @@
             <widget class="QLabel" name="label_PP_Power_1_mW">
              <property name="maximumSize">
               <size>
-               <width>100</width>
+               <width>25</width>
                <height>25</height>
               </size>
              </property>
@@ -1255,7 +1237,25 @@
               </font>
              </property>
              <property name="text">
-              <string>mW (TO DO)</string>
+              <string>mW</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="DeletePowerDataButton_1">
+             <property name="maximumSize">
+              <size>
+               <width>25</width>
+               <height>25</height>
+              </size>
+             </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
+             <property name="text">
+              <string>-</string>
              </property>
             </widget>
            </item>
@@ -1263,6 +1263,30 @@
          </item>
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_8">
+           <item>
+            <widget class="QLabel" name="label_Powers_2">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>50</width>
+               <height>50</height>
+              </size>
+             </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
+             <property name="text">
+              <string>Power 2</string>
+             </property>
+            </widget>
+           </item>
            <item>
             <widget class="QPushButton" name="loadDataButton_2">
              <property name="maximumSize">
@@ -1278,48 +1302,6 @@
              </property>
              <property name="text">
               <string>Load Data</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="baselineCorrectionButton_2">
-             <property name="maximumSize">
-              <size>
-               <width>125</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>10</pointsize>
-              </font>
-             </property>
-             <property name="text">
-              <string>Baseline Correction</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="label_Powers_2">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>16777215</width>
-               <height>50</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>10</pointsize>
-              </font>
-             </property>
-             <property name="text">
-              <string>Power 2</string>
              </property>
             </widget>
            </item>
@@ -1393,7 +1375,7 @@
             <widget class="QLabel" name="label_PP_Power_2_mW">
              <property name="maximumSize">
               <size>
-               <width>100</width>
+               <width>25</width>
                <height>25</height>
               </size>
              </property>
@@ -1403,7 +1385,25 @@
               </font>
              </property>
              <property name="text">
-              <string>mW (TO DO)</string>
+              <string>mW</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="DeletePowerDataButton_2">
+             <property name="maximumSize">
+              <size>
+               <width>25</width>
+               <height>25</height>
+              </size>
+             </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
+             <property name="text">
+              <string>-</string>
              </property>
             </widget>
            </item>
@@ -1411,6 +1411,30 @@
          </item>
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_11">
+           <item>
+            <widget class="QLabel" name="label_Powers_3">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>50</width>
+               <height>50</height>
+              </size>
+             </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
+             <property name="text">
+              <string>Power 3</string>
+             </property>
+            </widget>
+           </item>
            <item>
             <widget class="QPushButton" name="loadDataButton_3">
              <property name="maximumSize">
@@ -1426,48 +1450,6 @@
              </property>
              <property name="text">
               <string>Load Data</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="baselineCorrectionButton_3">
-             <property name="maximumSize">
-              <size>
-               <width>125</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>10</pointsize>
-              </font>
-             </property>
-             <property name="text">
-              <string>Baseline Correction</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="label_Powers_3">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>16777215</width>
-               <height>50</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>10</pointsize>
-              </font>
-             </property>
-             <property name="text">
-              <string>Power 3</string>
              </property>
             </widget>
            </item>
@@ -1541,7 +1523,7 @@
             <widget class="QLabel" name="label_PP_Power_2_mW_2">
              <property name="maximumSize">
               <size>
-               <width>100</width>
+               <width>25</width>
                <height>25</height>
               </size>
              </property>
@@ -1551,7 +1533,25 @@
               </font>
              </property>
              <property name="text">
-              <string>mW (TO DO)</string>
+              <string>mW</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="DeletePowerDataButton_3">
+             <property name="maximumSize">
+              <size>
+               <width>25</width>
+               <height>25</height>
+              </size>
+             </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
+             <property name="text">
+              <string>-</string>
              </property>
             </widget>
            </item>
@@ -1559,6 +1559,18 @@
          </item>
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_5">
+           <item>
+            <widget class="QLabel" name="label_15">
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
+             <property name="text">
+              <string>Averaged Power</string>
+             </property>
+            </widget>
+           </item>
            <item>
             <widget class="QPushButton" name="calculatePowerButton">
              <property name="sizePolicy">
@@ -1579,7 +1591,7 @@
               </font>
              </property>
              <property name="text">
-              <string>Calculate Averaged Power</string>
+              <string>Calculate</string>
              </property>
             </widget>
            </item>
@@ -1663,7 +1675,7 @@
               </font>
              </property>
              <property name="text">
-              <string>mW (TO DO)</string>
+              <string>mW</string>
              </property>
             </widget>
            </item>
@@ -2243,8 +2255,8 @@
  <resources/>
  <connections/>
  <buttongroups>
-  <buttongroup name="buttonGroup_2"/>
   <buttongroup name="buttonGroup"/>
   <buttongroup name="buttonGroup_3"/>
+  <buttongroup name="buttonGroup_2"/>
  </buttongroups>
 </ui>

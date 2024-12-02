@@ -97,14 +97,24 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.epsilon_A_interp = None
         self.epsilon_B_interp = None
         
+        self.labels_power = {1: self.plainTextEdit_Power_1,
+                                   2: self.plainTextEdit_Power_2,
+                                   3: self.plainTextEdit_Power_3}
+        self.labels_error = {1: self.plainTextEdit_PowerError_1,
+                                   2: self.plainTextEdit_PowerError_2,
+                                   3: self.plainTextEdit_PowerError_3}
+        
         self.CalculationMethod = "Integration" # default Calculation Method
 
         ## Button connections
-        self.loadDataButton.clicked.connect(self.OpenWindow_PowerProcessing_1)
-        self.loadDataButton_2.clicked.connect(self.OpenWindow_PowerProcessing_2)
-        self.loadDataButton_3.clicked.connect(self.OpenWindow_PowerProcessing_3)
+        self.loadDataButton_1.clicked.connect(lambda: self.OpenWindow_PowerProcessing(1))
+        self.loadDataButton_2.clicked.connect(lambda: self.OpenWindow_PowerProcessing(2))
+        self.loadDataButton_3.clicked.connect(lambda: self.OpenWindow_PowerProcessing(3))
+        
+        self.DeletePowerDataButton_1.clicked.connect(lambda: self.DeletePowerData(1))
+        self.DeletePowerDataButton_2.clicked.connect(lambda: self.DeletePowerData(2))
+        self.DeletePowerDataButton_3.clicked.connect(lambda: self.DeletePowerData(3))
 
-        ##!!! FINISH FUNCTION        
         self.calculatePowerButton.clicked.connect(self.calculate_total_power) ## Calculates average power+error
 
         #######
@@ -121,7 +131,6 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.LoadCis.clicked.connect(lambda: self.load_file("Epsilons B"))
         self.LoadSpectra.clicked.connect(lambda: self.load_file("Spectral Data"))
         self.LoadLog.clicked.connect(lambda: self.load_file("Log Irr"))
-
         self.SaveResultsBtn.clicked.connect(self.Save_QY)
 
         # Set text in QPlainTextEdit using setPlainText
@@ -130,32 +139,33 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.plainTextEdit_3.setPlainText(str(ExpParams.I0_avg)) # Power Manual
         self.plainTextEdit_4.setPlainText(str(ExpParams.I0_err)) # Power Manual
         self.plainTextEdit_5.setPlainText(str(ExpParams.LEDw)) # Integration Mode (default)
-
         self.plainTextEdit_6.setPlainText(str(ExpParams.I0_avg)) # PowerProcessing: Calculated Power
         self.plainTextEdit_8.setPlainText(str(ExpParams.I0_err)) # PowerProcessing: Error
         self.plainTextEdit_9.setPlainText(str(ExpParams.threshold)) # Threshold for LED Emission spectrum
 
-        ## Connect the textChanged signal to the update functions
+        ## Connect the textChanged signal to the update functions ##
         self.plainTextEdit.textChanged.connect(self.update_V)
         self.plainTextEdit_2.textChanged.connect(self.update_k_BA)
         self.plainTextEdit_3.textChanged.connect(self.update_I0_avg)
         self.plainTextEdit_4.textChanged.connect(self.update_I0_err)
         self.plainTextEdit_5.textChanged.connect(self.update_LEDw_Integration) # Integration Mode
         self.plainTextEdit_7.textChanged.connect(self.update_LEDw_SingleWl) # SingleWavelength Mode
-
         self.plainTextEdit_epsilonR.textChanged.connect(self.update_epsilon_R) # Epsilon Reactant (SingleWavelength)
         self.plainTextEdit_epsilonP.textChanged.connect(self.update_epsilon_P) # Epsilon Product (SingleWavelength)
-
         self.plainTextEdit_9.textChanged.connect(self.update_threshold) # 
 
-        ## Adding new buttons for custom plot functions from your scripts
+        ## Adding new buttons for custom plot functions from your scripts ##
         self.plotLEDButton.clicked.connect(self.process_LED)
         self.plotEpsilonButton.clicked.connect(self.plot_epsilon)
         self.plotQuantButton.clicked.connect(self.plot_auto_quant)
 
         self.radioButton_3.setEnabled(True) # Power Manual: default enabled
-        self.loadDataButton.setEnabled(False) # default Manual Power input
-        self.baselineCorrectionButton.setEnabled(False) # default Manual Power input
+        self.loadDataButton_1.setEnabled(False) # default Manual Power input
+        self.loadDataButton_2.setEnabled(False) # default Manual Power input
+        self.loadDataButton_3.setEnabled(False) # default Manual Power input
+        self.DeletePowerDataButton_1.setEnabled(False)
+        self.DeletePowerDataButton_2.setEnabled(False)
+        self.DeletePowerDataButton_3.setEnabled(False)
         self.calculatePowerButton.setEnabled(False) # default Manual Power input
         
         self.radioButton_2.setEnabled(True) # Irradiation Integration: default 
@@ -255,18 +265,19 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             ## Enable TextLabel and disable Load button
             self.plainTextEdit_3.setEnabled(True)
             self.plainTextEdit_4.setEnabled(True)
-            self.loadDataButton.setEnabled(False)
-            self.baselineCorrectionButton.setEnabled(False)
+            
+            self.loadDataButton_1.setEnabled(False)
+            self.loadDataButton_2.setEnabled(False)
+            self.loadDataButton_3.setEnabled(False)
             self.plainTextEdit_Power_1.setEnabled(False)
             self.plainTextEdit_PowerError_1.setEnabled(False)
-            self.loadDataButton_2.setEnabled(False)
-            self.baselineCorrectionButton_2.setEnabled(False)
             self.plainTextEdit_Power_2.setEnabled(False)
             self.plainTextEdit_PowerError_2.setEnabled(False)
-            self.loadDataButton_3.setEnabled(False)
-            self.baselineCorrectionButton_3.setEnabled(False)
             self.plainTextEdit_Power_3.setEnabled(False)
             self.plainTextEdit_PowerError_3.setEnabled(False)
+            self.DeletePowerDataButton_1.setEnabled(False)
+            self.DeletePowerDataButton_2.setEnabled(False)
+            self.DeletePowerDataButton_3.setEnabled(False)
             self.calculatePowerButton.setEnabled(False)
             self.plainTextEdit_6.setEnabled(False)
             self.plainTextEdit_8.setEnabled(False)
@@ -278,18 +289,19 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             ## Disable TextLabel and enable Load button
             self.plainTextEdit_3.setEnabled(False) # turn off Manual Input: Power
             self.plainTextEdit_4.setEnabled(False) # turn off Manual Input: Error
-            self.loadDataButton.setEnabled(True)
-            self.baselineCorrectionButton.setEnabled(True)
+            
+            self.loadDataButton_1.setEnabled(True)
+            self.loadDataButton_2.setEnabled(True)
+            self.loadDataButton_3.setEnabled(True)
             self.plainTextEdit_Power_1.setEnabled(True)
             self.plainTextEdit_PowerError_1.setEnabled(True)
-            self.loadDataButton_2.setEnabled(True)
-            self.baselineCorrectionButton_2.setEnabled(True)
             self.plainTextEdit_Power_2.setEnabled(True)
             self.plainTextEdit_PowerError_2.setEnabled(True)
-            self.loadDataButton_3.setEnabled(True)
-            self.baselineCorrectionButton_3.setEnabled(True)
             self.plainTextEdit_Power_3.setEnabled(True)
             self.plainTextEdit_PowerError_3.setEnabled(True)
+            self.DeletePowerDataButton_1.setEnabled(True)
+            self.DeletePowerDataButton_2.setEnabled(True)
+            self.DeletePowerDataButton_3.setEnabled(True)
             self.calculatePowerButton.setEnabled(True)
             self.plainTextEdit_6.setEnabled(True)
             self.plainTextEdit_8.setEnabled(True)
@@ -314,25 +326,30 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             self.LoadLED.setEnabled(True)
             self.CalculationMethod = "Integration"
 
-    def OpenWindow_PowerProcessing_1(self):
+    def OpenWindow_PowerProcessing(self, count):
         """Load the power data from a file and plot it in a new window."""
-        LoadedData.count = 1
+        LoadedData.count = count
         self.window_PP = WindowPowerProcessing.WindowPowerProcessing(parent=self) # load Class that includes loadUi
         self.window_PP.show()
 
-    def OpenWindow_PowerProcessing_2(self):
-        """Load the power data from a file and plot it in a new window."""
-        LoadedData.count = 2
-        self.window_PP = WindowPowerProcessing.WindowPowerProcessing(parent=self) # load Class that includes loadUi
-        self.window_PP.show()
+    def DeletePowerData(self, count):
+        """"""
+        print(f"main-DeletePowerData===count:{count} and type:{type(count)}")
+        print(f"main-DeletePowerData_1===LoadedData.PowersAtCuvette:{LoadedData.PowersAtCuvette}")
 
-    def OpenWindow_PowerProcessing_3(self):
-        """Load the power data from a file and plot it in a new window."""
-        LoadedData.count = 3
-        self.window_PP = WindowPowerProcessing.WindowPowerProcessing(parent=self) # load Class that includes loadUi
-        self.window_PP.show()
+        if count not in LoadedData.PowersAtCuvette:
+            QtWidgets.QMessageBox.warning(self, "Error", "Data does not exist.")
+            return
 
-    def add_new_tab(self, plot_func, title):  # , idx=None, *args
+        LoadedData.PowersAtCuvette.pop(count) # remove result from dictionary
+        LoadedData.ErrorsAtCuvette.pop(count) # remove result from dictionary
+
+        print(f"main-DeletePowerData_1===LoadedData.PowersAtCuvette:{LoadedData.PowersAtCuvette}")
+        
+        self.labels_power[count].setPlainText("")
+        self.labels_error[count].setPlainText("")
+
+    def add_new_tab(self, plot_func, title):
         """Create a new tab with a plot and a navigation toolbar."""
         try:
             tab = QtWidgets.QWidget()

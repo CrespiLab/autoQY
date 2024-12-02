@@ -21,7 +21,6 @@ import tools.baseline_power as BaselinePower
 
 class WindowPowerProcessing(QtWidgets.QMainWindow):
     """Class for PowerProcessing module."""
-    # def __init__(self):
     def __init__(self, parent):
         self.parent = parent
         super(WindowPowerProcessing, self).__init__()
@@ -32,23 +31,12 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         self.x = None
         self.Power = None
         self.loaded_powerdata = [] 
-        # self.power_baselined_noyes = []
         self.section_LEDon_no = None
         self.section_LEDon_yes = None
         self.line_positions = [] ## list of line positions (this is the parent window of MplCanvas in plotting.py)
         
-        self.parentlabels_power = {1: self.parent.plainTextEdit_Power_1,
-                                   2: self.parent.plainTextEdit_Power_2,
-                                   3: self.parent.plainTextEdit_Power_3}
-        self.parentlabels_error = {1: self.parent.plainTextEdit_PowerError_1,
-                                   2: self.parent.plainTextEdit_PowerError_2,
-                                   3: self.parent.plainTextEdit_PowerError_3}
-        
-
-       
         self.WindowPP_baselineCorrectionButton.clicked.connect(self.baseline_correction)
         self.WindowPP_calculatePowerButton.clicked.connect(self.calculate_power_at_cuvette)
-
         
         options = QtWidgets.QFileDialog.Options()
         self.file_name, _ = QtWidgets.QFileDialog.getOpenFileName(self,
@@ -84,13 +72,10 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
             
             ## Save x and Power without overwriting
             self.loaded_powerdata.append((self.x, self.Power))
-            # print(f"WPP-load_power===self.loaded_powerdata:{self.loaded_powerdata}")
 
             if self.Power is not None and self.x is not None:
                 self.add_new_tab_PowerData(self.plot_power_data, f"Power Data {LoadedData.count}")
             
-            # print(f"WPP-load_power===LoadedData.count:{LoadedData.count}")
-
     def add_new_tab_PowerData(self, plot_func, title, *args):
         """Create a new tab with a plot and a navigation toolbar."""
         try:
@@ -171,9 +156,6 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         sections = BaselinePower.choose_sections(line_positions)
         baselined, baseline, self.section_LEDon_no = self.calculate_baseline_and_power_no(x, data_power, sections)
         
-        # self.power_baselined_noyes.append(section_LEDon_no) # section LED ON, no cuvette-no jacket
-        # self.section_LEDon_no # section LED ON, no cuvette-no jacket
-        
         """Plot the baseline-corrected data."""
         canvas.plot_baseline_correction(x, data_power, baseline, baselined, sections,
                                         case, self.filename_power)
@@ -190,9 +172,6 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         sections = BaselinePower.choose_sections(line_positions)
         baselined, baseline, self.section_LEDon_yes = self.calculate_baseline_and_power_yes(x, data_power, sections)
 
-        # self.power_baselined_noyes.append(section_LEDon_yes) # section LED ON, cuvette-jacket
-        # self.section_LEDon_yes # section LED ON, cuvette-jacket
-        
         """Plot the baseline-corrected data."""
         canvas.plot_baseline_correction(x, data_power, baseline, baselined, sections,
                                         case, self.filename_power)
@@ -232,15 +211,12 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         baselined = data_power - baseline
 
         section_on_yes = baselined[sections["start_3"]:sections["end_3"]]
-        # power_std = np.nanstd(baselined_2[sections["start_3"]:sections["end_3"]])
 
         return baselined, baseline, section_on_yes
 
 
     def calculate_power_at_cuvette(self):
         """Calculate the power at the cuvette and the standard deviation."""
-        ##!!! ADJUST THIS FUNCTION 
-        
         sections_noyes = [self.section_LEDon_no, self.section_LEDon_yes]
         
         if not sections_noyes:
@@ -259,27 +235,15 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
             means.append(mean_power)
             stds.append(std_power)
 
-        # print(f"WPP-calculate_power_at_cuv===means:{means}")
-        # print(f"WPP-calculate_power_at_cuv===stds:{stds}")
-
         power_at_cuv = np.mean(means) # average over powers without and with cuvetteholder+cuv to get power at cuvette
         variance_at_cuv = np.sum(np.square(stds)) / len(means)
         std_at_cuv = np.sqrt(variance_at_cuv)
 
-        # print(f"WPP-calculate_power_at_cuv===power_at_cuv:{power_at_cuv}")
-        # print(f"WPP-calculate_power_at_cuv===variance_at_cuv:{variance_at_cuv}")
-        # print(f"WPP-calculate_power_at_cuv===std_at_cuv:{std_at_cuv}")
-
         LoadedData.PowersAtCuvette[LoadedData.count] = power_at_cuv # calculated power
         LoadedData.ErrorsAtCuvette[LoadedData.count] = std_at_cuv # calculated error
-        
-        # print(f"WPP-calculate_power_at_cuv===LoadedData.PowersAtCuvette[LoadedData.count]:{LoadedData.PowersAtCuvette[LoadedData.count]}")
-        
-        # print(f"WPP-calculate_power_at_cuv===LoadedData.PowersAtCuvette:{LoadedData.PowersAtCuvette}")
-        # print(f"WPP-calculate_power_at_cuv===LoadedData.ErrorsAtCuvette:{LoadedData.ErrorsAtCuvette}")
-        
-        self.parentlabels_power[LoadedData.count].setPlainText(f"{LoadedData.PowersAtCuvette[LoadedData.count]:.2f}") # calculated power
-        self.parentlabels_error[LoadedData.count].setPlainText(f"{LoadedData.ErrorsAtCuvette[LoadedData.count]:.2f}") # calculated power
+
+        self.parent.labels_power[LoadedData.count].setPlainText(f"{LoadedData.PowersAtCuvette[LoadedData.count]:.2f}") # calculated power
+        self.parent.labels_error[LoadedData.count].setPlainText(f"{LoadedData.ErrorsAtCuvette[LoadedData.count]:.2f}") # calculated power
 
         
 
