@@ -47,7 +47,6 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
 
        
         self.WindowPP_baselineCorrectionButton.clicked.connect(self.baseline_correction)
-        ##!!! ELABORATE THIS WINDOW WITH BUTTONS: CALCULATE POWER
         self.WindowPP_calculatePowerButton.clicked.connect(self.calculate_power_at_cuvette)
 
         
@@ -260,31 +259,27 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
             means.append(mean_power)
             stds.append(std_power)
 
-        print(f"WPP-calculate_power_at_cuv===means:{means}")
-        print(f"WPP-calculate_power_at_cuv===stds:{stds}")
+        # print(f"WPP-calculate_power_at_cuv===means:{means}")
+        # print(f"WPP-calculate_power_at_cuv===stds:{stds}")
 
         power_at_cuv = np.mean(means) # average over powers without and with cuvetteholder+cuv to get power at cuvette
         variance_at_cuv = np.sum(np.square(stds)) / len(means)
         std_at_cuv = np.sqrt(variance_at_cuv)
 
-        print(f"WPP-calculate_power_at_cuv===power_at_cuv:{power_at_cuv}")
-        print(f"WPP-calculate_power_at_cuv===variance_at_cuv:{variance_at_cuv}")
-        print(f"WPP-calculate_power_at_cuv===std_at_cuv:{std_at_cuv}")
+        # print(f"WPP-calculate_power_at_cuv===power_at_cuv:{power_at_cuv}")
+        # print(f"WPP-calculate_power_at_cuv===variance_at_cuv:{variance_at_cuv}")
+        # print(f"WPP-calculate_power_at_cuv===std_at_cuv:{std_at_cuv}")
 
-        ##!!! HOW TO EDIT FIELD IN "PARENT" WINDOW
-        # self.plainTextEdit_6.setPlainText(f"{total_power:.2f}") # PowerProcessing: Power
-        # self.plainTextEdit_8.setPlainText(f"{total_std:.2f}") # PowerProcessing: Error
-        
         LoadedData.PowersAtCuvette[LoadedData.count] = power_at_cuv # calculated power
         LoadedData.ErrorsAtCuvette[LoadedData.count] = std_at_cuv # calculated error
         
-        print(f"WPP-calculate_power_at_cuv===LoadedData.PowersAtCuvette[LoadedData.count]:{LoadedData.PowersAtCuvette[LoadedData.count]}")
+        # print(f"WPP-calculate_power_at_cuv===LoadedData.PowersAtCuvette[LoadedData.count]:{LoadedData.PowersAtCuvette[LoadedData.count]}")
         
-        print(f"WPP-calculate_power_at_cuv===LoadedData.PowersAtCuvette:{LoadedData.PowersAtCuvette}")
-        print(f"WPP-calculate_power_at_cuv===LoadedData.ErrorsAtCuvette:{LoadedData.ErrorsAtCuvette}")
+        # print(f"WPP-calculate_power_at_cuv===LoadedData.PowersAtCuvette:{LoadedData.PowersAtCuvette}")
+        # print(f"WPP-calculate_power_at_cuv===LoadedData.ErrorsAtCuvette:{LoadedData.ErrorsAtCuvette}")
         
-        self.parentlabels_power[LoadedData.count].setPlainText(f"{LoadedData.PowersAtCuvette[LoadedData.count]:.3f}") # calculated power
-        self.parentlabels_error[LoadedData.count].setPlainText(f"{LoadedData.ErrorsAtCuvette[LoadedData.count]:.3f}") # calculated power
+        self.parentlabels_power[LoadedData.count].setPlainText(f"{LoadedData.PowersAtCuvette[LoadedData.count]:.2f}") # calculated power
+        self.parentlabels_error[LoadedData.count].setPlainText(f"{LoadedData.ErrorsAtCuvette[LoadedData.count]:.2f}") # calculated power
 
         
 

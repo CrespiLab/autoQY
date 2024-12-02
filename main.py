@@ -317,12 +317,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
     def OpenWindow_PowerProcessing_1(self):
         """Load the power data from a file and plot it in a new window."""
         LoadedData.count = 1
-        # self.window_PP = WindowPowerProcessing.WindowPowerProcessing() # load Class that includes loadUi
         self.window_PP = WindowPowerProcessing.WindowPowerProcessing(parent=self) # load Class that includes loadUi
-        
         self.window_PP.show()
-        # self.plainTextEdit_Power_1.setPlainText(LoadedData.PowersAtCuvette[LoadedData.count]) # calculated power
-
 
     def OpenWindow_PowerProcessing_2(self):
         """Load the power data from a file and plot it in a new window."""
@@ -372,42 +368,24 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
     def calculate_total_power(self):
         """Calculate the total power and standard deviation from all baseline-corrected data."""
-        ##!!! ADJUST THIS FUNCTION TO CALCULATE AVERAGE OF POWER DATA LOADED FROM 1-3 DATASETS
-        
-        if not self.all_corrected_power:
-            QtWidgets.QMessageBox.warning(self, "Error", "No baseline correction has been applied yet.")
+        if not LoadedData.PowersAtCuvette:
+            QtWidgets.QMessageBox.warning(self, "Error", "No power data has been processed yet.")
             return
 
-        means = []
-        stds = []
+        averages_alldatasets = list(LoadedData.PowersAtCuvette.values())
+        errors_alldatasets = list(LoadedData.ErrorsAtCuvette.values())
 
-        for idx, corrected_data in enumerate(self.all_corrected_power):
-            corrected_data = np.asarray(corrected_data).ravel()
-            if len(corrected_data) == 0:
-                continue
-            mean_power = np.nanmean(corrected_data)
-            std_power = np.nanstd(corrected_data)
-            means.append(mean_power)
-            stds.append(std_power)
-
-        #if len(means) != 3 or len(stds) != 3:
-        #    QtWidgets.QMessageBox.warning(self, "Error", "Missing some baseline corrections")
-        #    return
-
-        total_power = np.mean(means)
-        total_variance = np.sum(np.square(stds)) / len(means)
-        total_std = np.sqrt(total_variance)
-
-        self.plainTextEdit_6.setPlainText(f"{total_power:.2f}") # PowerProcessing: Power
-        self.plainTextEdit_8.setPlainText(f"{total_std:.2f}") # PowerProcessing: Error
-        ExpParams.I0_avg = total_power # set to calculated power
-        ExpParams.I0_err = total_std # set to calculated error
+        final_averaged_power = np.mean(averages_alldatasets)
+        final_variance = np.sum(np.square(errors_alldatasets)) / len(averages_alldatasets)
+        final_averaged_std = np.sqrt(final_variance)
         
+        ExpParams.I0_avg = final_averaged_power # set to calculated power
+        ExpParams.I0_err = final_averaged_std # set to calculated error
         
+        self.plainTextEdit_6.setPlainText(f"{ExpParams.I0_avg:.2f}") # set PowerProcessing: Power, final averaged
+        self.plainTextEdit_8.setPlainText(f"{ExpParams.I0_err:.2f}") # set PowerProcessing: Error, final averaged
         
         print(f"I0_avg: {ExpParams.I0_avg}\nI0_err: {ExpParams.I0_err}")
-        
-        ##!!! MAKE I_O LIST in ExpParams
         
     ####################################################################################################################################
 
@@ -563,7 +541,12 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         Calculate quantum yields by numerically solving the differential equations.
         Then calculate the concentrations, and plot the results.
         """
-        I0_list = self.GetPowerList(ExpParams.I0_avg, ExpParams.I0_err) # make a list of the three values for I0
+        I0_avg = ExpParams.I0_avg
+        I0_err = ExpParams.I0_err
+        I0_list = [I0_avg, I0_avg+I0_err, I0_avg-I0_err]
+
+        
+        # I0_list = self.GetPowerList(ExpParams.I0_avg, ExpParams.I0_err) # make a list of the three values for I0
 
         if self.CalculationMethod == "Integration":
             ## Create parameters needed for fitting
@@ -678,9 +661,9 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         QtWidgets.QMessageBox.information(self, "Success", f"{savefilename} file saved successfully!")
 
 
-    def GetPowerList(self, I0_avg, I0_err): ###??????????
-        I0_list = [I0_avg, I0_avg+I0_err, I0_avg-I0_err]
-        return I0_list
+    # def GetPowerList(self, I0_avg, I0_err): 
+    #     I0_list = [I0_avg, I0_avg+I0_err, I0_avg-I0_err]
+    #     return I0_list
 
     def GetTimestamps(self, LogFile):
         ## CSV not DAT
