@@ -12,7 +12,7 @@ import numpy as np
 from scipy.optimize import curve_fit #change in baseline correction
 
 from PyQt5 import uic, QtWidgets
-from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
+# from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 
 import autoQuant.LoadedData as LoadedData
 # import tools.load_data as LoadData
@@ -25,20 +25,15 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         super(WindowPowerProcessing, self).__init__()
         uic.loadUi('UIs/WindowPowerProcessing.ui', self)  # Load the UI file you provided
         
-        
         self.x = None
         self.Power = None
         self.loaded_powerdata = [] 
         self.power_baselined_noyes = []
         
         self.line_positions = [] ## list of line positions (this is the parent window of MplCanvas in plotting.py)
-        print(f"WPP-__init__===self.line_positions:{self.line_positions}")
-
         
-        ##!!! ELABORATE THIS WINDOW WITH BUTTONS: CALCULATE POWER
-
         self.WindowPP_baselineCorrectionButton.clicked.connect(self.baseline_correction)
-        
+        ##!!! ELABORATE THIS WINDOW WITH BUTTONS: CALCULATE POWER        
         
         options = QtWidgets.QFileDialog.Options()
         self.file_name, _ = QtWidgets.QFileDialog.getOpenFileName(self,
@@ -89,14 +84,7 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
 
             ## Create the custom MplCanvas
             canvas = MplCanvas(self, LoadedData.count)  # Pass dataset # for initialization
-
-            ## Create the navigation toolbar for the canvas
-            # toolbar = NavigationToolbar(canvas, self)
-
-            ## Add the toolbar and canvas to the layout
-            # layout.addWidget(toolbar)  # Add the toolbar at the top
             layout.addWidget(canvas)   # Add the canvas (plot area) below the toolbar
-
             tab.setLayout(layout)
 
             ## Call the plotting function to populate the canvas
@@ -105,7 +93,7 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
                 plot_func(canvas, *args) # call plot_power_data func
             else:
                 print('plot nr None')
-                plot_func(canvas, *args) # No idx passed
+                plot_func(canvas, *args) ##!!! still needed?
 
             ## Add the new tab to the tab widget
             self.tabWidget.addTab(tab, title)
@@ -154,37 +142,17 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "Error", "No data loaded")
             return
 
-        # print(f"WPP-baseline_correction===len(self.loaded_powerdata):{len(self.loaded_powerdata)}")
+        self.add_new_tab_PowerData(self.plot_baseline_corrected_no, f"Baseline correction {LoadedData.count}: No Jacket and No Cuvette")
+        self.add_new_tab_PowerData(self.plot_baseline_corrected_yes, f"Baseline correction {LoadedData.count}: With Jacket and Cuvette with Solvent")
 
-        self.add_new_tab_PowerData(self.plot_baseline_corrected_no, f"Baseline correction {LoadedData.count}: No Jacket and No Cuvette", LoadedData.count)
-        # print("WPP-baseline_correction===after self.plot_baseline_corrected_no")
-
-        self.add_new_tab_PowerData(self.plot_baseline_corrected_yes, f"Baseline correction {LoadedData.count}: With Jacket and Cuvette with Solvent", LoadedData.count)
-
-    def plot_baseline_corrected_no(self, canvas, idx):
-        
-        # print(f"WPP-plot_baseline_corrected_no===self.loaded_powerdata:{self.loaded_powerdata}")
-        # print(f"WPP-plot_baseline_corrected_no===self.loaded_powerdata[0]:{self.loaded_powerdata[0]}")
-
+    def plot_baseline_corrected_no(self, canvas):
         case = 0 # no cuvette
-
-        # print(f"WPP-plot_baseline_corrected_no===self.line_positions:{self.line_positions}")
-        # print(f"WPP-plot_baseline_corrected_no===self.line_positions[1]:{self.line_positions[1]}")
-        
         x, Power = self.loaded_powerdata[0]
-        # print(f"WPP-plot_baseline_corrected_no===x:{x}")
-        # print(f"WPP-plot_baseline_corrected_no===Power:{Power}")
-
         line_positions = self.line_positions[LoadedData.count]
-        # print(f"WPP-plot_baseline_corrected_no===self.line_positions:{self.line_positions}")
-
-        # print(f"WPP-plot_baseline_corrected_no===line_positions:{line_positions}")
         
         if len(line_positions) != 12: # Ensure 12 positions are selected
             QtWidgets.QMessageBox.warning(self, "Error", "You need to select exactly 12 line positions.")
             return
-        #if idx == 1:
-            # Proceed with baseline correction
         sections = BaselinePower.choose_sections(line_positions)
         baselined, baseline, section_on_no = self.calculate_baseline_and_power_no(x, Power, sections)
         
@@ -194,8 +162,7 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         canvas.plot_baseline_correction(x, Power, baseline, baselined, sections,
                                         case, self.filename_power)
 
-
-    def plot_baseline_corrected_yes(self, canvas, idx):
+    def plot_baseline_corrected_yes(self, canvas):
         case = 1 # yes cuvette
         x, Power = self.loaded_powerdata[0]
         line_positions = self.line_positions[LoadedData.count]
@@ -215,13 +182,13 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
 
     def calculate_baseline_and_power_no(self, x, Power, sections):
         """Calculate baseline and baseline-corrected power."""
-        # Baseline correction: no jacket, no cuvette
+        ## Baseline correction: no jacket, no cuvette
         x_masked = np.concatenate((x[sections["start_0"]:sections["end_0"]], x[sections["start_0_1"]:sections["end_0_1"]]))
         y_masked = np.concatenate((Power[sections["start_0"]:sections["end_0"]], Power[sections["start_0_1"]:sections["end_0_1"]]))
         x_masked = x_masked[~np.isnan(y_masked)]
         y_masked = y_masked[~np.isnan(y_masked)]
 
-        # Polynomial fit (n = 3)
+        ## Polynomial fit (n = 3)
         n = 3
         p0 = np.full(n, 0.000000001)
         popt, _ = curve_fit(BaselinePower.fit_func, x_masked, y_masked, p0=p0)
@@ -233,13 +200,13 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         return baselined_1, baseline_1, section_on_no
 
     def calculate_baseline_and_power_yes(self, x, Power, sections):
-        # Baseline correction: jacket, cuvette with solvent
+        ## Baseline correction: jacket, cuvette with solvent
         x_masked = np.concatenate((x[sections["start_2"]:sections["end_2"]], x[sections["start_4"]:sections["end_4"]]))
         y_masked = np.concatenate((Power[sections["start_2"]:sections["end_2"]], Power[sections["start_4"]:sections["end_4"]]))
         x_masked = x_masked[~np.isnan(y_masked)]
         y_masked = y_masked[~np.isnan(y_masked)]
         
-        # Polynomial fit (n = 3)
+        ## Polynomial fit (n = 3)
         n = 3  # Degree of polynomial for baseline correction
         p0 = np.full(n + 1, 0.000000001)  # Initial guess of baseline coefficients
         
