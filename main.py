@@ -100,14 +100,13 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.CalculationMethod = "Integration" # default Calculation Method
 
         ## Button connections
-        ##!!! SOMEHOW ADD ARGUMENT: to store results, re-name window title, etc.            
         self.loadDataButton.clicked.connect(self.OpenWindow_PowerProcessing_1)
         self.loadDataButton_2.clicked.connect(self.OpenWindow_PowerProcessing_2)
         self.loadDataButton_3.clicked.connect(self.OpenWindow_PowerProcessing_3)
 
-        # self.baselineCorrectionButton.clicked.connect(self.baseline_correction) ##!!! MOVE TO PowerProcessing Window
-        
+        ##!!! FINISH FUNCTION        
         self.calculatePowerButton.clicked.connect(self.calculate_total_power) ## Calculates average power+error
+
         #######
 
         self.radioButton.toggled.connect(self.handle_radio_selection)
@@ -318,19 +317,23 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
     def OpenWindow_PowerProcessing_1(self):
         """Load the power data from a file and plot it in a new window."""
         LoadedData.count = 1
-        self.window_PP = WindowPowerProcessing.WindowPowerProcessing() # load Class that includes loadUi
+        # self.window_PP = WindowPowerProcessing.WindowPowerProcessing() # load Class that includes loadUi
+        self.window_PP = WindowPowerProcessing.WindowPowerProcessing(parent=self) # load Class that includes loadUi
+        
         self.window_PP.show()
+        # self.plainTextEdit_Power_1.setPlainText(LoadedData.PowersAtCuvette[LoadedData.count]) # calculated power
+
 
     def OpenWindow_PowerProcessing_2(self):
         """Load the power data from a file and plot it in a new window."""
         LoadedData.count = 2
-        self.window_PP = WindowPowerProcessing.WindowPowerProcessing() # load Class that includes loadUi
+        self.window_PP = WindowPowerProcessing.WindowPowerProcessing(parent=self) # load Class that includes loadUi
         self.window_PP.show()
 
     def OpenWindow_PowerProcessing_3(self):
         """Load the power data from a file and plot it in a new window."""
         LoadedData.count = 3
-        self.window_PP = WindowPowerProcessing.WindowPowerProcessing() # load Class that includes loadUi
+        self.window_PP = WindowPowerProcessing.WindowPowerProcessing(parent=self) # load Class that includes loadUi
         self.window_PP.show()
 
     def add_new_tab(self, plot_func, title):  # , idx=None, *args
@@ -400,7 +403,11 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         ExpParams.I0_avg = total_power # set to calculated power
         ExpParams.I0_err = total_std # set to calculated error
         
+        
+        
         print(f"I0_avg: {ExpParams.I0_avg}\nI0_err: {ExpParams.I0_err}")
+        
+        ##!!! MAKE I_O LIST in ExpParams
         
     ####################################################################################################################################
 

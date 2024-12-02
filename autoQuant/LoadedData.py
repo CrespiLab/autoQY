@@ -14,5 +14,7 @@ count = 0
 
 line_positions = [] 
 
+PowersAtCuvette = {}
+ErrorsAtCuvette = {}
 
 SpectralData_Full = None
