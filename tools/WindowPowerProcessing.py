@@ -32,6 +32,8 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         self.power_baselined_noyes = []
         
         self.line_positions = [] ## list of line positions (this is the parent window of MplCanvas in plotting.py)
+        print(f"WPP-__init__===self.line_positions:{self.line_positions}")
+
         
         ##!!! ELABORATE THIS WINDOW WITH BUTTONS: CALCULATE POWER
 
@@ -67,79 +69,68 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
     def load_power(self,file_name):
         """Load the data from a file and plot it in a new window."""
         if file_name:
-            # LoadedData.filename_power = file_name
-            # LoadedData.x, LoadedData.Power = self.load_and_validate_data(LoadedData.filename_power)
-            
             self.filename_power = file_name
             self.x, self.Power = self.load_and_validate_data(self.filename_power)
             
             ## Save x and Power without overwriting
-            # LoadedData.loaded_powerdata.append((LoadedData.x, LoadedData.Power))
             self.loaded_powerdata.append((self.x, self.Power))
-
+            # print(f"WPP-load_power===self.loaded_powerdata:{self.loaded_powerdata}")
 
             if self.Power is not None and self.x is not None:
-                self.add_new_tab_PowerData(self.plot_power_data, f"Power Data {LoadedData.count}", LoadedData.count)
+                self.add_new_tab_PowerData(self.plot_power_data, f"Power Data {LoadedData.count}")
             
-            print(f"WPP-load_power===LoadedData.count:{LoadedData.count}")
-            
-            # LoadedData.count += 1
-    
-            # if LoadedData.Power is not None and LoadedData.x is not None:
-            #     self.add_new_tab_PowerData(self.plot_power_data, f"Power Data {LoadedData.count+1}", LoadedData.count)
-            # LoadedData.count += 1
-    
-    def add_new_tab_PowerData(self, plot_func, title, idx=None, *args):
+            # print(f"WPP-load_power===LoadedData.count:{LoadedData.count}")
+
+    def add_new_tab_PowerData(self, plot_func, title, *args):
         """Create a new tab with a plot and a navigation toolbar."""
         try:
             tab = QtWidgets.QWidget()
             layout = QtWidgets.QVBoxLayout()  # Use QVBoxLayout to stack toolbar and canvas vertically
 
-            # Create the custom MplCanvas
-            canvas = MplCanvas(self, idx)  # Pass idx for initialization
+            ## Create the custom MplCanvas
+            canvas = MplCanvas(self, LoadedData.count)  # Pass dataset # for initialization
 
-            # Create the navigation toolbar for the canvas
-            toolbar = NavigationToolbar(canvas, self)
+            ## Create the navigation toolbar for the canvas
+            # toolbar = NavigationToolbar(canvas, self)
 
-            # Add the toolbar and canvas to the layout
-            layout.addWidget(toolbar)  # Add the toolbar at the top
+            ## Add the toolbar and canvas to the layout
+            # layout.addWidget(toolbar)  # Add the toolbar at the top
             layout.addWidget(canvas)   # Add the canvas (plot area) below the toolbar
 
             tab.setLayout(layout)
 
-            # Call the plotting function to populate the canvas
-            if idx is not None:
-                print(f'plot nr {idx}')  # Start from 1
-                plot_func(canvas, idx, *args)  # Pass idx only if provided
+            ## Call the plotting function to populate the canvas
+            if LoadedData.count is not None:
+                print(f'plot nr {LoadedData.count}')  # print dataset #
+                plot_func(canvas, *args) # call plot_power_data func
             else:
                 print('plot nr None')
-                plot_func(canvas, *args)  # No idx passed
+                plot_func(canvas, *args) # No idx passed
 
-            # Add the new tab to the tab widget
+            ## Add the new tab to the tab widget
             self.tabWidget.addTab(tab, title)
 
-            # Make tabs closable
+            ## Make tabs closable
             self.tabWidget.setTabsClosable(True)
 
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Error", f"Failed to add new tab: {e}")
     
-    def plot_power_data(self,canvas, idx):
+    def plot_power_data(self, canvas):
         """Plot the loaded data using the MplCanvas."""
-        # if LoadedData.x is None or LoadedData.Power is None:
-        #     QtWidgets.QMessageBox.warning("Error", "No data loaded")
-        #     return
-
         if self.x is None or self.Power is None:
             QtWidgets.QMessageBox.warning("Error", "No data loaded")
             return
         
-        self.line_positions.extend([[0] * 12 for _ in range(idx - len(self.line_positions) + 1)])
-        ### Use the plot_power method from MplCanvas
+        ##!!! remove the use of idx (don't need it anymore, I think)
+            ### replaced by LoadedData.count: but this seems overly complicated
         
-        # canvas.plot_power(LoadedData.x, LoadedData.Power, LoadedData.filename_power)
+        # self.line_positions.extend([[0] * 12 for _ in range(idx - len(self.line_positions) + 1)])
+        self.line_positions.extend([[0] * 12 for _ in range(LoadedData.count - len(self.line_positions) + 1)])
+        
+        ### Use the plot_power method from MplCanvas
         canvas.plot_power(self.x, self.Power, self.filename_power)
-        self.line_positions[idx] = self.get_sorted_line_positions(canvas)
+        self.line_positions[LoadedData.count] = self.get_sorted_line_positions(canvas)
     
     def get_sorted_line_positions(self,canvas):
         """Get and sort the x-positions of vertical lines."""
@@ -163,19 +154,11 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "Error", "No data loaded")
             return
 
-        ##!!! HERE: ADD NEW TAB IN POWERDATA-WINDOW
-
-        # Iterate over each loaded dataset using the saved idx (LoadedData.count)
-        print(f"WPP-baseline_correction===len(self.loaded_powerdata):{len(self.loaded_powerdata)}")
-        # for idx in range(len(self.loaded_powerdata)):
-        #     ## Baseline correction: no jacket, no cuvette
-        #     self.add_new_tab_PowerData(self.plot_baseline_corrected_no, f"Baseline correction: No Jacket and No Cuvette (Power Data {idx+1})", idx)
-            
-        #     # Baseline correction: jacket, cuvette with solvent
-        #     self.add_new_tab_PowerData(self.plot_baseline_corrected_yes, f"Baseline correction: With Jacket and Cuvette with Solvent (Power Data {idx+1})", idx)
+        # print(f"WPP-baseline_correction===len(self.loaded_powerdata):{len(self.loaded_powerdata)}")
 
         self.add_new_tab_PowerData(self.plot_baseline_corrected_no, f"Baseline correction {LoadedData.count}: No Jacket and No Cuvette", LoadedData.count)
-        print("WPP-baseline_correction===after self.plot_baseline_corrected_no")
+        # print("WPP-baseline_correction===after self.plot_baseline_corrected_no")
+
         self.add_new_tab_PowerData(self.plot_baseline_corrected_yes, f"Baseline correction {LoadedData.count}: With Jacket and Cuvette with Solvent", LoadedData.count)
 
     def plot_baseline_corrected_no(self, canvas, idx):
@@ -184,8 +167,6 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         # print(f"WPP-plot_baseline_corrected_no===self.loaded_powerdata[0]:{self.loaded_powerdata[0]}")
 
         case = 0 # no cuvette
-        # x, Power = self.loaded_powerdata[idx]
-        # line_positions = self.line_positions[idx]
 
         # print(f"WPP-plot_baseline_corrected_no===self.line_positions:{self.line_positions}")
         # print(f"WPP-plot_baseline_corrected_no===self.line_positions[1]:{self.line_positions[1]}")
@@ -194,7 +175,10 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         # print(f"WPP-plot_baseline_corrected_no===x:{x}")
         # print(f"WPP-plot_baseline_corrected_no===Power:{Power}")
 
-        line_positions = self.line_positions[1]
+        line_positions = self.line_positions[LoadedData.count]
+        # print(f"WPP-plot_baseline_corrected_no===self.line_positions:{self.line_positions}")
+
+        # print(f"WPP-plot_baseline_corrected_no===line_positions:{line_positions}")
         
         if len(line_positions) != 12: # Ensure 12 positions are selected
             QtWidgets.QMessageBox.warning(self, "Error", "You need to select exactly 12 line positions.")
@@ -202,7 +186,7 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
         #if idx == 1:
             # Proceed with baseline correction
         sections = BaselinePower.choose_sections(line_positions)
-        baselined, baseline, section_on_no = self.calculate_baseline_and_power_no(x, Power, sections)#baseline_correction(Power, x, sections)
+        baselined, baseline, section_on_no = self.calculate_baseline_and_power_no(x, Power, sections)
         
         self.power_baselined_noyes.append(section_on_no) # power values LED ON, no cuvette, no jacket
         
@@ -212,10 +196,9 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
 
 
     def plot_baseline_corrected_yes(self, canvas, idx):
-    ##!!! MOVE TO WindowPowerProcessing.py
         case = 1 # yes cuvette
         x, Power = self.loaded_powerdata[0]
-        line_positions = self.line_positions[1]
+        line_positions = self.line_positions[LoadedData.count]
         
         if len(line_positions) != 12: # Ensure 12 positions are selected
             QtWidgets.QMessageBox.warning(self, "Error", "You need to select exactly 12 line positions.")
