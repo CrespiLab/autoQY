@@ -192,10 +192,11 @@ class MplCanvas(FigureCanvas):
         self.draw()
 
                 
-    def Plot_LEDemission_Processed(self, absorbance, wavelengths,
+    def PlotData_Cut(self, absorbance_cut, wavelengths_cut,
                                 em_wl, em_int,
                                 index_first, index_last,
                                 em_int_proc):
+        """Data (epsilons and spectra) cut according to LED Emission spectrum"""
         self.fig.clear()  # Clear the entire figure
         
         # Create a grid for the subplots
@@ -207,8 +208,8 @@ class MplCanvas(FigureCanvas):
         # print(f"absorbance.shape: {absorbance.shape}")
 
 
-        for i in range(0,absorbance.shape[1]):
-            ax1.plot(wavelengths, absorbance.T[i])
+        for i in range(0,absorbance_cut.shape[1]):
+            ax1.plot(wavelengths_cut, absorbance_cut.T[i])
             # print(i)
 
         # Set common x-axis properties for both subplots
@@ -244,32 +245,78 @@ class MplCanvas(FigureCanvas):
         self.draw()  # Redraw the canvas
 
 
-    def plot_Epsilons(self, wavelengths, e_A_inter, e_B_inter, emission_inter):
-        """Plot interpolated epsilons and LED emission."""
+    # def plot_Epsilons(self, wavelengths, e_A_inter, e_B_inter, emission_inter):
+    #     """Plot interpolated epsilons and LED emission."""
+    #     self.fig.clear()  # Clear the entire figure
+        
+    #     # Use GridSpec to create a grid layout
+    #     gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1], hspace=0.5)  # Two rows, evenly spaced, with some space between
+
+    #     # Create first plot (Epsilons) in the first row
+    #     ax1 = self.fig.add_subplot(gs[0])
+        
+    #     # Plot epsilons on the first subplot
+    #     ax1.plot(wavelengths, e_A_inter, label="Reactant")
+    #     ax1.plot(wavelengths, e_B_inter, label="Product")
+    #     ax1.legend(fontsize=12)
+    #     ax1.set_xlabel("Wavelength (nm)")
+    #     ax1.set_xlim(220, 650)
+    #     ax1.set_title("Epsilons, interpolated")
+    #     ax1.set_ylabel(r"$\epsilon$ (M$^{-1}$ cm$^{-1}$)")
+
+    #     # Create second plot (LED Emission) in the second row
+    #     ax2 = self.fig.add_subplot(gs[1])
+    #     ax2.plot(wavelengths, emission_inter)
+    #     ax2.set_xlabel("Wavelength (nm)")
+    #     ax2.set_xlim(220, 650)
+    #     ax2.set_title("LED emission, interpolated")
+    #     ax2.set_ylabel("Intensity")
+
+    #     self.draw()  # Redraw the canvas
+
+    def plot_EpsilonsOnly(self, eR_wavelengths, eR_Abs, eP_wavelengths,eP_Abs):
+        """Plot epsilons before interpolation."""
         self.fig.clear()  # Clear the entire figure
         
         # Use GridSpec to create a grid layout
-        gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1], hspace=0.5)  # Two rows, evenly spaced, with some space between
+        # gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1], hspace=0.5)  # Two rows, evenly spaced, with some space between
+        gs = gridspec.GridSpec(1, 1) 
 
         # Create first plot (Epsilons) in the first row
         ax1 = self.fig.add_subplot(gs[0])
         
         # Plot epsilons on the first subplot
-        ax1.plot(wavelengths, e_A_inter, label="Reactant")
-        ax1.plot(wavelengths, e_B_inter, label="Product")
+        ax1.plot(eR_wavelengths, eR_Abs, label="Reactant")
+        ax1.plot(eP_wavelengths, eP_Abs, label="Product")
         ax1.legend(fontsize=12)
         ax1.set_xlabel("Wavelength (nm)")
         ax1.set_xlim(220, 650)
-        ax1.set_title("Epsilons, interpolated")
+        ax1.set_title("Epsilons (before interpolation)")
         ax1.set_ylabel(r"$\epsilon$ (M$^{-1}$ cm$^{-1}$)")
 
-        # Create second plot (LED Emission) in the second row
-        ax2 = self.fig.add_subplot(gs[1])
-        ax2.plot(wavelengths, emission_inter)
-        ax2.set_xlabel("Wavelength (nm)")
-        ax2.set_xlim(220, 650)
-        ax2.set_title("LED emission, interpolated")
-        ax2.set_ylabel("Intensity")
+        self.draw()  # Redraw the canvas
+
+    def plot_DataFull(self, wavelengths, absorbance):
+        """Plot interpolated epsilons and LED emission."""
+        self.fig.clear()  # Clear the entire figure
+        
+        # Use GridSpec to create a grid layout
+        # gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1], hspace=0.5)  # Two rows, evenly spaced, with some space between
+        gs = gridspec.GridSpec(1, 1) 
+
+        # Create first plot (Epsilons) in the first row
+        ax1 = self.fig.add_subplot(gs[0])
+        
+        ## Plot spectra
+        for i in range(0,absorbance.shape[1]):
+            ax1.plot(wavelengths, absorbance.T[i])
+            # print(i)
+        
+        ax1.legend(fontsize=12)
+        ax1.set_xlabel("Wavelength (nm)")
+        ax1.set_xlim(220, 650)
+        ax1.set_title("Spectra during Irradiation")
+        ax1.set_ylabel(r"Absorbance")
 
         self.draw()  # Redraw the canvas
 

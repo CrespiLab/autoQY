@@ -993,7 +993,7 @@
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_22">
            <item>
-            <widget class="QPushButton" name="plotLEDButton">
+            <widget class="QPushButton" name="ProcessPlotDataButton">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
                <horstretch>0</horstretch>
@@ -1126,7 +1126,7 @@
              <property name="maximumSize">
               <size>
                <width>50</width>
-               <height>50</height>
+               <height>25</height>
               </size>
              </property>
              <property name="font">
@@ -1274,7 +1274,7 @@
              <property name="maximumSize">
               <size>
                <width>50</width>
-               <height>50</height>
+               <height>25</height>
               </size>
              </property>
              <property name="font">
@@ -1422,7 +1422,7 @@
              <property name="maximumSize">
               <size>
                <width>50</width>
-               <height>50</height>
+               <height>25</height>
               </size>
              </property>
              <property name="font">
@@ -1561,6 +1561,12 @@
           <layout class="QHBoxLayout" name="horizontalLayout_5">
            <item>
             <widget class="QLabel" name="label_15">
+             <property name="maximumSize">
+              <size>
+               <width>100</width>
+               <height>25</height>
+              </size>
+             </property>
              <property name="font">
               <font>
                <pointsize>10</pointsize>
@@ -1689,7 +1695,7 @@
           <widget class="QLabel" name="label_4">
            <property name="maximumSize">
             <size>
-             <width>50</width>
+             <width>100</width>
              <height>25</height>
             </size>
            </property>
@@ -1699,7 +1705,7 @@
             </font>
            </property>
            <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;I&lt;span style=&quot; vertical-align:sub;&quot;&gt;0 avg&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            <string>Power</string>
            </property>
           </widget>
          </item>
@@ -1806,31 +1812,7 @@
          <item>
           <layout class="QVBoxLayout" name="verticalLayout_2">
            <item>
-            <widget class="QPushButton" name="LoadCis">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>125</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>10</pointsize>
-              </font>
-             </property>
-             <property name="text">
-              <string>Epsilons Product</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="LoadTrans">
+            <widget class="QPushButton" name="LoadEpsilons_Reactant">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                <horstretch>0</horstretch>
@@ -1850,6 +1832,30 @@
              </property>
              <property name="text">
               <string>Epsilons Reactant</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="LoadEpsilons_Product">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>125</width>
+               <height>25</height>
+              </size>
+             </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
+             <property name="text">
+              <string>Epsilons Product</string>
              </property>
             </widget>
            </item>
@@ -1919,7 +1925,7 @@
             </widget>
            </item>
            <item alignment="Qt::AlignHCenter">
-            <widget class="QPushButton" name="pushButton_plotSpectra">
+            <widget class="QPushButton" name="PlotSpectraButton">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                <horstretch>0</horstretch>
@@ -2255,8 +2261,8 @@
  <resources/>
  <connections/>
  <buttongroups>
-  <buttongroup name="buttonGroup"/>
   <buttongroup name="buttonGroup_3"/>
+  <buttongroup name="buttonGroup"/>
   <buttongroup name="buttonGroup_2"/>
  </buttongroups>
 </ui>

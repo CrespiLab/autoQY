@@ -82,10 +82,10 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.LEDindex_first, self.LEDindex_last = None, None
         self.emission_wavelengths = None
         self.emission_Intensity = None
-        self.epsilon_A_wavelengths = None 
-        self.epsilon_A_values = None
-        self.epsilon_B_wavelengths = None
-        self.epsilon_B_values = None
+        self.epsilons_R_wavelengths = None 
+        self.epsilons_R_values = None
+        self.epsilons_P_wavelengths = None
+        self.epsilons_P_values = None
         self.SpectralData_Wavelengths = None
         self.SpectralData_Abs = None
         self.SpectralData_Index = None
@@ -94,8 +94,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
         self.wavelength_low = None
         self.wavelength_high = None
-        self.epsilon_A_interp = None
-        self.epsilon_B_interp = None
+        self.epsilons_R_interp = None
+        self.epsilons_P_interp = None
         
         self.labels_power = {1: self.plainTextEdit_Power_1,
                                    2: self.plainTextEdit_Power_2,
@@ -127,8 +127,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         # Connecting buttons to their respective methods
         ##!!! implement the SingleWavelength option as well
         self.LoadLED.clicked.connect(lambda: self.load_file("LED Emission"))
-        self.LoadTrans.clicked.connect(lambda: self.load_file("Epsilons A"))
-        self.LoadCis.clicked.connect(lambda: self.load_file("Epsilons B"))
+        self.LoadEpsilons_Reactant.clicked.connect(lambda: self.load_file("Epsilons R"))
+        self.LoadEpsilons_Product.clicked.connect(lambda: self.load_file("Epsilons P"))
         self.LoadSpectra.clicked.connect(lambda: self.load_file("Spectral Data"))
         self.LoadLog.clicked.connect(lambda: self.load_file("Log Irr"))
         self.SaveResultsBtn.clicked.connect(self.Save_QY)
@@ -155,8 +155,10 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.plainTextEdit_9.textChanged.connect(self.update_threshold) # 
 
         ## Adding new buttons for custom plot functions from your scripts ##
-        self.plotLEDButton.clicked.connect(self.process_LED)
+        self.ProcessPlotDataButton.clicked.connect(self.process_LED)
         self.plotEpsilonButton.clicked.connect(self.plot_epsilon)
+        self.PlotSpectraButton.clicked.connect(self.plot_spectra)
+
         self.plotQuantButton.clicked.connect(self.plot_auto_quant)
 
         self.radioButton_3.setEnabled(True) # Power Manual: default enabled
@@ -443,12 +445,13 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
                 self.emission_wavelengths, self.emission_Intensity = Integration.Import_LEDemission("Spectragryph", file_path)
                 self.filename_LED = file_path
                 
-            elif file_type == "Epsilons A":
-                self.epsilon_A_wavelengths, self.epsilon_A_values = Integration.Import_Epsilons("Spectragryph", file_path)
-            elif file_type == "Epsilons B":
-                self.epsilon_B_wavelengths, self.epsilon_B_values = Integration.Import_Epsilons("Spectragryph", file_path)
+            elif file_type == "Epsilons R":
+                self.epsilons_R_wavelengths, self.epsilons_R_values = Integration.Import_Epsilons("Spectragryph", file_path)
+            elif file_type == "Epsilons P":
+                self.epsilons_P_wavelengths, self.epsilons_P_values = Integration.Import_Epsilons("Spectragryph", file_path)
             elif file_type == "Spectral Data":
-                LoadedData.SpectralData_Full = \
+                LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths,
+                LoadedData.SpectralData_Absorbance = \
                     Integration.Import_SpectralData("Spectragryph",file_path) #HARDCODED IN THE WRONG PLACE # STILL??
             ########################################
             ##!!! ADD in case of .dat format
@@ -466,11 +469,12 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
                 self.emission_wavelengths, self.emission_Intensity = Integration.Import_LEDemission("Not", file_path)
                 self.filename_LED = file_path
             elif file_type == "Epsilons A":
-                self.epsilon_A_wavelengths, self.epsilon_A_values = Integration.Import_Epsilons("Not", file_path)
+                self.epsilons_R_wavelengths, self.epsilons_R_values = Integration.Import_Epsilons("Not", file_path)
             elif file_type == "Epsilons B":
-                self.epsilon_B_wavelengths, self.epsilon_B_values = Integration.Import_Epsilons("Not", file_path)
+                self.epsilons_P_wavelengths, self.epsilons_P_values = Integration.Import_Epsilons("Not", file_path)
             elif file_type == "Spectral Data":
-                LoadedData.SpectralData_Full = \
+                LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths,
+                LoadedData.SpectralData_Absorbance = \
                     Integration.Import_SpectralData("Not", file_path)
             elif file_type == "Log Irr":
                 self.timestamps = self.GetTimestamps(file_path)
@@ -479,20 +483,50 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Error", f"Failed to process .csv file for {file_type}: {e}")
 
-    ##!!! DEFINE OUTSIDE OF CLASS
-    def plot_LEDprocessed(self,canvas):
+###=========================================================================###
+###=========================================================================###
+    ##!!! DEFINE OUTSIDE OF CLASS    
+    def plot_epsilon(self):
+        """ Interpolate epsilons spectra and plot """
+        if self.epsilons_R_wavelengths is None or self.epsilons_P_wavelengths is None:
+            QtWidgets.QMessageBox.warning(self, "Error", "Please load the epilons data first.")
+            return
+        # ##!!! MOVED TO process_LED
+        # self.epsilons_R_interp, self.epsilons_P_interp, self.emission_interp = Integration.Interpolate_Epsilons(LoadedData.SpectralData_Wavelengths,
+        #              self.epsilons_R_wavelengths, self.epsilons_R_values,
+        #              self.epsilons_P_wavelengths, self.epsilons_P_values,
+        #              self.emission_wavelengths, self.emission_Intensity_proc)
+
+        def plot_func(canvas):
+            """ Plot the data using MplCanvas """
+            canvas.plot_EpsilonsOnly(self.epsilons_R_wavelengths,self.epsilons_R_values,
+                          self.epsilons_P_wavelengths,self.epsilons_P_values)
+        
+        self.add_new_tab(plot_func, "Epsilons (before interpolation)")
+
+    ##!!! DEFINE OUTSIDE OF CLASS    
+    def plot_spectra(self):
+        """ Interpolate epsilons spectra and plot """
+        if LoadedData.SpectralData_Full is None:
+            QtWidgets.QMessageBox.warning(self, "Error", "Please first load Spectra during Irradiation.")
+            return
+
+        def plot_func(canvas):
+            """ Plot the data using MplCanvas """
+            canvas.plot_DataFull(LoadedData.SpectralData_Wavelengths,
+                                 LoadedData.SpectralData_Absorbance)
+        
+        self.add_new_tab(plot_func, "Spectra during Irradiation")
             
-        canvas.Plot_LEDemission_Processed(self.SpectralData_Abs, self.SpectralData_Wavelengths,
-            self.emission_wavelengths, self.emission_Intensity,
-            self.LEDindex_first, self.LEDindex_last, 
-            self.emission_Intensity_proc)
-            
+
+
+
     def process_LED(self):
         """Process and visualize the data based on the loaded files."""
         
         ## Integration mode
         if self.CalculationMethod == "Integration":
-            if self.emission_wavelengths is None or self.emission_Intensity is None or LoadedData.SpectralData_Full is None:
+            if self.emission_wavelengths is None or self.emission_Intensity is None or LoadedData.SpectralData_Wavelengths is None:
                 QtWidgets.QMessageBox.warning(self, "Error", "Please load LED emission file and Spectra.")
                 return
             
@@ -508,11 +542,11 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             
             ########################################
             ## Process Spectral data: cut to part of spectrum according to LED emission band
-            self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = \
+            self.SpectralDataCut_Wavelengths, self.SpectralDataCut_Abs, self.SpectralDataCut_Index = \
                 Integration.Process_SpectralData(LoadedData.SpectralData_Full, self.wavelength_low, self.wavelength_high, ExpParams.LEDw)
         
         ##!!! ADJUST CODE TO PLOT SPECTRA AND JUST INDICATE PART OF SPECTRUM (with a box)
-            self.add_new_tab(self.plot_LEDprocessed, "LED Emission and Spectral Data")
+            self.add_new_tab(self.PlotData_Cut, "LED Emission and Spectral Data")
         
         ## SingleWavelength mode
         elif self.CalculationMethod == "SingleWavelength":
@@ -522,36 +556,33 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
 
         ##!!! WORKING ON IT HERE NOT FINISHED YET AAAHHH
-            self.SpectralData_Wavelengths, self.SpectralData_Abs, self.SpectralData_Index = \
+            self.SpectralDataCut_Wavelengths, self.SpectralDataCut_Abs, self.SpectralDataCut_Index = \
                 SingleWavelength.Process_SpectralData(LoadedData.SpectralData_Full, self.wavelength_low, self.wavelength_high, ExpParams.LEDw)
 
             ##!!! ADJUST CODE TO PLOT SPECTRA AND ONLY INDICATE EITHER
                 ## VERTICAL LINE: SINGLE WAVELENGTH
-            # self.add_new_tab(self.plot_LEDprocessed, "LED Emission and Spectral Data")
+            # self.add_new_tab(self.PlotData_Cut, "LED Emission and Spectral Data")
         
         else:
             QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the self.CalculationMethod variable")
         
+        ##!!! MOVED HERE
+        self.epsilons_R_interp, self.epsilons_P_interp, self.emission_interp = Integration.Interpolate_Epsilons(LoadedData.SpectralData_Wavelengths,
+                     self.epsilons_R_wavelengths, self.epsilons_R_values,
+                     self.epsilons_P_wavelengths, self.epsilons_P_values,
+                     self.emission_wavelengths, self.emission_Intensity_proc)
+        
         #############
         
-    ##!!! DEFINE OUTSIDE OF CLASS    
-    def plot_epsilon(self):
-        """ Interpolate epsilons spectra and plot """
-        if self.emission_Intensity_proc is None:
-            QtWidgets.QMessageBox.warning(self, "Error", "Please process the LED emission data first.")
-            return
-        self.epsilon_A_interp, self.epsilon_B_interp, self.emission_interp = Integration.Interpolate_Epsilons(self.SpectralData_Wavelengths,
-                     self.epsilon_A_wavelengths, self.epsilon_A_values,
-                     self.epsilon_B_wavelengths, self.epsilon_B_values,
-                     self.emission_wavelengths, self.emission_Intensity_proc)
+        ##!!! DEFINE OUTSIDE OF CLASS
 
-        def plot_func(canvas):
-            """ Plot the data using MplCanvas """
-            canvas.plot_Epsilons(self.SpectralData_Wavelengths,
-                          self.epsilon_A_interp, self.epsilon_B_interp,
-                          self.emission_interp)
+    def PlotData_Cut(self,canvas):
+            
+        canvas.PlotData_Cut(self.SpectralDataCut_Abs, self.SpectralDataCut_Wavelengths,
+            self.emission_wavelengths, self.emission_Intensity,
+            self.LEDindex_first, self.LEDindex_last, 
+            self.emission_Intensity_proc)
         
-        self.add_new_tab(plot_func, "Epsilons")
 
     def plot_auto_quant(self, canvas):
         """
@@ -569,14 +600,14 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             ## Create parameters needed for fitting
             initial_conc_A, initial_conc_B, spectraldata_meters, normalized_emission = \
                 Integration.CreateParameters(self.SpectralData_Abs, self.SpectralData_Wavelengths,
-                                            self.epsilon_A_interp, self.emission_interp)
+                                            self.epsilons_R_interp, self.emission_interp)
     
             
             N, fit_results = Integration.MinimizeQYs(I0_list, normalized_emission,
                                                     spectraldata_meters, 
                                                     initial_conc_A, initial_conc_B,
                                                     self.timestamps, self.SpectralData_Abs,
-                                                    self.epsilon_A_interp, self.epsilon_B_interp,
+                                                    self.epsilons_R_interp, self.epsilons_P_interp,
                                                     ExpParams.V)
 
         elif self.CalculationMethod == "SingleWavelength":
@@ -611,12 +642,12 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
                                                     initial_conc_A, initial_conc_B, 
                                                     self.timestamps,
                                                     self.QY_AB_opt, self.QY_BA_opt, 
-                                                    self.epsilon_A_interp, self.epsilon_B_interp,
+                                                    self.epsilons_R_interp, self.epsilons_P_interp,
                                                     N, ExpParams.V)
 
         ## Calculate total absorbance and residuals
         self.total_abs_fit, self.residuals = Integration.GetFittedAbs(fit_results, self.conc_opt,
-                                                            self.epsilon_A_interp, self.epsilon_B_interp,
+                                                            self.epsilons_R_interp, self.epsilons_P_interp,
                                                             self.timestamps,
                                                             self.SpectralData_Wavelengths)
         

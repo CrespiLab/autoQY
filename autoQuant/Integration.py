@@ -43,7 +43,7 @@ def Import_LEDemission(FileFormat, file_LEDemission_raw):
     if FileFormat == "Spectragryph":
         emission_data = pd.read_csv(file_LEDemission_raw, sep = '\t', usecols = lambda x: x not in ["Wavenumbers [1/cm]"]) # in nanometers
     elif FileFormat == "Not":
-        emission_data = pd.read_csv(file_LEDemission_raw, delimiter=',') # in meters #MISSING DELIMITER ALFREDO
+        emission_data = pd.read_csv(file_LEDemission_raw, delimiter=',') # in meters
 
     emission_data.columns = ['Wavelength [nm]', 'Intensity'] ## rename columns
 
@@ -85,7 +85,13 @@ def Import_SpectralData(FileFormat, file):
     elif FileFormat == "Not":
         data_pd = pd.read_csv(file, delimiter=',', header=0)  # in nanometers ####ALFREDO: FIXED?
 
-    return data_pd
+    data_pd.columns = ['Wavelength [nm]', 'Absorbance'] ## rename columns
+    
+    data_pd_full = data_pd
+    data_pd_wavelengths = data_pd['Wavelength [nm]'].values
+    data_pd_absorbance = data_pd['Absorbance'].values
+
+    return data_pd_full, data_pd_wavelengths, data_pd_absorbance
 
 def Process_SpectralData(data_pd, wl_low, wl_high, wavelength_of_interest):
     """ Process Spectral Data (the spectra recorded during irradiation) """
@@ -110,9 +116,8 @@ def Process_SpectralData(data_pd, wl_low, wl_high, wavelength_of_interest):
 
     return wavelengths_lowhigh, absorbance_lowhigh, index
 
-##################!!! N.B.: COMMENTED TO MERGE WITH MAIN.PY!
 def Import_Epsilons(FileFormat, 
-                    A): #NO B - ALFREDO
+                    X):
     """ 
     Epsilons datafiles are in a certain format
     TO DO for GUI:
@@ -121,38 +126,31 @@ def Import_Epsilons(FileFormat,
         
     """
     if FileFormat == "Spectragryph":
-        epsilon_A_data = pd.read_csv(A, delimiter='\t',
+        epsilon_data = pd.read_csv(X, delimiter='\t',
                                      usecols = lambda x: x not in ["Wavenumbers [1/cm]"])
-    #    epsilon_B_data= pd.read_csv(B, delimiter='\t', 
-    #                                usecols = lambda x: x not in ["Wavenumbers [1/cm]"])
     elif FileFormat == "Not":
-        # epsilon_A_data = pd.read_csv(A, delimiter=',')
-        epsilon_A_data = pd.read_csv(A, delimiter=',', 
-                                     skiprows=1, usecols=[0,1]) ##!!! TRY
-    #    epsilon_B_data = pd.read_csv(B, delimiter=',')
+        epsilon_data = pd.read_csv(X, delimiter=',', 
+                                     skiprows=1, usecols=[0,1]) 
         
-    epsilon_A_data.columns = ['Wavelengths', 'Epsilons'] ## rename columns
-    epsilon_A_wavelengths = epsilon_A_data['Wavelengths'].values
-    epsilon_A_values = epsilon_A_data['Epsilons'].values
+    epsilon_data.columns = ['Wavelengths', 'Epsilons'] ## rename columns
+    epsilon_wavelengths = epsilon_data['Wavelengths'].values
+    epsilon_values = epsilon_data['Epsilons'].values
     
-    #epsilon_B_data.columns = ['Wavelengths', 'Epsilons'] ## rename columns
-    #epsilon_B_wavelengths = epsilon_B_data['Wavelengths'].values
-    #epsilon_B_values = epsilon_B_data['Epsilons'].values
-    return epsilon_A_wavelengths, epsilon_A_values#, epsilon_B_wavelengths, epsilon_B_values
+    return epsilon_wavelengths, epsilon_values
 
-def Interpolate_Epsilons(Abs_wavelengths,
+def Interpolate_Epsilons(IrrSpectra_wavelengths,
                          eA_wavelengths, eA_values,
                          eB_wavelengths, eB_values,
                          LED_wavelengths, LED_intensity_proc):
     ## Interpolate ε_A and ε_B at each wavelength so that all data sets use the same 
     ## wavelengths data
-    epsilon_A_interp = np.interp(Abs_wavelengths, eA_wavelengths, 
+    epsilons_R_interp = np.interp(IrrSpectra_wavelengths, eA_wavelengths, 
                                  eA_values)
-    epsilon_B_interp = np.interp(Abs_wavelengths, eB_wavelengths, 
+    epsilons_P_interp = np.interp(IrrSpectra_wavelengths, eB_wavelengths, 
                                  eB_values)
-    emission_interp = np.interp(Abs_wavelengths, LED_wavelengths,
+    emission_interp = np.interp(IrrSpectra_wavelengths, LED_wavelengths,
                                 LED_intensity_proc)
-    return epsilon_A_interp, epsilon_B_interp, emission_interp
+    return epsilons_R_interp, epsilons_P_interp, emission_interp
 
 ##################################################
 ###################### PLOT ######################
