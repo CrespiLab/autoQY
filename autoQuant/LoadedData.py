@@ -18,3 +18,5 @@ PowersAtCuvette = {}
 ErrorsAtCuvette = {}
 
 SpectralData_Full = None
+SpectralData_Wavelengths = None
+SpectralData_Absorbance = None

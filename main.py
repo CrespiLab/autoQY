@@ -433,7 +433,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
                 self.load_dat(file_name, file_type)
             else:
                 QtWidgets.QMessageBox.warning(self, "Error", f"Unknown file type: {file_type}")
-
+            
+            ##!!! THIS MESSAGE STILL APPEARS EVEN IF A FILE IS UNSUCCESSFULLY LOADED...
             QtWidgets.QMessageBox.information(self, "Success", f"{file_type} file loaded successfully!")
         except Exception as e:
                 QtWidgets.QMessageBox.critical(self, "Error", f"Failed to load {file_type} file: {e}")
@@ -450,9 +451,9 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             elif file_type == "Epsilons P":
                 self.epsilons_P_wavelengths, self.epsilons_P_values = Integration.Import_Epsilons("Spectragryph", file_path)
             elif file_type == "Spectral Data":
-                LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths,
-                LoadedData.SpectralData_Absorbance = \
+                LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths, LoadedData.SpectralData_Absorbance = \
                     Integration.Import_SpectralData("Spectragryph",file_path) #HARDCODED IN THE WRONG PLACE # STILL??
+                    
             ########################################
             ##!!! ADD in case of .dat format
             # elif file_type == "Log Irr":
@@ -460,7 +461,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             else:
                     raise ValueError(f"Unknown file type: {file_type}")
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Error", f"Failed to process .dat file for {file_type}: {e}")
+            QtWidgets.QMessageBox.critical(self, "Error", f"Failed to import .dat file for {file_type}: {e}")
 
     def load_csv(self, file_path, file_type):
         """Load the data file depending on its format (.csv or .dat)."""
@@ -481,7 +482,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             else:
                     raise ValueError(f"Unknown file type: {file_type}")
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Error", f"Failed to process .csv file for {file_type}: {e}")
+            QtWidgets.QMessageBox.critical(self, "Error", f"Failed to import .csv file for {file_type}: {e}")
 
 ###=========================================================================###
 ###=========================================================================###
@@ -507,6 +508,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
     ##!!! DEFINE OUTSIDE OF CLASS    
     def plot_spectra(self):
         """ Interpolate epsilons spectra and plot """
+        print(f"main-plot_spectra===LoadedData.SpectralData_full:\n{LoadedData.SpectralData_Full}")
         if LoadedData.SpectralData_Full is None:
             QtWidgets.QMessageBox.warning(self, "Error", "Please first load Spectra during Irradiation.")
             return

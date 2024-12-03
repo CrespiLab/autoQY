@@ -308,13 +308,14 @@ class MplCanvas(FigureCanvas):
         ax1 = self.fig.add_subplot(gs[0])
         
         ## Plot spectra
-        for i in range(0,absorbance.shape[1]):
-            ax1.plot(wavelengths, absorbance.T[i])
+        for i in range(1,len(absorbance.columns)):
+            ax1.plot(wavelengths, absorbance[absorbance.columns[i]])
             # print(i)
         
         ax1.legend(fontsize=12)
         ax1.set_xlabel("Wavelength (nm)")
         ax1.set_xlim(220, 650)
+        ax1.set_ylim(-0.05, 2)
         ax1.set_title("Spectra during Irradiation")
         ax1.set_ylabel(r"Absorbance")
 
