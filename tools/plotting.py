@@ -1,11 +1,12 @@
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from PyQt5 import QtWidgets
+# from PyQt5 import QtWidgets
 from matplotlib.figure import Figure
 import matplotlib.gridspec as gridspec
 from matplotlib.ticker import AutoMinorLocator
-import numpy as np
-import autoQuant.LoadedData as LoadedData
+# import numpy as np
+# import autoQuant.LoadedData as LoadedData
+import autoQuant.ExpParams as ExpParams
 
 
 class MplCanvas(FigureCanvas):
@@ -310,7 +311,8 @@ class MplCanvas(FigureCanvas):
         ## Plot spectra
         for i in range(1,len(absorbance.columns)):
             ax1.plot(wavelengths, absorbance[absorbance.columns[i]])
-            # print(i)
+
+        ##!!! implement colour gradient and indicate first and last
         
         ax1.legend(fontsize=12)
         ax1.set_xlabel("Wavelength (nm)")
@@ -318,6 +320,26 @@ class MplCanvas(FigureCanvas):
         ax1.set_ylim(-0.05, 2)
         ax1.set_title("Spectra during Irradiation")
         ax1.set_ylabel(r"Absorbance")
+
+        self.draw()  # Redraw the canvas
+
+    def plot_LEDemission_full(self, LED_wavelength,LED_intensity):
+        """Plot epsilons before interpolation."""
+        self.fig.clear()  # Clear the entire figure
+        
+        # Use GridSpec to create a grid layout
+        gs = gridspec.GridSpec(1, 1) 
+
+        # Create plot
+        ax1 = self.fig.add_subplot(gs[0])
+        
+        # Plot 
+        ax1.plot(LED_wavelength, LED_intensity, label=f"LED emission ({ExpParams.LEDw} nm)")
+        ax1.legend(fontsize=12)
+        ax1.set_xlabel("Wavelength (nm)")
+        ax1.set_xlim(220, 650)
+        ax1.set_title("LED emission (full)")
+        ax1.set_ylabel(r"Intensity")
 
         self.draw()  # Redraw the canvas
 

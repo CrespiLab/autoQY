@@ -235,7 +235,7 @@
             </widget>
            </item>
            <item>
-            <widget class="QPushButton" name="pushButton_plotLEDfull">
+            <widget class="QPushButton" name="PlotLEDEmissionButton">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
                <horstretch>0</horstretch>
@@ -254,7 +254,7 @@
               </font>
              </property>
              <property name="text">
-              <string>Plot (TO DO)</string>
+              <string>Plot</string>
              </property>
             </widget>
            </item>

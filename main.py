@@ -80,8 +80,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
         self.filename_LED = None
         self.LEDindex_first, self.LEDindex_last = None, None
-        self.emission_wavelengths = None
-        self.emission_Intensity = None
+        self.LEDemission_wavelengths = None
+        self.LEDemission_intensity = None
         self.epsilons_R_wavelengths = None 
         self.epsilons_R_values = None
         self.epsilons_P_wavelengths = None
@@ -89,8 +89,8 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.SpectralData_Wavelengths = None
         self.SpectralData_Abs = None
         self.SpectralData_Index = None
-        self.emission_interp = None
-        self.emission_Intensity_proc = None
+        self.LEDemission_interp = None
+        self.LEDemission_intensity_proc = None
 
         self.wavelength_low = None
         self.wavelength_high = None
@@ -158,6 +158,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.ProcessPlotDataButton.clicked.connect(self.process_LED)
         self.plotEpsilonButton.clicked.connect(self.plot_epsilon)
         self.PlotSpectraButton.clicked.connect(self.plot_spectra)
+        self.PlotLEDEmissionButton.clicked.connect(self.plot_LEDfull)
 
         self.plotQuantButton.clicked.connect(self.plot_auto_quant)
 
@@ -443,7 +444,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         """Load the data file depending on its format (.csv or .dat)."""
         try:
             if file_type == "LED Emission":
-                self.emission_wavelengths, self.emission_Intensity = Integration.Import_LEDemission("Spectragryph", file_path)
+                self.LEDemission_wavelengths, self.LEDemission_intensity = Integration.Import_LEDemission("Spectragryph", file_path)
                 self.filename_LED = file_path
                 
             elif file_type == "Epsilons R":
@@ -467,11 +468,12 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         """Load the data file depending on its format (.csv or .dat)."""
         try:       
             if file_type == "LED Emission": ###### A LOT OF PROBLEMS WITH '
-                self.emission_wavelengths, self.emission_Intensity = Integration.Import_LEDemission("Not", file_path)
+                self.LEDemission_wavelengths, self.LEDemission_intensity = Integration.Import_LEDemission("Not", file_path)
                 self.filename_LED = file_path
-            elif file_type == "Epsilons A":
+                
+            elif file_type == "Epsilons R":
                 self.epsilons_R_wavelengths, self.epsilons_R_values = Integration.Import_Epsilons("Not", file_path)
-            elif file_type == "Epsilons B":
+            elif file_type == "Epsilons P":
                 self.epsilons_P_wavelengths, self.epsilons_P_values = Integration.Import_Epsilons("Not", file_path)
             elif file_type == "Spectral Data":
                 LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths,
@@ -486,13 +488,15 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
 ###=========================================================================###
 ###=========================================================================###
+
     ##!!! DEFINE OUTSIDE OF CLASS    
     def plot_epsilon(self):
-        """ Interpolate epsilons spectra and plot """
+        """ Plot epsilons spectra (before interpolation) """
         if self.epsilons_R_wavelengths is None or self.epsilons_P_wavelengths is None:
             QtWidgets.QMessageBox.warning(self, "Error", "Please load the epilons data first.")
             return
-        # ##!!! MOVED TO process_LED
+        
+        # ## MOVED TO process_LED
         # self.epsilons_R_interp, self.epsilons_P_interp, self.emission_interp = Integration.Interpolate_Epsilons(LoadedData.SpectralData_Wavelengths,
         #              self.epsilons_R_wavelengths, self.epsilons_R_values,
         #              self.epsilons_P_wavelengths, self.epsilons_P_values,
@@ -507,8 +511,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
 
     ##!!! DEFINE OUTSIDE OF CLASS    
     def plot_spectra(self):
-        """ Interpolate epsilons spectra and plot """
-        print(f"main-plot_spectra===LoadedData.SpectralData_full:\n{LoadedData.SpectralData_Full}")
+        """ Plot spectra recorded during irradiation """
         if LoadedData.SpectralData_Full is None:
             QtWidgets.QMessageBox.warning(self, "Error", "Please first load Spectra during Irradiation.")
             return
@@ -520,7 +523,18 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         
         self.add_new_tab(plot_func, "Spectra during Irradiation")
             
+    ##!!! DEFINE OUTSIDE OF CLASS    
+    def plot_LEDfull(self):
+        """ Plot LED emission spectrum (full) """
+        if self.LEDemission_wavelengths is None or self.LEDemission_intensity is None:
+            QtWidgets.QMessageBox.warning(self, "Error", "Please load LED emission file.")
+            return
 
+        def plot_func(canvas):
+            """ Plot the data using MplCanvas """
+            canvas.plot_LEDemission_full(self.LEDemission_wavelengths,self.LEDemission_intensity)
+        
+        self.add_new_tab(plot_func, "LED emission (full)")
 
 
     def process_LED(self):
@@ -528,7 +542,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         
         ## Integration mode
         if self.CalculationMethod == "Integration":
-            if self.emission_wavelengths is None or self.emission_Intensity is None or LoadedData.SpectralData_Wavelengths is None:
+            if self.LEDemission_wavelengths is None or self.LEDemission_intensity is None or LoadedData.SpectralData_Wavelengths is None:
                 QtWidgets.QMessageBox.warning(self, "Error", "Please load LED emission file and Spectra.")
                 return
             
@@ -538,9 +552,9 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
             
             ########################################
             threshold_LED = ExpParams.threshold
-            self.emission_Intensity_proc, self.LEDindex_first, self.LEDindex_last, self.wavelength_low, self.wavelength_high = \
+            self.LEDemission_intensity_proc, self.LEDindex_first, self.LEDindex_last, self.wavelength_low, self.wavelength_high = \
                 Integration.Processing_LEDemission(
-                    self.emission_wavelengths, self.emission_Intensity, threshold_LED)
+                    self.LEDemission_wavelengths, self.LEDemission_intensity, threshold_LED)
             
             ########################################
             ## Process Spectral data: cut to part of spectrum according to LED emission band
@@ -572,7 +586,7 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         self.epsilons_R_interp, self.epsilons_P_interp, self.emission_interp = Integration.Interpolate_Epsilons(LoadedData.SpectralData_Wavelengths,
                      self.epsilons_R_wavelengths, self.epsilons_R_values,
                      self.epsilons_P_wavelengths, self.epsilons_P_values,
-                     self.emission_wavelengths, self.emission_Intensity_proc)
+                     self.LEDemission_wavelengths, self.LEDemission_intensity_proc)
         
         #############
         
@@ -581,9 +595,9 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
     def PlotData_Cut(self,canvas):
             
         canvas.PlotData_Cut(self.SpectralDataCut_Abs, self.SpectralDataCut_Wavelengths,
-            self.emission_wavelengths, self.emission_Intensity,
+            self.LEDemission_wavelengths, self.LEDemission_intensity,
             self.LEDindex_first, self.LEDindex_last, 
-            self.emission_Intensity_proc)
+            self.LEDemission_intensity_proc)
         
 
     def plot_auto_quant(self, canvas):
@@ -709,11 +723,6 @@ class PowerProcessingApp(QtWidgets.QMainWindow):
         ##!!! ADD: output a "Results" file containing all the used parameters and the obtained results
 
         QtWidgets.QMessageBox.information(self, "Success", f"{savefilename} file saved successfully!")
-
-
-    # def GetPowerList(self, I0_avg, I0_err): 
-    #     I0_list = [I0_avg, I0_avg+I0_err, I0_avg-I0_err]
-    #     return I0_list
 
     def GetTimestamps(self, LogFile):
         ## CSV not DAT
