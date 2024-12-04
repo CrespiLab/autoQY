@@ -85,17 +85,17 @@ def Import_SpectralData(FileFormat, file):
     elif FileFormat == "Not":
         data_pd = pd.read_csv(file, delimiter=',', header=0)  # in nanometers ####ALFREDO: FIXED?
 
-    print(f"Integration-Import_SpectralData===data_pd:{data_pd}")
+    # print(f"Integration-Import_SpectralData===data_pd:{data_pd}")
 
     # data_pd.columns = ['Wavelength [nm]', 'Absorbance'] ## rename columns
     
     data_pd_full = data_pd
-    print(f"Integration-Import_SpectralData===data_pd_full:{data_pd_full}")
+    # print(f"Integration-Import_SpectralData===data_pd_full:{data_pd_full}")
 
     data_pd_wavelengths = data_pd['Wavelength [nm]']
-    print(f"Integration-Import_SpectralData===data_pd_wavelengths:{data_pd_wavelengths}")
+    # print(f"Integration-Import_SpectralData===data_pd_wavelengths:{data_pd_wavelengths}")
     data_pd_absorbance = data_pd.iloc[:,1:]
-    print(f"Integration-Import_SpectralData===data_pd_absorbance:{data_pd_absorbance}")
+    # print(f"Integration-Import_SpectralData===data_pd_absorbance:{data_pd_absorbance}")
 
     return data_pd_full, data_pd_wavelengths, data_pd_absorbance
 
@@ -202,6 +202,9 @@ def CreateParameters(absorbance_values, wavelengths_data,
     ##### trying out: input starting percentages ######
     #########################################
     StartPercentage_A = float(100) ##!!! turn into optional parameter
+
+    print(f"Integration-CreateParameters===absorbance_values:{absorbance_values}\nand shape:{absorbance_values.shape}")
+    print(f"Integration-CreateParameters===e_A_inter:{e_A_inter}\nand shape:{e_A_inter.shape}")
 
     initial_conc_A_100 = trapezoid(absorbance_values[:,0],
                                    x=wavelengths_data) / trapezoid(e_A_inter,

@@ -16,6 +16,9 @@ I0_err = 0.0                # Error Power in milliWatt
 ######## WAVELENGTH OF IRRADIATION ########
 LEDw = 0
 
+######## METHOD OF SOLVING DIFFERENTIAL EQUATIONS ########
+CalculationMethod = ''
+
 ######## EPSILONS FOR SINGLEWAVELENGTH METHOD########
 epsilon_R = 0
 epsilon_P = 0

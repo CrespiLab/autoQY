@@ -115,7 +115,7 @@
           <enum>QLayout::SetDefaultConstraint</enum>
          </property>
          <item alignment="Qt::AlignHCenter">
-          <widget class="QPushButton" name="plotQuantButton">
+          <widget class="QPushButton" name="CalcQYButton">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
              <horstretch>0</horstretch>
@@ -1924,7 +1924,7 @@
              </property>
             </widget>
            </item>
-           <item alignment="Qt::AlignHCenter">
+           <item alignment="Qt::AlignHCenter|Qt::AlignTop">
             <widget class="QPushButton" name="PlotSpectraButton">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -2261,8 +2261,8 @@
  <resources/>
  <connections/>
  <buttongroups>
+  <buttongroup name="buttonGroup_2"/>
   <buttongroup name="buttonGroup_3"/>
   <buttongroup name="buttonGroup"/>
-  <buttongroup name="buttonGroup_2"/>
  </buttongroups>
 </ui>
