@@ -408,6 +408,45 @@ class autoQuant(QtWidgets.QMainWindow):
         
         print(f"I0_avg: {ExpParams.I0_avg}\nI0_err: {ExpParams.I0_err}")
         
+        self.Save_PowerResults()
+
+        
+        ##!!! OUTPUT RESULTS INTO A TEXT FILE
+        
+    def Save_PowerResults(self):
+        """ Save results: """
+        
+        savefile = Results.savefilename_power+".txt"
+
+        allpowers = LoadedData.PowersAtCuvette
+        allerrors = LoadedData.ErrorsAtCuvette
+
+        avgdpowererror = {'Averaged Power (mW)': ExpParams.I0_avg,
+                  'Averaged Error (mW)' : ExpParams.I0_err,
+                  }
+
+        try:
+            os.remove(savefile)
+        except OSError as e:
+            print(f"An error occurred for {e.filename} - {e.strerror}")
+
+        try:
+            file=savefile
+            
+            with open (file,'a') as file:
+                for key, val in allpowers.items():
+                    # file.write(i+": "+str(dict_results[i])+'\n')
+                    file.writerow([key, val])
+                file.write('\n')
+                for key, val in allerrors.items():
+                    file.writerow([key, val])
+                file.write('\n')
+                for key, val in avgdpowererror.items():
+                    file.writerow([key, val])                
+        except IOError as e:
+            print(f"An error occurred: {e}")
+        
+        
     ####################################################################################################################################
 
     def load_file(self, file_type):
@@ -735,13 +774,15 @@ class autoQuant(QtWidgets.QMainWindow):
                            SaveResults = "Yes",
                            SaveFileName = Results.savefilename)
 
-        ##!!! ADD: output a "Results" file containing all the used parameters and the obtained results
+
         self.Save_Results()
 
         QtWidgets.QMessageBox.information(self, "Success", f"{Results.savefilename} file saved successfully!")
 
     def Save_Results(self):
         """ Save results: """
+        ##!!! ADD: used parameters
+        
         savefile = Results.savefilename+".txt"
 
         dict_results = {'PSS_Reactant (%)': Results.PSS_Reactant,

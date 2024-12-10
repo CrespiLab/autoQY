@@ -16,9 +16,4 @@ PSS_Product = None
 
 savefilename = ''
 
-# dict_results = {'PSS_Reactant (%)': PSS_Reactant,
-#          'PSS_Product (%)' : PSS_Product,
-#          'QY_AB_opt' : QY_AB_opt,
-#          'QY_BA_opt' : QY_BA_opt,
-#          'error_QY_AB' : error_QY_AB,
-#          'error_QY_BA' : error_QY_BA}
+savefilename_power = ''
