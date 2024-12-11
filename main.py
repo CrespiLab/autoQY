@@ -410,9 +410,6 @@ class autoQuant(QtWidgets.QMainWindow):
         
         self.Save_PowerResults()
 
-        
-        ##!!! OUTPUT RESULTS INTO A TEXT FILE
-        
     def Save_PowerResults(self):
         """ Save results: """
         
@@ -420,32 +417,28 @@ class autoQuant(QtWidgets.QMainWindow):
 
         allpowers = LoadedData.PowersAtCuvette
         allerrors = LoadedData.ErrorsAtCuvette
-
         avgdpowererror = {'Averaged Power (mW)': ExpParams.I0_avg,
                   'Averaged Error (mW)' : ExpParams.I0_err,
                   }
 
         try:
             os.remove(savefile)
-        except OSError as e:
-            print(f"An error occurred for {e.filename} - {e.strerror}")
+        except:
+            pass
+        # except OSError as e:
+        #     print(f"An error occurred for {e.filename} - {e.strerror}")
 
         try:
             file=savefile
-            
             with open (file,'a') as file:
-                for key, val in allpowers.items():
-                    # file.write(i+": "+str(dict_results[i])+'\n')
-                    file.writerow([key, val])
-                file.write('\n')
-                for key, val in allerrors.items():
-                    file.writerow([key, val])
-                file.write('\n')
-                for key, val in avgdpowererror.items():
-                    file.writerow([key, val])                
+                for i in allpowers:
+                    file.write(str(i)+": "+str(allpowers[i])+'\n')
+                for i in allerrors:
+                    file.write(str(i)+": "+str(allerrors[i])+'\n')
+                for i in avgdpowererror:
+                    file.write(i+": "+str(avgdpowererror[i])+'\n')
         except IOError as e:
             print(f"An error occurred: {e}")
-        
         
     ####################################################################################################################################
 
