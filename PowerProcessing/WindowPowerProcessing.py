@@ -14,10 +14,10 @@ from scipy.optimize import curve_fit #change in baseline correction
 from PyQt5 import uic, QtWidgets
 
 
-import autoQuant.LoadedData as LoadedData
+import QY.LoadedData as LoadedData
 from tools.plotting import MplCanvas
-import tools.baseline_power as BaselinePower
-import autoQuant.Results as Results
+import PowerProcessing.baseline_power as BaselinePower
+import QY.Results as Results
 
 class WindowPowerProcessing(QtWidgets.QMainWindow):
     """Class for PowerProcessing module."""

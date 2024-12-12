@@ -5,8 +5,8 @@ from matplotlib.figure import Figure
 import matplotlib.gridspec as gridspec
 from matplotlib.ticker import AutoMinorLocator
 # import numpy as np
-# import autoQuant.LoadedData as LoadedData
-import autoQuant.ExpParams as ExpParams
+# import QY.LoadedData as LoadedData
+import QY.ExpParams as ExpParams
 
 
 class MplCanvas(FigureCanvas):

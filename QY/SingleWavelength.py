@@ -19,8 +19,8 @@ import numpy as np
 from scipy.integrate import odeint
 from lmfit import Model, Parameters
 
-import autoQuant.ExpParams as ExpParams
-import autoQuant.Constants as Constants
+import QY.ExpParams as ExpParams
+import QY.Constants as Constants
 
 # #%% Defining main variables
 # ############# DATA #############

@@ -32,8 +32,8 @@ from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 import matplotlib.gridspec as gridspec
-import autoQuant.ExpParams as ExpParams
-import autoQuant.Constants as Constants
+import QY.ExpParams as ExpParams
+import QY.Constants as Constants
 
 ##################################################
 ###################### LED #######################
@@ -285,6 +285,10 @@ def objective_function(params, lambda_meters,
     total_absorbance_ode=concentrations_ode.dot(np.vstack([epsilon_A_lambda,
                                                             epsilon_B_lambda]))
 
+    ##!!! ADD WARNING IF: 
+        ## total_absorbance_ode (which is derived from #timestamps)
+        ## and experimental_data (which is derived from #spectra)
+        ## lengths do not match
     return total_absorbance_ode - experimental_data.T
 
 def MinimizeQYs(I0_list,

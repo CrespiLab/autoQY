@@ -42,19 +42,18 @@ import pandas as pd
 from PyQt5 import QtWidgets, uic
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 
-import autoQuant.Integration as Integration
-import autoQuant.ExpParams as ExpParams
-import autoQuant.Results as Results
-import autoQuant.LoadedData as LoadedData
-import autoQuant.SingleWavelength as SingleWavelength
+import QY.Integration as Integration
+import QY.ExpParams as ExpParams
+import QY.Results as Results
+import QY.LoadedData as LoadedData
+import QY.SingleWavelength as SingleWavelength
 
-import tools.load_data as LoadData
+# import tools.load_data as LoadData
 from tools.plotting import MplCanvas
-import tools.baseline_power as BaselinePower
 import tools.extractresults as ExtractResults
 #from tools.style import apply_dark_theme
 
-import tools.WindowPowerProcessing as WindowPowerProcessing
+import PowerProcessing.WindowPowerProcessing as WindowPowerProcessing
 
 class autoQuant(QtWidgets.QMainWindow):
         ############################
@@ -432,9 +431,9 @@ class autoQuant(QtWidgets.QMainWindow):
             file=savefile
             with open (file,'a') as file:
                 for i in allpowers:
-                    file.write(str(i)+": "+str(allpowers[i])+'\n')
+                    file.write("Power "+str(i)+": "+str(allpowers[i])+'\n')
                 for i in allerrors:
-                    file.write(str(i)+": "+str(allerrors[i])+'\n')
+                    file.write("Error "+str(i)+": "+str(allerrors[i])+'\n')
                 for i in avgdpowererror:
                     file.write(i+": "+str(avgdpowererror[i])+'\n')
         except IOError as e:
@@ -685,11 +684,12 @@ class autoQuant(QtWidgets.QMainWindow):
 
 
         ######################################################################
-        ##!!! MOVE TO SEPARATE PY SCRIPT (TOOLS OR SOMETHING)
+
         ## Extract results from the fit
-        
         Results.QY_AB_opt, Results.QY_BA_opt, Results.error_QY_AB, Results.error_QY_BA = ExtractResults.ExtractResults(fit_results)
 
+
+        ##!!! MOVE TO SEPARATE PY SCRIPT (TOOLS OR SOMETHING)
         ## Calculate optimized concentrations
         self.conc_opt, Results.PSS_Reactant, Results.PSS_Product = Integration.CalculateConcentrations(spectraldata_meters,
                                                     initial_conc_A, initial_conc_B, 
@@ -787,8 +787,10 @@ class autoQuant(QtWidgets.QMainWindow):
 
         try:
             os.remove(savefile)
-        except OSError as e:
-            print(f"An error occurred for {e.filename} - {e.strerror}")
+        except:
+            pass
+        # except OSError as e:
+        #     print(f"An error occurred for {e.filename} - {e.strerror}")
 
         try:
             file=savefile
@@ -800,6 +802,9 @@ class autoQuant(QtWidgets.QMainWindow):
             print(f"An error occurred: {e}")
 
     def GetTimestamps(self, LogFile):
+        ##!!! find a way to take into account the actual irradiation time 
+            ## (subtracting the delays and spectra acquisition times)
+        
         ## CSV not DAT
         log = pd.read_csv(LogFile,
                         sep = ",", decimal = ".", skiprows = 1, header=None,)
