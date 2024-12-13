@@ -63,6 +63,24 @@
          </spacer>
         </item>
         <item>
+         <widget class="QLabel" name="label">
+          <property name="maximumSize">
+           <size>
+            <width>200</width>
+            <height>25</height>
+           </size>
+          </property>
+          <property name="font">
+           <font>
+            <pointsize>10</pointsize>
+           </font>
+          </property>
+          <property name="text">
+           <string>ADD INSTRUCTIONS HERE</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QPushButton" name="WindowPP_baselineCorrectionButton">
           <property name="maximumSize">
            <size>

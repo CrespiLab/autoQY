@@ -331,9 +331,8 @@ class MplCanvas(FigureCanvas):
         if SaveResults == "Yes": # re-define fig for savefig
             self.fig = Figure(figsize=(8, 4),dpi=600,constrained_layout=True)
 
-        gs = gridspec.GridSpec(4, 2, figure=self.fig)
+        gs = gridspec.GridSpec(4, 2, figure=self.fig, wspace=0.1)
         
-        # self.fig.suptitle(f'{LEDwavelength} nm irradiation: Integration Method')
         self.fig.suptitle(f'{LEDwavelength} nm irradiation: {CalculationMethod} Method')
         
         ##################################################
@@ -345,16 +344,21 @@ class MplCanvas(FigureCanvas):
         ##################################################
         ############### CONCENTRATIONS ###################
         ##################################################
-        axresults_conc.set_title("Concentrations over time")
+        # axresults_conc.set_title("Concentrations over time")
+        axresults_conc.set_title("Conversion over time")
         
-        axresults_conc.plot(timestamps, conc_opt[:,0], color = self.colours[2], label = "Reactant")
-        axresults_conc.plot(timestamps, conc_opt[:,1], color = self.colours[4], label = "Product")
+        full_conc=conc_opt[0:0]+conc_opt[0,1]
+        percentage_reactant=conc_opt[:,0]/full_conc*100
+        percentage_product=conc_opt[:,1]/full_conc*100
         
-        axresults_conc.set_ylabel("Concentration (M)")
-        # axresults_conc.yaxis.set_minor_locator(AutoMinorLocator(2))
+        # axresults_conc.plot(timestamps, conc_opt[:,0], color = self.colours[2], label = "Reactant")
+        # axresults_conc.plot(timestamps, conc_opt[:,1], color = self.colours[4], label = "Product")
+        axresults_conc.plot(timestamps, percentage_reactant, color = self.colours[2], label = "Reactant")
+        axresults_conc.plot(timestamps, percentage_product, color = self.colours[4], label = "Product")
+        
+        # axresults_conc.set_ylabel("Concentration (M)")
+        axresults_conc.set_ylabel("Fraction (%)")
         axresults_conc.set_xlabel("Time (s)")
-        
-        # axresults_conc.legend()
         
         ##################################################
         ###################### NOTES #####################
@@ -362,6 +366,9 @@ class MplCanvas(FigureCanvas):
         # axresults_notes.text(0, 0, f"Starting Percentage A: {StartPercentage_A} %")
         ##################################################
         
+        ##################################################
+        ############### ABSORBANCE ###################
+        ##################################################
         #### Plot the experimental data and the fitted total absorbance curve
         axresults_Abs.plot(timestamps, absorbance[index,:], linestyle='-', 
                     color=self.colours[4], linewidth=8, alpha=0.5, label='Experimental Data')
@@ -369,11 +376,9 @@ class MplCanvas(FigureCanvas):
                     label=f"Fit:\nQY_RtoP: {QY_AB_opt:.3f} "+u"\u00B1 "+f"{error_QY_AB:.3f}\
                     \nQY_PtoR: {QY_BA_opt:.3f} "+u"\u00B1 "+f"{error_QY_BA:.3f}")
         axresults_Abs.set_title('Fit vs Experimental')
-        # axresults_Abs.set_xlabel('Time (s)')
         axresults_Abs.set_xticklabels([]) ## put this before set_xlim, otherwise it resets the xlim
         
         axresults_Abs.set_ylabel(r'Absorbance at $\lambda_{irr}$')
-        # axresults_Abs.legend()
         
         #################### RESIDUALS ###################
         axresults_res.plot(timestamps, residuals[index,:], color=self.colours[4], label='Residuals')
@@ -386,7 +391,7 @@ class MplCanvas(FigureCanvas):
             i.yaxis.set_minor_locator(AutoMinorLocator(2))
 
         for i in [axresults_conc, axresults_Abs]:
-            i.legend(frameon=False)
+            i.legend(loc='upper right',frameon=False)
             
         ##################################################
         #################### SAVE ########################

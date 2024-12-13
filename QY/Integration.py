@@ -203,8 +203,8 @@ def CreateParameters(absorbance_values, wavelengths_data,
     #########################################
     StartPercentage_A = float(100) ##!!! turn into optional parameter
 
-    print(f"Integration-CreateParameters===absorbance_values:{absorbance_values}\nand shape:{absorbance_values.shape}")
-    print(f"Integration-CreateParameters===e_A_inter:{e_A_inter}\nand shape:{e_A_inter.shape}")
+    # print(f"Integration-CreateParameters===absorbance_values:{absorbance_values}\nand shape:{absorbance_values.shape}")
+    # print(f"Integration-CreateParameters===e_A_inter:{e_A_inter}\nand shape:{e_A_inter.shape}")
 
     initial_conc_A_100 = trapezoid(absorbance_values[:,0],
                                    x=wavelengths_data) / trapezoid(e_A_inter,

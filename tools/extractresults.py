@@ -22,6 +22,10 @@ def ExtractResults(fit_results):
     result_lmfit_avgpluserr=fit_results[1] ## results using I0_avg+I0_error
     result_lmfit_avgminerr=fit_results[2] ## results using I0_avg-I0_error
 
+    ##!!! CHANGE TO PROPAGATING THE ERRORS: std. devs and power errors
+    
+    ##!!! ALSO ADD THE ERROR ON THE EPSILONS
+
     ## Extract the optimized parameters and their standard deviations
     QY_AB_opt_avg = result_lmfit_avg.params['QY_AB'].value ## value using I0_avg
     std_dev_fit_QY_AB = result_lmfit_avg.params['QY_AB'].stderr ## error in the fit using I0_avg
@@ -29,7 +33,6 @@ def ExtractResults(fit_results):
     QY_BA_opt_avg = result_lmfit_avg.params['QY_BA'].value ## value using I0_avg
     std_dev_fit_QY_BA = result_lmfit_avg.params['QY_BA'].stderr ## error in the fit using I0_avg
     
-    ##!!! INCLUDE std_dev_fit in the final error
     QY_AB_opt_min=result_lmfit_avgpluserr.params['QY_AB'].value \
                         - result_lmfit_avgpluserr.params['QY_AB'].stderr ## results using I0_avg+I0_err
     QY_AB_opt_max=result_lmfit_avgminerr.params['QY_AB'].value \
