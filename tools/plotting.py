@@ -331,7 +331,7 @@ class MplCanvas(FigureCanvas):
         if SaveResults == "Yes": # re-define fig for savefig
             self.fig = Figure(figsize=(8, 4),dpi=600,constrained_layout=True)
 
-        gs = gridspec.GridSpec(4, 2, figure=self.fig, wspace=0.1)
+        gs = gridspec.GridSpec(4, 2, figure=self.fig, wspace=0.3)
         
         self.fig.suptitle(f'{LEDwavelength} nm irradiation: {CalculationMethod} Method')
         
@@ -347,9 +347,13 @@ class MplCanvas(FigureCanvas):
         # axresults_conc.set_title("Concentrations over time")
         axresults_conc.set_title("Conversion over time")
         
-        full_conc=conc_opt[0:0]+conc_opt[0,1]
+        full_conc=conc_opt[0,0]+conc_opt[0,1]
+        print(f"plotting-PlotResults===full_conc: {full_conc}")
+        
         percentage_reactant=conc_opt[:,0]/full_conc*100
+        print(f"plotting-PlotResults===percentage_reactant: {percentage_reactant}")
         percentage_product=conc_opt[:,1]/full_conc*100
+        print(f"plotting-PlotResults===percentage_product: {percentage_product}")
         
         # axresults_conc.plot(timestamps, conc_opt[:,0], color = self.colours[2], label = "Reactant")
         # axresults_conc.plot(timestamps, conc_opt[:,1], color = self.colours[4], label = "Product")
@@ -367,7 +371,7 @@ class MplCanvas(FigureCanvas):
         ##################################################
         
         ##################################################
-        ############### ABSORBANCE ###################
+        ################## ABSORBANCE ####################
         ##################################################
         #### Plot the experimental data and the fitted total absorbance curve
         axresults_Abs.plot(timestamps, absorbance[index,:], linestyle='-', 

@@ -2,35 +2,9 @@
 @author: Alfredo and Jorn
 =============================================================================
 autoQuant
-
 =============================================================================
-The PowerProcessing part is used for processing of the data measured with the 
-    Optical Power Monitor (OPM) software.
-- Baseline correction
-- Fit to get value of power with standard deviation
-
-The data is recorded in the following sequence:
-- no Luma40 jacket, no cuvette, LED off
-- no Luma40 jacket, no cuvette, LED on
-- no Luma40 jacket, no cuvette, LED off
-- Luma40 jacket, cuvette with solvent, LED off
-- Luma40 jacket, cuvette with solvent, LED on
-- Luma40 jacket, cuvette with solvent, LED off
-
-Interactive Feature:
-- Pick the x-coordinates of the areas for baseline correction interactively
-
-=============================================================================
-
 TO DO:
-[DONE] add feature: pick two or more input files; 
-   then perform averaging and error calculation to yield final result
-[] Output a Results file containing all the input values (incl. Exp. Param.)
 [] Add feature to input starting concentrations
-
-GUI features to add:
-[DONE] Pop-up window to select file
-[DONE] Show percentages at PSS
 =============================================================================
 
 """
