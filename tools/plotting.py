@@ -330,8 +330,9 @@ class MplCanvas(FigureCanvas):
 
         if SaveResults == "Yes": # re-define fig for savefig
             self.fig = Figure(figsize=(8, 4),dpi=600,constrained_layout=True)
-
-        gs = gridspec.GridSpec(4, 2, figure=self.fig, wspace=0.3)
+            gs = gridspec.GridSpec(4, 2, figure=self.fig)
+        else:
+            gs = gridspec.GridSpec(4, 2, figure=self.fig, wspace=0.3)
         
         self.fig.suptitle(f'{LEDwavelength} nm irradiation: {CalculationMethod} Method')
         
@@ -344,23 +345,14 @@ class MplCanvas(FigureCanvas):
         ##################################################
         ############### CONCENTRATIONS ###################
         ##################################################
-        # axresults_conc.set_title("Concentrations over time")
         axresults_conc.set_title("Conversion over time")
         
         full_conc=conc_opt[0,0]+conc_opt[0,1]
-        print(f"plotting-PlotResults===full_conc: {full_conc}")
-        
         percentage_reactant=conc_opt[:,0]/full_conc*100
-        print(f"plotting-PlotResults===percentage_reactant: {percentage_reactant}")
         percentage_product=conc_opt[:,1]/full_conc*100
-        print(f"plotting-PlotResults===percentage_product: {percentage_product}")
         
-        # axresults_conc.plot(timestamps, conc_opt[:,0], color = self.colours[2], label = "Reactant")
-        # axresults_conc.plot(timestamps, conc_opt[:,1], color = self.colours[4], label = "Product")
         axresults_conc.plot(timestamps, percentage_reactant, color = self.colours[2], label = "Reactant")
         axresults_conc.plot(timestamps, percentage_product, color = self.colours[4], label = "Product")
-        
-        # axresults_conc.set_ylabel("Concentration (M)")
         axresults_conc.set_ylabel("Fraction (%)")
         axresults_conc.set_xlabel("Time (s)")
         
@@ -377,8 +369,9 @@ class MplCanvas(FigureCanvas):
         axresults_Abs.plot(timestamps, absorbance[index,:], linestyle='-', 
                     color=self.colours[4], linewidth=8, alpha=0.5, label='Experimental Data')
         axresults_Abs.plot(timestamps, total_abs_fit[:,index], linestyle='--', color=self.colours[2], 
-                    label=f"Fit:\nQY_RtoP: {QY_AB_opt:.3f} "+u"\u00B1 "+f"{error_QY_AB:.3f}\
-                    \nQY_PtoR: {QY_BA_opt:.3f} "+u"\u00B1 "+f"{error_QY_BA:.3f}")
+                    label="Fit:\n"+r"$QY_{fwd}$"+f": {QY_AB_opt:.3f} "+u"\u00B1 "+f"{error_QY_AB:.3f}"+"\n"+
+                    r"$QY_{bwd}$"+f": {QY_BA_opt:.3f} "+u"\u00B1 "+f"{error_QY_BA:.3f}")
+
         axresults_Abs.set_title('Fit vs Experimental')
         axresults_Abs.set_xticklabels([]) ## put this before set_xlim, otherwise it resets the xlim
         
@@ -395,7 +388,8 @@ class MplCanvas(FigureCanvas):
             i.yaxis.set_minor_locator(AutoMinorLocator(2))
 
         for i in [axresults_conc, axresults_Abs]:
-            i.legend(loc='upper right',frameon=False)
+            # i.legend(loc='upper right',frameon=False)
+            i.legend(loc='best',frameon=False)
             
         ##################################################
         #################### SAVE ########################

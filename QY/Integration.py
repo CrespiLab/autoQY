@@ -57,7 +57,7 @@ def Processing_LEDemission(wavelengths_LED, intensity_LED, threshold):
     
     emission_Intensity_proc = savgol_filter(intensity_LED, 12,3) ## Smoothing
     emission_Intensity_proc[emission_Intensity_proc[:]<0] = 0 ## removal of zeroes 
-
+    
     #### Cutting spectrum to match emission of LED 
     above_threshold_indices = np.where(emission_Intensity_proc > threshold)[0] 
     
