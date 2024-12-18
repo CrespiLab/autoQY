@@ -36,6 +36,14 @@ import QY.ExpParams as ExpParams
 import QY.Constants as Constants
 
 ##################################################
+
+wavelength_low = None
+wavelength_high = None
+LEDindex_first = None
+LEDindex_last = None
+
+
+##################################################
 ###################### LED #######################
 ##################################################
 # def Import_LEDemission(FileFormat, file_LEDemission_raw):

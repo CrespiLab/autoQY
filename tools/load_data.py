@@ -5,6 +5,19 @@ import QY.ExpParams as ExpParams
 import QY.Constants as Constants
 import QY.LoadedData as LoadedData
 
+def GetTimestamps(LogFile):
+    """ Obtain timestamps from .ahk log file """
+    ##!!! find a way to take into account the actual irradiation time 
+        ## (subtracting the delays and spectra acquisition times)
+    
+    ## CSV not DAT
+    log = pd.read_csv(LogFile,
+                    sep = ",", decimal = ".", skiprows = 1, header=None,)
+    log_t=log[log[3] == 'Measure']
+    t=log_t[2]
+    timestamps=t.to_numpy()
+    return timestamps
+
 def Import_SpectralData(FileFormat, file):
     """ 
     Import Absorbance data_file 

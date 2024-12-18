@@ -44,32 +44,23 @@ class autoQuant(QtWidgets.QMainWindow):
 
         ##!!! REMOVE UNNECESSARY VARIABLES HERE
 
-        self.led_file = None
-        self.spectral_data_path = './'
-        self.spectral_data_file = 'output_AutoQuant'
-        self.eps_file_a = None
-        self.eps_file_b = None
-
-        self.all_corrected_power = []
-
-        self.filename_LED = None
-        self.LEDindex_first, self.LEDindex_last = None, None
-        self.LEDemission_wavelengths = None
-        self.LEDemission_intensity = None
-        self.epsilons_R_wavelengths = None 
-        self.epsilons_R_values = None
-        self.epsilons_P_wavelengths = None
-        self.epsilons_P_values = None
+        # self.filename_LED = None
+        # self.LEDindex_first, self.LEDindex_last = None, None
+        # self.LEDemission_wavelengths = None
+        # self.LEDemission_intensity = None
+        # self.epsilons_R_wavelengths = None 
+        # self.epsilons_R_values = None
+        # self.epsilons_P_wavelengths = None
+        # self.epsilons_P_values = None
         # self.SpectralData_Wavelengths = None
         # self.SpectralData_Abs = None
         # self.SpectralData_Index = None
-        self.LEDemission_interp = None
-        self.LEDemission_intensity_proc = None
+        # self.LEDemission_intensity_proc = None
 
-        self.wavelength_low = None
-        self.wavelength_high = None
-        self.epsilons_R_interp = None
-        self.epsilons_P_interp = None
+        # self.wavelength_low = None
+        # self.wavelength_high = None
+        # self.epsilons_R_interp = None
+        # self.epsilons_P_interp = None
         
         self.labels_power = {1: self.plainTextEdit_Power_1,
                                    2: self.plainTextEdit_Power_2,
@@ -450,13 +441,13 @@ class autoQuant(QtWidgets.QMainWindow):
         """Load the data file depending on its format (.csv or .dat)."""
         try:
             if file_type == "LED Emission":
-                self.LEDemission_wavelengths, self.LEDemission_intensity = LoadData.Import_LEDemission("Spectragryph", file_path)
-                self.filename_LED = file_path
+                LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity = LoadData.Import_LEDemission("Spectragryph", file_path)
+                LoadedData.filename_LED = file_path
                 
             elif file_type == "Epsilons Reactant":
-                self.epsilons_R_wavelengths, self.epsilons_R_values = LoadData.Import_Epsilons("Spectragryph", file_path)
+                LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values = LoadData.Import_Epsilons("Spectragryph", file_path)
             elif file_type == "Epsilons Product":
-                self.epsilons_P_wavelengths, self.epsilons_P_values = LoadData.Import_Epsilons("Spectragryph", file_path)
+                LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values = LoadData.Import_Epsilons("Spectragryph", file_path)
             elif file_type == "Spectral Data":
                 LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths, LoadedData.SpectralData_Absorbance = \
                     LoadData.Import_SpectralData("Spectragryph",file_path) #HARDCODED IN THE WRONG PLACE # STILL??
@@ -464,7 +455,7 @@ class autoQuant(QtWidgets.QMainWindow):
             ########################################
             ##!!! ADD in case of .dat format
             # elif file_type == "Log Irr":
-            #      self.timestamps = self.GetTimestamps(file_path)
+            #      LoadedData.timestamps = LoadData.GetTimestamps(file_path)
             else:
                     raise ValueError(f"Unknown file type: {file_type}")
         except Exception as e:
@@ -474,19 +465,19 @@ class autoQuant(QtWidgets.QMainWindow):
         """Load the data file depending on its format (.csv or .dat)."""
         try:       
             if file_type == "LED Emission": ###### A LOT OF PROBLEMS WITH '
-                self.LEDemission_wavelengths, self.LEDemission_intensity = LoadData.Import_LEDemission("Not", file_path)
-                self.filename_LED = file_path
+                LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity = LoadData.Import_LEDemission("Not", file_path)
+                LoadedData.filename_LED = file_path
                 
             elif file_type == "Epsilons Reactant":
-                self.epsilons_R_wavelengths, self.epsilons_R_values = LoadData.Import_Epsilons("Not", file_path)
+                LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values = LoadData.Import_Epsilons("Not", file_path)
             elif file_type == "Epsilons Product":
-                self.epsilons_P_wavelengths, self.epsilons_P_values = LoadData.Import_Epsilons("Not", file_path)
+                LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values = LoadData.Import_Epsilons("Not", file_path)
             elif file_type == "Spectral Data":
                 LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths,
                 LoadedData.SpectralData_Absorbance = \
                     LoadData.Import_SpectralData("Not", file_path)
             elif file_type == "Log Irr":
-                self.timestamps = self.GetTimestamps(file_path)
+                LoadedData.timestamps = LoadData.GetTimestamps(file_path)
             else:
                     raise ValueError(f"Unknown file type: {file_type}")
         except Exception as e:
@@ -498,14 +489,14 @@ class autoQuant(QtWidgets.QMainWindow):
     ##!!! DEFINE OUTSIDE OF CLASS    
     def plot_epsilon(self):
         """ Plot epsilons spectra (before interpolation) """
-        if self.epsilons_R_wavelengths is None or self.epsilons_P_wavelengths is None:
+        if LoadedData.epsilons_R_wavelengths is None or LoadedData.epsilons_P_wavelengths is None:
             QtWidgets.QMessageBox.warning(self, "Error", "Please load the epilons data first.")
             return
         
         def plot_func(canvas):
             """ Plot the data using MplCanvas """
-            canvas.plot_EpsilonsOnly(self.epsilons_R_wavelengths,self.epsilons_R_values,
-                          self.epsilons_P_wavelengths,self.epsilons_P_values)
+            canvas.plot_EpsilonsOnly(LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values,
+                          LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values)
         
         self.add_new_tab(plot_func, "Epsilons (before interpolation)")
 
@@ -526,7 +517,7 @@ class autoQuant(QtWidgets.QMainWindow):
     ##!!! DEFINE OUTSIDE OF CLASS    
     def plot_LEDfull(self):
         """ Plot LED emission spectrum (full) """
-        if self.LEDemission_wavelengths is None or self.LEDemission_intensity is None:
+        if LoadedData.LEDemission_wavelengths is None or LoadedData.LEDemission_intensity is None:
             QtWidgets.QMessageBox.warning(self, "Error", "Please load LED emission file.")
             return
         
@@ -537,7 +528,7 @@ class autoQuant(QtWidgets.QMainWindow):
 
         def plot_func(canvas):
             """ Plot the data using MplCanvas """
-            canvas.plot_LEDemission_full(self.LEDemission_wavelengths,self.LEDemission_intensity)
+            canvas.plot_LEDemission_full(LoadedData.LEDemission_wavelengths,LoadedData.LEDemission_intensity)
         
         self.add_new_tab(plot_func, "LED emission (full)")
 
@@ -547,7 +538,7 @@ class autoQuant(QtWidgets.QMainWindow):
         
         ## Integration mode
         if ExpParams.CalculationMethod == "Integration":
-            if self.LEDemission_wavelengths is None or self.LEDemission_intensity is None or LoadedData.SpectralData_Wavelengths is None:
+            if LoadedData.LEDemission_wavelengths is None or LoadedData.LEDemission_intensity is None or LoadedData.SpectralData_Wavelengths is None:
                 QtWidgets.QMessageBox.warning(self, "Error", "Please load LED emission file and Spectra.")
                 return
             
@@ -557,14 +548,14 @@ class autoQuant(QtWidgets.QMainWindow):
             
             ########################################
             threshold_LED = ExpParams.threshold
-            self.LEDemission_intensity_proc, self.LEDindex_first, self.LEDindex_last, self.wavelength_low, self.wavelength_high = \
+            LoadedData.LEDemission_intensity_proc, Integration.LEDindex_first, Integration.LEDindex_last, Integration.wavelength_low, Integration.wavelength_high = \
                 Integration.Processing_LEDemission(
-                    self.LEDemission_wavelengths, self.LEDemission_intensity, threshold_LED)
+                    LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity, threshold_LED)
             
             ########################################
             ## Process Spectral data: cut to part of spectrum according to LED emission band
-            self.SpectralDataCut_Wavelengths, self.SpectralDataCut_Abs, self.SpectralDataCut_Index = \
-                Integration.Process_SpectralData(LoadedData.SpectralData_Full, self.wavelength_low, self.wavelength_high, ExpParams.LEDw)
+            LoadedData.SpectralDataCut_Wavelengths, LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Index = \
+                Integration.Process_SpectralData(LoadedData.SpectralData_Full, Integration.wavelength_low, Integration.wavelength_high, ExpParams.LEDw)
         
         ##!!! ADJUST CODE TO PLOT SPECTRA AND JUST INDICATE PART OF SPECTRUM (with a box)
             self.add_new_tab(self.PlotData_Cut, "LED Emission and Spectral Data")
@@ -577,8 +568,8 @@ class autoQuant(QtWidgets.QMainWindow):
 
 
         ##!!! WORKING ON IT HERE NOT FINISHED YET AAAHHH
-            self.SpectralDataCut_Wavelengths, self.SpectralDataCut_Abs, self.SpectralDataCut_Index = \
-                SingleWavelength.Process_SpectralData(LoadedData.SpectralData_Full, self.wavelength_low, self.wavelength_high, ExpParams.LEDw)
+            LoadedData.SpectralDataCut_Wavelengths, LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Index = \
+                SingleWavelength.Process_SpectralData(LoadedData.SpectralData_Full, Integration.wavelength_low, Integration.wavelength_high, ExpParams.LEDw)
 
             ##!!! ADJUST CODE TO PLOT SPECTRA AND ONLY INDICATE EITHER
                 ## VERTICAL LINE: SINGLE WAVELENGTH
@@ -588,10 +579,10 @@ class autoQuant(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the self.CalculationMethod variable")
         
         ##!!! MOVED HERE
-        self.epsilons_R_interp, self.epsilons_P_interp, self.emission_interp = Integration.Interpolate_Epsilons(self.SpectralDataCut_Wavelengths,
-                     self.epsilons_R_wavelengths, self.epsilons_R_values,
-                     self.epsilons_P_wavelengths, self.epsilons_P_values,
-                     self.LEDemission_wavelengths, self.LEDemission_intensity_proc)
+        LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp, LoadedData.emission_interp = Integration.Interpolate_Epsilons(LoadedData.SpectralDataCut_Wavelengths,
+                     LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values,
+                     LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values,
+                     LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity_proc)
         
         #############
         
@@ -599,10 +590,10 @@ class autoQuant(QtWidgets.QMainWindow):
 
     def PlotData_Cut(self,canvas):
             
-        canvas.PlotData_Cut(self.SpectralDataCut_Abs, self.SpectralDataCut_Wavelengths,
-            self.LEDemission_wavelengths, self.LEDemission_intensity,
-            self.LEDindex_first, self.LEDindex_last, 
-            self.LEDemission_intensity_proc)
+        canvas.PlotData_Cut(LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Wavelengths,
+            LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity,
+            Integration.LEDindex_first, Integration.LEDindex_last, 
+            LoadedData.LEDemission_intensity_proc)
         
 
     def Calc_QY(self, canvas):
@@ -618,29 +609,29 @@ class autoQuant(QtWidgets.QMainWindow):
         if ExpParams.CalculationMethod == "Integration":
             ## Create parameters needed for fitting
             initial_conc_A, initial_conc_B, spectraldata_meters, normalized_emission = \
-                Integration.CreateParameters(self.SpectralDataCut_Abs, self.SpectralDataCut_Wavelengths,
-                                            self.epsilons_R_interp, self.emission_interp)
+                Integration.CreateParameters(LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Wavelengths,
+                                            LoadedData.epsilons_R_interp, LoadedData.emission_interp)
     
             
             N, fit_results = Integration.MinimizeQYs(I0_list, normalized_emission,
                                                     spectraldata_meters, 
                                                     initial_conc_A, initial_conc_B,
-                                                    self.timestamps, self.SpectralDataCut_Abs,
-                                                    self.epsilons_R_interp, self.epsilons_P_interp,
+                                                    LoadedData.timestamps, LoadedData.SpectralDataCut_Abs,
+                                                    LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
                                                     ExpParams.V)
 
         elif ExpParams.CalculationMethod == "SingleWavelength":
             ##!!! WORKING ON THIS
 
-            print(f"Calc_QY SingleWavelength SpectralData_Abs:\n{self.SpectralDataCut_Abs}")
+            print(f"Calc_QY SingleWavelength SpectralData_Abs:\n{LoadedData.SpectralDataCut_Abs}")
             
             ## Create parameters needed for fitting
-            initial_conc_A, initial_conc_B, self.SpectralData_AbsAtLEDw = \
+            initial_conc_A, initial_conc_B, LoadedData.SpectralData_AbsAtLEDw = \
                 SingleWavelength.CreateParameters(LoadedData.SpectralData_Absorbance, ExpParams.LEDw, ExpParams.epsilon_R)
             
             N, fit_results = SingleWavelength.MinimizeQYs(I0_list, ExpParams.LEDw,
                                                           initial_conc_A, initial_conc_B,
-                                                          self.timestamps, self.SpectralData_AbsAtLEDw,
+                                                          LoadedData.timestamps, LoadedData.SpectralData_AbsAtLEDw,
                                                           ExpParams.epsilon_R, ExpParams.epsilon_P,
                                                           ExpParams.V)
             
@@ -657,18 +648,18 @@ class autoQuant(QtWidgets.QMainWindow):
 
         ##!!! MOVE TO SEPARATE PY SCRIPT (TOOLS OR SOMETHING)
         ## Calculate optimized concentrations
-        self.conc_opt, Results.PSS_Reactant, Results.PSS_Product = Integration.CalculateConcentrations(spectraldata_meters,
+        Results.conc_opt, Results.PSS_Reactant, Results.PSS_Product = Integration.CalculateConcentrations(spectraldata_meters,
                                                     initial_conc_A, initial_conc_B, 
-                                                    self.timestamps,
+                                                    LoadedData.timestamps,
                                                     Results.QY_AB_opt, Results.QY_BA_opt, 
-                                                    self.epsilons_R_interp, self.epsilons_P_interp,
+                                                    LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
                                                     N, ExpParams.V)
 
         ## Calculate total absorbance and residuals
-        self.total_abs_fit, self.residuals = Integration.GetFittedAbs(fit_results, self.conc_opt,
-                                                            self.epsilons_R_interp, self.epsilons_P_interp,
-                                                            self.timestamps,
-                                                            self.SpectralDataCut_Wavelengths)
+        Results.total_abs_fit, Results.residuals = Integration.GetFittedAbs(fit_results, Results.conc_opt,
+                                                            LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
+                                                            LoadedData.timestamps,
+                                                            LoadedData.SpectralDataCut_Wavelengths)
         
         ######################################################################
         
@@ -689,12 +680,12 @@ class autoQuant(QtWidgets.QMainWindow):
 
     def Plot_QY(self, canvas):
         canvas.PlotResults(ExpParams.LEDw,
-                           self.timestamps,
-                           self.conc_opt,
-                           self.SpectralDataCut_Abs,
-                           self.SpectralDataCut_Index,
-                           self.total_abs_fit,
-                           self.residuals,
+                           LoadedData.timestamps,
+                           Results.conc_opt,
+                           LoadedData.SpectralDataCut_Abs,
+                           LoadedData.SpectralDataCut_Index,
+                           Results.total_abs_fit,
+                           Results.residuals,
                            Results.QY_AB_opt, Results.QY_BA_opt,
                            Results.error_QY_AB, Results.error_QY_BA,
                            ExpParams.CalculationMethod)
@@ -721,12 +712,12 @@ class autoQuant(QtWidgets.QMainWindow):
         if Results.savefilename is None or '':
             return
         canvas.PlotResults(ExpParams.LEDw,
-                           self.timestamps,
-                           self.conc_opt,
-                           self.SpectralDataCut_Abs,
-                           self.SpectralDataCut_Index,
-                           self.total_abs_fit,
-                           self.residuals,
+                           LoadedData.timestamps,
+                           Results.conc_opt,
+                           LoadedData.SpectralDataCut_Abs,
+                           LoadedData.SpectralDataCut_Index,
+                           Results.total_abs_fit,
+                           Results.residuals,
                            Results.QY_AB_opt, Results.QY_BA_opt,
                            Results.error_QY_AB, Results.error_QY_BA,
                            ExpParams.CalculationMethod,
@@ -767,17 +758,17 @@ class autoQuant(QtWidgets.QMainWindow):
         except IOError as e:
             print(f"An error occurred: {e}")
 
-    def GetTimestamps(self, LogFile):
-        ##!!! find a way to take into account the actual irradiation time 
-            ## (subtracting the delays and spectra acquisition times)
+    # def GetTimestamps(self, LogFile):
+    #     ##!!! find a way to take into account the actual irradiation time 
+    #         ## (subtracting the delays and spectra acquisition times)
         
-        ## CSV not DAT
-        log = pd.read_csv(LogFile,
-                        sep = ",", decimal = ".", skiprows = 1, header=None,)
-        log_t=log[log[3] == 'Measure']
-        t=log_t[2]
-        timestamps=t.to_numpy()
-        return timestamps
+    #     ## CSV not DAT
+    #     log = pd.read_csv(LogFile,
+    #                     sep = ",", decimal = ".", skiprows = 1, header=None,)
+    #     log_t=log[log[3] == 'Measure']
+    #     t=log_t[2]
+    #     timestamps=t.to_numpy()
+    #     return timestamps
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)

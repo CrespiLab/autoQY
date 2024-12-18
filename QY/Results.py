@@ -10,9 +10,12 @@ QY_BA_opt = None
 error_QY_AB = None
 error_QY_BA = None
 
-#conc_opt # here too?
+conc_opt = None
 PSS_Reactant = None
 PSS_Product = None
+
+total_abs_fit = None
+residuals = None
 
 savefilename = ''
 
