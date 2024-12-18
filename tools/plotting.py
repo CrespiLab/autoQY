@@ -365,6 +365,8 @@ class MplCanvas(FigureCanvas):
         ##################################################
         ################## ABSORBANCE ####################
         ##################################################
+        ##!!! IDEA TO CHANGE:
+            ## show integrated Abs over used spectral range
         #### Plot the experimental data and the fitted total absorbance curve
         axresults_Abs.plot(timestamps, absorbance[index,:], linestyle='-', 
                     color=self.colours[4], linewidth=8, alpha=0.5, label='Experimental Data')

@@ -12,7 +12,7 @@ import numpy as np
 from scipy.optimize import curve_fit #change in baseline correction
 
 from PyQt5 import uic, QtWidgets
-
+from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 
 import QY.LoadedData as LoadedData
 from tools.plotting import MplCanvas
@@ -49,8 +49,6 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
     def load_power(self,file_name):
         """Load the data from a file and plot it in a new window."""
         if file_name:
-            # self.filename_power = file_name
-            # self.x, self.Power = self.load_and_validate_data(self.filename_power)
             self.x, self.Power = self.load_and_validate_data(file_name)
             
             ## Save x and Power without overwriting
@@ -59,14 +57,7 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
             ## Define filename for Results_PowerProcessing file
             path_split=file_name.split('/')[0:-1] # leave only filepath (remove name)
             path='\\'.join(path_split) # re-join into string
-
-            # end_nameonly=file_name.split('/')[-1] # only filename
-            # end_parentnameonly_split=end_nameonly.split('_')[0:-1]
-            # end_parentnameonly='\\'.join(end_parentnameonly_split) # only filename without 
-            # end=f"Results_PowerProcessing_{end_parentnameonly}" # name with added info
-            
             end="Results_PowerProcessing" # simple name with added info
-
             Results.savefilename_power = f"{path}\\{end}"
 
             if self.Power is not None and self.x is not None:
@@ -98,7 +89,14 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
 
             ## Create the custom MplCanvas
             canvas = MplCanvas(self, LoadedData.count)  # Pass dataset # for initialization
+
+            ## Create the navigation toolbar for the canvas
+            toolbar = NavigationToolbar(canvas, self)
+
+            ## Add the toolbar and canvas to the layout
+            layout.addWidget(toolbar)  # Add the toolbar at the top
             layout.addWidget(canvas)   # Add the canvas (plot area) below the toolbar
+
             tab.setLayout(layout)
 
             ## Call the plotting function to populate the canvas

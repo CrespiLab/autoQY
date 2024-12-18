@@ -22,7 +22,7 @@ import QY.Results as Results
 import QY.LoadedData as LoadedData
 import QY.SingleWavelength as SingleWavelength
 
-# import tools.load_data as LoadData
+import tools.load_data as LoadData
 from tools.plotting import MplCanvas
 import tools.extractresults as ExtractResults
 #from tools.style import apply_dark_theme
@@ -450,16 +450,16 @@ class autoQuant(QtWidgets.QMainWindow):
         """Load the data file depending on its format (.csv or .dat)."""
         try:
             if file_type == "LED Emission":
-                self.LEDemission_wavelengths, self.LEDemission_intensity = Integration.Import_LEDemission("Spectragryph", file_path)
+                self.LEDemission_wavelengths, self.LEDemission_intensity = LoadData.Import_LEDemission("Spectragryph", file_path)
                 self.filename_LED = file_path
                 
             elif file_type == "Epsilons Reactant":
-                self.epsilons_R_wavelengths, self.epsilons_R_values = Integration.Import_Epsilons("Spectragryph", file_path)
+                self.epsilons_R_wavelengths, self.epsilons_R_values = LoadData.Import_Epsilons("Spectragryph", file_path)
             elif file_type == "Epsilons Product":
-                self.epsilons_P_wavelengths, self.epsilons_P_values = Integration.Import_Epsilons("Spectragryph", file_path)
+                self.epsilons_P_wavelengths, self.epsilons_P_values = LoadData.Import_Epsilons("Spectragryph", file_path)
             elif file_type == "Spectral Data":
                 LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths, LoadedData.SpectralData_Absorbance = \
-                    Integration.Import_SpectralData("Spectragryph",file_path) #HARDCODED IN THE WRONG PLACE # STILL??
+                    LoadData.Import_SpectralData("Spectragryph",file_path) #HARDCODED IN THE WRONG PLACE # STILL??
                     
             ########################################
             ##!!! ADD in case of .dat format
@@ -474,17 +474,17 @@ class autoQuant(QtWidgets.QMainWindow):
         """Load the data file depending on its format (.csv or .dat)."""
         try:       
             if file_type == "LED Emission": ###### A LOT OF PROBLEMS WITH '
-                self.LEDemission_wavelengths, self.LEDemission_intensity = Integration.Import_LEDemission("Not", file_path)
+                self.LEDemission_wavelengths, self.LEDemission_intensity = LoadData.Import_LEDemission("Not", file_path)
                 self.filename_LED = file_path
                 
             elif file_type == "Epsilons Reactant":
-                self.epsilons_R_wavelengths, self.epsilons_R_values = Integration.Import_Epsilons("Not", file_path)
+                self.epsilons_R_wavelengths, self.epsilons_R_values = LoadData.Import_Epsilons("Not", file_path)
             elif file_type == "Epsilons Product":
-                self.epsilons_P_wavelengths, self.epsilons_P_values = Integration.Import_Epsilons("Not", file_path)
+                self.epsilons_P_wavelengths, self.epsilons_P_values = LoadData.Import_Epsilons("Not", file_path)
             elif file_type == "Spectral Data":
                 LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths,
                 LoadedData.SpectralData_Absorbance = \
-                    Integration.Import_SpectralData("Not", file_path)
+                    LoadData.Import_SpectralData("Not", file_path)
             elif file_type == "Log Irr":
                 self.timestamps = self.GetTimestamps(file_path)
             else:
@@ -502,12 +502,6 @@ class autoQuant(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "Error", "Please load the epilons data first.")
             return
         
-        # ## MOVED TO process_LED
-        # self.epsilons_R_interp, self.epsilons_P_interp, self.emission_interp = Integration.Interpolate_Epsilons(LoadedData.SpectralData_Wavelengths,
-        #              self.epsilons_R_wavelengths, self.epsilons_R_values,
-        #              self.epsilons_P_wavelengths, self.epsilons_P_values,
-        #              self.emission_wavelengths, self.emission_Intensity_proc)
-
         def plot_func(canvas):
             """ Plot the data using MplCanvas """
             canvas.plot_EpsilonsOnly(self.epsilons_R_wavelengths,self.epsilons_R_values,
@@ -616,12 +610,10 @@ class autoQuant(QtWidgets.QMainWindow):
         Calculate quantum yields by numerically solving the differential equations.
         Then calculate the concentrations, and plot the results.
         """
+        ## Make list of powers
         I0_avg = ExpParams.I0_avg
         I0_err = ExpParams.I0_err
         I0_list = [I0_avg, I0_avg+I0_err, I0_avg-I0_err]
-
-        
-        # I0_list = self.GetPowerList(ExpParams.I0_avg, ExpParams.I0_err) # make a list of the three values for I0
 
         if ExpParams.CalculationMethod == "Integration":
             ## Create parameters needed for fitting
