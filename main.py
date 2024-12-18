@@ -706,7 +706,6 @@ class autoQuant(QtWidgets.QMainWindow):
         end=f"Results_{end_nameonly}_{ExpParams.CalculationMethod}" # name with added info
 
         Results.savefilename = f"{path}\\{end}"
-        # Results.savefilename = f"Results_{savefilename}_{ExpParams.CalculationMethod}"
         
         canvas = MplCanvas(self)
         if Results.savefilename is None or '':
@@ -731,8 +730,6 @@ class autoQuant(QtWidgets.QMainWindow):
 
     def Save_Results(self):
         """ Save results: """
-        ##!!! ADD: used parameters
-        
         savefile = Results.savefilename+".txt"
 
         dict_results = {'PSS_Reactant (%)': Results.PSS_Reactant,
@@ -741,6 +738,14 @@ class autoQuant(QtWidgets.QMainWindow):
                  'QY_BA_opt' : Results.QY_BA_opt,
                  'error_QY_AB' : Results.error_QY_AB,
                  'error_QY_BA' : Results.error_QY_BA}
+
+        dict_expparams = {'Volume (ml)': ExpParams.V,
+                          'k thermal back-reaction (s-1)': ExpParams.k_BA,
+                          'Power average (mW)': ExpParams.I0_avg,
+                          'Power error (mW)': ExpParams.I0_err,
+                          'Calculation Method': ExpParams.CalculationMethod,
+                          'Wavelength of irradiation': ExpParams.LEDw,
+                          'Threshold': ExpParams.threshold}
 
         try:
             os.remove(savefile)
@@ -755,20 +760,11 @@ class autoQuant(QtWidgets.QMainWindow):
             with open (file,'a') as file:
                 for i in dict_results:
                     file.write(i+": "+str(dict_results[i])+'\n')
+                # file.write('==== Experimental Parameters ====\n')
+                for i in dict_expparams:
+                    file.write(i+": "+str(dict_expparams[i])+'\n')
         except IOError as e:
             print(f"An error occurred: {e}")
-
-    # def GetTimestamps(self, LogFile):
-    #     ##!!! find a way to take into account the actual irradiation time 
-    #         ## (subtracting the delays and spectra acquisition times)
-        
-    #     ## CSV not DAT
-    #     log = pd.read_csv(LogFile,
-    #                     sep = ",", decimal = ".", skiprows = 1, header=None,)
-    #     log_t=log[log[3] == 'Measure']
-    #     t=log_t[2]
-    #     timestamps=t.to_numpy()
-    #     return timestamps
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)

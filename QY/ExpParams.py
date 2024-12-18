@@ -6,7 +6,7 @@ Created on Tue Sep 17 15:18:18 2024
 """
 
 ############# EXPERIMENTAL PARAMETERS #############
-V = 3.0                 # Volume in ml
+V = 0.0                 # Volume in ml
 k_BA = 0.0         # Thermal back reaction rate s-1
 
 ######## POWER ########
