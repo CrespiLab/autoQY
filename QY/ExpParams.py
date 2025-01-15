@@ -17,7 +17,7 @@ I0_err = 0.0                # Error Power in milliWatt
 LEDw = 0
 
 ######## METHOD OF SOLVING DIFFERENTIAL EQUATIONS ########
-CalculationMethod = ''
+CalculationMethod = "Integration" ## default calculation method is Integration
 
 ######## EPSILONS FOR SINGLEWAVELENGTH METHOD########
 epsilon_R = 0

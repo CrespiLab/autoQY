@@ -44,24 +44,6 @@ class autoQuant(QtWidgets.QMainWindow):
 
         ##!!! REMOVE UNNECESSARY VARIABLES HERE
 
-        # self.filename_LED = None
-        # self.LEDindex_first, self.LEDindex_last = None, None
-        # self.LEDemission_wavelengths = None
-        # self.LEDemission_intensity = None
-        # self.epsilons_R_wavelengths = None 
-        # self.epsilons_R_values = None
-        # self.epsilons_P_wavelengths = None
-        # self.epsilons_P_values = None
-        # self.SpectralData_Wavelengths = None
-        # self.SpectralData_Abs = None
-        # self.SpectralData_Index = None
-        # self.LEDemission_intensity_proc = None
-
-        # self.wavelength_low = None
-        # self.wavelength_high = None
-        # self.epsilons_R_interp = None
-        # self.epsilons_P_interp = None
-        
         self.labels_power = {1: self.plainTextEdit_Power_1,
                                    2: self.plainTextEdit_Power_2,
                                    3: self.plainTextEdit_Power_3}
@@ -69,7 +51,7 @@ class autoQuant(QtWidgets.QMainWindow):
                                    2: self.plainTextEdit_PowerError_2,
                                    3: self.plainTextEdit_PowerError_3}
         
-        ExpParams.CalculationMethod = "Integration" # default Calculation Method
+        ## Default Calculation Method is integration: see ExpParams
 
         ## Button connections
         self.loadDataButton_1.clicked.connect(lambda: self.OpenWindow_PowerProcessing(1))
@@ -521,9 +503,8 @@ class autoQuant(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "Error", "Please load LED emission file.")
             return
         
-        ##!!! ADD THIS WARNING
-        if ExpParams.LEDw is None:
-            QtWidgets.QMessageBox.warning(self, "Error", "Please set nominal wavelength.")
+        if ExpParams.LEDw == 0:
+            QtWidgets.QMessageBox.warning(self, "Error", "Please set nominal wavelength (nm).")
             return
 
         def plot_func(canvas):
@@ -538,12 +519,24 @@ class autoQuant(QtWidgets.QMainWindow):
         
         ## Integration mode
         if ExpParams.CalculationMethod == "Integration":
-            if LoadedData.LEDemission_wavelengths is None or LoadedData.LEDemission_intensity is None or LoadedData.SpectralData_Wavelengths is None:
-                QtWidgets.QMessageBox.warning(self, "Error", "Please load LED emission file and Spectra.")
+            if LoadedData.LEDemission_wavelengths is None or LoadedData.LEDemission_intensity is None:
+                QtWidgets.QMessageBox.warning(self, "Error", "Please load LED emission file.")
+                return
+
+            if LoadedData.SpectralData_Full is None:
+                QtWidgets.QMessageBox.warning(self, "Error", "Please load Spectra during Irradiation.")
+                return
+
+            if LoadedData.epsilons_R_wavelengths is None:
+                QtWidgets.QMessageBox.warning(self, "Error", "Please load Epsilons Reactant.")
+                return
+
+            if LoadedData.epsilons_P_wavelengths is None:
+                QtWidgets.QMessageBox.warning(self, "Error", "Please load Epsilons Product.")
                 return
             
-            if ExpParams.LEDw is None:
-                QtWidgets.QMessageBox.warning(self, "Error", "Please set Wavelength (nm).")
+            if ExpParams.LEDw == 0:
+                QtWidgets.QMessageBox.warning(self, "Error", "Please set nominal wavelength (nm).")
                 return
             
             ########################################
@@ -559,6 +552,13 @@ class autoQuant(QtWidgets.QMainWindow):
         
         ##!!! ADJUST CODE TO PLOT SPECTRA AND JUST INDICATE PART OF SPECTRUM (with a box)
             self.add_new_tab(self.PlotData_Cut, "LED Emission and Spectral Data")
+        
+        
+            ##!!! MOVED HERE
+            LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp, LoadedData.emission_interp = Integration.Interpolate_Epsilons(LoadedData.SpectralDataCut_Wavelengths,
+                         LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values,
+                         LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values,
+                         LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity_proc)
         
         ## SingleWavelength mode
         elif ExpParams.CalculationMethod == "SingleWavelength":
@@ -578,11 +578,7 @@ class autoQuant(QtWidgets.QMainWindow):
         else:
             QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the self.CalculationMethod variable")
         
-        ##!!! MOVED HERE
-        LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp, LoadedData.emission_interp = Integration.Interpolate_Epsilons(LoadedData.SpectralDataCut_Wavelengths,
-                     LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values,
-                     LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values,
-                     LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity_proc)
+        
         
         #############
         
@@ -601,6 +597,26 @@ class autoQuant(QtWidgets.QMainWindow):
         Calculate quantum yields by numerically solving the differential equations.
         Then calculate the concentrations, and plot the results.
         """
+        if ExpParams.V == 0.0:
+            QtWidgets.QMessageBox.warning(self, "Error", "Please set Volume.")
+            return
+        
+        if ExpParams.I0_avg == 0.0:
+            QtWidgets.QMessageBox.warning(self, "Error", "Please check Power.")
+            return
+        
+        if LoadedData.LEDemission_wavelengths is None or LoadedData.LEDemission_intensity is None:
+            QtWidgets.QMessageBox.warning(self, "Error", "Please load LED emission file.")
+            return
+        
+        if LoadedData.emission_interp is None:
+            QtWidgets.QMessageBox.warning(self, "Error", "Please process LED emission spectrum.")
+            return
+
+        if LoadedData.timestamps is None:
+            QtWidgets.QMessageBox.warning(self, "Error", "Please load the Timestamps log file.")
+            return
+        
         ## Make list of powers
         I0_avg = ExpParams.I0_avg
         I0_err = ExpParams.I0_err
@@ -692,6 +708,12 @@ class autoQuant(QtWidgets.QMainWindow):
 
     def Save_QY(self):
         """ Save results: plots """
+        if Results.QY_AB_opt is None or Results.conc_opt is None:
+            QtWidgets.QMessageBox.warning(self, "Error", "Please perform Calculate QY first.")
+            return
+
+        
+        
         options = QtWidgets.QFileDialog.Options()
 
         ## File dialog for selecting files

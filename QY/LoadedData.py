@@ -26,6 +26,7 @@ epsilons_P_values = None
 
 epsilons_R_interp = None
 epsilons_P_interp = None
+emission_interp = None
 
 timestamps = None
 
