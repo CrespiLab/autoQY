@@ -213,14 +213,24 @@ class MplCanvas(FigureCanvas):
             ax1.plot(wavelengths_cut, absorbance_cut.T[i])
             # print(i)
 
+        # Dynamic x-axis range with some padding
+        x_min, x_max = wavelengths_cut.min(), wavelengths_cut.max()
+        x_padding = 0.05 * (x_max - x_min)  # 5% padding
+        x_min_dynamic, x_max_dynamic = x_min - x_padding, x_max + x_padding
+
+        # Dynamic y-axis range with some padding
+        y_min, y_max = absorbance_cut.min(), absorbance_cut.max()
+        y_padding = 0.05 * (y_max - y_min)  # 5% padding
+        y_min_dynamic, y_max_dynamic = y_min - y_padding, y_max + y_padding
+
         # Set common x-axis properties for both subplots
         ax1.set_xlabel("Wavelength (nm)")
-        ax1.set_xlim(220, 650)
+        ax1.set_xlim(x_min_dynamic, x_max_dynamic)
 
         # Customize the first subplot (Spectral Data)
         ax1.set_title("Spectral Data")
         ax1.set_ylabel("Absorbance")
-        ax1.set_ylim(-0.05, 2.5)
+        ax1.set_ylim(y_min_dynamic, y_max_dynamic)
 
         ax2 = self.fig.add_subplot(gs[1])
         ax2.set_xlabel("Wavelength (nm)")
@@ -275,7 +285,7 @@ class MplCanvas(FigureCanvas):
         gs = gridspec.GridSpec(1, 1) 
 
         # Create first plot (Epsilons) in the first row
-        ax1 = self.fig.add_subplot(gs[0])
+        ax1 = self.fig.add_subplot(gs[0]) 
         
         ## Plot spectra
         for i in range(1,len(absorbance.columns)):
@@ -283,7 +293,6 @@ class MplCanvas(FigureCanvas):
 
         ##!!! implement colour gradient and indicate first and last
         
-        ax1.legend(fontsize=12)
         ax1.set_xlabel("Wavelength (nm)")
         ax1.set_xlim(220, 650)
         ax1.set_ylim(-0.05, 2)
