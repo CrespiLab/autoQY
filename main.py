@@ -118,6 +118,8 @@ class autoQuant(QtWidgets.QMainWindow):
         self.DeletePowerDataButton_3.setEnabled(False)
         self.calculatePowerButton.setEnabled(False) # default Manual Power input
         
+        self.radioButton_Log_2.setEnabled(True) # Timestamps: default enabled
+        
         self.radioButton_2.setEnabled(True) # Irradiation Integration: default 
         self.LoadLED.setEnabled(True) # default Integration Mode
         
@@ -232,7 +234,7 @@ class autoQuant(QtWidgets.QMainWindow):
             self.plainTextEdit_6.setEnabled(False)
             self.plainTextEdit_8.setEnabled(False)
         
-        if self.radioButton_4.isChecked(): # PowerProcessing
+        if self.radioButton_4.isChecked(): # PowerProcessing Module
             self.update_I0_avg_PP # set I0_avg to current text in PowerProcessing field
             self.update_I0_err_PP # set I0_err to current text in PowerProcessing field
             
@@ -275,6 +277,12 @@ class autoQuant(QtWidgets.QMainWindow):
             self.plainTextEdit_5.setEnabled(True) # Integration wavelength (nm)
             self.LoadLED.setEnabled(True)
             ExpParams.CalculationMethod = "Integration"
+        
+        if self.radioButton_Log_2.isChecked(): # Timestamps: Default
+            LoadedData.format_timestamps = "Default"
+
+        if self.radioButton_Log_1.isChecked(): # Timestamps: AHK format (Crespi group)
+            LoadedData.format_timestamps = "AHK"
 
     def OpenWindow_PowerProcessing(self, count):
         """Load the power data from a file and plot it in a new window."""
@@ -459,6 +467,7 @@ class autoQuant(QtWidgets.QMainWindow):
                 LoadedData.SpectralData_Absorbance = \
                     LoadData.Import_SpectralData("Not", file_path)
             elif file_type == "Log Irr":
+                # LoadedData.timestamps = LoadData.GetTimestamps(file_path)
                 LoadedData.timestamps = LoadData.GetTimestamps(file_path)
             else:
                     raise ValueError(f"Unknown file type: {file_type}")

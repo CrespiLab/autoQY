@@ -1,21 +1,35 @@
 import pandas as pd
-import numpy as np
+# import numpy as np
 
-import QY.ExpParams as ExpParams
-import QY.Constants as Constants
+# import QY.ExpParams as ExpParams
+# import QY.Constants as Constants
 import QY.LoadedData as LoadedData
 
+
+
+# def GetTimestamps(LogFile):
 def GetTimestamps(LogFile):
     """ Obtain timestamps from .ahk log file """
     ##!!! find a way to take into account the actual irradiation time 
         ## (subtracting the delays and spectra acquisition times)
+
+    ##!!! should add a function that checks that the format is correct
     
     ## CSV not DAT
-    log = pd.read_csv(LogFile,
-                    sep = ",", decimal = ".", skiprows = 1, header=None,)
-    log_t=log[log[3] == 'Measure']
-    t=log_t[2]
-    timestamps=t.to_numpy()
+    if LoadedData.format_timestamps == "AHK":
+        log = pd.read_csv(LogFile,
+                        sep = ",", decimal = ".", skiprows = 1, header=None,)
+        log_measure=log[log[log.columns[3]] == 'Measure']
+        measurement_timestamps = log_measure.iloc[:, [0, 2]]
+        measurement_timestamps.columns = ["Measurement", "Timestamp (s)"]
+        timestamps = measurement_timestamps.iloc[:,1].to_numpy()
+    elif LoadedData.format_timestamps == "Default":
+        log = pd.read_csv(LogFile,
+                        sep = ",", decimal = ".", skiprows = 1, header=None,)
+        log.columns = ["Measurement", "Timestamp (s)"]
+        timestamps = log.iloc[:,1].to_numpy()
+    # else:
+
     return timestamps
 
 def Import_SpectralData(FileFormat, file):
