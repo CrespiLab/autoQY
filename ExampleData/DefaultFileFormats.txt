@@ -1,0 +1,7 @@
+Default spectral data format:
+
+Wavelength (nm)	Timestamp_0	Timestamp_1	Timestamp_2
+wl_1	Abs_0_1	Abs_1_1	Abs_2_1
+wl_2	Abs_0_2	Abs_1_2	Abs_2_2
+
+========================================

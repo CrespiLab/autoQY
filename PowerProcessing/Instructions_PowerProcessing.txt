@@ -1,0 +1,15 @@
+The PowerProcessing module is used for processing the power data (e.g., measured with the Thorlabs software Optical Power Monitor (OPM))
+Workflow:
+0) Select the x-coordinates of the areas to be used for subsequent baseline correction (interactive plot)
+1) Baseline correction using a polynomial
+2) Retrieve value+standard deviation
+3) Calculate power at cuvette
+4) Calculate power average and error over triplicate measurements
+
+The power data should be recorded in the following sequence:
+1) no insulating jacket, no cuvette -- LED off
+2) no insulating jacket, no cuvette -- LED on
+3) no insulating jacket, no cuvette -- LED off
+4) insulating jacket, cuvette with solvent -- LED off
+5) insulating jacket, cuvette with solvent -- LED on
+6) insulating jacket, cuvette with solvent -- LED off

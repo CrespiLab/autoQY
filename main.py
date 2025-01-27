@@ -10,7 +10,7 @@ TO DO:
 """
 import sys, os
 import numpy as np
-import pandas as pd
+# import pandas as pd
 # from scipy.optimize import curve_fit #change in baseline correction
 
 from PyQt5 import QtWidgets, uic
