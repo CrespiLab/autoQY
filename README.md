@@ -20,6 +20,7 @@ git clone https://github.com/JornSteen/autoQuant.git
 ##### For example with Conda:
 ```bash
 conda create -n autoQuant
+conda activate autoQuant
 conda install pip
 ```
 
