@@ -29,13 +29,13 @@ import tools.extractresults as ExtractResults
 
 import PowerProcessing.WindowPowerProcessing as WindowPowerProcessing
 
-class autoQuant(QtWidgets.QMainWindow):
+class MainWindow(QtWidgets.QMainWindow):
         ############################
         #Error Handling  ***********
         ############################
     def __init__(self):
-        super(autoQuant, self).__init__()
-        uic.loadUi('UIs/autoQuant.ui', self)  # Load the UI file you provided
+        super(MainWindow, self).__init__()
+        uic.loadUi('UIs/MainWindow-large.ui', self)  # Load the UI file you provided
 
         ############################
         #Change style  *************
@@ -799,6 +799,6 @@ class autoQuant(QtWidgets.QMainWindow):
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
-    window = autoQuant()
+    window = MainWindow()
     window.show()
     sys.exit(app.exec_())
