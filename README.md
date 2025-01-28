@@ -33,27 +33,25 @@ A folder called "autoQuant" is downloaded.
 A folder called "autoQuant-main" is unpacked.
 
 #### Install
-##### From clone
 ```bash
-cd autoQuant
-pip install .
-```
-##### From ZIP
-```bash
-cd autoQuant-main
+cd autoQuant(-main)
 pip install .
 ```
 
 ### Run
 Execute with Python:
-#### From clone
 ```bash
-cd autoQuant
-python main.py
-```
-#### From ZIP
-```bash
-cd autoQuant-main
+cd autoQuant(-main)
 python main.py
 ```
 The GUI should appear after a short while.
+
+### Tested successfully with:
+- python 3.12.8
+
+- numpy 2.2.2
+- scipy 1.15.1
+- lmfit 1.3.2
+- pandas 2.2.3
+- pyqt 5.15.9 (PyQt5)
+- matplotlib 3.10.0
