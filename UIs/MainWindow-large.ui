@@ -24,8 +24,8 @@
   </property>
   <property name="maximumSize">
    <size>
-    <width>1524</width>
-    <height>789</height>
+    <width>1500</width>
+    <height>771</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -40,15 +40,15 @@
    </property>
    <property name="maximumSize">
     <size>
-     <width>1500</width>
-     <height>750</height>
+     <width>2000</width>
+     <height>1000</height>
     </size>
    </property>
    <layout class="QHBoxLayout" name="horizontalLayout">
     <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="sizePolicy">
-       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
         <horstretch>0</horstretch>
         <verstretch>0</verstretch>
        </sizepolicy>
@@ -61,8 +61,8 @@
       </property>
       <property name="maximumSize">
        <size>
-        <width>750</width>
-        <height>750</height>
+        <width>1000</width>
+        <height>1000</height>
        </size>
       </property>
      </widget>
@@ -70,7 +70,7 @@
     <item>
      <widget class="QFrame" name="frame">
       <property name="sizePolicy">
-       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
         <horstretch>0</horstretch>
         <verstretch>0</verstretch>
        </sizepolicy>
@@ -83,8 +83,8 @@
       </property>
       <property name="maximumSize">
        <size>
-        <width>750</width>
-        <height>750</height>
+        <width>1000</width>
+        <height>1000</height>
        </size>
       </property>
       <property name="focusPolicy">
@@ -178,6 +178,9 @@
              <pointsize>10</pointsize>
             </font>
            </property>
+           <property name="lineWrapMode">
+            <enum>QPlainTextEdit::NoWrap</enum>
+           </property>
            <property name="readOnly">
             <bool>false</bool>
            </property>
@@ -261,7 +264,7 @@
             </font>
            </property>
            <property name="text">
-            <string>Single Wavelength (TO DO)</string>
+            <string>Single Wavelength (to do)</string>
            </property>
           </widget>
          </item>
@@ -283,6 +286,9 @@
             <font>
              <pointsize>10</pointsize>
             </font>
+           </property>
+           <property name="lineWrapMode">
+            <enum>QPlainTextEdit::NoWrap</enum>
            </property>
           </widget>
          </item>
@@ -422,6 +428,9 @@
                <pointsize>10</pointsize>
               </font>
              </property>
+             <property name="lineWrapMode">
+              <enum>QPlainTextEdit::NoWrap</enum>
+             </property>
             </widget>
            </item>
           </layout>
@@ -464,6 +473,9 @@
               <font>
                <pointsize>10</pointsize>
               </font>
+             </property>
+             <property name="lineWrapMode">
+              <enum>QPlainTextEdit::NoWrap</enum>
              </property>
             </widget>
            </item>
@@ -510,6 +522,9 @@
              <pointsize>10</pointsize>
             </font>
            </property>
+           <property name="lineWrapMode">
+            <enum>QPlainTextEdit::NoWrap</enum>
+           </property>
           </widget>
          </item>
          <item alignment="Qt::AlignHCenter">
@@ -555,6 +570,9 @@
              <pointsize>10</pointsize>
             </font>
            </property>
+           <property name="lineWrapMode">
+            <enum>QPlainTextEdit::NoWrap</enum>
+           </property>
           </widget>
          </item>
          <item>
@@ -586,6 +604,22 @@
             <string>mW</string>
            </property>
           </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer_4">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeType">
+            <enum>QSizePolicy::Preferred</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>25</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
          </item>
         </layout>
        </item>
@@ -695,11 +729,11 @@
          </item>
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_21">
-           <item>
+           <item alignment="Qt::AlignHCenter">
             <widget class="QLabel" name="label_20">
              <property name="maximumSize">
               <size>
-               <width>100</width>
+               <width>65</width>
                <height>25</height>
               </size>
              </property>
@@ -731,6 +765,9 @@
               <font>
                <pointsize>10</pointsize>
               </font>
+             </property>
+             <property name="lineWrapMode">
+              <enum>QPlainTextEdit::NoWrap</enum>
              </property>
             </widget>
            </item>
@@ -803,6 +840,9 @@
                <pointsize>10</pointsize>
               </font>
              </property>
+             <property name="lineWrapMode">
+              <enum>QPlainTextEdit::NoWrap</enum>
+             </property>
              <property name="readOnly">
               <bool>true</bool>
              </property>
@@ -844,6 +884,9 @@
               <font>
                <pointsize>10</pointsize>
               </font>
+             </property>
+             <property name="lineWrapMode">
+              <enum>QPlainTextEdit::NoWrap</enum>
              </property>
              <property name="readOnly">
               <bool>true</bool>
@@ -951,6 +994,9 @@
                <pointsize>10</pointsize>
               </font>
              </property>
+             <property name="lineWrapMode">
+              <enum>QPlainTextEdit::NoWrap</enum>
+             </property>
              <property name="readOnly">
               <bool>true</bool>
              </property>
@@ -992,6 +1038,9 @@
               <font>
                <pointsize>10</pointsize>
               </font>
+             </property>
+             <property name="lineWrapMode">
+              <enum>QPlainTextEdit::NoWrap</enum>
              </property>
              <property name="readOnly">
               <bool>true</bool>
@@ -1099,6 +1148,9 @@
                <pointsize>10</pointsize>
               </font>
              </property>
+             <property name="lineWrapMode">
+              <enum>QPlainTextEdit::NoWrap</enum>
+             </property>
              <property name="readOnly">
               <bool>true</bool>
              </property>
@@ -1140,6 +1192,9 @@
               <font>
                <pointsize>10</pointsize>
               </font>
+             </property>
+             <property name="lineWrapMode">
+              <enum>QPlainTextEdit::NoWrap</enum>
              </property>
              <property name="readOnly">
               <bool>true</bool>
@@ -1247,6 +1302,9 @@
                <pointsize>10</pointsize>
               </font>
              </property>
+             <property name="lineWrapMode">
+              <enum>QPlainTextEdit::NoWrap</enum>
+             </property>
              <property name="readOnly">
               <bool>true</bool>
              </property>
@@ -1289,6 +1347,9 @@
                <pointsize>10</pointsize>
               </font>
              </property>
+             <property name="lineWrapMode">
+              <enum>QPlainTextEdit::NoWrap</enum>
+             </property>
              <property name="readOnly">
               <bool>true</bool>
              </property>
@@ -1320,7 +1381,7 @@
         <layout class="QHBoxLayout" name="horizontalLayout_2">
          <item>
           <layout class="QVBoxLayout" name="verticalLayout_2">
-           <item>
+           <item alignment="Qt::AlignHCenter">
             <widget class="QPushButton" name="LoadEpsilons_Reactant">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -1330,7 +1391,7 @@
              </property>
              <property name="maximumSize">
               <size>
-               <width>100</width>
+               <width>75</width>
                <height>25</height>
               </size>
              </property>
@@ -1344,7 +1405,7 @@
              </property>
             </widget>
            </item>
-           <item>
+           <item alignment="Qt::AlignHCenter">
             <widget class="QPushButton" name="LoadEpsilons_Product">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -1354,7 +1415,7 @@
              </property>
              <property name="maximumSize">
               <size>
-               <width>100</width>
+               <width>75</width>
                <height>25</height>
               </size>
              </property>
@@ -1368,7 +1429,7 @@
              </property>
             </widget>
            </item>
-           <item>
+           <item alignment="Qt::AlignHCenter">
             <widget class="QPushButton" name="plotEpsilonButton">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
@@ -1378,7 +1439,7 @@
              </property>
              <property name="maximumSize">
               <size>
-               <width>100</width>
+               <width>75</width>
                <height>25</height>
               </size>
              </property>
@@ -1456,6 +1517,22 @@
               <string>Plot</string>
              </property>
             </widget>
+           </item>
+           <item>
+            <spacer name="verticalSpacer">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeType">
+              <enum>QSizePolicy::Preferred</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>25</height>
+              </size>
+             </property>
+            </spacer>
            </item>
           </layout>
          </item>
@@ -1794,6 +1871,9 @@
                  <height>30</height>
                 </size>
                </property>
+               <property name="lineWrapMode">
+                <enum>QTextEdit::NoWrap</enum>
+               </property>
                <property name="readOnly">
                 <bool>true</bool>
                </property>
@@ -1836,6 +1916,9 @@
                  <width>75</width>
                  <height>30</height>
                 </size>
+               </property>
+               <property name="lineWrapMode">
+                <enum>QTextEdit::NoWrap</enum>
                </property>
                <property name="readOnly">
                 <bool>true</bool>
@@ -1884,6 +1967,9 @@
                  <height>30</height>
                 </size>
                </property>
+               <property name="lineWrapMode">
+                <enum>QTextEdit::NoWrap</enum>
+               </property>
                <property name="readOnly">
                 <bool>true</bool>
                </property>
@@ -1926,6 +2012,9 @@
                  <width>75</width>
                  <height>30</height>
                 </size>
+               </property>
+               <property name="lineWrapMode">
+                <enum>QTextEdit::NoWrap</enum>
                </property>
                <property name="readOnly">
                 <bool>true</bool>
@@ -2024,6 +2113,9 @@
                  <height>30</height>
                 </size>
                </property>
+               <property name="lineWrapMode">
+                <enum>QTextEdit::NoWrap</enum>
+               </property>
                <property name="readOnly">
                 <bool>true</bool>
                </property>
@@ -2070,6 +2162,9 @@
                  <width>75</width>
                  <height>30</height>
                 </size>
+               </property>
+               <property name="lineWrapMode">
+                <enum>QTextEdit::NoWrap</enum>
                </property>
                <property name="readOnly">
                 <bool>true</bool>
@@ -2233,6 +2328,9 @@
                <pointsize>10</pointsize>
               </font>
              </property>
+             <property name="lineWrapMode">
+              <enum>QPlainTextEdit::NoWrap</enum>
+             </property>
             </widget>
            </item>
            <item alignment="Qt::AlignHCenter">
@@ -2253,6 +2351,9 @@
               <font>
                <pointsize>10</pointsize>
               </font>
+             </property>
+             <property name="lineWrapMode">
+              <enum>QPlainTextEdit::NoWrap</enum>
              </property>
             </widget>
            </item>
@@ -2316,7 +2417,7 @@
             <enum>Qt::Horizontal</enum>
            </property>
            <property name="sizeType">
-            <enum>QSizePolicy::Fixed</enum>
+            <enum>QSizePolicy::Preferred</enum>
            </property>
            <property name="sizeHint" stdset="0">
             <size>

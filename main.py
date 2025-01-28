@@ -495,7 +495,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def plot_spectra(self):
         """ Plot spectra recorded during irradiation """
         if LoadedData.SpectralData_Full is None:
-            QtWidgets.QMessageBox.warning(self, "Error", "Please first load Spectra during Irradiation.")
+            QtWidgets.QMessageBox.warning(self, "Error", "Please first load Measurement Spectra.")
             return
 
         def plot_func(canvas):
@@ -503,7 +503,7 @@ class MainWindow(QtWidgets.QMainWindow):
             canvas.plot_DataFull(LoadedData.SpectralData_Wavelengths,
                                  LoadedData.SpectralData_Absorbance)
         
-        self.add_new_tab(plot_func, "Spectra during Irradiation")
+        self.add_new_tab(plot_func, "Measurement Spectra")
             
     ##!!! DEFINE OUTSIDE OF CLASS    
     def plot_LEDfull(self):
@@ -533,7 +533,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 return
 
             if LoadedData.SpectralData_Full is None:
-                QtWidgets.QMessageBox.warning(self, "Error", "Please load Spectra during Irradiation.")
+                QtWidgets.QMessageBox.warning(self, "Error", "Please load Measurement Spectra.")
                 return
 
             if LoadedData.epsilons_R_wavelengths is None:
