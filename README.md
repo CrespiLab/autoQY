@@ -1,5 +1,5 @@
 ## autoQuant
-**January 27th, 2025**
+**January 28th, 2025**
 
 autoQuant is a graphical user interface (GUI) for the calculation of the isomerization quantum yield using data recorded according to the following publication:
 
@@ -17,6 +17,7 @@ git clone https://github.com/JornSteen/autoQuant.git
 #### Unpack at desired location
 
 #### Create a new Python environment and install pip
+Python 3.12 or higher is required
 ##### For example with Conda:
 ```bash
 conda create -n autoQuant
@@ -24,11 +25,12 @@ conda activate autoQuant
 conda install pip
 ```
 
-#### Install using pip
+#### Install at desired location
 ```bash
-cd autoQuant
+cd desired-location
 pip install .
 ```
+A folder called "autoQuant" will have been installed.
 
 ### Run
 Execute main.py with Python:
