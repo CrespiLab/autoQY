@@ -17,17 +17,17 @@ conda install pip
 ```
 
 #### Download the source files
-##### - Clone using the URL:
+##### Clone using the URL:
 ```bash
 git clone https://github.com/JornSteen/autoQuant.git
 ```
 A folder called "autoQuant" is downloaded.
 
-##### - Download ZIP folder and unpack at desired location
+##### Download ZIP folder and unpack at desired location
 A folder called "autoQuant-main" is downloaded.
 
 #### Install
-##### From cloned folder
+##### From clone
 ```bash
 cd autoQuant
 pip install .
@@ -40,7 +40,7 @@ pip install .
 
 ### Run
 Execute main.py with Python:
-#### From cloned folder
+#### From clone
 ```bash
 cd autoQuant
 python main.py
