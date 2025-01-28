@@ -14,12 +14,12 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/JornSteen/autoQuant",
     install_requires=[
-        'numpy==2.2.2',
-        'scipy==1.15.1',
-        'lmfit==1.3.2',
-        'pandas==2.2.3',
+        'numpy=>2.2.2',
+        'scipy=>1.15.1',
+        'lmfit=>1.3.2',
+        'pandas=>2.2.3',
         'PyQt5',
-        'matplotlib==3.10.0'
+        'matplotlib=>3.10.0'
     ],
     
     #extras_require={
@@ -50,6 +50,6 @@ setup(
         "Topic :: Scientific/Engineering :: Chemistry",
         "Topic :: Software Development :: Libraries :: Python Modules"
     ],
-    python_requires='==3.12',
+    python_requires='=>3.12',
     keywords=["science", "quantum yield", "QY"],
 )
