@@ -50,6 +50,6 @@ setup(
         "Topic :: Scientific/Engineering :: Chemistry",
         "Topic :: Software Development :: Libraries :: Python Modules"
     ],
-    python_requires='>=3.12',
+    python_requires='>=3.1',
     keywords=["science", "quantum yield", "QY"],
 )
