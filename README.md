@@ -7,15 +7,6 @@ A. Volker, J. D. Steen, S. Crespi, A fiber-optic spectroscopic setup for isomeri
 
 ### Installation
 
-#### Download the source files
-##### - Clone using the URL:
-```bash
-git clone https://github.com/JornSteen/autoQuant.git
-```
-##### - Download ZIP folder
-
-#### Unpack at desired location
-
 #### Create a new Python environment and install pip
 Python 3.12 or higher is required
 ##### For example with Conda:
@@ -25,17 +16,38 @@ conda activate autoQuant
 conda install pip
 ```
 
-#### Install at desired location
+#### Download the source files
+##### - Clone using the URL:
 ```bash
-cd desired-location
+git clone https://github.com/JornSteen/autoQuant.git
+```
+A folder called "autoQuant" is downloaded.
+
+##### - Download ZIP folder and unpack at desired location
+A folder called "autoQuant-main" is downloaded.
+
+#### Install
+##### From cloned folder
+```bash
+cd autoQuant
 pip install .
 ```
-A folder called "autoQuant" will have been installed.
+##### From ZIP
+```bash
+cd autoQuant-main
+pip install .
+```
 
 ### Run
 Execute main.py with Python:
+#### From cloned folder
 ```bash
 cd autoQuant
+python main.py
+```
+#### From ZIP
+```bash
+cd autoQuant-main
 python main.py
 ```
 The GUI should appear after a short while.
