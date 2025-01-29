@@ -6,45 +6,74 @@ autoQuant is a graphical user interface (GUI) for the calculation of the isomeri
 A. Volker, J. D. Steen, S. Crespi, A fiber-optic spectroscopic setup for isomerization quantum yield determination, Beilstein J. Org. Chem. 2024, 20, 1684–1692, DOI: 10.3762/bjoc.20.150.
 
 ### Installation
-
-#### Create a new Python environment and install pip
 Python 3.12 or higher is required
-##### Conda
+
+#### Conda
+The Anaconda Powershell Prompt is a good tool.
+##### Create a new Python environment and install pip
 ```bash
-conda create -n autoQuant
-conda activate autoQuant
-conda install pip
-```
-##### Linux
-```bash
-sudo apt install python3-venv
-python3 -m venv autoQuant
-source autoQuant/bin/activate
+(base) conda create -n autoQuant
+(base) conda activate autoQuant
+(autoQuant) conda install pip
 ```
 
-#### Download the source files
-##### Clone using URL at desired location:
+##### Download the source files
+###### Clone using URL at desired location:
 ```bash
-git clone https://github.com/JornSteen/autoQuant.git
+(autoQuant) cd desired-location
+(autoQuant) \desired-location> git clone https://github.com/JornSteen/autoQuant.git
 ```
 A folder called "autoQuant" is downloaded.
 
-##### Download ZIP folder and unpack at desired location
+###### Download ZIP folder and unpack at desired location
 A folder called "autoQuant-main" is unpacked.
 
-#### Install
+##### Install
 ```bash
-cd autoQuant(-main)
-pip install .
+(autoQuant) \desired-location> cd autoQuant(-main)
+(autoQuant) \desired-location/autoQuant(-main)> pip install .
+```
+
+#### Linux
+##### Download the source files
+###### Clone using URL at desired location:
+```bash
+~$ cd desired-location
+desired-location$ git clone https://github.com/JornSteen/autoQuant.git
+```
+A folder called "autoQuant" is downloaded.
+
+###### Download ZIP folder and unpack at desired location
+A folder called "autoQuant-main" is unpacked.
+
+##### Create a new Python environment and install pip
+Create the Python environment in the downloaded autoQuant(-main) folder.
+```bash
+~$ cd desired-location
+desired-location$ sudo apt install python3-venv
+desired-location$ python3 -m venv autoQuant(-main)
+desired-location$ source autoQuant(-main)/bin/activate
+```
+If necessary, install pip:
+```bash
+(autoQuant(-main)) desired-location$ sudo apt install pip
+```
+
+##### Install
+```bash
+(autoQuant(-main)) desired-location$ cd autoQuant(-main)
+(autoQuant(-main)) desired-location/autoQuant(-main)$ pip install .
 ```
 
 ### Run
 Execute with Python:
 ```bash
-cd autoQuant(-main)
-python main.py
+(autoQuant(-main)) cd autoQuant(-main)
+(autoQuant(-main)) autoQuant(-main)$ python main.py
 ```
 The GUI should appear after a short while.
+
+N.B. Currently, there is a runtime error upon launching the programme in Linux, which causes re-sizing issues for the window.
 
 ### Tested successfully with:
 - python 3.12.8
