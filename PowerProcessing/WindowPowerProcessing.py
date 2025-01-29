@@ -229,6 +229,10 @@ class WindowPowerProcessing(QtWidgets.QMainWindow):
 
     def calculate_power_at_cuvette(self):
         """Calculate the power at the cuvette and the standard deviation."""
+        if self.section_LEDon_no is None or self.section_LEDon_yes is None:
+            QtWidgets.QMessageBox.warning(self, "Error", "Please perform baseline correction first.")
+            return
+        
         sections_noyes = [self.section_LEDon_no, self.section_LEDon_yes]
         
         if not sections_noyes:
