@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1500</width>
-    <height>771</height>
+    <height>750</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -24,8 +24,8 @@
   </property>
   <property name="maximumSize">
    <size>
-    <width>2000</width>
-    <height>1000</height>
+    <width>1750</width>
+    <height>800</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -34,8 +34,8 @@
   <widget class="QWidget" name="centralwidget">
    <property name="minimumSize">
     <size>
-     <width>1500</width>
-     <height>750</height>
+     <width>1000</width>
+     <height>500</height>
     </size>
    </property>
    <property name="maximumSize">
@@ -55,8 +55,8 @@
       </property>
       <property name="minimumSize">
        <size>
-        <width>750</width>
-        <height>750</height>
+        <width>500</width>
+        <height>500</height>
        </size>
       </property>
       <property name="maximumSize">
@@ -68,6 +68,22 @@
      </widget>
     </item>
     <item>
+     <spacer name="horizontalSpacer_7">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+      <property name="sizeType">
+       <enum>QSizePolicy::Preferred</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>10</width>
+        <height>20</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+    <item>
      <widget class="QFrame" name="frame">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
@@ -77,8 +93,8 @@
       </property>
       <property name="minimumSize">
        <size>
-        <width>750</width>
-        <height>750</height>
+        <width>500</width>
+        <height>500</height>
        </size>
       </property>
       <property name="maximumSize">
@@ -136,9 +152,6 @@
            <property name="checked">
             <bool>true</bool>
            </property>
-           <attribute name="buttonGroup">
-            <string notr="true">buttonGroup_2</string>
-           </attribute>
           </widget>
          </item>
          <item>
@@ -239,9 +252,6 @@
            <property name="text">
             <string/>
            </property>
-           <attribute name="buttonGroup">
-            <string notr="true">buttonGroup_2</string>
-           </attribute>
           </widget>
          </item>
          <item>
@@ -700,34 +710,6 @@
        <item row="39" column="1" colspan="2">
         <layout class="QVBoxLayout" name="verticalLayout_4">
          <item>
-          <layout class="QHBoxLayout" name="horizontalLayout_22">
-           <item>
-            <widget class="QPushButton" name="ProcessPlotDataButton">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>100</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>10</pointsize>
-              </font>
-             </property>
-             <property name="text">
-              <string>Process</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
           <layout class="QHBoxLayout" name="horizontalLayout_21">
            <item alignment="Qt::AlignHCenter">
             <widget class="QLabel" name="label_20">
@@ -768,6 +750,34 @@
              </property>
              <property name="lineWrapMode">
               <enum>QPlainTextEdit::NoWrap</enum>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_22">
+           <item>
+            <widget class="QPushButton" name="ProcessPlotDataButton">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>100</width>
+               <height>25</height>
+              </size>
+             </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
+             <property name="text">
+              <string>Process</string>
              </property>
             </widget>
            </item>
@@ -1602,9 +1612,6 @@
                <property name="checked">
                 <bool>true</bool>
                </property>
-               <attribute name="buttonGroup">
-                <string notr="true">buttonGroup_3</string>
-               </attribute>
               </widget>
              </item>
              <item>
@@ -1632,9 +1639,6 @@
                <property name="checked">
                 <bool>false</bool>
                </property>
-               <attribute name="buttonGroup">
-                <string notr="true">buttonGroup_3</string>
-               </attribute>
               </widget>
              </item>
             </layout>
@@ -1746,9 +1750,6 @@
            <property name="text">
             <string/>
            </property>
-           <attribute name="buttonGroup">
-            <string notr="true">buttonGroup</string>
-           </attribute>
           </widget>
          </item>
          <item>
@@ -2204,9 +2205,6 @@
            <property name="checked">
             <bool>true</bool>
            </property>
-           <attribute name="buttonGroup">
-            <string notr="true">buttonGroup</string>
-           </attribute>
           </widget>
          </item>
          <item>
@@ -2434,9 +2432,12 @@
          <property name="orientation">
           <enum>Qt::Horizontal</enum>
          </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Preferred</enum>
+         </property>
          <property name="sizeHint" stdset="0">
           <size>
-           <width>60</width>
+           <width>10</width>
            <height>20</height>
           </size>
          </property>
@@ -2447,13 +2448,15 @@
     </item>
    </layout>
   </widget>
-  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QStatusBar" name="statusbar">
+   <property name="maximumSize">
+    <size>
+     <width>2000</width>
+     <height>16777215</height>
+    </size>
+   </property>
+  </widget>
  </widget>
  <resources/>
  <connections/>
- <buttongroups>
-  <buttongroup name="buttonGroup"/>
-  <buttongroup name="buttonGroup_2"/>
-  <buttongroup name="buttonGroup_3"/>
- </buttongroups>
 </ui>
