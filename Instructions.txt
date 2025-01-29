@@ -1,0 +1,79 @@
+=======================================================
+autoQuant INSTRUCTIONS
+=======================================================
+===========================
+Experimental Parameters
+===========================
+- Add volume (ml)
+- Add rate constant for thermal back-reaction (s-1)
+
+===========================
+Power
+===========================
+Manual Input
+============
+- add value for Power (mW)
+- add value for error in power (mW)
+
+============
+PowerProcessing Module
+============
+- Press Load button to load data obtained from the Optical Power Monitor (OPM) software by Thorlabs
+	-- Other data formats to be added later
+- Select areas to be used for Baseline Correction:
+	-- Red: light off (baseline)
+	-- Blue: light on
+- Press button Baseline Correction: two new tabs will appear
+- Check correctness of baseline correction
+- Press button Calculate Power at Cuvette: value+error will appear in main window
+- Repeat for dataset 2 and 3, if available
+
+- Press button Calculate: the averaged power+error will appear in the corresponding text fields
+
+===========================
+Load Data
+===========================
+- Press button Epsilons Reactant to load data
+- Press button Epsilons Product to load data
+- Press button Plot to plot the spectra of the molar absorptivities
+
+- Press button Measurement Data to load UV-Vis absorption spectra recorded during irradiation
+- Press button Plot to plot the UV-Vis absorption spectra
+
+- Press button Timestamps to load log/timestamps data
+	-- Choose Default when loading simple comma-separated two-column dataset
+	-- Choose AHK when loading log data recorded with AutoHotkey script used by Crespi group
+
+===========================
+Wavelength of Irradiation
+===========================
+Single Wavelength (to do)
+============
+This mode is not ready yet
+
+============
+Integration
+============
+- Input nominal wavelength (nm) (value is not used in the calculation -- for display purposes only)
+- Press button Load to load LED emission spectrum
+	-- The intensity data does not need to be normalised
+- Press button Plot to plot the LED emission spectrum (before processing)
+
+===========================
+Process Data
+===========================
+- Set Threshold to desired value: the aim is to exclude the parts of the LED emission spectra that contain only noise
+- Press button Process: a new tab appears showing the processed data
+- Check correctness of processed spectral data
+
+
+===========================
+autoQuant
+===========================
+- Press button Calculate QY: 
+	-- A new tab appears displaying the fit of the model vs. experimental
+	-- Results are displayed in: QY results and % at PSS
+- If satisfied with results: press button Save Results
+	-- Choose name for file
+	-- The figure will be saved (as .png and .svg) and a Results.txt will be generated
+
