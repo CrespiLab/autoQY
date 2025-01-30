@@ -31,7 +31,7 @@ A folder called "autoQuant-main" is unpacked.
 ##### Install
 ```bash
 (autoQuant) \desired-location> cd autoQuant(-main)
-(autoQuant) \desired-location/autoQuant(-main)> pip install .
+(autoQuant) \desired-location\autoQuant(-main)> pip install .
 ```
 
 #### Linux
