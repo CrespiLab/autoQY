@@ -6,11 +6,6 @@ Based on: script by Anouk Volker from our publication
 
 Calculate the QYs from the absorption data at a single wavelength. 
 
-##!!!
-TO DO:
-[] Create functions for the necessary code
-[] Remove unnecessary code
-
 """
 import numpy as np
 # import pandas as pd
@@ -21,73 +16,6 @@ from lmfit import Model, Parameters
 
 import QY.ExpParams as ExpParams
 import QY.Constants as Constants
-
-# #%% Defining main variables
-# ############# DATA #############
-# #### Replace with filepath and filenames of your own data ####
-# log_file= r"log.csv"
-# #################################
-# #### 365 nm ####
-# ##!!! APPLY DIFFERENT METHOD USING ISOSBESTIC POINT??
-
-# # datafolder =r"C:\Users\jorst136\Documents\Postdoc\Projects\GeorgeWilliams_ITI\Experiments\365nm"
-# # datafilename = "GW1_365nm_processed"
-
-# # data_file = datafolder+"\\"+datafilename+".dat" 
-
-# # wavelength_nm = 365 ## Wavelength of irradiation
-
-# # ### epsilons ####
-# # epsilon_A = 5791.02136 ## Molar absorptivity of A at wavelength in M-1 cm-1 ## GW
-# # epsilon_B = 6062.44385 ## Molar absorptivity of B at wavelength in M-1 cm-1 ## GW
-
-# # ### POWER ####
-# # I0_avg = 2160.282943 ## Photon flux in microWatt
-# # I0_err = 1.187980054 ## Error on photon fplux in microWatt
-
-# #################################
-# #### 395 nm ####
-# # datafolder =r"C:\Users\jorst136\Documents\Postdoc\Projects\GeorgeWilliams_hydrazoneswitch\Experiments\395nm"
-# # datafilename = "GW1_395nm_processed"
-
-# # data_file = datafolder+"\\"+datafilename+".dat" 
-
-# # wavelength_nm = 395 ## Wavelength of irradiation
-
-# # #### epsilons ####
-# # epsilon_A = 8563 ## Molar absorptivity of A at wavelength in M-1 cm-1 ## Jacob's
-# # epsilon_B = 4467 ## Molar absorptivity of B at wavelength in M-1 cm-1 ## Jacob's
-
-# # epsilon_A = 8606.128 ## Molar absorptivity of A at wavelength in M-1 cm-1 ## GW
-# # epsilon_B = 5025.226 ## Molar absorptivity of B at wavelength in M-1 cm-1 ## GW
-
-# # ### POWER ####
-# # I0_avg = 2955.958474 ## Photon flux in microWatt
-# # I0_err = 1.53969162 ## Error on photon fplux in microWatt
-
-# #################################
-# #### 455 nm ####
-# datafolder =r"C:\Users\jorst136\Documents\Postdoc\Projects\GeorgeWilliams_hydrazoneswitch\Experiments\455nm"
-# datafilename= "GW1_455nm_processed"
-
-# data_file = datafolder+"\\"+datafilename+".dat" 
-
-# wavelength_nm = 455 ## Wavelength of irradiation
-
-# #### epsilons ####
-# # epsilon_A = 412 ## Molar absorptivity of A at wavelength in M-1 cm-1 ## Jacob's
-# # epsilon_B = 21.5 ## Molar absorptivity of B at wavelength in M-1 cm-1 
-
-# epsilon_A = 445.5937 ## Molar absorptivity of A at wavelength in M-1 cm-1 ## GW
-# epsilon_B = 37.92818 ## Molar absorptivity of B at wavelength in M-1 cm-1 ## GW
-
-# #### POWER ####
-# I0_avg = 4292.117467 ## Photon flux in microWatt
-# I0_err = 2.432442109 ## Error on photon fplux in microWatt
-# #################################
-# ##################################################################
-# ##################################################################
-
 
 #%% Loading experimental data
 

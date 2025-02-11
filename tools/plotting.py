@@ -8,7 +8,6 @@ from matplotlib.ticker import AutoMinorLocator
 # import QY.LoadedData as LoadedData
 import QY.ExpParams as ExpParams
 
-
 class MplCanvas(FigureCanvas):
     """Widget class to render plots."""
     def __init__(self, parent=None, idx=None):

@@ -6,26 +6,10 @@ Based on: script by Anouk Volker from our publication
 Programme with GUI to calculate the QYs from the absorption data and the 
 emission spectrum of the LED
 
-A <=> B
-Starting from species A (100%)
-
-##########
-##!!!
-TO DO:
-[DONE] Create functions for all the code
-[] Add descriptions to functions
-
-[] include option to set starting percentage (see below; StartPercentage_A as optional parameter)
-
-##########
-GUI TO DO:
-[] include a user-selection option: data is with or without Wavenumbers column; for all datasets
-[] add note/message in GUI: use raw (nanometer) data of LED emission
-
 """
 # import os
 import numpy as np
-import pandas as pd
+# import pandas as pd
 from scipy.integrate import trapezoid,odeint
 from lmfit import minimize, Parameters
 from scipy.signal import savgol_filter

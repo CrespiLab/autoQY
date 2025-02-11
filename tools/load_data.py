@@ -5,14 +5,9 @@ import pandas as pd
 # import QY.Constants as Constants
 import QY.LoadedData as LoadedData
 
-
-
 # def GetTimestamps(LogFile):
 def GetTimestamps(LogFile):
     """ Obtain timestamps from .ahk log file """
-    ##!!! find a way to take into account the actual irradiation time 
-        ## (subtracting the delays and spectra acquisition times)
-
     ##!!! should add a function that checks that the format is correct
     
     ## CSV not DAT
