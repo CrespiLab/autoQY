@@ -1,5 +1,5 @@
 ## autoQuant
-**January 28th, 2025**
+**February 13th, 2025**
 
 autoQuant is a graphical user interface (GUI) for the calculation of the isomerization quantum yield using data recorded according to the following publication:
 
@@ -73,7 +73,19 @@ Execute with Python:
 ```
 The GUI should appear after a short while.
 
-N.B. Currently, there is a runtime error upon launching the programme in Linux, which causes re-sizing issues for the window.
+### Notes
+#### Linux
+Currently, there is a runtime error upon launching the programme in Linux, which causes re-sizing issues for the window.
+
+#### Windows
+In some cases, upon launching autoQuant on a small screen (for example, a laptop), the font sizes are too big, leading to difficulty reading the labels. This is most likely due to a Windows scale setting that increases the size of text.
+To change this setting, go to:
+- Settings
+- Display
+- Scale and Layout
+- Change the size of text, apps and other items: set to 100% (the default is probably 150%)
+
+Start autoQuant again and, hopefully, the GUI looks normal now.
 
 ### Tested successfully with:
 - python 3.12.8
