@@ -1,7 +1,7 @@
 ## autoQuant
-**February 13th, 2025**
+**February 20th, 2025**
 
-autoQuant is a graphical user interface (GUI) for the calculation of the isomerization quantum yield using data recorded according to the following publication:
+autoQY is a graphical user interface (GUI) for the calculation of the isomerization quantum yield using data recorded according to the following publication:
 
 A. Volker, J. D. Steen, S. Crespi, A fiber-optic spectroscopic setup for isomerization quantum yield determination, Beilstein J. Org. Chem. 2024, 20, 1684–1692, DOI: 10.3762/bjoc.20.150.
 
@@ -12,26 +12,26 @@ Python 3.12 or higher is required
 The Anaconda Powershell Prompt is a good tool.
 ##### Create a new Python environment and install pip
 ```bash
-(base) conda create -n autoQuant
-(base) conda activate autoQuant
-(autoQuant) conda install pip
+(base) conda create -n autoQY
+(base) conda activate autoQY
+(autoQY) conda install pip
 ```
 
 ##### Download the source files
 ###### Clone using URL at desired location:
 ```bash
-(autoQuant) cd desired-location
-(autoQuant) \desired-location> git clone https://github.com/JornSteen/autoQuant.git
+(autoQY) cd desired-location
+(autoQY) \desired-location> git clone https://github.com/JornSteen/autoQY.git
 ```
-A folder called "autoQuant" is downloaded.
+A folder called "autoQY" is downloaded.
 
 ###### Download ZIP folder and unpack at desired location
-A folder called "autoQuant-main" is unpacked.
+A folder called "autoQY-main" is unpacked.
 
 ##### Install
 ```bash
-(autoQuant) \desired-location> cd autoQuant(-main)
-(autoQuant) \desired-location\autoQuant(-main)> pip install .
+(autoQY) \desired-location> cd autoQY(-main)
+(autoQY) \desired-location\autoQY(-main)> pip install .
 ```
 
 #### Linux
@@ -39,37 +39,37 @@ A folder called "autoQuant-main" is unpacked.
 ###### Clone using URL at desired location:
 ```bash
 ~$ cd desired-location
-desired-location$ git clone https://github.com/JornSteen/autoQuant.git
+desired-location$ git clone https://github.com/JornSteen/autoQY.git
 ```
-A folder called "autoQuant" is downloaded.
+A folder called "autoQY" is downloaded.
 
 ###### Download ZIP folder and unpack at desired location
-A folder called "autoQuant-main" is unpacked.
+A folder called "autoQY-main" is unpacked.
 
 ##### Create a new Python environment and install pip
-Create the Python environment in the downloaded autoQuant(-main) folder.
+Create the Python environment in the downloaded autoQY(-main) folder.
 ```bash
 ~$ cd desired-location
 desired-location$ sudo apt install python3-venv
-desired-location$ python3 -m venv autoQuant(-main)
-desired-location$ source autoQuant(-main)/bin/activate
+desired-location$ python3 -m venv autoQY(-main)
+desired-location$ source autoQY(-main)/bin/activate
 ```
 If necessary, install pip:
 ```bash
-(autoQuant(-main)) desired-location$ sudo apt install pip
+(autoQY(-main)) desired-location$ sudo apt install pip
 ```
 
 ##### Install
 ```bash
-(autoQuant(-main)) desired-location$ cd autoQuant(-main)
-(autoQuant(-main)) desired-location/autoQuant(-main)$ pip install .
+(autoQY(-main)) desired-location$ cd autoQY(-main)
+(autoQY(-main)) desired-location/autoQY(-main)$ pip install .
 ```
 
 ### Run
 Execute with Python:
 ```bash
-(autoQuant(-main)) cd autoQuant(-main)
-(autoQuant(-main)) autoQuant(-main)$ python main.py
+(autoQY(-main)) cd autoQY(-main)
+(autoQY(-main)) autoQY(-main)$ python main.py
 ```
 The GUI should appear after a short while.
 
@@ -85,7 +85,7 @@ To change this setting, go to:
 - Scale and Layout
 - Change the size of text, apps and other items: set to 100% (the default is probably 150%)
 
-Start autoQuant again and, hopefully, the GUI looks normal now.
+Start autoQY again and, hopefully, the GUI looks normal now.
 
 ### Tested successfully with:
 - python 3.12.8
