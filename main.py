@@ -22,7 +22,10 @@ import QY.SingleWavelength as SingleWavelength
 import tools.load_data as LoadData
 from tools.plotting import MplCanvas
 import tools.extractresults as ExtractResults
+import tools.scaling as Scaling
 #from tools.style import apply_dark_theme
+
+import platform
 
 import PowerProcessing.WindowPowerProcessing as WindowPowerProcessing
 
@@ -794,8 +797,26 @@ class MainWindow(QtWidgets.QMainWindow):
         except IOError as e:
             print(f"An error occurred: {e}")
 
-if __name__ == "__main__":
+if not QtWidgets.QApplication.instance():
     app = QtWidgets.QApplication(sys.argv)
+    if platform.system() == 'Windows':
+        import ctypes
+        Windows_DPI_ratio, PyQt_scaling_ratio = Scaling.set_Windows_scaling_factor_env_var()
+
+        del app
+        app = QtWidgets.QApplication(sys.argv)
+
+        APPID = 'autoQY.1.0'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APPID)
+        # Application.setWindowIcon(Qt.QIcon('UI/_Icon.png'))
+        print('If there is a warning above starts with "libpng", ignore that.')
+
+    # matplotlib_DPI_setting = Scaling.get_matplotlib_DPI_setting(Windows_DPI_ratio)
+    
+else:
+    app = QtWidgets.QApplication.instance()
+
+if __name__ == "__main__":
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
