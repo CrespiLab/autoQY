@@ -1,5 +1,5 @@
 =======================================================
-autoQuant INSTRUCTIONS
+autoQY INSTRUCTIONS
 =======================================================
 ===========================
 Experimental Parameters
@@ -68,7 +68,7 @@ Process Data
 
 
 ===========================
-autoQuant
+autoQY
 ===========================
 - Press button Calculate QY: 
 	-- A new tab appears displaying the fit of the model vs. experimental
