@@ -5,14 +5,14 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
-    name="autoQuant",
+    name="autoQY",
     version="1.0",
     author="Jorn Steen",
     author_email="jorn.steen@kemi.uu.se",
     description="GUI for quantum yield calculation",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/JornSteen/autoQuant",
+    url="https://github.com/CrespiLab/autoQY",
     install_requires=[
         'numpy>=2.2.2',
         'scipy>=1.15.1',
