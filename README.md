@@ -1,4 +1,4 @@
-## autoQuant
+## autoQY
 **February 20th, 2025**
 
 autoQY is a graphical user interface (GUI) for the calculation of the isomerization quantum yield using data recorded according to the following publication:
