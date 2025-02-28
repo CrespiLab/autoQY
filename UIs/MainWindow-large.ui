@@ -152,6 +152,9 @@
            <property name="checked">
             <bool>true</bool>
            </property>
+           <attribute name="buttonGroup">
+            <string notr="true">buttonGroup_3</string>
+           </attribute>
           </widget>
          </item>
          <item>
@@ -252,6 +255,9 @@
            <property name="text">
             <string/>
            </property>
+           <attribute name="buttonGroup">
+            <string notr="true">buttonGroup_3</string>
+           </attribute>
           </widget>
          </item>
          <item>
@@ -1612,6 +1618,9 @@
                <property name="checked">
                 <bool>true</bool>
                </property>
+               <attribute name="buttonGroup">
+                <string notr="true">buttonGroup_2</string>
+               </attribute>
               </widget>
              </item>
              <item>
@@ -1639,6 +1648,9 @@
                <property name="checked">
                 <bool>false</bool>
                </property>
+               <attribute name="buttonGroup">
+                <string notr="true">buttonGroup_2</string>
+               </attribute>
               </widget>
              </item>
             </layout>
@@ -1750,6 +1762,9 @@
            <property name="text">
             <string/>
            </property>
+           <attribute name="buttonGroup">
+            <string notr="true">buttonGroup</string>
+           </attribute>
           </widget>
          </item>
          <item>
@@ -2205,6 +2220,9 @@
            <property name="checked">
             <bool>true</bool>
            </property>
+           <attribute name="buttonGroup">
+            <string notr="true">buttonGroup</string>
+           </attribute>
           </widget>
          </item>
          <item>
@@ -2459,4 +2477,9 @@
  </widget>
  <resources/>
  <connections/>
+ <buttongroups>
+  <buttongroup name="buttonGroup"/>
+  <buttongroup name="buttonGroup_2"/>
+  <buttongroup name="buttonGroup_3"/>
+ </buttongroups>
 </ui>
