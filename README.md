@@ -21,7 +21,7 @@ The Anaconda Powershell Prompt is a good tool.
 ###### Clone using URL at desired location:
 ```bash
 (autoQY) cd desired-location
-(autoQY) \desired-location> git clone https://github.com/JornSteen/autoQY.git
+(autoQY) \desired-location> git clone https://github.com/CrespiLab/autoQY.git
 ```
 A folder called "autoQY" is downloaded.
 
@@ -39,7 +39,7 @@ A folder called "autoQY-main" is unpacked.
 ###### Clone using URL at desired location:
 ```bash
 ~$ cd desired-location
-desired-location$ git clone https://github.com/JornSteen/autoQY.git
+desired-location$ git clone https://github.com/CrespiLab/autoQY.git
 ```
 A folder called "autoQY" is downloaded.
 
