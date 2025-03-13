@@ -20,6 +20,7 @@ The Anaconda Powershell Prompt is a good tool.
 ##### Download the source files
 ###### Clone using URL at desired location:
 ```bash
+(autoQY) conda install git
 (autoQY) cd desired-location
 (autoQY) \desired-location> git clone https://github.com/CrespiLab/autoQY.git
 ```
