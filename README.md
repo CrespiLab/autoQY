@@ -26,13 +26,10 @@ The Anaconda Powershell Prompt is a good tool.
 ```
 A folder called "autoQY" is downloaded.
 
-###### Download ZIP folder and unpack at desired location
-A folder called "autoQY-main" is unpacked.
-
 ##### Install
 ```bash
-(autoQY) \desired-location> cd autoQY(-main)
-(autoQY) \desired-location\autoQY(-main)> pip install .
+(autoQY) \desired-location> cd autoQY
+(autoQY) \desired-location\autoQY> pip install .
 ```
 
 #### Linux
@@ -44,33 +41,30 @@ desired-location$ git clone https://github.com/CrespiLab/autoQY.git
 ```
 A folder called "autoQY" is downloaded.
 
-###### Download ZIP folder and unpack at desired location
-A folder called "autoQY-main" is unpacked.
-
 ##### Create a new Python environment and install pip
 Create the Python environment in the downloaded autoQY(-main) folder.
 ```bash
 ~$ cd desired-location
 desired-location$ sudo apt install python3-venv
-desired-location$ python3 -m venv autoQY(-main)
-desired-location$ source autoQY(-main)/bin/activate
+desired-location$ python3 -m venv autoQY
+desired-location$ source autoQY/bin/activate
 ```
 If necessary, install pip:
 ```bash
-(autoQY(-main)) desired-location$ sudo apt install pip
+(autoQY) desired-location$ sudo apt install pip
 ```
 
 ##### Install
 ```bash
-(autoQY(-main)) desired-location$ cd autoQY(-main)
-(autoQY(-main)) desired-location/autoQY(-main)$ pip install .
+(autoQY) desired-location$ cd autoQY
+(autoQY) desired-location/autoQY$ pip install .
 ```
 
 ### Run
 Execute with Python:
 ```bash
-(autoQY(-main)) cd autoQY(-main)
-(autoQY(-main)) autoQY(-main)$ python main.py
+(autoQY) cd autoQY
+(autoQY) autoQY$ python main.py
 ```
 The GUI should appear after a short while.
 
