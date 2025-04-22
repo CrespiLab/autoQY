@@ -62,11 +62,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.calculatePowerButton.clicked.connect(self.calculate_total_power) ## Calculates average power+error
 
         #######
-
         self.radioButton.toggled.connect(self.handle_radio_selection)
         self.radioButton_2.toggled.connect(self.handle_radio_selection)
         self.radioButton_3.toggled.connect(self.handle_radio_selection)
         self.radioButton_4.toggled.connect(self.handle_radio_selection)
+        self.radioButton_Log_2.toggled.connect(self.handle_radio_selection) # Timestamps Default
+        self.radioButton_Log_1.toggled.connect(self.handle_radio_selection) # Timestamps AHK
 
         # Connecting buttons to their respective methods
         ##!!! implement the SingleWavelength option as well
@@ -274,12 +275,15 @@ class MainWindow(QtWidgets.QMainWindow):
             self.plainTextEdit_5.setEnabled(True) # Integration wavelength (nm)
             self.LoadLED.setEnabled(True)
             ExpParams.CalculationMethod = "Integration"
+            #print(f"ExpParams.CalculationMethod: {ExpParams.CalculationMethod}")
         
         if self.radioButton_Log_2.isChecked(): # Timestamps: Default
             LoadedData.format_timestamps = "Default"
+            #print(f"self.radioButton_Log_2.isChecked()\nLoadedData.format_timestamps = {LoadedData.format_timestamps}")
 
         if self.radioButton_Log_1.isChecked(): # Timestamps: AHK format (Crespi group)
             LoadedData.format_timestamps = "AHK"
+            #print(f"self.radioButton_Log_1.isChecked()\nLoadedData.format_timestamps = {LoadedData.format_timestamps}")
 
     def OpenWindow_PowerProcessing(self, count):
         """Load the power data from a file and plot it in a new window."""
@@ -289,8 +293,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def DeletePowerData(self, count):
         """"""
-        print(f"main-DeletePowerData===count:{count} and type:{type(count)}")
-        print(f"main-DeletePowerData_1===LoadedData.PowersAtCuvette:{LoadedData.PowersAtCuvette}")
+        #print(f"main-DeletePowerData===count:{count} and type:{type(count)}")
+        #print(f"main-DeletePowerData_1===LoadedData.PowersAtCuvette:{LoadedData.PowersAtCuvette}")
 
         if count not in LoadedData.PowersAtCuvette:
             QtWidgets.QMessageBox.warning(self, "Error", "Data does not exist.")
@@ -420,6 +424,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 QtWidgets.QMessageBox.warning(self, "Error", f"Unknown file type: {file_type}")
             
             ##!!! THIS MESSAGE STILL APPEARS EVEN IF A FILE IS UNSUCCESSFULLY LOADED...
+            ## CHANGE SO THAT ABOVE IF/ELIF-STATEMENT NEEDS TO BE SUCCESSFUL
             QtWidgets.QMessageBox.information(self, "Success", f"{file_type} file loaded successfully!")
         except Exception as e:
                 QtWidgets.QMessageBox.critical(self, "Error", f"Failed to load {file_type} file: {e}")
@@ -465,6 +470,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     LoadData.Import_SpectralData("Not", file_path)
             elif file_type == "Log Irr":
                 # LoadedData.timestamps = LoadData.GetTimestamps(file_path)
+                print("load_csv -- elif file_type == 'Log Irr'")
+                print(f"LoadedData.format_timestamps = {LoadedData.format_timestamps}")
                 LoadedData.timestamps = LoadData.GetTimestamps(file_path)
             else:
                     raise ValueError(f"Unknown file type: {file_type}")

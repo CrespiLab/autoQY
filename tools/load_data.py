@@ -12,8 +12,10 @@ def GetTimestamps(LogFile):
     
     ## CSV not DAT
     if LoadedData.format_timestamps == "AHK":
+        #print("Start of load_data.GetTimestamps")
         log = pd.read_csv(LogFile,
                         sep = ",", decimal = ".", skiprows = 1, header=None,)
+        #print(f"log:\n{log}")
         log_measure=log[log[log.columns[3]] == 'Measure']
         measurement_timestamps = log_measure.iloc[:, [0, 2]]
         measurement_timestamps.columns = ["Measurement", "Timestamp (s)"]
