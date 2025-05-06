@@ -1,5 +1,5 @@
 # autoQY
-**February 20th, 2025**
+**May 6th, 2025**
 
 autoQY is a graphical user interface (GUI) for the calculation of the isomerization quantum yield using data recorded according to the following publication:
 
@@ -89,13 +89,3 @@ To change this setting, go to:
 - Change the size of text, apps and other items: set to 100% (the default is probably 150%)
 
 Start autoQY again and, hopefully, the GUI looks normal now.
-
-## Tested successfully with:
-- python 3.12.8
-
-- numpy 2.2.2
-- scipy 1.15.1
-- lmfit 1.3.2
-- pandas 2.2.3
-- pyqt 5.15.9 (PyQt5)
-- matplotlib 3.10.0
