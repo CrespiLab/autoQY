@@ -5,11 +5,11 @@
 - [ ] Release version 1.0.0
 
 - [ ] Enable closing of tabs
-- [ ] Add button to clear loaded data
+
 
 
 ## In Progress :)
-- [ ] 
+- [x] Add button to clear loaded data
 
 ## Completed ✓
 - [x] Simplify installation instructions
