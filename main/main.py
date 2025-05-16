@@ -1,5 +1,10 @@
 """
-@author: Alfredo and Jorn
+Authors: Alfredo and Jorn
+Date started: Sep 16th 2024
+Based on: script by Anouk Volker from our publication in Beilstein Journal of Organic Chemistry 2024
+
+Programme with GUI to calculate the QYs from the absorption data and the 
+emission spectrum of the LED
 =============================================================================
 autoQY
 =============================================================================
@@ -14,10 +19,10 @@ from PyQt5 import QtWidgets, uic
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 
 import QY.Integration as Integration
-import QY.ExpParams as ExpParams
-import QY.Results as Results
-import QY.LoadedData as LoadedData
 import QY.SingleWavelength as SingleWavelength
+import data.ExpParams as ExpParams
+import data.Results as Results
+import data.LoadedData as LoadedData
 
 import tools.load_data as LoadData
 from tools.plotting import MplCanvas

@@ -1,12 +1,9 @@
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-# from PyQt5 import QtWidgets
 from matplotlib.figure import Figure
 import matplotlib.gridspec as gridspec
 from matplotlib.ticker import AutoMinorLocator
-# import numpy as np
-# import QY.LoadedData as LoadedData
-import QY.ExpParams as ExpParams
+import data.ExpParams as ExpParams
 
 class MplCanvas(FigureCanvas):
     """Widget class to render plots."""

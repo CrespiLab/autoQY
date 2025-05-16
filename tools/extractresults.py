@@ -5,17 +5,6 @@ Created on Fri Nov  8 16:59:07 2024
 @author: jorst136
 """
 
-# import numpy as np
-# import pandas as pd
-# from scipy.integrate import trapezoid,odeint
-# from lmfit import minimize, Parameters
-# from scipy.signal import savgol_filter
-# import matplotlib.pyplot as plt
-# from matplotlib.ticker import AutoMinorLocator
-# import matplotlib.gridspec as gridspec
-# import autoQuant.ExpParams as ExpParams
-# import autoQuant.Constants as Constants
-
 def ExtractResults(fit_results):
     """ Extract optimised QYs and errors """
     result_lmfit_avg=fit_results[0] ## results using I0_avg

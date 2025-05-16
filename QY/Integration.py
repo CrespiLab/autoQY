@@ -1,23 +1,14 @@
 """
-@author: Jorn
-Date started: Sep 16th 2024
-Based on: script by Anouk Volker from our publication
-
-Programme with GUI to calculate the QYs from the absorption data and the 
-emission spectrum of the LED
+Integrate over the emission spectrum of the LED
 
 """
-# import os
 import numpy as np
-# import pandas as pd
 from scipy.integrate import trapezoid,odeint
 from lmfit import minimize, Parameters
 from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
-# from matplotlib.ticker import AutoMinorLocator
-# import matplotlib.gridspec as gridspec
-import QY.ExpParams as ExpParams
 import QY.Constants as Constants
+import data.ExpParams as ExpParams
 
 ##################################################
 
@@ -25,7 +16,6 @@ wavelength_low = None
 wavelength_high = None
 LEDindex_first = None
 LEDindex_last = None
-
 
 ##################################################
 ###################### LED #######################

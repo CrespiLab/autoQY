@@ -48,6 +48,7 @@ autoqy = "main.main:main"
 
 [tool.setuptools]
 packages = [
+  'data',
   'main',
   'PowerProcessing',
   'QY',

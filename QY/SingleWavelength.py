@@ -1,21 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-@author: Jorn
-Date started: Sep 16th 2024
-Based on: script by Anouk Volker from our publication
-
 Calculate the QYs from the absorption data at a single wavelength. 
-
 """
 import numpy as np
-# import pandas as pd
-# import matplotlib.pyplot as plt
-# import matplotlib.gridspec as gridspec
 from scipy.integrate import odeint
 from lmfit import Model, Parameters
 
-import QY.ExpParams as ExpParams
 import QY.Constants as Constants
+import data.ExpParams as ExpParams
 
 #%% Loading experimental data
 
