@@ -11,9 +11,9 @@ autoQY
 
 """
 import sys, os
+import copy
 import numpy as np
-# import pandas as pd
-# from scipy.optimize import curve_fit #change in baseline correction
+
 
 from PyQt5 import QtWidgets, uic
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
@@ -21,8 +21,8 @@ from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationTo
 import QY.Integration as Integration
 import QY.SingleWavelength as SingleWavelength
 import data.ExpParams as ExpParams
-import data.Results as Results
 import data.LoadedData as LoadedData
+import data.Results as Results
 
 import tools.load_data as LoadData
 from tools.plotting import MplCanvas
@@ -40,7 +40,22 @@ def main():
             super(MainWindow, self).__init__()
             uic.loadUi('UIs/MainWindow-large.ui', self)  # Load the UI file you provided
             ##!!! SWITCH TO LOADING .PY generated from .uit by pyuic
-    
+
+            # Save a copy of original state            
+            # Automatically capture only user-defined variables (not built-ins)
+            self.default_state = {
+                ExpParams: {
+                    name: copy.deepcopy(value)
+                    for name, value in vars(ExpParams).items()
+                    if not name.startswith('__') and not callable(value)
+                },
+                LoadedData: {
+                    name: copy.deepcopy(value)
+                    for name, value in vars(LoadedData).items()
+                    if not name.startswith('__') and not callable(value)
+                }
+            }
+
             ############################
             #Change style  *************
             ############################
@@ -61,6 +76,8 @@ def main():
             self.loadDataButton_1.clicked.connect(lambda: self.OpenWindow_PowerProcessing(1))
             self.loadDataButton_2.clicked.connect(lambda: self.OpenWindow_PowerProcessing(2))
             self.loadDataButton_3.clicked.connect(lambda: self.OpenWindow_PowerProcessing(3))
+            
+            self.ButtonClearLoadedData.clicked.connect(self.ClearLoadedData)
             
             self.DeletePowerDataButton_1.clicked.connect(lambda: self.DeletePowerData(1))
             self.DeletePowerDataButton_2.clicked.connect(lambda: self.DeletePowerData(2))
@@ -84,16 +101,6 @@ def main():
             self.LoadSpectra.clicked.connect(lambda: self.load_file("Spectral Data"))
             self.LoadLog.clicked.connect(lambda: self.load_file("Log Irr"))
             self.SaveResultsBtn.clicked.connect(self.Save_QY)
-    
-            # Set text in QPlainTextEdit using setPlainText
-            self.plainTextEdit.setPlainText(str(ExpParams.V)) # volume
-            self.plainTextEdit_2.setPlainText(str(ExpParams.k_BA)) # rate constant
-            self.plainTextEdit_3.setPlainText(str(ExpParams.I0_avg)) # Power Manual
-            self.plainTextEdit_4.setPlainText(str(ExpParams.I0_err)) # Power Manual
-            self.plainTextEdit_5.setPlainText(str(ExpParams.LEDw)) # Integration Mode (default)
-            self.plainTextEdit_6.setPlainText(str(ExpParams.I0_avg)) # PowerProcessing: Calculated Power
-            self.plainTextEdit_8.setPlainText(str(ExpParams.I0_err)) # PowerProcessing: Error
-            self.plainTextEdit_9.setPlainText(str(ExpParams.threshold)) # Threshold for LED Emission spectrum
     
             ## Connect the textChanged signal to the update functions ##
             self.plainTextEdit.textChanged.connect(self.update_V)
@@ -129,7 +136,21 @@ def main():
             self.LoadLED.setEnabled(True) # default Integration Mode
             
             #### INITIALISATION ####
-            self.handle_radio_selection() 
+            self.SetTextfields() # Set ExpParams in text fields
+            self.handle_radio_selection()
+        
+        ######################################################################
+        
+        def SetTextfields(self):
+            """ Display experimental parameters in text fields """
+            self.plainTextEdit.setPlainText(str(ExpParams.V)) # volume
+            self.plainTextEdit_2.setPlainText(str(ExpParams.k_BA)) # rate constant
+            self.plainTextEdit_3.setPlainText(str(ExpParams.I0_avg)) # Power Manual
+            self.plainTextEdit_4.setPlainText(str(ExpParams.I0_err)) # Power Manual
+            self.plainTextEdit_5.setPlainText(str(ExpParams.LEDw)) # Integration Mode (default)
+            self.plainTextEdit_6.setPlainText(str(ExpParams.I0_avg)) # PowerProcessing: Calculated Power
+            self.plainTextEdit_8.setPlainText(str(ExpParams.I0_err)) # PowerProcessing: Error
+            self.plainTextEdit_9.setPlainText(str(ExpParams.threshold)) # Threshold for LED Emission spectrum
     
         ## Update methods for the parameters
         def update_V(self):
@@ -291,7 +312,25 @@ def main():
             if self.radioButton_Log_1.isChecked(): # Timestamps: AHK format (Crespi group)
                 LoadedData.format_timestamps = "AHK"
                 #print(f"self.radioButton_Log_1.isChecked()\nLoadedData.format_timestamps = {LoadedData.format_timestamps}")
-    
+
+        def ClearLoadedData(self):
+            """
+            Clear all the loaded data
+
+            Returns
+            -------
+            None.
+
+            """
+
+            for module, vars_dict in self.default_state.items():
+                for name, value in vars_dict.items():
+                    setattr(module, name, copy.deepcopy(value))
+            print("Variables reset!")
+
+            self.SetTextfields()
+            
+            
         def OpenWindow_PowerProcessing(self, count):
             """Load the power data from a file and plot it in a new window."""
             LoadedData.count = count

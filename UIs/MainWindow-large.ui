@@ -2384,7 +2384,7 @@
          <item>
           <layout class="QVBoxLayout" name="verticalLayout_17">
            <item alignment="Qt::AlignHCenter">
-            <widget class="QPushButton" name="ClearLoadedData">
+            <widget class="QPushButton" name="ButtonClearLoadedData">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                <horstretch>0</horstretch>
