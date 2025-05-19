@@ -5,8 +5,10 @@
 - [ ] Release version 1.0.0
 
 
-
 ## In Progress :)
+- [ ] Error handling
+  - [ ] Upon save results: ask if users wants to overwrite existing filename
+  - [ ] Fix crash upon pressing cancel button save results file window
 - [ ] Improve tabs functionality
   - [ ] Enable closing of tabs
   - [ ] Automatically show newly generated tab
