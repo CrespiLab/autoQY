@@ -39,7 +39,7 @@ def main():
         def __init__(self):
             super(MainWindow, self).__init__()
             uic.loadUi('UIs/MainWindow-large.ui', self)  # Load the UI file you provided
-            ##!!! SWITCH TO LOADING .PY generated from .uit by pyuic
+            ##!!! SWITCH TO LOADING .PY generated from .ui by pyuic
 
             # Save a copy of original state            
             # Automatically capture only user-defined variables (not built-ins)
@@ -320,7 +320,7 @@ def main():
 
         def ClearLoadedData(self):
             """
-            Clear all the loaded data
+            Clear all the loaded data and reset radio buttons.
 
             Returns
             -------
@@ -367,7 +367,6 @@ def main():
     
                 ## Create the custom MplCanvas
                 canvas = MplCanvas(self)  # idx not required in this implementation
-    
                 ## Create the navigation toolbar for the canvas
                 toolbar = NavigationToolbar(canvas, self)
     
@@ -379,16 +378,17 @@ def main():
     
                 ## Call the plotting function to populate the canvas
                 plot_func(canvas) # idx functionality removed as it's unused in this version
-    
+
                 ## Add the new tab to the tab widget
                 self.tabWidget.addTab(tab, title)
     
                 ## Make tabs closable
                 self.tabWidget.setTabsClosable(True)
+                self.tabWidget.tabCloseRequested.connect(self.tabWidget.removeTab)
     
             except Exception as e:
                 QtWidgets.QMessageBox.critical(self, "Error", f"Failed to add new tab: {e}")
-    
+
         ############################################################################################################
         ############################ plot_sections ############################
         ############################################################################################################
