@@ -307,11 +307,16 @@ def main():
             
             if self.radioButton_Log_2.isChecked(): # Timestamps: Default
                 LoadedData.format_timestamps = "Default"
-                #print(f"self.radioButton_Log_2.isChecked()\nLoadedData.format_timestamps = {LoadedData.format_timestamps}")
+                print(f"self.radioButton_Log_2.isChecked()\nLoadedData.format_timestamps = {LoadedData.format_timestamps}")
     
             if self.radioButton_Log_1.isChecked(): # Timestamps: AHK format (Crespi group)
                 LoadedData.format_timestamps = "AHK"
-                #print(f"self.radioButton_Log_1.isChecked()\nLoadedData.format_timestamps = {LoadedData.format_timestamps}")
+                print(f"self.radioButton_Log_1.isChecked()\nLoadedData.format_timestamps = {LoadedData.format_timestamps}")
+
+        def ResetRadioButtons(self):
+            self.radioButton_Log_2.setChecked(True) # Timestamps: default enabled
+            self.radioButton_3.setChecked(True) # Power Manual Input
+            self.radioButton_2.setChecked(True) # Integration Mode
 
         def ClearLoadedData(self):
             """
@@ -329,7 +334,7 @@ def main():
             print("Variables reset!")
 
             self.SetTextfields()
-            
+            self.ResetRadioButtons()
             
         def OpenWindow_PowerProcessing(self, count):
             """Load the power data from a file and plot it in a new window."""
