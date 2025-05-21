@@ -794,28 +794,28 @@ def main():
             Results.savefilename = f"{path}\\{end}"
             
             canvas = MplCanvas(self)
-            if Results.savefilename is None or '':
+            if not savefilename:
                 return
-            canvas.PlotResults(ExpParams.LEDw,
-                               LoadedData.timestamps,
-                               Results.conc_opt,
-                               LoadedData.SpectralDataCut_Abs,
-                               LoadedData.SpectralDataCut_Index,
-                               Results.total_abs_fit,
-                               Results.residuals,
-                               Results.QY_AB_opt, Results.QY_BA_opt,
-                               Results.error_QY_AB, Results.error_QY_BA,
-                               ExpParams.CalculationMethod,
-                               SaveResults = "Yes",
-                               SaveFileName = Results.savefilename)
-    
-    
-            self.Save_Results()
-    
-            QtWidgets.QMessageBox.information(self, "Success", f"{Results.savefilename} file saved successfully!")
+            else:
+                canvas.PlotResults(ExpParams.LEDw,
+                                   LoadedData.timestamps,
+                                   Results.conc_opt,
+                                   LoadedData.SpectralDataCut_Abs,
+                                   LoadedData.SpectralDataCut_Index,
+                                   Results.total_abs_fit,
+                                   Results.residuals,
+                                   Results.QY_AB_opt, Results.QY_BA_opt,
+                                   Results.error_QY_AB, Results.error_QY_BA,
+                                   ExpParams.CalculationMethod,
+                                   SaveResults = "Yes",
+                                   SaveFileName = Results.savefilename)
+        
+                self.Save_Results()
+        
+                QtWidgets.QMessageBox.information(self, "Success", f"{Results.savefilename} file saved successfully!")
     
         def Save_Results(self):
-            """ Save results: """
+            """ Save results and all the parameters and settings used for the calculation """
             savefile = Results.savefilename+".txt"
     
             dict_results = {'PSS_Reactant (%)': Results.PSS_Reactant,
@@ -837,8 +837,6 @@ def main():
                 os.remove(savefile)
             except:
                 pass
-            # except OSError as e:
-            #     print(f"An error occurred for {e.filename} - {e.strerror}")
     
             try:
                 file=savefile
