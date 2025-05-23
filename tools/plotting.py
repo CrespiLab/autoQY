@@ -338,8 +338,7 @@ class MplCanvas(FigureCanvas):
             gs = gridspec.GridSpec(4, 2, figure=self.fig)
         else:
             gs = gridspec.GridSpec(4, 2, figure=self.fig, wspace=0.3)
-        
-        self.fig.suptitle(f'{LEDwavelength} nm irradiation: {CalculationMethod} Method')
+            self.fig.suptitle(f'{LEDwavelength} nm irradiation: {CalculationMethod} Method')
         
         ##################################################
         axresults_conc = self.fig.add_subplot(gs[0:3, 0])
@@ -382,7 +381,8 @@ class MplCanvas(FigureCanvas):
         axresults_Abs.set_title('Fit vs Experimental')
         axresults_Abs.set_xticklabels([]) ## put this before set_xlim, otherwise it resets the xlim
         
-        axresults_Abs.set_ylabel(r'Absorbance at $\lambda_{irr}$')
+        # axresults_Abs.set_ylabel(r'Absorbance at $\lambda_{irr}$') ## previous label
+        axresults_Abs.set_ylabel(r"Absorbance at $\lambda$"f"$_{{{ExpParams.LEDw}}}$")
         
         #################### RESIDUALS ###################
         axresults_res.plot(timestamps, residuals[index,:], color=self.colours[4], label='Residuals')
