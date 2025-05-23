@@ -61,16 +61,15 @@ If necessary, install pip:
 ```
 
 ## Run
-Make sure to activate the environment and move to the install directory.
+Make sure to activate the environment, and then execute the command-line script:
 ```
 (base) conda activate autoQY
-(autoQY) cd autoQY
-```
-Then execute the command-line script:
-```
-(autoQY) \autoQY> autoqy
+(autoQY) autoqy
 ```
 The GUI should appear after a short while.
+
+Note:
+The program can be called from anywhere (no need to be in the install directory).
 
 ## Notes
 ### Linux
