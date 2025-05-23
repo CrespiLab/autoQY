@@ -63,28 +63,10 @@
          </spacer>
         </item>
         <item>
-         <widget class="QLabel" name="label">
-          <property name="maximumSize">
-           <size>
-            <width>200</width>
-            <height>25</height>
-           </size>
-          </property>
-          <property name="font">
-           <font>
-            <pointsize>10</pointsize>
-           </font>
-          </property>
-          <property name="text">
-           <string>ADD INSTRUCTIONS HERE</string>
-          </property>
-         </widget>
-        </item>
-        <item>
          <widget class="QPushButton" name="WindowPP_baselineCorrectionButton">
           <property name="maximumSize">
            <size>
-            <width>125</width>
+            <width>150</width>
             <height>25</height>
            </size>
           </property>
@@ -94,7 +76,7 @@
            </font>
           </property>
           <property name="text">
-           <string>Baseline Correction</string>
+           <string>1) Baseline Correction</string>
           </property>
          </widget>
         </item>
@@ -108,7 +90,7 @@
           </property>
           <property name="maximumSize">
            <size>
-            <width>160</width>
+            <width>200</width>
             <height>25</height>
            </size>
           </property>
@@ -118,7 +100,7 @@
            </font>
           </property>
           <property name="text">
-           <string>Calculate Power at Cuvette</string>
+           <string>2) Calculate Power at Cuvette</string>
           </property>
          </widget>
         </item>

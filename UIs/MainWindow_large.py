@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file '.\MainWindow-large.ui'
+# Form implementation generated from reading ui file '.\MainWindow_large.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.10
 #
@@ -1141,7 +1141,7 @@ class Ui_MainWindow(object):
         font.setPointSize(10)
         self.label_19.setFont(font)
         self.label_19.setObjectName("label_19")
-        self.verticalLayout_12.addWidget(self.label_19)
+        self.verticalLayout_12.addWidget(self.label_19, 0, QtCore.Qt.AlignLeft)
         self.label_31 = QtWidgets.QLabel(self.frame)
         self.label_31.setMinimumSize(QtCore.QSize(150, 25))
         self.label_31.setMaximumSize(QtCore.QSize(200, 25))
@@ -1149,7 +1149,7 @@ class Ui_MainWindow(object):
         font.setPointSize(10)
         self.label_31.setFont(font)
         self.label_31.setObjectName("label_31")
-        self.verticalLayout_12.addWidget(self.label_31)
+        self.verticalLayout_12.addWidget(self.label_31, 0, QtCore.Qt.AlignLeft)
         self.horizontalLayout_9.addLayout(self.verticalLayout_12)
         self.verticalLayout_17 = QtWidgets.QVBoxLayout()
         self.verticalLayout_17.setObjectName("verticalLayout_17")

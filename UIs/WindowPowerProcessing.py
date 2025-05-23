@@ -34,15 +34,8 @@ class Ui_MainWindow(object):
         self.verticalLayout.setObjectName("verticalLayout")
         spacerItem = QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
         self.verticalLayout.addItem(spacerItem)
-        self.label = QtWidgets.QLabel(self.centralwidget)
-        self.label.setMaximumSize(QtCore.QSize(200, 25))
-        font = QtGui.QFont()
-        font.setPointSize(10)
-        self.label.setFont(font)
-        self.label.setObjectName("label")
-        self.verticalLayout.addWidget(self.label)
         self.WindowPP_baselineCorrectionButton = QtWidgets.QPushButton(self.centralwidget)
-        self.WindowPP_baselineCorrectionButton.setMaximumSize(QtCore.QSize(125, 25))
+        self.WindowPP_baselineCorrectionButton.setMaximumSize(QtCore.QSize(150, 25))
         font = QtGui.QFont()
         font.setPointSize(10)
         self.WindowPP_baselineCorrectionButton.setFont(font)
@@ -54,7 +47,7 @@ class Ui_MainWindow(object):
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.WindowPP_calculatePowerButton.sizePolicy().hasHeightForWidth())
         self.WindowPP_calculatePowerButton.setSizePolicy(sizePolicy)
-        self.WindowPP_calculatePowerButton.setMaximumSize(QtCore.QSize(160, 25))
+        self.WindowPP_calculatePowerButton.setMaximumSize(QtCore.QSize(200, 25))
         font = QtGui.QFont()
         font.setPointSize(10)
         self.WindowPP_calculatePowerButton.setFont(font)
@@ -82,9 +75,8 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "Power Data"))
-        self.label.setText(_translate("MainWindow", "ADD INSTRUCTIONS HERE"))
-        self.WindowPP_baselineCorrectionButton.setText(_translate("MainWindow", "Baseline Correction"))
-        self.WindowPP_calculatePowerButton.setText(_translate("MainWindow", "Calculate Power at Cuvette"))
+        self.WindowPP_baselineCorrectionButton.setText(_translate("MainWindow", "1) Baseline Correction"))
+        self.WindowPP_calculatePowerButton.setText(_translate("MainWindow", "2) Calculate Power at Cuvette"))
 
 
 if __name__ == "__main__":
