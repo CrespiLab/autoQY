@@ -11,20 +11,25 @@ import pandas as pd
 import numpy as np
 from scipy.optimize import curve_fit #change in baseline correction
 
-from PyQt5 import uic, QtWidgets
+from PyQt5 import QtWidgets
+# from PyQt5 import uic
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 
 from tools.plotting import MplCanvas
-import PowerProcessing.baseline_power as BaselinePower
+import tools.baseline_power as BaselinePower
 import data.LoadedData as LoadedData
 import data.Results as Results
 
-class WindowPowerProcessing(QtWidgets.QMainWindow):
+from UIs.WindowPowerProcessing import Ui_MainWindow
+
+class WindowPowerProcessing(QtWidgets.QMainWindow, Ui_MainWindow):
     """Class for PowerProcessing module."""
     def __init__(self, parent):
         self.parent = parent
         super(WindowPowerProcessing, self).__init__()
-        uic.loadUi('UIs/WindowPowerProcessing.ui', self)  # Load the UI file you provided
+        # uic.loadUi('UIs/WindowPowerProcessing.ui', self)  # Old way: Load the UI file
+        
+        self.setupUi(self)
         
         ##!!! RE-NAME WINDOW TITLE
         

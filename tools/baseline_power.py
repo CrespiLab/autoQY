@@ -1,8 +1,5 @@
-# import pandas as pd
 import numpy as np
-# import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
-
 
 def fit_func(x, *coeffs):  #not used
     return np.polyval(coeffs, x)
@@ -35,7 +32,6 @@ def choose_sections(line_positions):
         "end_4": line_positions[11],
     }
     return sections
-
 
 def baseline_correction(RefPower, x, sections):
     """

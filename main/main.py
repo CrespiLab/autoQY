@@ -15,7 +15,8 @@ import copy
 import numpy as np
 
 
-from PyQt5 import QtWidgets, uic
+from PyQt5 import QtWidgets
+# from PyQt5 import uic
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 
 import QY.Integration as Integration
@@ -29,17 +30,19 @@ from tools.plotting import MplCanvas
 import tools.extractresults as ExtractResults
 #from tools.style import apply_dark_theme
 
-import PowerProcessing.WindowPowerProcessing as WindowPowerProcessing
+import tools.PowerProcessing as PowerProcessing
+
+from UIs.MainWindow_large import Ui_MainWindow
 
 def main():
-    class MainWindow(QtWidgets.QMainWindow):
+    class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             ############################
             #Error Handling  ***********
             ############################
         def __init__(self):
             super(MainWindow, self).__init__()
-            uic.loadUi('UIs/MainWindow-large.ui', self)  # Load the UI file you provided
-            ##!!! SWITCH TO LOADING .PY generated from .ui by pyuic
+            # uic.loadUi('UIs/MainWindow-large.ui', self)  # Old way: load the UI file
+            self.setupUi(self)
 
             # Save a copy of original state            
             # Automatically capture only user-defined variables (not built-ins)
@@ -339,7 +342,7 @@ def main():
         def OpenWindow_PowerProcessing(self, count):
             """Load the power data from a file and plot it in a new window."""
             LoadedData.count = count
-            self.window_PP = WindowPowerProcessing.WindowPowerProcessing(parent=self) # load Class that includes loadUi
+            self.window_PP = PowerProcessing.WindowPowerProcessing(parent=self) # load Class that includes loadUi
             self.window_PP.show()
     
         def DeletePowerData(self, count):

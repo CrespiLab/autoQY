@@ -50,7 +50,6 @@ autoqy = "main.main:main"
 packages = [
   'data',
   'main',
-  'PowerProcessing',
   'QY',
   'tools',
   'UIs'
