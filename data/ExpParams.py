@@ -17,11 +17,7 @@ I0_err = 0.0                # Error Power in milliWatt
 LEDw = 0
 
 ######## METHOD OF SOLVING DIFFERENTIAL EQUATIONS ########
-CalculationMethod = "Integration" ## default calculation method is Integration
-
-######## EPSILONS FOR SINGLEWAVELENGTH METHOD########
-epsilon_R = 0
-epsilon_P = 0
+# CalculationMethod = "Integration" ## default calculation method is Integration
 
 ######## THRESHOLD FOR LED EMISSION ########
 threshold = 500

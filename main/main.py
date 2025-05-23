@@ -24,6 +24,8 @@ import QY.SingleWavelength as SingleWavelength
 import data.ExpParams as ExpParams
 import data.LoadedData as LoadedData
 import data.Results as Results
+import data.calc_settings as CalcSettings
+import user_config.defaults as Defaults
 
 import tools.load_data as LoadData
 from tools.plotting import MplCanvas
@@ -43,18 +45,19 @@ def main():
             super(MainWindow, self).__init__()
             # uic.loadUi('UIs/MainWindow-large.ui', self)  # Old way: load the UI file
             self.setupUi(self)
+            self.SetDefaultSettings() ## set default settings from defaults.py (editable by user)
 
-            # Save a copy of original state            
-            # Automatically capture only user-defined variables (not built-ins)
+            ## Save a copy of original state            
+            ## Automatically capture only user-defined variables (not built-ins)
             self.default_state = {
                 ExpParams: {
                     name: copy.deepcopy(value)
                     for name, value in vars(ExpParams).items()
                     if not name.startswith('__') and not callable(value)
                 },
-                LoadedData: {
+                CalcSettings: {
                     name: copy.deepcopy(value)
-                    for name, value in vars(LoadedData).items()
+                    for name, value in vars(CalcSettings).items()
                     if not name.startswith('__') and not callable(value)
                 }
             }
@@ -123,22 +126,9 @@ def main():
             self.PlotLEDEmissionButton.clicked.connect(self.plot_LEDfull)
     
             self.CalcQYButton.clicked.connect(self.Calc_QY)
-    
-            self.radioButton_3.setEnabled(True) # Power Manual: default enabled
-            self.loadDataButton_1.setEnabled(False) # default Manual Power input
-            self.loadDataButton_2.setEnabled(False) # default Manual Power input
-            self.loadDataButton_3.setEnabled(False) # default Manual Power input
-            self.DeletePowerDataButton_1.setEnabled(False)
-            self.DeletePowerDataButton_2.setEnabled(False)
-            self.DeletePowerDataButton_3.setEnabled(False)
-            self.calculatePowerButton.setEnabled(False) # default Manual Power input
-            
-            self.radioButton_Log_2.setEnabled(True) # Timestamps: default enabled
-            
-            self.radioButton_2.setEnabled(True) # Irradiation Integration: default 
-            self.LoadLED.setEnabled(True) # default Integration Mode
             
             #### INITIALISATION ####
+            self.SetButtons()
             self.SetTextfields() # Set ExpParams in text fields
             self.handle_radio_selection()
         
@@ -155,6 +145,27 @@ def main():
             self.plainTextEdit_8.setPlainText(str(ExpParams.I0_err)) # PowerProcessing: Error
             self.plainTextEdit_9.setPlainText(str(ExpParams.threshold)) # Threshold for LED Emission spectrum
     
+        def SetDefaultSettings(self):
+            CalcSettings.format_timestamps = Defaults.format_timestamps
+            CalcSettings.CalculationMethod = Defaults.CalculationMethod
+            CalcSettings.PowerMethod = Defaults.PowerMethod
+    
+        def SetButtons(self):
+            if CalcSettings.format_timestamps == "AHK":
+                self.radioButton_Log_1.setChecked(True)
+            elif CalcSettings.format_timestamps == "Default":
+                self.radioButton_Log_2.setChecked(True)
+
+            if CalcSettings.CalculationMethod == "Integration":
+                self.radioButton_2.setChecked(True)
+            elif CalcSettings.CalculationMethod == "SingleWavelength":
+                self.radioButton.setChecked(True)
+
+            if CalcSettings.PowerMethod == "Manual":
+                self.radioButton_3.setChecked(True)
+            elif CalcSettings.PowerMethod == "PowerProcessing":
+                self.radioButton_4.setChecked(True)
+
         ## Update methods for the parameters
         def update_V(self):
             try:
@@ -262,6 +273,7 @@ def main():
                 self.calculatePowerButton.setEnabled(False)
                 self.plainTextEdit_6.setEnabled(False)
                 self.plainTextEdit_8.setEnabled(False)
+                CalcSettings.PowerMethod = "Manual"
             
             if self.radioButton_4.isChecked(): # PowerProcessing Module
                 self.update_I0_avg_PP # set I0_avg to current text in PowerProcessing field
@@ -286,7 +298,8 @@ def main():
                 self.calculatePowerButton.setEnabled(True)
                 self.plainTextEdit_6.setEnabled(True)
                 self.plainTextEdit_8.setEnabled(True)
-            
+                CalcSettings.PowerMethod = "PowerProcessing"
+                
             if self.radioButton.isChecked(): # LED SingleWavelength Mode
                 self.update_LEDw_SingleWl # set variable to current text
                 self.update_epsilon_R
@@ -296,7 +309,7 @@ def main():
                 self.plainTextEdit_epsilonP.setEnabled(True) # SingleWavelength epsilon Product
                 self.plainTextEdit_5.setEnabled(False) # Integration wavelength (nm)
                 self.LoadLED.setEnabled(False)
-                ExpParams.CalculationMethod = "SingleWavelength"
+                CalcSettings.CalculationMethod = "SingleWavelength"
     
             if self.radioButton_2.isChecked(): # LED Integration Mode
                 self.update_LEDw_Integration # set variable to current text
@@ -305,21 +318,16 @@ def main():
                 self.plainTextEdit_epsilonP.setEnabled(False) # SingleWavelength epsilon Product
                 self.plainTextEdit_5.setEnabled(True) # Integration wavelength (nm)
                 self.LoadLED.setEnabled(True)
-                ExpParams.CalculationMethod = "Integration"
-                #print(f"ExpParams.CalculationMethod: {ExpParams.CalculationMethod}")
+                CalcSettings.CalculationMethod = "Integration"
+                #print(f"CalcSettings.CalculationMethod: {CalcSettings.CalculationMethod}")
             
             if self.radioButton_Log_2.isChecked(): # Timestamps: Default
-                LoadedData.format_timestamps = "Default"
-                print(f"self.radioButton_Log_2.isChecked()\nLoadedData.format_timestamps = {LoadedData.format_timestamps}")
+                CalcSettings.format_timestamps = "Default"
+                # print(f"self.radioButton_Log_2.isChecked()=====CalcSettings.format_timestamps = {CalcSettings.format_timestamps}")
     
             if self.radioButton_Log_1.isChecked(): # Timestamps: AHK format (Crespi group)
-                LoadedData.format_timestamps = "AHK"
-                print(f"self.radioButton_Log_1.isChecked()\nLoadedData.format_timestamps = {LoadedData.format_timestamps}")
-
-        def ResetRadioButtons(self):
-            self.radioButton_Log_2.setChecked(True) # Timestamps: default enabled
-            self.radioButton_3.setChecked(True) # Power Manual Input
-            self.radioButton_2.setChecked(True) # Integration Mode
+                CalcSettings.format_timestamps = "AHK"
+                # print(f"self.radioButton_Log_1.isChecked()=====CalcSettings.format_timestamps = {CalcSettings.format_timestamps}")
 
         def ClearLoadedData(self):
             """
@@ -337,7 +345,7 @@ def main():
             print("Variables reset!")
 
             self.SetTextfields()
-            self.ResetRadioButtons()
+            self.SetButtons()
             
         def OpenWindow_PowerProcessing(self, count):
             """Load the power data from a file and plot it in a new window."""
@@ -347,9 +355,7 @@ def main():
     
         def DeletePowerData(self, count):
             """"""
-            #print(f"main-DeletePowerData===count:{count} and type:{type(count)}")
-            #print(f"main-DeletePowerData_1===LoadedData.PowersAtCuvette:{LoadedData.PowersAtCuvette}")
-    
+
             if count not in LoadedData.PowersAtCuvette:
                 QtWidgets.QMessageBox.warning(self, "Error", "Data does not exist.")
                 return
@@ -525,7 +531,7 @@ def main():
                 elif file_type == "Log Irr":
                     # LoadedData.timestamps = LoadData.GetTimestamps(file_path)
                     print("load_csv -- elif file_type == 'Log Irr'")
-                    print(f"LoadedData.format_timestamps = {LoadedData.format_timestamps}")
+                    # print(f"CalcSettings.format_timestamps = {CalcSettings.format_timestamps}")
                     LoadedData.timestamps = LoadData.GetTimestamps(file_path)
                 else:
                         raise ValueError(f"Unknown file type: {file_type}")
@@ -585,7 +591,7 @@ def main():
             """Process and visualize the data based on the loaded files."""
             
             ## Integration mode
-            if ExpParams.CalculationMethod == "Integration":
+            if CalcSettings.CalculationMethod == "Integration":
                 if LoadedData.LEDemission_wavelengths is None or LoadedData.LEDemission_intensity is None:
                     QtWidgets.QMessageBox.warning(self, "Error", "Please load LED emission file.")
                     return
@@ -628,7 +634,7 @@ def main():
                              LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity_proc)
             
             ## SingleWavelength mode
-            elif ExpParams.CalculationMethod == "SingleWavelength":
+            elif CalcSettings.CalculationMethod == "SingleWavelength":
                 if LoadedData.SpectralData_Full is None:
                     QtWidgets.QMessageBox.warning(self, "Error", "Please load Spectra.")
                     return
@@ -643,7 +649,7 @@ def main():
                 # self.add_new_tab(self.PlotData_Cut, "LED Emission and Spectral Data")
             
             else:
-                QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the self.CalculationMethod variable")
+                QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the CalcSettings.CalculationMethod variable")
             
             
             
@@ -689,7 +695,7 @@ def main():
             I0_err = ExpParams.I0_err
             I0_list = [I0_avg, I0_avg+I0_err, I0_avg-I0_err]
     
-            if ExpParams.CalculationMethod == "Integration":
+            if CalcSettings.CalculationMethod == "Integration":
                 ## Create parameters needed for fitting
                 initial_conc_A, initial_conc_B, spectraldata_meters, normalized_emission = \
                     Integration.CreateParameters(LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Wavelengths,
@@ -703,7 +709,7 @@ def main():
                                                         LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
                                                         ExpParams.V)
     
-            elif ExpParams.CalculationMethod == "SingleWavelength":
+            elif CalcSettings.CalculationMethod == "SingleWavelength":
                 ##!!! WORKING ON THIS
     
                 print(f"Calc_QY SingleWavelength SpectralData_Abs:\n{LoadedData.SpectralDataCut_Abs}")
@@ -719,7 +725,7 @@ def main():
                                                               ExpParams.V)
                 
             else:
-                QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the self.CalculationMethod variable")
+                QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the CalcSettings.CalculationMethod variable")
                 
     
     
@@ -771,7 +777,7 @@ def main():
                                Results.residuals,
                                Results.QY_AB_opt, Results.QY_BA_opt,
                                Results.error_QY_AB, Results.error_QY_BA,
-                               ExpParams.CalculationMethod)
+                               CalcSettings.CalculationMethod)
     
         def Save_QY(self):
             """ Save results: plots """
@@ -792,7 +798,7 @@ def main():
             path='\\'.join(path_split) # re-join into string
     
             end_nameonly=savefilename.split('/')[-1] # only filename
-            end=f"Results_{end_nameonly}_{ExpParams.CalculationMethod}" # name with added info
+            end=f"Results_{end_nameonly}_{CalcSettings.CalculationMethod}" # name with added info
     
             Results.savefilename = f"{path}\\{end}"
             
@@ -809,7 +815,7 @@ def main():
                                    Results.residuals,
                                    Results.QY_AB_opt, Results.QY_BA_opt,
                                    Results.error_QY_AB, Results.error_QY_BA,
-                                   ExpParams.CalculationMethod,
+                                   CalcSettings.CalculationMethod,
                                    SaveResults = "Yes",
                                    SaveFileName = Results.savefilename)
         
@@ -832,9 +838,10 @@ def main():
                               'k thermal back-reaction (s-1)': ExpParams.k_BA,
                               'Power average (mW)': ExpParams.I0_avg,
                               'Power error (mW)': ExpParams.I0_err,
-                              'Calculation Method': ExpParams.CalculationMethod,
                               'Wavelength of irradiation': ExpParams.LEDw,
                               'Threshold': ExpParams.threshold}
+    
+            dict_calcsettings = {'Calculation Method': CalcSettings.CalculationMethod}
     
             try:
                 os.remove(savefile)
@@ -850,6 +857,8 @@ def main():
                     # file.write('==== Experimental Parameters ====\n')
                     for i in dict_expparams:
                         file.write(i+": "+str(dict_expparams[i])+'\n')
+                    for i in dict_calcsettings:
+                        file.write(i+": "+str(dict_calcsettings[i])+'\n')
             except IOError as e:
                 print(f"An error occurred: {e}")
     #####################################################################

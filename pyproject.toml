@@ -52,6 +52,7 @@ packages = [
   'main',
   'QY',
   'tools',
-  'UIs'
+  'UIs',
+  'user_config'
 ]
 

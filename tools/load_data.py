@@ -1,5 +1,5 @@
 import pandas as pd
-import data.LoadedData as LoadedData
+import data.calc_settings as CalcSettings
 
 # def GetTimestamps(LogFile):
 def GetTimestamps(LogFile):
@@ -7,7 +7,7 @@ def GetTimestamps(LogFile):
     ##!!! should add a function that checks that the format is correct
     
     ## CSV not DAT
-    if LoadedData.format_timestamps == "AHK":
+    if CalcSettings.format_timestamps == "AHK":
         #print("Start of load_data.GetTimestamps")
         log = pd.read_csv(LogFile,
                         sep = ",", decimal = ".", skiprows = 1, header=None,)
@@ -16,7 +16,7 @@ def GetTimestamps(LogFile):
         measurement_timestamps = log_measure.iloc[:, [0, 2]]
         measurement_timestamps.columns = ["Measurement", "Timestamp (s)"]
         timestamps = measurement_timestamps.iloc[:,1].to_numpy()
-    elif LoadedData.format_timestamps == "Default":
+    elif CalcSettings.format_timestamps == "Default":
         log = pd.read_csv(LogFile,
                         sep = ",", decimal = ".", skiprows = 1, header=None,)
         log.columns = ["Measurement", "Timestamp (s)"]

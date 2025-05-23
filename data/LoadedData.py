@@ -4,12 +4,6 @@ Created on Fri Nov  8 17:21:49 2024
 
 @author: jorst136
 """
-
-# filename_power = ''
-# x = None
-# Power = None
-# loaded_powerdata = [] 
-
 count = 0
 
 line_positions = [] 
@@ -28,7 +22,7 @@ epsilons_R_interp = None
 epsilons_P_interp = None
 emission_interp = None
 
-format_timestamps = "Default"
+# format_timestamps = "Default"
 timestamps = None
 
 SpectralData_Full = None
@@ -45,5 +39,7 @@ LEDemission_wavelengths = None
 LEDemission_intensity = None
 LEDemission_intensity_proc = None
 
-
+######## EPSILONS FOR SINGLEWAVELENGTH METHOD########
+epsilon_R = 0
+epsilon_P = 0
 
