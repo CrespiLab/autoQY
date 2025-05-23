@@ -71,6 +71,9 @@ The GUI should appear after a short while.
 Note:
 The program can be called from anywhere (no need to be in the install directory).
 
+### Configuration
+The user can adjust the desired default settings in the `defaults.py` file that is located in the folder `user_config`.
+
 ## Notes
 ### Linux
 Currently, there is a runtime error upon launching the programme in Linux, which causes re-sizing issues for the window.
@@ -84,3 +87,6 @@ To change this setting, go to:
 - Change the size of text, apps and other items: set to 100% (the default is probably 150%)
 
 Start autoQY again and, hopefully, the GUI looks normal now.
+
+### Mac
+autoQY has been successfully tested on Mac using Anaconda for Mac
