@@ -92,12 +92,12 @@ def main():
             self.calculatePowerButton.clicked.connect(self.calculate_total_power) ## Calculates average power+error
     
             #######
-            self.radioButton.toggled.connect(self.handle_radio_selection)
-            self.radioButton_2.toggled.connect(self.handle_radio_selection)
-            self.radioButton_3.toggled.connect(self.handle_radio_selection)
-            self.radioButton_4.toggled.connect(self.handle_radio_selection)
-            self.radioButton_Log_2.toggled.connect(self.handle_radio_selection) # Timestamps Default
-            self.radioButton_Log_1.toggled.connect(self.handle_radio_selection) # Timestamps AHK
+            self.radioButton_SingleWavelength.toggled.connect(self.handle_radio_selection)
+            self.radioButton_Integration.toggled.connect(self.handle_radio_selection)
+            self.radioButton_PowerManual.toggled.connect(self.handle_radio_selection)
+            self.radioButton_PowerProcessing.toggled.connect(self.handle_radio_selection)
+            self.radioButton_Log_Default.toggled.connect(self.handle_radio_selection) # Timestamps Default
+            self.radioButton_Log_AHK.toggled.connect(self.handle_radio_selection) # Timestamps AHK
     
             # Connecting buttons to their respective methods
             ##!!! implement the SingleWavelength option as well
@@ -109,15 +109,15 @@ def main():
             self.SaveResultsBtn.clicked.connect(self.Save_QY)
     
             ## Connect the textChanged signal to the update functions ##
-            self.plainTextEdit.textChanged.connect(self.update_V)
-            self.plainTextEdit_2.textChanged.connect(self.update_k_BA)
-            self.plainTextEdit_3.textChanged.connect(self.update_I0_avg)
-            self.plainTextEdit_4.textChanged.connect(self.update_I0_err)
-            self.plainTextEdit_5.textChanged.connect(self.update_LEDw_Integration) # Integration Mode
-            self.plainTextEdit_7.textChanged.connect(self.update_LEDw_SingleWl) # SingleWavelength Mode
+            self.plainTextEdit_volume.textChanged.connect(self.update_V)
+            self.plainTextEdit_k.textChanged.connect(self.update_k_BA)
+            self.plainTextEdit_ManPower.textChanged.connect(self.update_I0_avg)
+            self.plainTextEdit_ManPowerError.textChanged.connect(self.update_I0_err)
+            self.plainTextEdit_IntegrationWavelength.textChanged.connect(self.update_LEDw_Integration) # Integration Mode
+            self.plainTextEdit_SingleWavelength.textChanged.connect(self.update_LEDw_SingleWl) # SingleWavelength Mode
             self.plainTextEdit_epsilonR.textChanged.connect(self.update_epsilon_R) # Epsilon Reactant (SingleWavelength)
             self.plainTextEdit_epsilonP.textChanged.connect(self.update_epsilon_P) # Epsilon Product (SingleWavelength)
-            self.plainTextEdit_9.textChanged.connect(self.update_threshold) # 
+            self.plainTextEdit_Threshold.textChanged.connect(self.update_threshold) # 
     
             ## Adding new buttons for custom plot functions from your scripts ##
             self.ProcessPlotDataButton.clicked.connect(self.process_LED)
@@ -136,14 +136,14 @@ def main():
         
         def SetTextfields(self):
             """ Display experimental parameters in text fields """
-            self.plainTextEdit.setPlainText(str(ExpParams.V)) # volume
-            self.plainTextEdit_2.setPlainText(str(ExpParams.k_BA)) # rate constant
-            self.plainTextEdit_3.setPlainText(str(ExpParams.I0_avg)) # Power Manual
-            self.plainTextEdit_4.setPlainText(str(ExpParams.I0_err)) # Power Manual
-            self.plainTextEdit_5.setPlainText(str(ExpParams.LEDw)) # Integration Mode (default)
+            self.plainTextEdit_volume.setPlainText(str(ExpParams.V)) # volume
+            self.plainTextEdit_k.setPlainText(str(ExpParams.k_BA)) # rate constant
+            self.plainTextEdit_ManPower.setPlainText(str(ExpParams.I0_avg)) # Power Manual
+            self.plainTextEdit_ManPowerError.setPlainText(str(ExpParams.I0_err)) # Power Manual
+            self.plainTextEdit_IntegrationWavelength.setPlainText(str(ExpParams.LEDw)) # Integration Mode (default)
             self.plainTextEdit_6.setPlainText(str(ExpParams.I0_avg)) # PowerProcessing: Calculated Power
             self.plainTextEdit_8.setPlainText(str(ExpParams.I0_err)) # PowerProcessing: Error
-            self.plainTextEdit_9.setPlainText(str(ExpParams.threshold)) # Threshold for LED Emission spectrum
+            self.plainTextEdit_Threshold.setPlainText(str(ExpParams.threshold)) # Threshold for LED Emission spectrum
     
         def SetDefaultSettings(self):
             CalcSettings.format_timestamps = Defaults.format_timestamps
@@ -152,45 +152,45 @@ def main():
     
         def SetButtons(self):
             if CalcSettings.format_timestamps == "AHK":
-                self.radioButton_Log_1.setChecked(True)
+                self.radioButton_Log_AHK.setChecked(True)
             elif CalcSettings.format_timestamps == "Default":
-                self.radioButton_Log_2.setChecked(True)
+                self.radioButton_Log_Default.setChecked(True)
 
             if CalcSettings.CalculationMethod == "Integration":
-                self.radioButton_2.setChecked(True)
+                self.radioButton_Integration.setChecked(True)
             elif CalcSettings.CalculationMethod == "SingleWavelength":
-                self.radioButton.setChecked(True)
+                self.radioButton_SingleWavelength.setChecked(True)
 
             if CalcSettings.PowerMethod == "Manual":
-                self.radioButton_3.setChecked(True)
+                self.radioButton_PowerManual.setChecked(True)
             elif CalcSettings.PowerMethod == "PowerProcessing":
-                self.radioButton_4.setChecked(True)
+                self.radioButton_PowerProcessing.setChecked(True)
 
         ## Update methods for the parameters
         def update_V(self):
             try:
-                ExpParams.V = float(self.plainTextEdit.toPlainText())  # Convert the input to a float
+                ExpParams.V = float(self.plainTextEdit_volume.toPlainText())  # Convert the input to a float
                 print(f"Updated V to {ExpParams.V}")
             except ValueError:
                 pass  # Handle the case where the input is not a valid number
     
         def update_k_BA(self):
             try:
-                ExpParams.k_BA = float(self.plainTextEdit_2.toPlainText())  # Convert the input to a float
+                ExpParams.k_BA = float(self.plainTextEdit_k.toPlainText())  # Convert the input to a float
                 print(f"Updated k_BA to {ExpParams.k_BA}")
             except ValueError:
                 pass
     
         def update_I0_avg(self):
             try:
-                ExpParams.I0_avg = float(self.plainTextEdit_3.toPlainText())  # Convert the input to an integer
+                ExpParams.I0_avg = float(self.plainTextEdit_ManPower.toPlainText())  # Convert the input to an integer
                 print(f"Updated I0_avg to {ExpParams.I0_avg}")
             except ValueError:
                 pass
     
         def update_I0_err(self):
             try:
-                ExpParams.I0_err = float(self.plainTextEdit_4.toPlainText())  # Convert the input to an integer
+                ExpParams.I0_err = float(self.plainTextEdit_ManPowerError.toPlainText())  # Convert the input to an integer
                 print(f"Updated I0_err to {ExpParams.I0_err}")
             except ValueError:
                 pass
@@ -212,7 +212,7 @@ def main():
         def update_LEDw_SingleWl(self):
             """ For SingleWavelength Mode """
             try:
-                ExpParams.LEDw = int(self.plainTextEdit_7.toPlainText())  # Convert the input to an integer
+                ExpParams.LEDw = int(self.plainTextEdit_SingleWavelength.toPlainText())  # Convert the input to an integer
                 print(f"Updated LEDw to {ExpParams.LEDw}")
             except ValueError:
                 pass
@@ -236,7 +236,7 @@ def main():
         def update_LEDw_Integration(self):
             """ For Integration Mode (default) """
             try:
-                ExpParams.LEDw = int(self.plainTextEdit_5.toPlainText())  # Convert the input to an integer
+                ExpParams.LEDw = int(self.plainTextEdit_IntegrationWavelength.toPlainText())  # Convert the input to an integer
                 print(f"Updated LEDw to {ExpParams.LEDw}")
             except ValueError:
                 pass
@@ -244,19 +244,19 @@ def main():
         def update_threshold(self):
             """ Update value for threshold used for LED emission spectrum """
             try:
-                ExpParams.threshold = int(self.plainTextEdit_9.toPlainText())  # Convert the input to an integer
+                ExpParams.threshold = int(self.plainTextEdit_Threshold.toPlainText())  # Convert the input to an integer
                 print(f"Updated threshold to {ExpParams.threshold}")
             except ValueError:
                 pass
     
         def handle_radio_selection(self):
-            if self.radioButton_3.isChecked(): # Power Manual Input
+            if self.radioButton_PowerManual.isChecked(): # Power Manual Input
                 self.update_I0_avg # set I0_avg to current text
                 self.update_I0_err # set I0_err to current text
                 
                 ## Enable TextLabel and disable Load button
-                self.plainTextEdit_3.setEnabled(True)
-                self.plainTextEdit_4.setEnabled(True)
+                self.plainTextEdit_ManPower.setEnabled(True)
+                self.plainTextEdit_ManPowerError.setEnabled(True)
                 
                 self.loadDataButton_1.setEnabled(False)
                 self.loadDataButton_2.setEnabled(False)
@@ -275,13 +275,13 @@ def main():
                 self.plainTextEdit_8.setEnabled(False)
                 CalcSettings.PowerMethod = "Manual"
             
-            if self.radioButton_4.isChecked(): # PowerProcessing Module
+            if self.radioButton_PowerProcessing.isChecked(): # PowerProcessing Module
                 self.update_I0_avg_PP # set I0_avg to current text in PowerProcessing field
                 self.update_I0_err_PP # set I0_err to current text in PowerProcessing field
                 
                 ## Disable TextLabel and enable Load button
-                self.plainTextEdit_3.setEnabled(False) # turn off Manual Input: Power
-                self.plainTextEdit_4.setEnabled(False) # turn off Manual Input: Error
+                self.plainTextEdit_ManPower.setEnabled(False) # turn off Manual Input: Power
+                self.plainTextEdit_ManPowerError.setEnabled(False) # turn off Manual Input: Error
                 
                 self.loadDataButton_1.setEnabled(True)
                 self.loadDataButton_2.setEnabled(True)
@@ -300,34 +300,34 @@ def main():
                 self.plainTextEdit_8.setEnabled(True)
                 CalcSettings.PowerMethod = "PowerProcessing"
                 
-            if self.radioButton.isChecked(): # LED SingleWavelength Mode
+            if self.radioButton_SingleWavelength.isChecked(): # LED SingleWavelength Mode
                 self.update_LEDw_SingleWl # set variable to current text
                 self.update_epsilon_R
                 self.update_epsilon_P
-                self.plainTextEdit_7.setEnabled(True) # SingleWavelength wavelength (nm)
+                self.plainTextEdit_SingleWavelength.setEnabled(True) # SingleWavelength wavelength (nm)
                 self.plainTextEdit_epsilonR.setEnabled(True) # SingleWavelength epsilon Reactant
                 self.plainTextEdit_epsilonP.setEnabled(True) # SingleWavelength epsilon Product
-                self.plainTextEdit_5.setEnabled(False) # Integration wavelength (nm)
+                self.plainTextEdit_IntegrationWavelength.setEnabled(False) # Integration wavelength (nm)
                 self.LoadLED.setEnabled(False)
                 CalcSettings.CalculationMethod = "SingleWavelength"
     
-            if self.radioButton_2.isChecked(): # LED Integration Mode
+            if self.radioButton_Integration.isChecked(): # LED Integration Mode
                 self.update_LEDw_Integration # set variable to current text
-                self.plainTextEdit_7.setEnabled(False) # SingleWavelength wavelength (nm)
+                self.plainTextEdit_SingleWavelength.setEnabled(False) # SingleWavelength wavelength (nm)
                 self.plainTextEdit_epsilonR.setEnabled(False) # SingleWavelength epsilon Reactant
                 self.plainTextEdit_epsilonP.setEnabled(False) # SingleWavelength epsilon Product
-                self.plainTextEdit_5.setEnabled(True) # Integration wavelength (nm)
+                self.plainTextEdit_IntegrationWavelength.setEnabled(True) # Integration wavelength (nm)
                 self.LoadLED.setEnabled(True)
                 CalcSettings.CalculationMethod = "Integration"
                 #print(f"CalcSettings.CalculationMethod: {CalcSettings.CalculationMethod}")
             
-            if self.radioButton_Log_2.isChecked(): # Timestamps: Default
+            if self.radioButton_Log_Default.isChecked(): # Timestamps: Default
                 CalcSettings.format_timestamps = "Default"
-                # print(f"self.radioButton_Log_2.isChecked()=====CalcSettings.format_timestamps = {CalcSettings.format_timestamps}")
+                # print(f"self.radioButton_Log_Default.isChecked()=====CalcSettings.format_timestamps = {CalcSettings.format_timestamps}")
     
-            if self.radioButton_Log_1.isChecked(): # Timestamps: AHK format (Crespi group)
+            if self.radioButton_Log_AHK.isChecked(): # Timestamps: AHK format (Crespi group)
                 CalcSettings.format_timestamps = "AHK"
-                # print(f"self.radioButton_Log_1.isChecked()=====CalcSettings.format_timestamps = {CalcSettings.format_timestamps}")
+                # print(f"self.radioButton_Log_AHK.isChecked()=====CalcSettings.format_timestamps = {CalcSettings.format_timestamps}")
 
         def ClearLoadedData(self):
             """

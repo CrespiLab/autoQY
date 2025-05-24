@@ -128,7 +128,7 @@
        <item row="17" column="5">
         <layout class="QHBoxLayout" name="horizontalLayout_14">
          <item>
-          <widget class="QRadioButton" name="radioButton_2">
+          <widget class="QRadioButton" name="radioButton_Integration">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
              <horstretch>0</horstretch>
@@ -176,7 +176,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QPlainTextEdit" name="plainTextEdit_5">
+          <widget class="QPlainTextEdit" name="plainTextEdit_IntegrationWavelength">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
              <horstretch>0</horstretch>
@@ -193,6 +193,9 @@
             <font>
              <pointsize>10</pointsize>
             </font>
+           </property>
+           <property name="tabChangesFocus">
+            <bool>true</bool>
            </property>
            <property name="lineWrapMode">
             <enum>QPlainTextEdit::NoWrap</enum>
@@ -234,7 +237,7 @@
           <number>0</number>
          </property>
          <item>
-          <widget class="QRadioButton" name="radioButton">
+          <widget class="QRadioButton" name="radioButton_SingleWavelength">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
              <horstretch>0</horstretch>
@@ -285,7 +288,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QPlainTextEdit" name="plainTextEdit_7">
+          <widget class="QPlainTextEdit" name="plainTextEdit_SingleWavelength">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
              <horstretch>0</horstretch>
@@ -302,6 +305,9 @@
             <font>
              <pointsize>10</pointsize>
             </font>
+           </property>
+           <property name="tabChangesFocus">
+            <bool>true</bool>
            </property>
            <property name="lineWrapMode">
             <enum>QPlainTextEdit::NoWrap</enum>
@@ -329,7 +335,7 @@
         </layout>
        </item>
        <item row="7" column="1">
-        <widget class="QLabel" name="Header_2">
+        <widget class="QLabel" name="Header_Power">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
            <horstretch>0</horstretch>
@@ -353,7 +359,7 @@
         </widget>
        </item>
        <item row="37" column="1" colspan="9">
-        <widget class="QLabel" name="Header_5">
+        <widget class="QLabel" name="Header_ProcessData">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
            <horstretch>0</horstretch>
@@ -377,7 +383,7 @@
         </widget>
        </item>
        <item row="0" column="1" colspan="10">
-        <widget class="QLabel" name="Header_1">
+        <widget class="QLabel" name="Header_ExperimentalParameters">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
            <horstretch>0</horstretch>
@@ -444,6 +450,9 @@
                <pointsize>10</pointsize>
               </font>
              </property>
+             <property name="tabChangesFocus">
+              <bool>true</bool>
+             </property>
              <property name="lineWrapMode">
               <enum>QPlainTextEdit::NoWrap</enum>
              </property>
@@ -490,6 +499,9 @@
                <pointsize>10</pointsize>
               </font>
              </property>
+             <property name="tabChangesFocus">
+              <bool>true</bool>
+             </property>
              <property name="lineWrapMode">
               <enum>QPlainTextEdit::NoWrap</enum>
              </property>
@@ -520,7 +532,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QPlainTextEdit" name="plainTextEdit_3">
+          <widget class="QPlainTextEdit" name="plainTextEdit_ManPower">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
              <horstretch>0</horstretch>
@@ -537,6 +549,9 @@
             <font>
              <pointsize>10</pointsize>
             </font>
+           </property>
+           <property name="tabChangesFocus">
+            <bool>true</bool>
            </property>
            <property name="lineWrapMode">
             <enum>QPlainTextEdit::NoWrap</enum>
@@ -568,7 +583,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QPlainTextEdit" name="plainTextEdit_4">
+          <widget class="QPlainTextEdit" name="plainTextEdit_ManPowerError">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
              <horstretch>0</horstretch>
@@ -585,6 +600,9 @@
             <font>
              <pointsize>10</pointsize>
             </font>
+           </property>
+           <property name="tabChangesFocus">
+            <bool>true</bool>
            </property>
            <property name="lineWrapMode">
             <enum>QPlainTextEdit::NoWrap</enum>
@@ -736,7 +754,7 @@
             </widget>
            </item>
            <item>
-            <widget class="QPlainTextEdit" name="plainTextEdit_9">
+            <widget class="QPlainTextEdit" name="plainTextEdit_Threshold">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
                <horstretch>0</horstretch>
@@ -753,6 +771,9 @@
               <font>
                <pointsize>10</pointsize>
               </font>
+             </property>
+             <property name="tabChangesFocus">
+              <bool>true</bool>
              </property>
              <property name="lineWrapMode">
               <enum>QPlainTextEdit::NoWrap</enum>
@@ -1594,7 +1615,7 @@
            <item>
             <layout class="QVBoxLayout" name="verticalLayout_3">
              <item>
-              <widget class="QRadioButton" name="radioButton_Log_2">
+              <widget class="QRadioButton" name="radioButton_Log_Default">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                  <horstretch>0</horstretch>
@@ -1624,7 +1645,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QRadioButton" name="radioButton_Log_1">
+              <widget class="QRadioButton" name="radioButton_Log_AHK">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                  <horstretch>0</horstretch>
@@ -1715,7 +1736,7 @@
         </layout>
        </item>
        <item row="13" column="1">
-        <widget class="QLabel" name="Header_4">
+        <widget class="QLabel" name="Header_LoadData">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
            <horstretch>0</horstretch>
@@ -1741,7 +1762,7 @@
        <item row="8" column="5">
         <layout class="QHBoxLayout" name="horizontalLayout_17">
          <item>
-          <widget class="QRadioButton" name="radioButton_4">
+          <widget class="QRadioButton" name="radioButton_PowerProcessing">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
              <horstretch>0</horstretch>
@@ -1794,7 +1815,7 @@
         </layout>
        </item>
        <item row="40" column="1" colspan="10">
-        <widget class="QLabel" name="Header_6">
+        <widget class="QLabel" name="Header_autoQY">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
            <horstretch>0</horstretch>
@@ -1822,7 +1843,7 @@
          <item>
           <layout class="QVBoxLayout" name="verticalLayout_7">
            <item>
-            <widget class="QLabel" name="label_8">
+            <widget class="QLabel" name="label_QYresults">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
                <horstretch>0</horstretch>
@@ -2062,7 +2083,7 @@
            <item>
             <layout class="QHBoxLayout" name="horizontalLayout_20">
              <item>
-              <widget class="QLabel" name="label_22">
+              <widget class="QLabel" name="label_PSD">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
                  <horstretch>0</horstretch>
@@ -2196,7 +2217,7 @@
        <item row="8" column="1">
         <layout class="QHBoxLayout" name="horizontalLayout_4">
          <item>
-          <widget class="QRadioButton" name="radioButton_3">
+          <widget class="QRadioButton" name="radioButton_PowerManual">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
              <horstretch>0</horstretch>
@@ -2252,7 +2273,7 @@
         </layout>
        </item>
        <item row="16" column="1" colspan="10">
-        <widget class="QLabel" name="Header_3">
+        <widget class="QLabel" name="Header_IrradiationWavelength">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
            <horstretch>0</horstretch>
@@ -2278,106 +2299,116 @@
        <item row="1" column="1" colspan="5">
         <layout class="QHBoxLayout" name="horizontalLayout_9">
          <item>
-          <layout class="QVBoxLayout" name="verticalLayout_6">
-           <item alignment="Qt::AlignHCenter">
-            <widget class="QPlainTextEdit" name="plainTextEdit">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Maximum" vsizetype="Expanding">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>75</width>
-               <height>30</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>10</pointsize>
-              </font>
-             </property>
-             <property name="lineWrapMode">
-              <enum>QPlainTextEdit::NoWrap</enum>
-             </property>
-            </widget>
+          <layout class="QHBoxLayout" name="horizontalLayout_6">
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_6">
+             <item alignment="Qt::AlignHCenter">
+              <widget class="QPlainTextEdit" name="plainTextEdit_volume">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Maximum" vsizetype="Expanding">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>75</width>
+                 <height>30</height>
+                </size>
+               </property>
+               <property name="font">
+                <font>
+                 <pointsize>10</pointsize>
+                </font>
+               </property>
+               <property name="tabChangesFocus">
+                <bool>true</bool>
+               </property>
+               <property name="lineWrapMode">
+                <enum>QPlainTextEdit::NoWrap</enum>
+               </property>
+              </widget>
+             </item>
+             <item alignment="Qt::AlignHCenter">
+              <widget class="QPlainTextEdit" name="plainTextEdit_k">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Maximum" vsizetype="Expanding">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>75</width>
+                 <height>30</height>
+                </size>
+               </property>
+               <property name="font">
+                <font>
+                 <pointsize>10</pointsize>
+                </font>
+               </property>
+               <property name="tabChangesFocus">
+                <bool>true</bool>
+               </property>
+               <property name="lineWrapMode">
+                <enum>QPlainTextEdit::NoWrap</enum>
+               </property>
+              </widget>
+             </item>
+            </layout>
            </item>
-           <item alignment="Qt::AlignHCenter">
-            <widget class="QPlainTextEdit" name="plainTextEdit_2">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Maximum" vsizetype="Expanding">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>75</width>
-               <height>30</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>10</pointsize>
-              </font>
-             </property>
-             <property name="lineWrapMode">
-              <enum>QPlainTextEdit::NoWrap</enum>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <layout class="QVBoxLayout" name="verticalLayout_12">
-           <item alignment="Qt::AlignLeft">
-            <widget class="QLabel" name="label_19">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>25</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>10</pointsize>
-              </font>
-             </property>
-             <property name="text">
-              <string>ml</string>
-             </property>
-            </widget>
-           </item>
-           <item alignment="Qt::AlignLeft">
-            <widget class="QLabel" name="label_31">
-             <property name="minimumSize">
-              <size>
-               <width>150</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>200</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>10</pointsize>
-              </font>
-             </property>
-             <property name="text">
-              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;s&lt;span style=&quot; vertical-align:super;&quot;&gt;-1&lt;/span&gt; (thermal back-reaction)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-             </property>
-            </widget>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_12">
+             <item alignment="Qt::AlignLeft">
+              <widget class="QLabel" name="label_ml">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>25</width>
+                 <height>25</height>
+                </size>
+               </property>
+               <property name="font">
+                <font>
+                 <pointsize>10</pointsize>
+                </font>
+               </property>
+               <property name="text">
+                <string>ml</string>
+               </property>
+              </widget>
+             </item>
+             <item alignment="Qt::AlignLeft">
+              <widget class="QLabel" name="label_k">
+               <property name="minimumSize">
+                <size>
+                 <width>150</width>
+                 <height>25</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>200</width>
+                 <height>25</height>
+                </size>
+               </property>
+               <property name="font">
+                <font>
+                 <pointsize>10</pointsize>
+                </font>
+               </property>
+               <property name="text">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;s&lt;span style=&quot; vertical-align:super;&quot;&gt;-1&lt;/span&gt; (thermal back-reaction)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
            </item>
           </layout>
          </item>
@@ -2457,11 +2488,63 @@
    </property>
   </widget>
  </widget>
+ <tabstops>
+  <tabstop>plainTextEdit_volume</tabstop>
+  <tabstop>plainTextEdit_k</tabstop>
+  <tabstop>plainTextEdit_ManPower</tabstop>
+  <tabstop>plainTextEdit_ManPowerError</tabstop>
+  <tabstop>loadDataButton_1</tabstop>
+  <tabstop>loadDataButton_2</tabstop>
+  <tabstop>loadDataButton_3</tabstop>
+  <tabstop>calculatePowerButton</tabstop>
+  <tabstop>LoadEpsilons_Reactant</tabstop>
+  <tabstop>LoadEpsilons_Product</tabstop>
+  <tabstop>plotEpsilonButton</tabstop>
+  <tabstop>LoadSpectra</tabstop>
+  <tabstop>PlotSpectraButton</tabstop>
+  <tabstop>LoadLog</tabstop>
+  <tabstop>plainTextEdit_IntegrationWavelength</tabstop>
+  <tabstop>LoadLED</tabstop>
+  <tabstop>PlotLEDEmissionButton</tabstop>
+  <tabstop>plainTextEdit_Threshold</tabstop>
+  <tabstop>ProcessPlotDataButton</tabstop>
+  <tabstop>CalcQYButton</tabstop>
+  <tabstop>SaveResultsBtn</tabstop>
+  <tabstop>DeletePowerDataButton_2</tabstop>
+  <tabstop>plainTextEdit_epsilonR</tabstop>
+  <tabstop>plainTextEdit_Power_3</tabstop>
+  <tabstop>plainTextEdit_PowerError_3</tabstop>
+  <tabstop>DeletePowerDataButton_3</tabstop>
+  <tabstop>plainTextEdit_epsilonP</tabstop>
+  <tabstop>plainTextEdit_6</tabstop>
+  <tabstop>plainTextEdit_8</tabstop>
+  <tabstop>radioButton_Integration</tabstop>
+  <tabstop>radioButton_SingleWavelength</tabstop>
+  <tabstop>plainTextEdit_Power_1</tabstop>
+  <tabstop>plainTextEdit_PowerError_1</tabstop>
+  <tabstop>DeletePowerDataButton_1</tabstop>
+  <tabstop>plainTextEdit_SingleWavelength</tabstop>
+  <tabstop>radioButton_Log_Default</tabstop>
+  <tabstop>radioButton_Log_AHK</tabstop>
+  <tabstop>plainTextEdit_Power_2</tabstop>
+  <tabstop>plainTextEdit_PowerError_2</tabstop>
+  <tabstop>radioButton_PowerProcessing</tabstop>
+  <tabstop>textEdit_QY_RtoP</tabstop>
+  <tabstop>textEdit_QYerror_RtoP</tabstop>
+  <tabstop>textEdit_QY_PtoR</tabstop>
+  <tabstop>textEdit_QYerror_PtoR</tabstop>
+  <tabstop>textEdit_PSS_R</tabstop>
+  <tabstop>textEdit_PSS_P</tabstop>
+  <tabstop>radioButton_PowerManual</tabstop>
+  <tabstop>tabWidget</tabstop>
+  <tabstop>frame</tabstop>
+  <tabstop>ButtonClearLoadedData</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
  <buttongroups>
   <buttongroup name="buttonGroup_2"/>
-  <buttongroup name="buttonGroup"/>
   <buttongroup name="buttonGroup_3"/>
+  <buttongroup name="buttonGroup"/>
  </buttongroups>
 </ui>
