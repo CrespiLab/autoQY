@@ -6,8 +6,8 @@ import numpy as np
 from scipy.integrate import odeint
 from lmfit import Model, Parameters
 
-import QY.Constants as Constants
-import data.ExpParams as ExpParams
+import QY.constants as Constants
+import data.experimental_parameters as ExpParams
 
 #%% Loading experimental data
 

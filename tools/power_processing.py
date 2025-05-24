@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Created on Tue Nov 26 2024
-
 @author: Jorn Steen
-
 Window for PowerProcessing module
-
 """
 import pandas as pd
 import numpy as np
@@ -17,8 +14,8 @@ from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationTo
 
 from tools.plotting import MplCanvas
 import tools.baseline_power as BaselinePower
-import data.LoadedData as LoadedData
-import data.Results as Results
+import data.loaded_data as LoadedData
+import data.results as Results
 
 from UIs.WindowPowerProcessing import Ui_MainWindow
 

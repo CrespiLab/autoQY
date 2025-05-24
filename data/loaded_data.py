@@ -22,7 +22,6 @@ epsilons_R_interp = None
 epsilons_P_interp = None
 emission_interp = None
 
-# format_timestamps = "Default"
 timestamps = None
 
 SpectralData_Full = None

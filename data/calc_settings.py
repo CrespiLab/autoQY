@@ -10,3 +10,5 @@ format_timestamps = ""
 CalculationMethod = "" ## default calculation method is Integration
 
 PowerMethod = ""
+
+threshold = 0

@@ -4,11 +4,12 @@ Integrate over the emission spectrum of the LED
 """
 import numpy as np
 from scipy.integrate import trapezoid,odeint
-from lmfit import minimize, Parameters
 from scipy.signal import savgol_filter
+from lmfit import minimize, Parameters
 import matplotlib.pyplot as plt
-import QY.Constants as Constants
-import data.ExpParams as ExpParams
+
+import QY.constants as Constants
+import data.experimental_parameters as ExpParams
 
 ##################################################
 

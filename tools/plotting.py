@@ -3,7 +3,8 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.gridspec as gridspec
 from matplotlib.ticker import AutoMinorLocator
-import data.ExpParams as ExpParams
+
+import data.experimental_parameters as ExpParams
 
 class MplCanvas(FigureCanvas):
     """Widget class to render plots."""

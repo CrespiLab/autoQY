@@ -19,11 +19,11 @@ from PyQt5 import QtWidgets
 # from PyQt5 import uic
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 
-import QY.Integration as Integration
-import QY.SingleWavelength as SingleWavelength
-import data.ExpParams as ExpParams
-import data.LoadedData as LoadedData
-import data.Results as Results
+import QY.integration as Integration
+import QY.single_wavelength as SingleWavelength
+import data.experimental_parameters as ExpParams
+import data.loaded_data as LoadedData
+import data.results as Results
 import data.calc_settings as CalcSettings
 import user_config.defaults as Defaults
 
@@ -32,7 +32,7 @@ from tools.plotting import MplCanvas
 import tools.extractresults as ExtractResults
 #from tools.style import apply_dark_theme
 
-import tools.PowerProcessing as PowerProcessing
+import tools.power_processing as PowerProcessing
 
 from UIs.MainWindow_large import Ui_MainWindow
 
@@ -143,12 +143,13 @@ def main():
             self.plainTextEdit_IntegrationWavelength.setPlainText(str(ExpParams.LEDw)) # Integration Mode (default)
             self.plainTextEdit_6.setPlainText(str(ExpParams.I0_avg)) # PowerProcessing: Calculated Power
             self.plainTextEdit_8.setPlainText(str(ExpParams.I0_err)) # PowerProcessing: Error
-            self.plainTextEdit_Threshold.setPlainText(str(ExpParams.threshold)) # Threshold for LED Emission spectrum
+            self.plainTextEdit_Threshold.setPlainText(str(CalcSettings.threshold)) # Threshold for LED Emission spectrum
     
         def SetDefaultSettings(self):
             CalcSettings.format_timestamps = Defaults.format_timestamps
             CalcSettings.CalculationMethod = Defaults.CalculationMethod
             CalcSettings.PowerMethod = Defaults.PowerMethod
+            CalcSettings.threshold = Defaults.threshold
     
         def SetButtons(self):
             if CalcSettings.format_timestamps == "AHK":
@@ -244,8 +245,8 @@ def main():
         def update_threshold(self):
             """ Update value for threshold used for LED emission spectrum """
             try:
-                ExpParams.threshold = int(self.plainTextEdit_Threshold.toPlainText())  # Convert the input to an integer
-                print(f"Updated threshold to {ExpParams.threshold}")
+                CalcSettings.threshold = int(self.plainTextEdit_Threshold.toPlainText())  # Convert the input to an integer
+                print(f"Updated threshold to {CalcSettings.threshold}")
             except ValueError:
                 pass
     
@@ -613,7 +614,7 @@ def main():
                     return
                 
                 ########################################
-                threshold_LED = ExpParams.threshold
+                threshold_LED = CalcSettings.threshold
                 LoadedData.LEDemission_intensity_proc, Integration.LEDindex_first, Integration.LEDindex_last, Integration.wavelength_low, Integration.wavelength_high = \
                     Integration.Processing_LEDemission(
                         LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity, threshold_LED)
@@ -838,10 +839,10 @@ def main():
                               'k thermal back-reaction (s-1)': ExpParams.k_BA,
                               'Power average (mW)': ExpParams.I0_avg,
                               'Power error (mW)': ExpParams.I0_err,
-                              'Wavelength of irradiation': ExpParams.LEDw,
-                              'Threshold': ExpParams.threshold}
+                              'Wavelength of irradiation': ExpParams.LEDw}
     
-            dict_calcsettings = {'Calculation Method': CalcSettings.CalculationMethod}
+            dict_calcsettings = {'Calculation Method': CalcSettings.CalculationMethod,
+                                 'Threshold': CalcSettings.threshold}
     
             try:
                 os.remove(savefile)
