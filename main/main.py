@@ -150,6 +150,10 @@ def main():
             CalcSettings.CalculationMethod = Defaults.CalculationMethod
             CalcSettings.PowerMethod = Defaults.PowerMethod
             CalcSettings.threshold = Defaults.threshold
+            CalcSettings.xlim_min_ProcessedData = Defaults.xlim_min_ProcessedData
+            CalcSettings.xlim_max_ProcessedData = Defaults.xlim_max_ProcessedData
+            CalcSettings.ylim_min_ProcessedData = Defaults.ylim_min_ProcessedData
+            CalcSettings.ylim_max_ProcessedData = Defaults.ylim_max_ProcessedData
     
         def SetButtons(self):
             if CalcSettings.format_timestamps == "AHK":
@@ -460,6 +464,7 @@ def main():
     
         def load_file(self, file_type):
             """Load a file (LED emission, spectral data, epsilons) based on the file type."""
+            ##!!! Move to tools.load_data
             try:
                 options = QtWidgets.QFileDialog.Options()
     
@@ -472,8 +477,6 @@ def main():
                     QtWidgets.QMessageBox.warning(self, "Error", f"No {file_type} file selected")
                     return
     
-                ##################################################
-                ##!!! Move Load to .utils
                 ##################################################
                 # Store the file path in the appropriate attribute based on the file type
                 file_ext = os.path.splitext(file_name)[1].lower()
@@ -492,6 +495,7 @@ def main():
     
         def load_dat(self, file_path, file_type):
             """Load the data file depending on its format (.csv or .dat)."""
+            ##!!! Move to tools.load_data
             try:
                 if file_type == "LED Emission":
                     LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity = LoadData.Import_LEDemission("Spectragryph", file_path)
@@ -542,7 +546,7 @@ def main():
     ###=========================================================================###
     ###=========================================================================###
     
-        ##!!! DEFINE OUTSIDE OF CLASS    
+        ##!!! move to tools.plotting
         def plot_epsilon(self):
             """ Plot epsilons spectra (before interpolation) """
             if LoadedData.epsilons_R_wavelengths is None or LoadedData.epsilons_P_wavelengths is None:
@@ -556,7 +560,7 @@ def main():
             
             self.add_new_tab(plot_func, "Epsilons (before interpolation)")
     
-        ##!!! DEFINE OUTSIDE OF CLASS    
+        ##!!! move to tools.plotting
         def plot_spectra(self):
             """ Plot spectra recorded during irradiation """
             if LoadedData.SpectralData_Full is None:
@@ -565,12 +569,12 @@ def main():
     
             def plot_func(canvas):
                 """ Plot the data using MplCanvas """
-                canvas.plot_DataFull(LoadedData.SpectralData_Wavelengths,
+                canvas.PlotData_Full(LoadedData.SpectralData_Wavelengths,
                                      LoadedData.SpectralData_Absorbance)
             
             self.add_new_tab(plot_func, "Measurement Spectra")
                 
-        ##!!! DEFINE OUTSIDE OF CLASS    
+        ##!!! move to tools.plotting
         def plot_LEDfull(self):
             """ Plot LED emission spectrum (full) """
             if LoadedData.LEDemission_wavelengths is None or LoadedData.LEDemission_intensity is None:
@@ -624,15 +628,24 @@ def main():
                 LoadedData.SpectralDataCut_Wavelengths, LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Index = \
                     Integration.Process_SpectralData(LoadedData.SpectralData_Full, Integration.wavelength_low, Integration.wavelength_high, ExpParams.LEDw)
             
-            ##!!! ADJUST CODE TO PLOT SPECTRA AND JUST INDICATE PART OF SPECTRUM (with a box)
-                self.add_new_tab(self.PlotData_Cut, "LED Emission and Spectral Data")
+                ##!!! ADJUST CODE TO PLOT SPECTRA AND JUST INDICATE PART OF SPECTRUM (with a box)
+                def plot_func(canvas):
+                    """ Plot the data using MplCanvas """
+                    canvas.PlotData_Cut(LoadedData.SpectralData_Absorbance, LoadedData.SpectralData_Wavelengths,
+                                        LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Wavelengths,
+                                        LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity,
+                                        Integration.LEDindex_first, Integration.LEDindex_last, 
+                                        LoadedData.LEDemission_intensity_proc)
+                    print("process_LED===plot_func===after canvas.PlotDat_Cut")
+                    
+                self.add_new_tab(plot_func, "LED Emission and Spectral Data")
+                print("process_LED===after self.add_new_tab")
             
-            
-                ##!!! MOVED HERE
-                LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp, LoadedData.emission_interp = Integration.Interpolate_Epsilons(LoadedData.SpectralDataCut_Wavelengths,
-                             LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values,
-                             LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values,
-                             LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity_proc)
+                LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp, LoadedData.emission_interp = Integration.Interpolate_Epsilons(
+                    LoadedData.SpectralDataCut_Wavelengths,
+                    LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values,
+                    LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values,
+                    LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity_proc)
             
             ## SingleWavelength mode
             elif CalcSettings.CalculationMethod == "SingleWavelength":
@@ -645,7 +658,7 @@ def main():
                 LoadedData.SpectralDataCut_Wavelengths, LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Index = \
                     SingleWavelength.Process_SpectralData(LoadedData.SpectralData_Full, Integration.wavelength_low, Integration.wavelength_high, ExpParams.LEDw)
     
-                ##!!! ADJUST CODE TO PLOT SPECTRA AND ONLY INDICATE EITHER
+                ## ADJUST CODE TO PLOT SPECTRA AND ONLY INDICATE EITHER
                     ## VERTICAL LINE: SINGLE WAVELENGTH
                 # self.add_new_tab(self.PlotData_Cut, "LED Emission and Spectral Data")
             
@@ -656,14 +669,14 @@ def main():
             
             #############
             
-            ##!!! DEFINE OUTSIDE OF CLASS
-    
-        def PlotData_Cut(self,canvas):
+        ##!!! move to tools.plotting
+        # def PlotData_Cut(self,canvas):
                 
-            canvas.PlotData_Cut(LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Wavelengths,
-                LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity,
-                Integration.LEDindex_first, Integration.LEDindex_last, 
-                LoadedData.LEDemission_intensity_proc)
+        #     canvas.PlotData_Cut(LoadedData.SpectralData_Absorbance, LoadedData.SpectralData_Wavelengths,
+        #                         LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Wavelengths,
+        #                         LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity,
+        #                         Integration.LEDindex_first, Integration.LEDindex_last, 
+        #                         LoadedData.LEDemission_intensity_proc)
             
     
         def Calc_QY(self, canvas):
@@ -736,7 +749,7 @@ def main():
             Results.QY_AB_opt, Results.QY_BA_opt, Results.error_QY_AB, Results.error_QY_BA = ExtractResults.ExtractResults(fit_results)
     
     
-            ##!!! MOVE TO SEPARATE PY SCRIPT (TOOLS OR SOMETHING)
+            ##!!! MOVE TO QY.Integration
             ## Calculate optimized concentrations
             Results.conc_opt, Results.PSS_Reactant, Results.PSS_Product = Integration.CalculateConcentrations(spectraldata_meters,
                                                         initial_conc_A, initial_conc_B, 

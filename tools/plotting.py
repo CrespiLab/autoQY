@@ -5,6 +5,7 @@ import matplotlib.gridspec as gridspec
 from matplotlib.ticker import AutoMinorLocator
 
 import data.experimental_parameters as ExpParams
+import data.calc_settings as CalcSettings
 
 class MplCanvas(FigureCanvas):
     """Widget class to render plots."""
@@ -189,56 +190,80 @@ class MplCanvas(FigureCanvas):
         self.fig.tight_layout()
         self.draw()
 
-                
-    def PlotData_Cut(self, absorbance_cut, wavelengths_cut,
-                                em_wl, em_int,
-                                index_first, index_last,
-                                em_int_proc):
+
+    def dynamic_range_x(self, wavelengths):
+        ''' Dynamic x-axis range with some padding '''
+        x_min, x_max = wavelengths.min(), wavelengths.max()
+        x_padding = 0.05 * (x_max - x_min)  # 5% padding
+        x_min_dynamic, x_max_dynamic = x_min - x_padding, x_max + x_padding
+        return x_min_dynamic, x_max_dynamic
+    
+    def dynamic_range_y(self, absorbance):
+        ''' Dynamic y-axis range with some padding '''
+        y_min, y_max = absorbance.min(), absorbance.max()
+        y_padding = 0.05 * (y_max - y_min)  # 5% padding
+        y_min_dynamic, y_max_dynamic = y_min - y_padding, y_max + y_padding
+        return y_min_dynamic, y_max_dynamic
+    
+    def PlotData_Cut(self, absorbance_full, wavelengths_full,
+                     absorbance_cut, wavelengths_cut,
+                     em_wl, em_int,
+                     index_first, index_last,
+                     em_int_proc):
         """Data (epsilons and spectra) cut according to LED Emission spectrum"""
         self.fig.clear()  # Clear the entire figure
         
         # Create a grid for the subplots
         gs = plt.GridSpec(2, 1, figure=self.fig, height_ratios=[1, 1], hspace=0.4)
 
+        ###########################################
+        ###### Spectral data unprocessed and processed ######
+        ###########################################
+
         # Add subplots using self.fig.add_subplot and GridSpec
         ax1 = self.fig.add_subplot(gs[0])
 
-        # print(f"absorbance.shape: {absorbance.shape}")
+        for i in range(1,len(absorbance_full.columns)): ## pandas dataframe
+            ax1.plot(wavelengths_full, absorbance_full[absorbance_full.columns[i]],
+                     color = "grey")
 
-
-        for i in range(0,absorbance_cut.shape[1]):
+        ## plot cut spectra
+        for i in range(0,absorbance_cut.shape[1]): ## numpy array
             ax1.plot(wavelengths_cut, absorbance_cut.T[i])
-            # print(i)
 
-        # Dynamic x-axis range with some padding
-        x_min, x_max = wavelengths_cut.min(), wavelengths_cut.max()
-        x_padding = 0.05 * (x_max - x_min)  # 5% padding
-        x_min_dynamic, x_max_dynamic = x_min - x_padding, x_max + x_padding
-
-        # Dynamic y-axis range with some padding
-        y_min, y_max = absorbance_cut.min(), absorbance_cut.max()
-        y_padding = 0.05 * (y_max - y_min)  # 5% padding
-        y_min_dynamic, y_max_dynamic = y_min - y_padding, y_max + y_padding
-
+        ### Dynamic x-axis range with some padding ###
+        x_min_dynamic, x_max_dynamic = self.dynamic_range_x(wavelengths_full)
+        print(f"x_min_dynamic, x_max_dynamic:{x_min_dynamic},{x_max_dynamic}")
+        
+        ### Dynamic y-axis range with some padding ###
+        y_min_dynamic, y_max_dynamic = self.dynamic_range_y(absorbance_full.to_numpy())
+        print(f"y_min_dynamic, y_max_dynamic:{y_min_dynamic},{y_max_dynamic}")
+        
         # Set common x-axis properties for both subplots
         ax1.set_xlabel("Wavelength (nm)")
-        ax1.set_xlim(x_min_dynamic, x_max_dynamic)
+        # ax1.set_xlim(x_min_dynamic, x_max_dynamic)
+        ax1.set_xlim(CalcSettings.xlim_min_ProcessedData, CalcSettings.xlim_max_ProcessedData)
 
         # Customize the first subplot (Spectral Data)
         ax1.set_title("Spectral Data")
         ax1.set_ylabel("Absorbance")
-        ax1.set_ylim(y_min_dynamic, y_max_dynamic)
+        # ax1.set_ylim(y_min_dynamic, y_max_dynamic)
+        ax1.set_ylim(CalcSettings.ylim_min_ProcessedData, CalcSettings.ylim_max_ProcessedData)
+
+        ###########################################
+        ###### LED unprocessed and processed ######
+        ###########################################
 
         ax2 = self.fig.add_subplot(gs[1])
         ax2.set_xlabel("Wavelength (nm)")
-        ax2.set_xlim(220, 650)
+        ax2.set_xlim(CalcSettings.xlim_min_ProcessedData, CalcSettings.xlim_max_ProcessedData)
 
         # Plot LED emission data in the second subplot (ax2)
-        ax2.plot(em_wl, em_int, label="Untreated (in this .py file at least)")
+        ax2.plot(em_wl, em_int, label="Untreated")
         ax2.plot(em_wl[index_first:index_last], em_int_proc[index_first:index_last],
                 label="Smoothed, removed zeroes\nand applied threshold")
         ax2.legend(fontsize=8)
-        ax2.set_title("LED Emission")
+        ax2.set_title(f"LED Emission ({ExpParams.LEDw} nm)")
         ax2.set_ylabel("Intensity")
 
         # Manually adjust figure layout to remove excess padding
@@ -273,7 +298,7 @@ class MplCanvas(FigureCanvas):
 
         self.draw()  # Redraw the canvas
 
-    def plot_DataFull(self, wavelengths, absorbance):
+    def PlotData_Full(self, wavelengths, absorbance):
         """Plot interpolated epsilons and LED emission."""
         self.fig.clear()  # Clear the entire figure
         

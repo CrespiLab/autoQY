@@ -23,3 +23,10 @@ PowerMethod = "Manual" ## Manual input of power
 ################## THRESHOLD FOR PROCESSING OF LED EMISSION ###################
 threshold = 500
 ###############################################################################
+
+################## AXIS LIMITS FOR PROCESSED DATA ###################
+xlim_min_ProcessedData = 220
+xlim_max_ProcessedData = 760
+ylim_min_ProcessedData = -0.1
+ylim_max_ProcessedData = 1.5
+###############################################################################

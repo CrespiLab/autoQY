@@ -43,9 +43,11 @@ def Import_SpectralData(FileFormat, file):
     # print(f"Integration-Import_SpectralData===data_pd_full:{data_pd_full}")
 
     data_pd_wavelengths = data_pd['Wavelength [nm]']
-    # print(f"Integration-Import_SpectralData===data_pd_wavelengths:{data_pd_wavelengths}")
+    print(f"LoadData===Import_SpectralData===data_pd_wavelengths:\n{data_pd_wavelengths}")
     data_pd_absorbance = data_pd.iloc[:,1:]
-    # print(f"Integration-Import_SpectralData===data_pd_absorbance:{data_pd_absorbance}")
+    print(f"LoadData===Import_SpectralData===data_pd_absorbance:\n{data_pd_absorbance}\n \
+          data_pd_absorbance.shape: {data_pd_absorbance.shape}")
+    # print(f"data_pd_absorbance[0]: {data_pd_absorbance[0]}")
 
     return data_pd_full, data_pd_wavelengths, data_pd_absorbance
 

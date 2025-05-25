@@ -12,3 +12,8 @@ CalculationMethod = "" ## default calculation method is Integration
 PowerMethod = ""
 
 threshold = 0
+
+xlim_min_ProcessedData = 0
+xlim_max_ProcessedData = 0
+ylim_min_ProcessedData = 0
+ylim_max_ProcessedData = 0
