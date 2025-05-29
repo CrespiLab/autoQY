@@ -1,11 +1,15 @@
+import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.gridspec as gridspec
+import matplotlib.lines as mlines
 from matplotlib.ticker import AutoMinorLocator
+from matplotlib.colors import LinearSegmentedColormap
 
 import data.experimental_parameters as ExpParams
 import data.calc_settings as CalcSettings
+import user_config.defaults as Defaults
 
 class MplCanvas(FigureCanvas):
     """Widget class to render plots."""
@@ -216,6 +220,12 @@ class MplCanvas(FigureCanvas):
         # Create a grid for the subplots
         gs = plt.GridSpec(2, 1, figure=self.fig, height_ratios=[1, 1], hspace=0.4)
 
+        cmap = LinearSegmentedColormap.from_list('mylist',
+                                                 [(0, Defaults.colours_plot_first),
+                                                  (1, Defaults.colours_plot_last)])
+        num_plots = absorbance_cut.shape[1]
+        colours_formap = cmap(np.linspace(0,1,num_plots))
+
         ###########################################
         ###### Spectral data unprocessed and processed ######
         ###########################################
@@ -225,30 +235,43 @@ class MplCanvas(FigureCanvas):
 
         for i in range(1,len(absorbance_full.columns)): ## pandas dataframe
             ax1.plot(wavelengths_full, absorbance_full[absorbance_full.columns[i]],
-                     color = "grey")
+                     color = Defaults.colours_plot_grey)
 
         ## plot cut spectra
         for i in range(0,absorbance_cut.shape[1]): ## numpy array
-            ax1.plot(wavelengths_cut, absorbance_cut.T[i])
+            ax1.plot(wavelengths_cut, absorbance_cut.T[i],
+                     color = colours_formap[i])
 
-        ### Dynamic x-axis range with some padding ###
-        x_min_dynamic, x_max_dynamic = self.dynamic_range_x(wavelengths_full)
-        print(f"x_min_dynamic, x_max_dynamic:{x_min_dynamic},{x_max_dynamic}")
-        
-        ### Dynamic y-axis range with some padding ###
-        y_min_dynamic, y_max_dynamic = self.dynamic_range_y(absorbance_full.to_numpy())
-        print(f"y_min_dynamic, y_max_dynamic:{y_min_dynamic},{y_max_dynamic}")
+        ## INSET ##
+        ax1_inset = ax1.inset_axes([0.62,0.22,0.35,0.7])
+        # for i in range(0,spectra_np.shape[1]): ## pandas dataframe
+        #     ax1_inset.plot(wavelengths_np, spectra_np.T[i],
+                     # color=colours['greylighter'])
+        for i in range(0,absorbance_cut.shape[1]): ## numpy array
+            ax1_inset.plot(wavelengths_cut, absorbance_cut.T[i],
+                     color = colours_formap[i])
+
+        inset_x_min, inset_x_max = self.dynamic_range_x(wavelengths_cut)
+        inset_y_min, inset_y_max = self.dynamic_range_y(absorbance_cut)
+        ax1_inset.set_xlim(inset_x_min, inset_x_max)
+        ax1_inset.set_ylim(inset_y_min, inset_y_max)
+        ######
         
         # Set common x-axis properties for both subplots
         ax1.set_xlabel("Wavelength (nm)")
-        # ax1.set_xlim(x_min_dynamic, x_max_dynamic)
         ax1.set_xlim(CalcSettings.xlim_min_ProcessedData, CalcSettings.xlim_max_ProcessedData)
 
         # Customize the first subplot (Spectral Data)
         ax1.set_title("Spectral Data")
         ax1.set_ylabel("Absorbance")
-        # ax1.set_ylim(y_min_dynamic, y_max_dynamic)
         ax1.set_ylim(CalcSettings.ylim_min_ProcessedData, CalcSettings.ylim_max_ProcessedData)
+
+        line_first = mlines.Line2D([], [], color=Defaults.colours_plot_first, marker='',
+                                  markersize=15, label='Before irr.')
+        line_last = mlines.Line2D([], [], color=Defaults.colours_plot_last, marker='',
+                                  markersize=15, label='PSS')
+        ax1.legend(handles=[line_first, line_last],
+                   loc='upper center')
 
         ###########################################
         ###### LED unprocessed and processed ######

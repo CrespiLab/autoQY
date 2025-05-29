@@ -24,9 +24,28 @@ PowerMethod = "Manual" ## Manual input of power
 threshold = 500
 ###############################################################################
 
-################## AXIS LIMITS FOR PROCESSED DATA ###################
+####################### AXIS LIMITS FOR PROCESSED DATA ########################
 xlim_min_ProcessedData = 220
 xlim_max_ProcessedData = 760
 ylim_min_ProcessedData = -0.1
-ylim_max_ProcessedData = 1.5
-###############################################################################
+ylim_max_ProcessedData = 1.25
+
+############################## COLOURS ########################################
+CrespiColours = {'black': "#000000",
+           'grey': "#808080",
+           'greylight': "#c0c0c0",
+           'greylighter': "#dddddd",
+           'greylightest': "#f2f2f2",
+           'blue': "#346aa9",
+           'bluelight': "#7dadce",
+           'bluelighter': "#e0edf6",
+           'orangered': "#872f17",
+           'orange': "#e16203",
+           'orangelight': "#ffd8b0",
+           'green': '#429130',
+           'greenlight': '#d7e5c5'}
+
+colours = CrespiColours # set default here
+colours_plot_first = colours['blue']
+colours_plot_last = colours['orange']
+colours_plot_grey = colours['greylighter']

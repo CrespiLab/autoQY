@@ -546,7 +546,6 @@ def main():
     ###=========================================================================###
     ###=========================================================================###
     
-        ##!!! move to tools.plotting
         def plot_epsilon(self):
             """ Plot epsilons spectra (before interpolation) """
             if LoadedData.epsilons_R_wavelengths is None or LoadedData.epsilons_P_wavelengths is None:
@@ -560,7 +559,6 @@ def main():
             
             self.add_new_tab(plot_func, "Epsilons (before interpolation)")
     
-        ##!!! move to tools.plotting
         def plot_spectra(self):
             """ Plot spectra recorded during irradiation """
             if LoadedData.SpectralData_Full is None:
@@ -574,7 +572,6 @@ def main():
             
             self.add_new_tab(plot_func, "Measurement Spectra")
                 
-        ##!!! move to tools.plotting
         def plot_LEDfull(self):
             """ Plot LED emission spectrum (full) """
             if LoadedData.LEDemission_wavelengths is None or LoadedData.LEDemission_intensity is None:
@@ -628,9 +625,12 @@ def main():
                 LoadedData.SpectralDataCut_Wavelengths, LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Index = \
                     Integration.Process_SpectralData(LoadedData.SpectralData_Full, Integration.wavelength_low, Integration.wavelength_high, ExpParams.LEDw)
             
-                ##!!! ADJUST CODE TO PLOT SPECTRA AND JUST INDICATE PART OF SPECTRUM (with a box)
                 def plot_func(canvas):
-                    """ Plot the data using MplCanvas """
+                    """ 
+                    Plot the data using MplCanvas.
+                    The function PlotData_Cut plots the full spectra in grey,
+                        and the cut spectra in colour
+                    """
                     canvas.PlotData_Cut(LoadedData.SpectralData_Absorbance, LoadedData.SpectralData_Wavelengths,
                                         LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Wavelengths,
                                         LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity,
@@ -665,19 +665,7 @@ def main():
             else:
                 QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the CalcSettings.CalculationMethod variable")
             
-            
-            
             #############
-            
-        ##!!! move to tools.plotting
-        # def PlotData_Cut(self,canvas):
-                
-        #     canvas.PlotData_Cut(LoadedData.SpectralData_Absorbance, LoadedData.SpectralData_Wavelengths,
-        #                         LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Wavelengths,
-        #                         LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity,
-        #                         Integration.LEDindex_first, Integration.LEDindex_last, 
-        #                         LoadedData.LEDemission_intensity_proc)
-            
     
         def Calc_QY(self, canvas):
             """
@@ -741,8 +729,6 @@ def main():
             else:
                 QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the CalcSettings.CalculationMethod variable")
                 
-    
-    
             ######################################################################
     
             ## Extract results from the fit
