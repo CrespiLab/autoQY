@@ -115,24 +115,24 @@ def Plot_Epsilons(wavelengths,
 ##################################################
 
 def CreateParameters(absorbance_values, wavelengths_data,
-                     e_A_inter, emission_inter):
+                     e_R_inter, emission_inter):
     """
     Create the parameters needed for the following functions
     """
     #########################################
     ##### trying out: input starting percentages ######
     #########################################
-    StartPercentage_A = float(100) ##!!! turn into optional parameter
+    StartPercentage_R = float(100) ##!!! turn into optional parameter
 
     # print(f"Integration-CreateParameters===absorbance_values:{absorbance_values}\nand shape:{absorbance_values.shape}")
     # print(f"Integration-CreateParameters===e_A_inter:{e_A_inter}\nand shape:{e_A_inter.shape}")
 
-    initial_conc_A_100 = trapezoid(absorbance_values[:,0],
-                                   x=wavelengths_data) / trapezoid(e_A_inter,
+    initial_conc_R_100 = trapezoid(absorbance_values[:,0],
+                                   x=wavelengths_data) / trapezoid(e_R_inter,
                                                                    x=wavelengths_data)
-    initial_conc_A = initial_conc_A_100/100*StartPercentage_A
-    initial_conc_B_0 = 0
-    initial_conc_B = initial_conc_B_0/100*(100-StartPercentage_A)
+    initial_conc_R = initial_conc_R_100/100*StartPercentage_R
+    initial_conc_P_0 = 0
+    initial_conc_P = initial_conc_P_0/100*(100-StartPercentage_R)
 #########################################
 #########################################
     # total_absorbance = absorbance_values.T  # array of total_absorbance values
@@ -141,7 +141,7 @@ def CreateParameters(absorbance_values, wavelengths_data,
     ## Normalize the LED emission spectrum to ensure the area under the curve is 1
     normalized_emission = emission_inter / trapezoid(emission_inter, lambda_meters)
 
-    return initial_conc_A, initial_conc_B, lambda_meters, normalized_emission
+    return initial_conc_R, initial_conc_P, lambda_meters, normalized_emission
 
 def rate_equations(concentrations, time, 
                    lambda_meters,
@@ -246,36 +246,3 @@ def MinimizeQYs(I0_list,
 
         fit_results.append(result_lmfit)
     return N, fit_results
-
-##################################################
-##!!! MOVE TO TOOLS
-def CalculateConcentrations(lambda_meters, 
-                            init_conc_A, init_conc_B,
-                            timestamps,
-                            QY_AB_opt, QY_BA_opt,
-                            e_A_inter, e_B_inter,
-                            N, V):
-    
-    ## Integrate the rate equations with the optimized parameters
-    conc_opt = odeint(rate_equations, [init_conc_A, init_conc_B], timestamps,
-                               args=(lambda_meters, QY_AB_opt, QY_BA_opt, 
-                                     e_A_inter, e_B_inter,
-                                     N, V))
-        
-    PSS_A = conc_opt[-1,0]/(init_conc_A+init_conc_B)*100
-    PSS_B = conc_opt[-1,1]/(init_conc_A+init_conc_B)*100
-    
-    print(f"At the PSS, {PSS_A:.2f} % of Reactant and {PSS_B:.2f} % of Product")
-    return conc_opt, PSS_A, PSS_B
-##################################################
-def GetFittedAbs(fit_results, conc_opt,
-                 e_A_inter, e_B_inter,
-                 timestamps,
-                 wavelengths_data):
-    ##### Get the fitted absorbance
-    result_lmfit=fit_results[0] ## results using I0_avg
-    total_abs_fit = conc_opt.dot(np.vstack([e_A_inter, e_B_inter]))
-    residuals = result_lmfit.residual.reshape((len(timestamps), 
-                                              len(wavelengths_data))).T
-    return total_abs_fit, residuals
-##################################################

@@ -25,6 +25,7 @@ import data.experimental_parameters as ExpParams
 import data.loaded_data as LoadedData
 import data.results as Results
 import data.calc_settings as CalcSettings
+import data.datasets as Datasets
 import user_config.defaults as Defaults
 
 import tools.load_data as LoadData
@@ -170,6 +171,16 @@ def main():
                 self.radioButton_PowerManual.setChecked(True)
             elif CalcSettings.PowerMethod == "PowerProcessing":
                 self.radioButton_PowerProcessing.setChecked(True)
+
+        def SetResultTextfields(self):
+            self.textEdit_QY_RtoP.setText(f"{Results.QY_AB_opt:.3f}") # optimised QY R to P
+            self.textEdit_QY_PtoR.setText(f"{Results.QY_BA_opt:.3f}") # optimised QY P to R
+            
+            self.textEdit_QYerror_RtoP.setText(f"{Results.error_QY_AB:.3f}") # error R to P
+            self.textEdit_QYerror_PtoR.setText(f"{Results.error_QY_BA:.3f}") # error P to R
+            
+            self.textEdit_PSS_R.setText(f"{Results.PSS_Reactant:.1f}") # %R at PSS
+            self.textEdit_PSS_P.setText(f"{Results.PSS_Product:.1f}") # %P at PSS
 
         ## Update methods for the parameters
         def update_V(self):
@@ -368,7 +379,7 @@ def main():
             LoadedData.PowersAtCuvette.pop(count) # remove result from dictionary
             LoadedData.ErrorsAtCuvette.pop(count) # remove result from dictionary
     
-            print(f"main-DeletePowerData_1===LoadedData.PowersAtCuvette:{LoadedData.PowersAtCuvette}")
+            # print(f"main-DeletePowerData_1===LoadedData.PowersAtCuvette:{LoadedData.PowersAtCuvette}")
             
             self.labels_power[count].setPlainText("")
             self.labels_error[count].setPlainText("")
@@ -535,7 +546,7 @@ def main():
                         LoadData.Import_SpectralData("Not", file_path)
                 elif file_type == "Log Irr":
                     # LoadedData.timestamps = LoadData.GetTimestamps(file_path)
-                    print("load_csv -- elif file_type == 'Log Irr'")
+                    # print("load_csv -- elif file_type == 'Log Irr'")
                     # print(f"CalcSettings.format_timestamps = {CalcSettings.format_timestamps}")
                     LoadedData.timestamps = LoadData.GetTimestamps(file_path)
                 else:
@@ -615,10 +626,10 @@ def main():
                     return
                 
                 ########################################
-                threshold_LED = CalcSettings.threshold
+                # threshold_LED = CalcSettings.threshold
                 LoadedData.LEDemission_intensity_proc, Integration.LEDindex_first, Integration.LEDindex_last, Integration.wavelength_low, Integration.wavelength_high = \
                     Integration.Processing_LEDemission(
-                        LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity, threshold_LED)
+                        LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity, CalcSettings.threshold)
                 
                 ########################################
                 ## Process Spectral data: cut to part of spectrum according to LED emission band
@@ -636,10 +647,8 @@ def main():
                                         LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity,
                                         Integration.LEDindex_first, Integration.LEDindex_last, 
                                         LoadedData.LEDemission_intensity_proc)
-                    print("process_LED===plot_func===after canvas.PlotDat_Cut")
                     
                 self.add_new_tab(plot_func, "LED Emission and Spectral Data")
-                print("process_LED===after self.add_new_tab")
             
                 LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp, LoadedData.emission_interp = Integration.Interpolate_Epsilons(
                     LoadedData.SpectralDataCut_Wavelengths,
@@ -653,8 +662,7 @@ def main():
                     QtWidgets.QMessageBox.warning(self, "Error", "Please load Spectra.")
                     return
     
-    
-            ##!!! WORKING ON IT HERE NOT FINISHED YET AAAHHH
+            ##!!! WORKING ON IT HERE
                 LoadedData.SpectralDataCut_Wavelengths, LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Index = \
                     SingleWavelength.Process_SpectralData(LoadedData.SpectralData_Full, Integration.wavelength_low, Integration.wavelength_high, ExpParams.LEDw)
     
@@ -692,21 +700,19 @@ def main():
                 QtWidgets.QMessageBox.warning(self, "Error", "Please load the Timestamps log file.")
                 return
             
-            ## Make list of powers
-            I0_avg = ExpParams.I0_avg
-            I0_err = ExpParams.I0_err
-            I0_list = [I0_avg, I0_avg+I0_err, I0_avg-I0_err]
-    
+            Datasets.I0_list = Datasets.ListPowers(ExpParams.I0_avg, ExpParams.I0_err) ## Make list of powers
+
             if CalcSettings.CalculationMethod == "Integration":
                 ## Create parameters needed for fitting
-                initial_conc_A, initial_conc_B, spectraldata_meters, normalized_emission = \
+                Datasets.initial_conc_R, Datasets.initial_conc_P, Datasets.wavelengths_meters, Datasets.normalized_emission = \
                     Integration.CreateParameters(LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Wavelengths,
                                                 LoadedData.epsilons_R_interp, LoadedData.emission_interp)
         
                 
-                N, fit_results = Integration.MinimizeQYs(I0_list, normalized_emission,
-                                                        spectraldata_meters, 
-                                                        initial_conc_A, initial_conc_B,
+                Datasets.N, Datasets.fit_results = Integration.MinimizeQYs(Datasets.I0_list, 
+                                                        Datasets.normalized_emission,
+                                                        Datasets.wavelengths_meters, 
+                                                        Datasets.initial_conc_R, Datasets.initial_conc_P,
                                                         LoadedData.timestamps, LoadedData.SpectralDataCut_Abs,
                                                         LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
                                                         ExpParams.V)
@@ -717,54 +723,51 @@ def main():
                 print(f"Calc_QY SingleWavelength SpectralData_Abs:\n{LoadedData.SpectralDataCut_Abs}")
                 
                 ## Create parameters needed for fitting
-                initial_conc_A, initial_conc_B, LoadedData.SpectralData_AbsAtLEDw = \
+                initial_conc_R, initial_conc_P, LoadedData.SpectralData_AbsAtLEDw = \
                     SingleWavelength.CreateParameters(LoadedData.SpectralData_Absorbance, ExpParams.LEDw, ExpParams.epsilon_R)
                 
-                N, fit_results = SingleWavelength.MinimizeQYs(I0_list, ExpParams.LEDw,
-                                                              initial_conc_A, initial_conc_B,
+                N, fit_results = SingleWavelength.MinimizeQYs(Datasets.I0_list, ExpParams.LEDw,
+                                                              initial_conc_R, initial_conc_P,
                                                               LoadedData.timestamps, LoadedData.SpectralData_AbsAtLEDw,
                                                               ExpParams.epsilon_R, ExpParams.epsilon_P,
                                                               ExpParams.V)
                 
             else:
                 QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the CalcSettings.CalculationMethod variable")
-                
+            
+            self.Extract_QY() # extract QY results and display
             ######################################################################
-    
+
+        def Extract_QY(self):
+            '''
+            Extract results from minimisation.
+
+            Returns
+            -------
+            None.
+
+            '''
             ## Extract results from the fit
-            Results.QY_AB_opt, Results.QY_BA_opt, Results.error_QY_AB, Results.error_QY_BA = ExtractResults.ExtractResults(fit_results)
+            Results.QY_AB_opt, Results.QY_BA_opt, Results.error_QY_AB, Results.error_QY_BA = ExtractResults.ExtractResults(Datasets.fit_results)
     
-    
-            ##!!! MOVE TO QY.Integration
             ## Calculate optimized concentrations
-            Results.conc_opt, Results.PSS_Reactant, Results.PSS_Product = Integration.CalculateConcentrations(spectraldata_meters,
-                                                        initial_conc_A, initial_conc_B, 
+            Results.conc_opt, Results.PSS_Reactant, Results.PSS_Product = ExtractResults.CalculateConcentrations(Datasets.wavelengths_meters,
+                                                        Datasets.initial_conc_R, Datasets.initial_conc_P, 
                                                         LoadedData.timestamps,
                                                         Results.QY_AB_opt, Results.QY_BA_opt, 
                                                         LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
-                                                        N, ExpParams.V)
+                                                        Datasets.N, ExpParams.V)
     
             ## Calculate total absorbance and residuals
-            Results.total_abs_fit, Results.residuals = Integration.GetFittedAbs(fit_results, Results.conc_opt,
+            Results.total_abs_fit, Results.residuals = ExtractResults.GetFittedAbs(Datasets.fit_results,
+                                                                Results.conc_opt,
                                                                 LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
                                                                 LoadedData.timestamps,
                                                                 LoadedData.SpectralDataCut_Wavelengths)
             
             ######################################################################
-            
-            ## Update labels
-            ##!!! MAKE THIS A SEPARATE FUNCTION
-            self.textEdit_QY_RtoP.setText(f"{Results.QY_AB_opt:.3f}") # optimised QY R to P
-            self.textEdit_QY_PtoR.setText(f"{Results.QY_BA_opt:.3f}") # optimised QY P to R
-            
-            self.textEdit_QYerror_RtoP.setText(f"{Results.error_QY_AB:.3f}") # error R to P
-            self.textEdit_QYerror_PtoR.setText(f"{Results.error_QY_BA:.3f}") # error P to R
-            
-            self.textEdit_PSS_R.setText(f"{Results.PSS_Reactant:.1f}") # %R at PSS
-            self.textEdit_PSS_P.setText(f"{Results.PSS_Product:.1f}") # %P at PSS
-            
-            ## Plot and save the results
-            self.add_new_tab(self.Plot_QY, "QY")
+            self.SetResultTextfields() ## Update textfields to show results
+            self.add_new_tab(self.Plot_QY, "QY") ## Plot and save the results
             QtWidgets.QMessageBox.information(self, "Success", "Results extracted and plotted!")
     
         def Plot_QY(self, canvas):

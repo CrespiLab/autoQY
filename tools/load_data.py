@@ -43,10 +43,10 @@ def Import_SpectralData(FileFormat, file):
     # print(f"Integration-Import_SpectralData===data_pd_full:{data_pd_full}")
 
     data_pd_wavelengths = data_pd['Wavelength [nm]']
-    print(f"LoadData===Import_SpectralData===data_pd_wavelengths:\n{data_pd_wavelengths}")
+    # print(f"LoadData===Import_SpectralData===data_pd_wavelengths:\n{data_pd_wavelengths}")
     data_pd_absorbance = data_pd.iloc[:,1:]
-    print(f"LoadData===Import_SpectralData===data_pd_absorbance:\n{data_pd_absorbance}\n \
-          data_pd_absorbance.shape: {data_pd_absorbance.shape}")
+    # print(f"LoadData===Import_SpectralData===data_pd_absorbance:\n{data_pd_absorbance}\n \
+          # data_pd_absorbance.shape: {data_pd_absorbance.shape}")
     # print(f"data_pd_absorbance[0]: {data_pd_absorbance[0]}")
 
     return data_pd_full, data_pd_wavelengths, data_pd_absorbance
@@ -85,6 +85,3 @@ def Import_LEDemission(FileFormat, file_LEDemission_raw):
     emission_wavelengths = emission_data['Wavelength [nm]'].values
     emission_Intensity = emission_data['Intensity'].values ## not normalised
     return emission_wavelengths, emission_Intensity
-    
-
-

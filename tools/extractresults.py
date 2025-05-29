@@ -4,6 +4,9 @@ Created on Fri Nov  8 16:59:07 2024
 
 @author: jorst136
 """
+import numpy as np
+from scipy.integrate import odeint
+from QY.integration import rate_equations
 
 def ExtractResults(fit_results):
     """ Extract optimised QYs and errors """
@@ -48,3 +51,41 @@ def ExtractResults(fit_results):
     print(f"Error for QY_BA: {error_QY_BA:.5f} ")
     
     return QY_AB_opt_avg, QY_BA_opt_avg, error_QY_AB, error_QY_BA
+
+def CalculateConcentrations(lambda_meters, 
+                            init_conc_A, init_conc_B,
+                            timestamps,
+                            QY_AB_opt, QY_BA_opt,
+                            e_A_inter, e_B_inter,
+                            N, V):
+    '''
+    Calculate concentrations over time using optimised QYs
+    '''
+    
+    ## Integrate the rate equations with the optimized parameters
+    conc_opt = odeint(rate_equations, 
+                      [init_conc_A, init_conc_B], 
+                      timestamps,
+                      args=(lambda_meters, QY_AB_opt, QY_BA_opt, 
+                            e_A_inter, e_B_inter, 
+                            N, V))
+        
+    PSS_A = conc_opt[-1,0]/(init_conc_A+init_conc_B)*100
+    PSS_B = conc_opt[-1,1]/(init_conc_A+init_conc_B)*100
+    
+    print(f"At the PSS, {PSS_A:.2f} % of Reactant and {PSS_B:.2f} % of Product")
+    return conc_opt, PSS_A, PSS_B
+
+def GetFittedAbs(fit_results, conc_opt,
+                 e_A_inter, e_B_inter,
+                 timestamps,
+                 wavelengths_data):
+    ''' 
+    Get the fitted absorbance
+    '''
+    result_lmfit=fit_results[0] ## results using I0_avg
+    total_abs_fit = conc_opt.dot(np.vstack([e_A_inter, e_B_inter]))
+    residuals = result_lmfit.residual.reshape((len(timestamps), 
+                                              len(wavelengths_data))).T
+    return total_abs_fit, residuals
+##################################################
