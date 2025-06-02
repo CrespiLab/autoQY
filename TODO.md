@@ -6,6 +6,7 @@
 
 - [ ] Improve tabs functionality
   - [ ] Automatically show newly generated tab
+- [ ] Introduce DPI auto-scaling to accommodate all screen resolutions
 
 
 ## In Progress :)
