@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Steen"
+  given-names: "Jorn D."
+  orcid: "https://orcid.org/0000-0002-7568-9370"
+- family-names: "Bellisario"
+  given-names: "Alfredo"
+  orcid: "https://orcid.org/0000-0001-5155-4431"
+title: "autoQY"
+version: 1.0.0
+doi: 
+date-released: 2025-08-26
+url: "https://github.com/CrespiLab/autoQY"
