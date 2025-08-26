@@ -4,16 +4,14 @@
 - [ ] Create CITATION.cff
 - [ ] Release version 1.0.0
 
-- [ ] Improve tabs functionality
-  - [ ] Automatically show newly generated tab
 - [ ] Introduce DPI auto-scaling to accommodate all screen resolutions
-
 
 ## In Progress :)
 - [ ] Error handling
   - [ ] Upon save results: ask if users wants to overwrite existing filename
 - [ ] Improve tabs functionality
-  - [ ] Enable closing of tabs
+  - [x] Enable closing of tabs
+  - [ ] Automatically show newly generated tab
 
 ## Completed ✓
 - [x] Simplify installation instructions
