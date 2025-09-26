@@ -1,28 +1,44 @@
+# -*- coding: utf-8 -*-
+import numpy as np
 import pandas as pd
 import data.calc_settings as CalcSettings
 
-# def GetTimestamps(LogFile):
 def GetTimestamps(LogFile):
     """ Obtain timestamps from .ahk log file """
     ##!!! should add a function that checks that the format is correct
     
     ## CSV not DAT
     if CalcSettings.format_timestamps == "AHK":
-        #print("Start of load_data.GetTimestamps")
-        log = pd.read_csv(LogFile,
-                        sep = ",", decimal = ".", skiprows = 1, header=None,)
-        #print(f"log:\n{log}")
-        log_measure=log[log[log.columns[3]] == 'Measure']
-        measurement_timestamps = log_measure.iloc[:, [0, 2]]
-        measurement_timestamps.columns = ["Measurement", "Timestamp (s)"]
-        timestamps = measurement_timestamps.iloc[:,1].to_numpy()
+        ''' Return corrected timestamps:
+            - generate time intervals from time logged between turning LED on and off,
+            i.e. the actual irradiation time.
+            - Re-create timestamps by doing a cumulative sum of the obtained intervals,
+            after the addition of timestamps 0.0 s to the start of the array
+        '''
+        log = pd.read_csv(LogFile, sep = ",", decimal = ".")
+        log_measure=log[log[log.columns[3]] == 'Measure'] ## Measure lines in log file
+        log_LEDon=log[log[log.columns[3]] == 'LEDon']
+        log_LEDoff=log[log[log.columns[3]] == 'LEDoff']
+        
+        measure = log_measure.iloc[:, [2]].to_numpy() ## array of Measure instances
+        timestamps_LEDon = log_LEDon.iloc[:, [2]].to_numpy()
+        timestamps_LEDoff = log_LEDoff.iloc[:, [2]].to_numpy()
+        timestamps_LEDon = timestamps_LEDon[:len(timestamps_LEDoff)]
+        intervals_OffMinusOn = timestamps_LEDoff - timestamps_LEDon
+        
+        timestamps = np.cumsum(np.insert(intervals_OffMinusOn, 0, 0.0)) ## cumulative sum; add 0 to start
+        
+        if len(measure) != len(timestamps): ## remove final element in case of extra set of LEDon-LEDoff lines in log file
+            timestamps = timestamps[:len(measure)]
+            print(f"Cut timestamps array to length of Measure array: {len(measure)}")
+        else:
+            pass
+        print(f"timestamps len: {len(timestamps)}")
     elif CalcSettings.format_timestamps == "Default":
         log = pd.read_csv(LogFile,
                         sep = ",", decimal = ".", skiprows = 1, header=None,)
         log.columns = ["Measurement", "Timestamp (s)"]
         timestamps = log.iloc[:,1].to_numpy()
-    # else:
-
     return timestamps
 
 def Import_SpectralData(FileFormat, file):
