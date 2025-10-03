@@ -173,14 +173,14 @@ def main():
                 self.radioButton_PowerProcessing.setChecked(True)
 
         def SetResultTextfields(self):
-            self.textEdit_QY_RtoP.setText(f"{Results.QY_AB_opt:.3f}") # optimised QY R to P
-            self.textEdit_QY_PtoR.setText(f"{Results.QY_BA_opt:.3f}") # optimised QY P to R
+            self.plaintextEdit_QY_RtoP.setText(f"{Results.QY_AB_opt:.3f}") # optimised QY R to P
+            self.plaintextEdit_QY_PtoR.setText(f"{Results.QY_BA_opt:.3f}") # optimised QY P to R
             
-            self.textEdit_QYerror_RtoP.setText(f"{Results.error_QY_AB:.3f}") # error R to P
-            self.textEdit_QYerror_PtoR.setText(f"{Results.error_QY_BA:.3f}") # error P to R
+            self.plaintextEdit_QYerror_RtoP.setText(f"{Results.error_QY_AB:.3f}") # error R to P
+            self.plaintextEdit_QYerror_PtoR.setText(f"{Results.error_QY_BA:.3f}") # error P to R
             
-            self.textEdit_PSS_R.setText(f"{Results.PSS_Reactant:.1f}") # %R at PSS
-            self.textEdit_PSS_P.setText(f"{Results.PSS_Product:.1f}") # %P at PSS
+            self.plaintextEdit_PSS_R.setText(f"{Results.PSS_Reactant:.1f}") # %R at PSS
+            self.plaintextEdit_PSS_P.setText(f"{Results.PSS_Product:.1f}") # %P at PSS
 
         ## Update methods for the parameters
         def update_V(self):
