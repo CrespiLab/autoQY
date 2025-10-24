@@ -8,6 +8,8 @@ Created on Fri May 23 20:17:52 2025
 format_timestamps = ""
 
 CalculationMethod = "" ## default calculation method is Integration
+ODEMethod = "" ## method of solving differential equations
+BaselineCorrection_LED = "" ## baseline correction applied to LED emission spectrum (yes or no)
 
 PowerMethod = ""
 

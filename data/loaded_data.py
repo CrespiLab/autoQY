@@ -12,6 +12,7 @@ PowersAtCuvette = {}
 ErrorsAtCuvette = {}
 
 filename_LED = None
+filename_spectra = None
 
 epsilons_R_wavelengths = None 
 epsilons_R_values = None

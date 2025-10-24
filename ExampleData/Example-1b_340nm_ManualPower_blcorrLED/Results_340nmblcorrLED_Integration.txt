@@ -1,0 +1,13 @@
+PSS_Reactant (%): 3.9
+PSS_Product (%): 96.1
+QY_AB_opt (%): 16.8
+QY_BA_opt (%): 40.9
+error_QY_AB (%): 0.1
+error_QY_BA (%): 0.4
+Volume (ml): 3.0
+k thermal back-reaction (s-1): 0.0
+Power average (mW): 0.74
+Power error (mW): 0.004
+Wavelength of irradiation: 340
+Calculation Method: Integration
+Threshold: 500
