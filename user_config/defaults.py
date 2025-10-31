@@ -26,6 +26,10 @@ xlim_max_ProcessedData = 760
 ylim_min_ProcessedData = -0.1
 ylim_max_ProcessedData = 1.25
 
+##################### WAVELENGTH RANGE OF PROCESSED DATA#######################
+wl_low = 250
+wl_high = 800
+
 ####################### LED Wavelength ########################
 LEDw = 340
 
@@ -48,3 +52,4 @@ colours = CrespiColours # set default here
 colours_plot_first = colours['blue']
 colours_plot_last = colours['orange']
 colours_plot_grey = colours['greylighter']
+###############################################################################

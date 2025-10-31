@@ -85,8 +85,21 @@ def LEDemission_WavelengthLimits(wavelengths_LED, intensity_LED_proc, threshold)
 
 def Epsilons_WavelengthLimits(epsilon_A_wavelengths, epsilon_B_wavelengths):
     ''' Obtain limits of epsilons wavelength data '''
-    wavelength_low = min([epsilon_A_wavelengths[0],epsilon_B_wavelengths[0]])
-    wavelength_high = min([epsilon_A_wavelengths[-1],epsilon_B_wavelengths[-1]])
+    
+    
+    epsilon_wl_low = min([epsilon_A_wavelengths[0],epsilon_B_wavelengths[0]])
+    epsilon_wl_high = min([epsilon_A_wavelengths[-1],epsilon_B_wavelengths[-1]])
+    
+    if epsilon_wl_low < CalcSettings.wl_low:
+        wavelength_low = CalcSettings.wl_low
+    else:
+        wavelength_low = epsilon_wl_low
+    
+    if epsilon_wl_high > CalcSettings.wl_high:
+        wavelength_high = CalcSettings.wl_high
+    else:
+        wavelength_high = epsilon_wl_high
+    
     return wavelength_low, wavelength_high
 
 ##################################################

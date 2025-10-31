@@ -35,13 +35,14 @@ import tools.extractresults as ExtractResults
 
 import tools.power_processing as PowerProcessing
 
-from UIs.MainWindow_large import Ui_MainWindow
+from UIs.MainWindow import Ui_MainWindow
 
 ##!!! ADD statusBar messages: self.statusBar.showMessage(f"success, successful: {err}")    
     ## for successful loading
 ## make it a statusFIELD so that there is a log of messages visible
 ## for severe issues: use pop-up window still
 
+##!!! Convert all TextEdits to LineEdits: will prevent scroll bar from appearing (hopefully)
 
 def main():
     class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
@@ -123,6 +124,8 @@ def main():
             self.plainTextEdit_ManPowerError.textChanged.connect(self.update_I0_err)
             self.plainTextEdit_LEDWavelength.textChanged.connect(self.update_LEDw_Integration) # Integration Mode
             self.plainTextEdit_Threshold.textChanged.connect(self.update_threshold) # 
+            self.plainTextEdit_WavelengthRange_Min.textChanged.connect(self.update_wl_range) # 
+            self.plainTextEdit_WavelengthRange_Max.textChanged.connect(self.update_wl_range) # 
     
             ## Buttons for processing and plot functions ##
             self.plotEpsilonButton.clicked.connect(self.plot_epsilon)
@@ -131,7 +134,7 @@ def main():
             self.ProcessPlotDataButton_Concentrations.clicked.connect(self.process_LED) # Concentrations ODE method
             self.CalculateFractionsButton.clicked.connect(self.Calc_Fractions)
             self.PlotFractionsResidualsButton.clicked.connect(self.plot_fractions_residuals) ## new window: plot obtained fractions with residuals
-            self.ProcessPlotDataButton.clicked.connect(self.process_LED) # Emissions ODE method
+            self.ProcessPlotDataButton_Emission.clicked.connect(self.process_LED) # Emissions ODE method
             self.CalcQYButton.clicked.connect(self.Calc_QY)
             
             #### INITIALISATION ####
@@ -151,6 +154,8 @@ def main():
             self.plainTextEdit_6.setPlainText(str(ExpParams.I0_avg)) # PowerProcessing: Calculated Power
             self.plainTextEdit_8.setPlainText(str(ExpParams.I0_err)) # PowerProcessing: Error
             self.plainTextEdit_Threshold.setPlainText(str(CalcSettings.threshold)) # Threshold for LED Emission spectrum
+            self.plainTextEdit_WavelengthRange_Min.setPlainText(str(CalcSettings.wl_low)) # Low wavelength range for Concentrations ODE METHOD
+            self.plainTextEdit_WavelengthRange_Max.setPlainText(str(CalcSettings.wl_high)) # High wavelength range for Concentrations ODE METHOD
     
         def SetDefaultSettings(self):
             CalcSettings.format_timestamps = Defaults.format_timestamps
@@ -162,6 +167,8 @@ def main():
             CalcSettings.xlim_max_ProcessedData = Defaults.xlim_max_ProcessedData
             CalcSettings.ylim_min_ProcessedData = Defaults.ylim_min_ProcessedData
             CalcSettings.ylim_max_ProcessedData = Defaults.ylim_max_ProcessedData
+            CalcSettings.wl_low = Defaults.wl_low
+            CalcSettings.wl_high = Defaults.wl_high
             ExpParams.LEDw = Defaults.LEDw
     
         def SetButtons(self):
@@ -254,6 +261,15 @@ def main():
             except ValueError:
                 pass
     
+        def update_wl_range(self):
+            """Update values for wavelength range for processing data for ODE Concentrations method"""
+            try:
+                CalcSettings.wl_low = int(self.plainTextEdit_WavelengthRange_Min.toPlainText())
+                CalcSettings.wl_high = int(self.plainTextEdit_WavelengthRange_Max.toPlainText())
+                print(f"Updated wavelength range to {CalcSettings.wl_low}-{CalcSettings.wl_high}")
+            except ValueError:
+                pass
+    
         def handle_radio_selection(self):
             if self.radioButton_PowerManual.isChecked(): # Power Manual Input
                 self.update_I0_avg # set I0_avg to current text
@@ -311,20 +327,27 @@ def main():
                 self.PlotFractionsResidualsButton.setEnabled(True) # 
                 self.radioButton_blcorrLED_on.setEnabled(True)
                 self.radioButton_blcorrLED_off.setEnabled(True)
-                self.label_22.setEnabled(True)
+                # self.label_LEDwavelength.setEnabled(True)
+                
+                self.groupBox_Conc_Process.setEnabled(True)
+                self.groupBox_blcorrLED.setEnabled(True)
+                self.groupBox_Conc_wlrange.setEnabled(True)
+                self.plainTextEdit_WavelengthRange_Min.setEnabled(True)
+                self.label_Conc_wlrange_dash.setEnabled(True)
+                self.plainTextEdit_WavelengthRange_Max.setEnabled(True)
+                self.label_Conc_wlrange_nm.setEnabled(True)
+                                
+                self.label_Threshold.setEnabled(False) # threshold label
                 self.plainTextEdit_Threshold.setEnabled(False) # 
-                self.ProcessPlotDataButton.setEnabled(False)
-                self.label_20.setEnabled(False)
+                self.ProcessPlotDataButton_Emission.setEnabled(False)
+                
                 CalcSettings.ODEMethod = "Concentrations"
-                # print(f"CalcSettings.ODEMethod: {CalcSettings.ODEMethod}")
 
             if self.radioButton_blcorrLED_on.isChecked(): # Baseline Correction of LED
                 CalcSettings.BaselineCorrection_LED = "ON"
-                # print(f"radiobutton_blcorrLED_on checked. CalcSettings.BaselineCorrection_LED: {CalcSettings.BaselineCorrection_LED}")
 
             if self.radioButton_blcorrLED_off.isChecked(): # Baseline Correction of LED
                 CalcSettings.BaselineCorrection_LED = "OFF"
-                # print(f"radiobutton_blcorrLED_off checked. CalcSettings.BaselineCorrection_LED: {CalcSettings.BaselineCorrection_LED}")
     
             if self.radioButton_ODE_Emission.isChecked(): # ODE Solving Method Emission
                 self.ProcessPlotDataButton_Concentrations.setEnabled(False)
@@ -332,20 +355,23 @@ def main():
                 self.PlotFractionsResidualsButton.setEnabled(False) # SingleWavelength epsilon Reactant
                 self.radioButton_blcorrLED_on.setEnabled(False)
                 self.radioButton_blcorrLED_off.setEnabled(False)
-                self.label_22.setEnabled(False)
+                self.groupBox_Conc_Process.setEnabled(False)
+                self.groupBox_blcorrLED.setEnabled(False)
+                self.groupBox_Conc_wlrange.setEnabled(False)
+                self.plainTextEdit_WavelengthRange_Min.setEnabled(False)
+                self.label_Conc_wlrange_dash.setEnabled(False)
+                self.plainTextEdit_WavelengthRange_Max.setEnabled(False)
+                self.label_Conc_wlrange_nm.setEnabled(False)
                 self.plainTextEdit_Threshold.setEnabled(True) # Integration wavelength (nm)
-                self.ProcessPlotDataButton.setEnabled(True)
-                self.label_20.setEnabled(True)
+                self.ProcessPlotDataButton_Emission.setEnabled(True)
+                self.label_Threshold.setEnabled(True)
                 CalcSettings.ODEMethod = "Emission"
-                # print(f"CalcSettings.ODEMethod: {CalcSettings.ODEMethod}")
             
             if self.radioButton_Log_Default.isChecked(): # Timestamps: Default
                 CalcSettings.format_timestamps = "Default"
-                # print(f"self.radioButton_Log_Default.isChecked()=====CalcSettings.format_timestamps = {CalcSettings.format_timestamps}")
     
             if self.radioButton_Log_AHK.isChecked(): # Timestamps: AHK format (Crespi group)
                 CalcSettings.format_timestamps = "AHK"
-                # print(f"self.radioButton_Log_AHK.isChecked()=====CalcSettings.format_timestamps = {CalcSettings.format_timestamps}")
 
         ############################################################################################################
 
@@ -668,7 +694,7 @@ def main():
                 QtWidgets.QMessageBox.warning(self, "Error", "Please load Epsilons Product.")
                 return
 
-            ''' Obtain smoothed and non-zeroed LED emission data '''
+            ''' Obtain smoothed and non-negatived LED emission data '''
             LoadedData.LEDemission_intensity_proc = \
                 Integration.Process_LEDemission(LoadedData.LEDemission_wavelengths,
                                                 LoadedData.LEDemission_intensity)
@@ -676,15 +702,12 @@ def main():
             ########################################
             if CalcSettings.ODEMethod == "Emission":
                 ''' Find indices for wavelengths low and high end of LED emission data'''
-                # Integration.LEDindex_first, Integration.LEDindex_last, 
                 (Integration.wavelength_low, Integration.wavelength_high) = \
                     Integration.LEDemission_WavelengthLimits(
                         LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity_proc, CalcSettings.threshold)
             
             elif CalcSettings.ODEMethod == "Concentrations":
-                # print(f"LoadedData.epsilons_R_wavelengths: {LoadedData.epsilons_R_wavelengths}")
                 ''' Find indices for wavelengths low and high end of epsilons data'''
-                # Integration.LEDindex_first, Integration.LEDindex_last, 
                 (Integration.wavelength_low, Integration.wavelength_high) = \
                     Integration.Epsilons_WavelengthLimits(
                         LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_P_wavelengths)
@@ -717,12 +740,10 @@ def main():
                     and the cut spectra in colour
                 """
                 ##!!! probably can remove: LoadedData.LEDemission_wavelengths, 
-                 ## Integration.LEDindex_first, Integration.LEDindex_last, 
                  
                 canvas.PlotData_Cut(LoadedData.SpectralData_Absorbance, LoadedData.SpectralData_Wavelengths,
                                     LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Wavelengths,
                                     LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity,
-                                    # Integration.LEDindex_first, Integration.LEDindex_last, 
                                     LoadedData.emission_interp) ## use interpolated (and cut) LED emission data
                     
             self.add_new_tab(plot_func, "Processed Spectra")
@@ -892,17 +913,12 @@ def main():
                                    Results.error_QY_AB, Results.error_QY_BA,
                                    CalcSettings.ODEMethod)
 
-            ##!!! ADDED
             elif CalcSettings.ODEMethod == "Concentrations":
                 canvas.PlotResults_Conc(ExpParams.LEDw,
                                    LoadedData.timestamps,
                                    Results.conc_opt,
                                    Datasets.concs_RP,
                                    LoadedData.SpectralDataCut_Wavelengths,
-                                   # LoadedData.SpectralDataCut_Abs,
-                                   # LoadedData.SpectralDataCut_Index,
-                                   # Results.total_abs_fit,
-                                   # Results.residuals,
                                    LoadedData.epsilons_R_interp,
                                    LoadedData.epsilons_P_interp,
                                    Results.QY_AB_opt, Results.QY_BA_opt,
@@ -986,8 +1002,12 @@ def main():
                               'Power average (mW)': ExpParams.I0_avg,
                               'Power error (mW)': ExpParams.I0_err,
                               'Wavelength of irradiation': ExpParams.LEDw}
+            
+            ##!!! ADD DATA DEPENDING ON METHOD
+                ### if Emission: add Threshold
+                ### if Concentrations: add ...
     
-            dict_calcsettings = {'Calculation Method': CalcSettings.CalculationMethod,
+            dict_calcsettings = {'Calculation Method': CalcSettings.ODEMethod,
                                  'Threshold': CalcSettings.threshold}
     
             try:
