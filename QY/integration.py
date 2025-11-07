@@ -33,7 +33,7 @@ def Process_LEDemission(wavelengths_LED, intensity_LED):
         emission_Intensity_proc = emission_Intensity_smoothed
     else:
         print("Something wrong with CalcSettings.BaselineCorrection_LED")
-    
+
     emission_Intensity_proc[emission_Intensity_proc[:]<0] = 0 ## removal of negative values
     
     return emission_Intensity_proc

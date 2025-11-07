@@ -100,14 +100,14 @@ def main():
             self.calculatePowerButton.clicked.connect(self.calculate_total_power) ## Calculates average power+error
     
             #######
-            self.radioButton_ODE_Concentration.toggled.connect(self.handle_radio_selection)
-            self.radioButton_ODE_Emission.toggled.connect(self.handle_radio_selection)
-            self.radioButton_PowerManual.toggled.connect(self.handle_radio_selection)
-            self.radioButton_PowerProcessing.toggled.connect(self.handle_radio_selection)
-            self.radioButton_Log_Default.toggled.connect(self.handle_radio_selection) # Timestamps Default
-            self.radioButton_Log_AHK.toggled.connect(self.handle_radio_selection) # Timestamps AHK
-            self.radioButton_blcorrLED_on.toggled.connect(self.handle_radio_selection)
-            self.radioButton_blcorrLED_off.toggled.connect(self.handle_radio_selection)
+            self.radioButton_ODE_Concentration.toggled.connect(self.handle_radio_selection_ODE)
+            self.radioButton_ODE_Emission.toggled.connect(self.handle_radio_selection_ODE)
+            self.radioButton_PowerManual.toggled.connect(self.handle_radio_selection_Power)
+            self.radioButton_PowerProcessing.toggled.connect(self.handle_radio_selection_Power)
+            self.radioButton_Log_Default.toggled.connect(self.handle_radio_selection_Log) # Timestamps Default
+            self.radioButton_Log_AHK.toggled.connect(self.handle_radio_selection_Log) # Timestamps AHK
+            self.radioButton_blcorrLED_on.toggled.connect(self.handle_radio_selection_blcorrLED)
+            self.radioButton_blcorrLED_off.toggled.connect(self.handle_radio_selection_blcorrLED)
     
             # Connecting buttons to their respective methods
             self.LoadLED.clicked.connect(lambda: self.load_file("LED Emission"))
@@ -140,7 +140,7 @@ def main():
             #### INITIALISATION ####
             self.SetButtons()
             self.SetTextfields() # Set ExpParams in text fields
-            self.handle_radio_selection()
+            self.handle_radio_selections()
         
         ######################################################################
         
@@ -163,6 +163,7 @@ def main():
             CalcSettings.ODEMethod = Defaults.ODEMethod
             CalcSettings.PowerMethod = Defaults.PowerMethod
             CalcSettings.threshold = Defaults.threshold
+            CalcSettings.BaselineCorrection_LED = Defaults.BaselineCorrection_LED
             CalcSettings.xlim_min_ProcessedData = Defaults.xlim_min_ProcessedData
             CalcSettings.xlim_max_ProcessedData = Defaults.xlim_max_ProcessedData
             CalcSettings.ylim_min_ProcessedData = Defaults.ylim_min_ProcessedData
@@ -270,7 +271,13 @@ def main():
             except ValueError:
                 pass
     
-        def handle_radio_selection(self):
+        def handle_radio_selections(self):
+            self.handle_radio_selection_Power()
+            self.handle_radio_selection_ODE()
+            self.handle_radio_selection_Log()
+            self.handle_radio_selection_blcorrLED()
+            
+        def handle_radio_selection_Power(self):            
             if self.radioButton_PowerManual.isChecked(): # Power Manual Input
                 self.update_I0_avg # set I0_avg to current text
                 self.update_I0_err # set I0_err to current text
@@ -320,7 +327,8 @@ def main():
                 self.plainTextEdit_6.setEnabled(True)
                 self.plainTextEdit_8.setEnabled(True)
                 CalcSettings.PowerMethod = "PowerProcessing"
-                
+
+        def handle_radio_selection_ODE(self):
             if self.radioButton_ODE_Concentration.isChecked(): # ODE Solving Method Concentrations
                 self.ProcessPlotDataButton_Concentrations.setEnabled(True)
                 self.CalculateFractionsButton.setEnabled(True) # 
@@ -342,12 +350,6 @@ def main():
                 self.ProcessPlotDataButton_Emission.setEnabled(False)
                 
                 CalcSettings.ODEMethod = "Concentrations"
-
-            if self.radioButton_blcorrLED_on.isChecked(): # Baseline Correction of LED
-                CalcSettings.BaselineCorrection_LED = "ON"
-
-            if self.radioButton_blcorrLED_off.isChecked(): # Baseline Correction of LED
-                CalcSettings.BaselineCorrection_LED = "OFF"
     
             if self.radioButton_ODE_Emission.isChecked(): # ODE Solving Method Emission
                 self.ProcessPlotDataButton_Concentrations.setEnabled(False)
@@ -367,11 +369,18 @@ def main():
                 self.label_Threshold.setEnabled(True)
                 CalcSettings.ODEMethod = "Emission"
             
+        def handle_radio_selection_Log(self):
             if self.radioButton_Log_Default.isChecked(): # Timestamps: Default
                 CalcSettings.format_timestamps = "Default"
     
             if self.radioButton_Log_AHK.isChecked(): # Timestamps: AHK format (Crespi group)
                 CalcSettings.format_timestamps = "AHK"
+
+        def handle_radio_selection_blcorrLED(self):
+            if self.radioButton_blcorrLED_on.isChecked(): # Baseline Correction of LED
+                CalcSettings.BaselineCorrection_LED = "ON"
+            if self.radioButton_blcorrLED_off.isChecked(): # Baseline Correction of LED
+                CalcSettings.BaselineCorrection_LED = "OFF"
 
         ############################################################################################################
 
@@ -745,7 +754,9 @@ def main():
                                     LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Wavelengths,
                                     LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity,
                                     LoadedData.emission_interp) ## use interpolated (and cut) LED emission data
-                    
+            
+            ##!!! DEACTIVATE Calc_QY BUTTON
+            
             self.add_new_tab(plot_func, "Processed Spectra")
         #######################################
 
@@ -775,6 +786,8 @@ def main():
                                              LoadedData.epsilons_P_interp)
             
             self.plot_fractions() ## plot retrieved fractions
+            
+            ##!!! NOW ACTIVATE Calc_QY BUTTON
             
             ### Save as .csv ###
             Fractions.Save_FractionsResults(Results.fractions_R, Results.fractions_P,
@@ -806,6 +819,10 @@ def main():
     
             if LoadedData.timestamps is None:
                 QtWidgets.QMessageBox.warning(self, "Error", "Please load the Timestamps log file.")
+                return
+
+            if not Results.fractions_R or not Results.fractions_P:
+                QtWidgets.QMessageBox.warning(self, "Error", "Please calculate the fractions first.")
                 return
 
             ##!!! ADD CHECK: len(measurements) should equal len(timestamps)

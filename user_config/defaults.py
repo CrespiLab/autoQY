@@ -20,6 +20,10 @@ PowerMethod = "Manual" ## Manual input of power
 threshold = 500
 ###############################################################################
 
+################ BASELINE CORRECTION OF LED EMISSION SPECTRA ##################
+BaselineCorrection_LED = "ON"
+###############################################################################
+
 ####################### AXIS LIMITS FOR PROCESSED DATA ########################
 xlim_min_ProcessedData = 220
 xlim_max_ProcessedData = 760

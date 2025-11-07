@@ -2917,9 +2917,9 @@
  <resources/>
  <connections/>
  <buttongroups>
+  <buttongroup name="buttonGroup_ODEMethod"/>
+  <buttongroup name="buttonGroup_blcorrLED"/>
   <buttongroup name="buttonGroup_Power"/>
   <buttongroup name="buttonGroup_logformat"/>
-  <buttongroup name="buttonGroup_blcorrLED"/>
-  <buttongroup name="buttonGroup_ODEMethod"/>
  </buttongroups>
 </ui>
