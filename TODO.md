@@ -9,6 +9,8 @@
   - [ ] Baseline correction of LED emission spectrum (move to general)
   - [ ] Smoothing of LED emission spectrum
 
+- [ ] Include processed data, fits, etc., with results (to allow subsequent plotting by the user)
+
 ## In Progress :)
 - [ ] Error handling
   - [ ] Upon save results: ask if users wants to overwrite existing filename
