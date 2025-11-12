@@ -1,0 +1,17 @@
+PSS_Reactant (%): 77.7
+PSS_Product (%): 22.3
+QY_AB_opt (%): 36.8
+QY_BA_opt (%): 49.9
+error_QY_AB (%): 0.4
+error_QY_BA (%): 0.6
+
+Volume (ml): 3.02
+k thermal back-reaction (s-1): 7.24e-07
+Power average (mW): 2.07
+Power error (mW): 0.02
+Wavelength of irradiation: 455
+
+Calculation Method: Integration
+ODE Solving Method: Concentrations
+Baseline Correction LED Spectrum: ON
+Wavelength Range: 250-800

@@ -982,7 +982,7 @@ def main():
             path='\\'.join(path_split) # re-join into string
     
             end_nameonly=savefilename.split('/')[-1] # only filename
-            end=f"Results_{end_nameonly}_{CalcSettings.CalculationMethod}" # name with added info
+            end=f"Results_{end_nameonly}_ODEMethod_{CalcSettings.ODEMethod}" # name with added info
     
             Results.savefilename = f"{path}\\{end}"
             
@@ -1038,13 +1038,19 @@ def main():
                               'Power average (mW)': ExpParams.I0_avg,
                               'Power error (mW)': ExpParams.I0_err,
                               'Wavelength of irradiation': ExpParams.LEDw}
-            
-            ##!!! ADD DATA DEPENDING ON METHOD
-                ### if Emission: add Threshold
-                ### if Concentrations: add ...
-    
-            dict_calcsettings = {'Calculation Method': CalcSettings.ODEMethod,
-                                 'Threshold': CalcSettings.threshold}
+
+            dict_calcsettings = {'Calculation Method': CalcSettings.CalculationMethod,
+                                 'ODE Solving Method': CalcSettings.ODEMethod,
+                                 # 'Baseline Correction LED Spectrum': CalcSettings.BaselineCorrection_LED ##!!! add when general option
+                                 # 'Smoothing of LED Spectrum': CalcSettings.Smoothing_LED ##!!! add when general option
+                                 }
+
+            if CalcSettings.ODEMethod == "Emission":
+                dict_calcsettings['Threshold'] = CalcSettings.threshold
+
+            elif CalcSettings.ODEMethod == "Concentrations":
+                dict_calcsettings['Baseline Correction LED Spectrum'] = CalcSettings.BaselineCorrection_LED
+                dict_calcsettings['Wavelength Range'] = f"{CalcSettings.wl_low}-{CalcSettings.wl_high}"
     
             try:
                 os.remove(savefile)
@@ -1057,9 +1063,10 @@ def main():
                 with open (file,'a') as file:
                     for i in dict_results:
                         file.write(i+": "+str(dict_results[i])+'\n')
-                    # file.write('==== Experimental Parameters ====\n')
+                    file.write('\n')
                     for i in dict_expparams:
                         file.write(i+": "+str(dict_expparams[i])+'\n')
+                    file.write('\n')
                     for i in dict_calcsettings:
                         file.write(i+": "+str(dict_calcsettings[i])+'\n')
             except IOError as e:
