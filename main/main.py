@@ -75,8 +75,6 @@ def main():
             ############################
             #self.setStyleSheet(get_stylesheet())
     
-            ##!!! REMOVE UNNECESSARY VARIABLES HERE
-    
             self.labels_power = {1: self.plainTextEdit_Power_1,
                                        2: self.plainTextEdit_Power_2,
                                        3: self.plainTextEdit_Power_3}
@@ -192,6 +190,9 @@ def main():
                 self.radioButton_blcorrLED_on.setChecked(True) # Baseline Correction of LED on
             elif CalcSettings.BaselineCorrection_LED == "OFF":
                 self.radioButton_blcorrLED_off.setChecked(True) # Baseline Correction of LED off
+            
+            self.CalcQYButton.setEnabled(False)
+            self.SaveResultsBtn.setEnabled(False)
 
         def SetResultTextfields(self):
             self.textEdit_QY_RtoP.setText(f"{Results.QY_AB_opt}") # optimised QY R to P
@@ -331,8 +332,8 @@ def main():
         def handle_radio_selection_ODE(self):
             if self.radioButton_ODE_Concentration.isChecked(): # ODE Solving Method Concentrations
                 self.ProcessPlotDataButton_Concentrations.setEnabled(True)
-                self.CalculateFractionsButton.setEnabled(True) # 
-                self.PlotFractionsResidualsButton.setEnabled(True) # 
+                self.CalculateFractionsButton.setEnabled(False) # 
+                self.PlotFractionsResidualsButton.setEnabled(False) # 
                 self.radioButton_blcorrLED_on.setEnabled(True)
                 self.radioButton_blcorrLED_off.setEnabled(True)
                 # self.label_LEDwavelength.setEnabled(True)
@@ -682,6 +683,9 @@ def main():
             Process Spectral data: cut to part of spectrum according to limits set beforehand
                 
             """
+            self.CalculateFractionsButton.setEnabled(False)
+            self.CalcQYButton.setEnabled(False)
+            self.SaveResultsBtn.setEnabled(False)
 
             if LoadedData.LEDemission_wavelengths is None or LoadedData.LEDemission_intensity is None:
                 QtWidgets.QMessageBox.warning(self, "Error", "Please load LED emission file.")
@@ -729,19 +733,25 @@ def main():
             - LED emission band OR
             - epsilons data range 
             '''
-            (LoadedData.SpectralDataCut_Wavelengths, LoadedData.SpectralDataCut_Abs,
+            (LoadedData.SpectralDataCut_Wavelengths, 
+             LoadedData.SpectralDataCut_Abs,
              LoadedData.SpectralDataCut_Index) = \
                 Integration.Process_SpectralData(LoadedData.SpectralData_Full,
                                                  Integration.wavelength_low,
                                                  Integration.wavelength_high,
                                                  ExpParams.LEDw)
 
-            LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp, LoadedData.emission_interp = Integration.Interpolate_Epsilons(
-                LoadedData.SpectralDataCut_Wavelengths,
-                LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values,
-                LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values,
-                LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity_proc)
-            
+            (LoadedData.epsilons_R_interp, 
+             LoadedData.epsilons_P_interp, 
+             LoadedData.emission_interp) = \
+                Integration.Interpolate_Epsilons(LoadedData.SpectralDataCut_Wavelengths,
+                                                 LoadedData.epsilons_R_wavelengths,
+                                                 LoadedData.epsilons_R_values,
+                                                 LoadedData.epsilons_P_wavelengths,
+                                                 LoadedData.epsilons_P_values,
+                                                 LoadedData.LEDemission_wavelengths,
+                                                 LoadedData.LEDemission_intensity_proc)
+            ########################################
             def plot_func(canvas):
                 """ 
                 Plot the data using MplCanvas.
@@ -755,7 +765,8 @@ def main():
                                     LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity,
                                     LoadedData.emission_interp) ## use interpolated (and cut) LED emission data
             
-            ##!!! DEACTIVATE Calc_QY BUTTON
+            if CalcSettings.ODEMethod == "Concentrations":
+                self.CalculateFractionsButton.setEnabled(True)
             
             self.add_new_tab(plot_func, "Processed Spectra")
         #######################################
@@ -767,6 +778,9 @@ def main():
             Plot results
             Save results
             '''       
+            self.CalcQYButton.setEnabled(False)
+            self.SaveResultsBtn.setEnabled(False)
+            
             if LoadedData.SpectralDataCut_Abs is None:
                 QtWidgets.QMessageBox.warning(self, "Error", "Please perform processing of spectra.")
                 return
@@ -786,8 +800,7 @@ def main():
                                              LoadedData.epsilons_P_interp)
             
             self.plot_fractions() ## plot retrieved fractions
-            
-            ##!!! NOW ACTIVATE Calc_QY BUTTON
+            self.CalcQYButton.setEnabled(True)
             
             ### Save as .csv ###
             Fractions.Save_FractionsResults(Results.fractions_R, Results.fractions_P,
@@ -800,6 +813,8 @@ def main():
             Calculate quantum yields by numerically solving the differential equations.
             Then calculate the concentrations, and plot the results.
             """
+            
+            self.SaveResultsBtn.setEnabled(False)
 
             if ExpParams.V == 0.0:
                 QtWidgets.QMessageBox.warning(self, "Error", "Please set Volume.")
@@ -847,8 +862,10 @@ def main():
                                                         LoadedData.timestamps, LoadedData.SpectralDataCut_Abs,
                                                         LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
                                                         ExpParams.V)
+                self.CalcQYButton.setEnabled(True)
+                self.SaveResultsBtn.setEnabled(True)
+                self.Extract_QY() # extract QY results and display
             ######################################################################    
-            
             elif CalcSettings.ODEMethod == "Concentrations":
                 print(f"Calc_QY ODEMethod:\n{CalcSettings.ODEMethod}")
 
@@ -868,11 +885,11 @@ def main():
                                                         LoadedData.timestamps, Datasets.concs_RP,
                                                         LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
                                                         ExpParams.V)
-                
+                self.CalcQYButton.setEnabled(True)
+                self.SaveResultsBtn.setEnabled(True)
+                self.Extract_QY() # extract QY results and display
             else:
                 QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the CalcSettings.ODEMethod variable")
-            ######################################################################
-            self.Extract_QY() # extract QY results and display
             ######################################################################
 
         def Extract_QY(self):
@@ -984,7 +1001,6 @@ def main():
                                        SaveResults = "Yes",
                                        SaveFileName = Results.savefilename)
                 
-                ##!!! ADDED VARIATION FOR ODEMethod=Concentrations
                 elif CalcSettings.ODEMethod == "Concentrations":
                     canvas.PlotResults_Conc(ExpParams.LEDw,
                                        LoadedData.timestamps,
