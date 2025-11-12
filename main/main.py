@@ -334,7 +334,8 @@ def main():
                 self.PlotFractionsResidualsButton.setEnabled(False) # 
                 self.radioButton_blcorrLED_on.setEnabled(True)
                 self.radioButton_blcorrLED_off.setEnabled(True)
-                # self.label_LEDwavelength.setEnabled(True)
+                self.CalcQYButton.setEnabled(False)
+                self.SaveResultsBtn.setEnabled(False)
                 
                 self.groupBox_Conc_Process.setEnabled(True)
                 self.groupBox_blcorrLED.setEnabled(True)
@@ -366,6 +367,8 @@ def main():
                 self.lineEdit_Threshold.setEnabled(True) # Integration wavelength (nm)
                 self.ProcessPlotDataButton_Emission.setEnabled(True)
                 self.label_Threshold.setEnabled(True)
+                self.CalcQYButton.setEnabled(False)
+                self.SaveResultsBtn.setEnabled(False)
                 CalcSettings.ODEMethod = "Emission"
             
         def handle_radio_selection_Log(self):
@@ -763,6 +766,8 @@ def main():
                                     LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity,
                                     LoadedData.emission_interp) ## use interpolated (and cut) LED emission data
             
+            if CalcSettings.ODEMethod == "Emission":
+                self.CalcQYButton.setEnabled(True)
             if CalcSettings.ODEMethod == "Concentrations":
                 self.CalculateFractionsButton.setEnabled(True)
             
