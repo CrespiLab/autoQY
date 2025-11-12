@@ -42,8 +42,6 @@ from UIs.MainWindow import Ui_MainWindow
 ## make it a statusFIELD so that there is a log of messages visible
 ## for severe issues: use pop-up window still
 
-##!!! Convert all TextEdits to LineEdits: will prevent scroll bar from appearing (hopefully)
-
 def main():
     class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             ############################
@@ -75,12 +73,12 @@ def main():
             ############################
             #self.setStyleSheet(get_stylesheet())
     
-            self.labels_power = {1: self.plainTextEdit_Power_1,
-                                       2: self.plainTextEdit_Power_2,
-                                       3: self.plainTextEdit_Power_3}
-            self.labels_error = {1: self.plainTextEdit_PowerError_1,
-                                       2: self.plainTextEdit_PowerError_2,
-                                       3: self.plainTextEdit_PowerError_3}
+            self.labels_power = {1: self.lineEdit_Power_1,
+                                       2: self.lineEdit_Power_2,
+                                       3: self.lineEdit_Power_3}
+            self.labels_error = {1: self.lineEdit_PowerError_1,
+                                       2: self.lineEdit_PowerError_2,
+                                       3: self.lineEdit_PowerError_3}
             
             ## Default Calculation Method is integration: see ExpParams
     
@@ -116,14 +114,14 @@ def main():
             self.SaveResultsBtn.clicked.connect(self.Save_QY)
     
             ## Connect the textChanged signal to the update functions ##
-            self.plainTextEdit_volume.textChanged.connect(self.update_V)
-            self.plainTextEdit_k.textChanged.connect(self.update_k_BA)
-            self.plainTextEdit_ManPower.textChanged.connect(self.update_I0_avg)
-            self.plainTextEdit_ManPowerError.textChanged.connect(self.update_I0_err)
-            self.plainTextEdit_LEDWavelength.textChanged.connect(self.update_LEDw_Integration) # Integration Mode
-            self.plainTextEdit_Threshold.textChanged.connect(self.update_threshold) # 
-            self.plainTextEdit_WavelengthRange_Min.textChanged.connect(self.update_wl_range) # 
-            self.plainTextEdit_WavelengthRange_Max.textChanged.connect(self.update_wl_range) # 
+            self.lineEdit_Volume.textChanged.connect(self.update_V)
+            self.lineEdit_k.textChanged.connect(self.update_k_BA)
+            self.lineEdit_ManPower.textChanged.connect(self.update_I0_avg)
+            self.lineEdit_ManPowerError.textChanged.connect(self.update_I0_err)
+            self.lineEdit_LEDWavelength.textChanged.connect(self.update_LEDw_Integration) # Integration Mode
+            self.lineEdit_Threshold.textChanged.connect(self.update_threshold) # 
+            self.lineEdit_WavelengthRange_Min.textChanged.connect(self.update_wl_range) # 
+            self.lineEdit_WavelengthRange_Max.textChanged.connect(self.update_wl_range) # 
     
             ## Buttons for processing and plot functions ##
             self.plotEpsilonButton.clicked.connect(self.plot_epsilon)
@@ -144,16 +142,16 @@ def main():
         
         def SetTextfields(self):
             """ Display experimental parameters in text fields """
-            self.plainTextEdit_volume.setPlainText(str(ExpParams.V)) # volume
-            self.plainTextEdit_k.setPlainText(str(ExpParams.k_BA)) # rate constant
-            self.plainTextEdit_ManPower.setPlainText(str(ExpParams.I0_avg)) # Power Manual
-            self.plainTextEdit_ManPowerError.setPlainText(str(ExpParams.I0_err)) # Power Manual
-            self.plainTextEdit_LEDWavelength.setPlainText(str(ExpParams.LEDw)) # Integration Mode (default)
-            self.plainTextEdit_6.setPlainText(str(ExpParams.I0_avg)) # PowerProcessing: Calculated Power
-            self.plainTextEdit_8.setPlainText(str(ExpParams.I0_err)) # PowerProcessing: Error
-            self.plainTextEdit_Threshold.setPlainText(str(CalcSettings.threshold)) # Threshold for LED Emission spectrum
-            self.plainTextEdit_WavelengthRange_Min.setPlainText(str(CalcSettings.wl_low)) # Low wavelength range for Concentrations ODE METHOD
-            self.plainTextEdit_WavelengthRange_Max.setPlainText(str(CalcSettings.wl_high)) # High wavelength range for Concentrations ODE METHOD
+            self.lineEdit_Volume.setText(str(ExpParams.V)) # volume
+            self.lineEdit_k.setText(str(ExpParams.k_BA)) # rate constant
+            self.lineEdit_ManPower.setText(str(ExpParams.I0_avg)) # Power Manual
+            self.lineEdit_ManPowerError.setText(str(ExpParams.I0_err)) # Power Manual
+            self.lineEdit_LEDWavelength.setText(str(ExpParams.LEDw)) # Integration Mode (default)
+            self.lineEdit_AvgPower.setText(str(ExpParams.I0_avg)) # PowerProcessing: Calculated Power
+            self.lineEdit_AvgPowerError.setText(str(ExpParams.I0_err)) # PowerProcessing: Error
+            self.lineEdit_Threshold.setText(str(CalcSettings.threshold)) # Threshold for LED Emission spectrum
+            self.lineEdit_WavelengthRange_Min.setText(str(CalcSettings.wl_low)) # Low wavelength range for Concentrations ODE METHOD
+            self.lineEdit_WavelengthRange_Max.setText(str(CalcSettings.wl_high)) # High wavelength range for Concentrations ODE METHOD
     
         def SetDefaultSettings(self):
             CalcSettings.format_timestamps = Defaults.format_timestamps
@@ -195,54 +193,54 @@ def main():
             self.SaveResultsBtn.setEnabled(False)
 
         def SetResultTextfields(self):
-            self.textEdit_QY_RtoP.setText(f"{Results.QY_AB_opt}") # optimised QY R to P
-            self.textEdit_QY_PtoR.setText(f"{Results.QY_BA_opt}") # optimised QY P to R
+            self.lineEdit_QY_RtoP.setText(f"{Results.QY_AB_opt}") # optimised QY R to P
+            self.lineEdit_QY_PtoR.setText(f"{Results.QY_BA_opt}") # optimised QY P to R
             
-            self.textEdit_QYerror_RtoP.setText(f"{Results.error_QY_AB}") # error R to P
-            self.textEdit_QYerror_PtoR.setText(f"{Results.error_QY_BA}") # error P to R
+            self.lineEdit_QYerror_RtoP.setText(f"{Results.error_QY_AB}") # error R to P
+            self.lineEdit_QYerror_PtoR.setText(f"{Results.error_QY_BA}") # error P to R
             
-            self.textEdit_PSS_R.setText(f"{Results.PSS_Reactant}") # %R at PSS
-            self.textEdit_PSS_P.setText(f"{Results.PSS_Product}") # %P at PSS
+            self.lineEdit_PSS_R.setText(f"{Results.PSS_Reactant}") # %R at PSS
+            self.lineEdit_PSS_P.setText(f"{Results.PSS_Product}") # %P at PSS
 
         ## Update methods for the parameters
         def update_V(self):
             try:
-                ExpParams.V = float(self.plainTextEdit_volume.toPlainText())  # Convert the input to a float
+                ExpParams.V = float(self.lineEdit_Volume.text())  # Convert the input to a float
                 print(f"Updated V to {ExpParams.V}")
             except ValueError:
                 pass  # Handle the case where the input is not a valid number
     
         def update_k_BA(self):
             try:
-                ExpParams.k_BA = float(self.plainTextEdit_k.toPlainText())  # Convert the input to a float
+                ExpParams.k_BA = float(self.lineEdit_k.text())  # Convert the input to a float
                 print(f"Updated k_BA to {ExpParams.k_BA}")
             except ValueError:
                 pass
     
         def update_I0_avg(self):
             try:
-                ExpParams.I0_avg = float(self.plainTextEdit_ManPower.toPlainText())  # Convert the input to an integer
+                ExpParams.I0_avg = float(self.lineEdit_ManPower.text())  # Convert the input to an integer
                 print(f"Updated I0_avg to {ExpParams.I0_avg}")
             except ValueError:
                 pass
     
         def update_I0_err(self):
             try:
-                ExpParams.I0_err = float(self.plainTextEdit_ManPowerError.toPlainText())  # Convert the input to an integer
+                ExpParams.I0_err = float(self.lineEdit_ManPowerError.text())  # Convert the input to an integer
                 print(f"Updated I0_err to {ExpParams.I0_err}")
             except ValueError:
                 pass
     
         def update_I0_avg_PP(self):
             try:
-                ExpParams.I0_avg = float(self.plainTextEdit_6.toPlainText())  # Convert the input to an integer
+                ExpParams.I0_avg = float(self.lineEdit_AvgPower.text())  # Convert the input to an integer
                 print(f"Updated I0_avg to {ExpParams.I0_avg}")
             except ValueError:
                 pass
     
         def update_I0_err_PP(self):
             try:
-                ExpParams.I0_err = float(self.plainTextEdit_8.toPlainText())  # Convert the input to an integer
+                ExpParams.I0_err = float(self.lineEdit_AvgPowerError.text())  # Convert the input to an integer
                 print(f"Updated I0_err to {ExpParams.I0_err}")
             except ValueError:
                 pass
@@ -250,7 +248,7 @@ def main():
         def update_LEDw_Integration(self):
             """ For Integration Mode (default) """
             try:
-                ExpParams.LEDw = int(self.plainTextEdit_LEDWavelength.toPlainText())  # Convert the input to an integer
+                ExpParams.LEDw = int(self.lineEdit_LEDWavelength.text())  # Convert the input to an integer
                 print(f"Updated LEDw to {ExpParams.LEDw}")
             except ValueError:
                 pass
@@ -258,7 +256,7 @@ def main():
         def update_threshold(self):
             """ Update value for threshold used for LED emission spectrum """
             try:
-                CalcSettings.threshold = int(self.plainTextEdit_Threshold.toPlainText())  # Convert the input to an integer
+                CalcSettings.threshold = int(self.lineEdit_Threshold.text())  # Convert the input to an integer
                 print(f"Updated threshold to {CalcSettings.threshold}")
             except ValueError:
                 pass
@@ -266,8 +264,8 @@ def main():
         def update_wl_range(self):
             """Update values for wavelength range for processing data for ODE Concentrations method"""
             try:
-                CalcSettings.wl_low = int(self.plainTextEdit_WavelengthRange_Min.toPlainText())
-                CalcSettings.wl_high = int(self.plainTextEdit_WavelengthRange_Max.toPlainText())
+                CalcSettings.wl_low = int(self.lineEdit_WavelengthRange_Min.text())
+                CalcSettings.wl_high = int(self.lineEdit_WavelengthRange_Max.text())
                 print(f"Updated wavelength range to {CalcSettings.wl_low}-{CalcSettings.wl_high}")
             except ValueError:
                 pass
@@ -284,24 +282,24 @@ def main():
                 self.update_I0_err # set I0_err to current text
                 
                 ## Enable TextLabel and disable Load button
-                self.plainTextEdit_ManPower.setEnabled(True)
-                self.plainTextEdit_ManPowerError.setEnabled(True)
+                self.lineEdit_ManPower.setEnabled(True)
+                self.lineEdit_ManPowerError.setEnabled(True)
                 
                 self.loadDataButton_1.setEnabled(False)
                 self.loadDataButton_2.setEnabled(False)
                 self.loadDataButton_3.setEnabled(False)
-                self.plainTextEdit_Power_1.setEnabled(False)
-                self.plainTextEdit_PowerError_1.setEnabled(False)
-                self.plainTextEdit_Power_2.setEnabled(False)
-                self.plainTextEdit_PowerError_2.setEnabled(False)
-                self.plainTextEdit_Power_3.setEnabled(False)
-                self.plainTextEdit_PowerError_3.setEnabled(False)
+                self.lineEdit_Power_1.setEnabled(False)
+                self.lineEdit_PowerError_1.setEnabled(False)
+                self.lineEdit_Power_2.setEnabled(False)
+                self.lineEdit_PowerError_2.setEnabled(False)
+                self.lineEdit_Power_3.setEnabled(False)
+                self.lineEdit_PowerError_3.setEnabled(False)
                 self.DeletePowerDataButton_1.setEnabled(False)
                 self.DeletePowerDataButton_2.setEnabled(False)
                 self.DeletePowerDataButton_3.setEnabled(False)
                 self.calculatePowerButton.setEnabled(False)
-                self.plainTextEdit_6.setEnabled(False)
-                self.plainTextEdit_8.setEnabled(False)
+                self.lineEdit_AvgPower.setEnabled(False)
+                self.lineEdit_AvgPowerError.setEnabled(False)
                 CalcSettings.PowerMethod = "Manual"
             
             if self.radioButton_PowerProcessing.isChecked(): # PowerProcessing Module
@@ -309,24 +307,24 @@ def main():
                 self.update_I0_err_PP # set I0_err to current text in PowerProcessing field
                 
                 ## Disable TextLabel and enable Load button
-                self.plainTextEdit_ManPower.setEnabled(False) # turn off Manual Input: Power
-                self.plainTextEdit_ManPowerError.setEnabled(False) # turn off Manual Input: Error
+                self.lineEdit_ManPower.setEnabled(False) # turn off Manual Input: Power
+                self.lineEdit_ManPowerError.setEnabled(False) # turn off Manual Input: Error
                 
                 self.loadDataButton_1.setEnabled(True)
                 self.loadDataButton_2.setEnabled(True)
                 self.loadDataButton_3.setEnabled(True)
-                self.plainTextEdit_Power_1.setEnabled(True)
-                self.plainTextEdit_PowerError_1.setEnabled(True)
-                self.plainTextEdit_Power_2.setEnabled(True)
-                self.plainTextEdit_PowerError_2.setEnabled(True)
-                self.plainTextEdit_Power_3.setEnabled(True)
-                self.plainTextEdit_PowerError_3.setEnabled(True)
+                self.lineEdit_Power_1.setEnabled(True)
+                self.lineEdit_PowerError_1.setEnabled(True)
+                self.lineEdit_Power_2.setEnabled(True)
+                self.lineEdit_PowerError_2.setEnabled(True)
+                self.lineEdit_Power_3.setEnabled(True)
+                self.lineEdit_PowerError_3.setEnabled(True)
                 self.DeletePowerDataButton_1.setEnabled(True)
                 self.DeletePowerDataButton_2.setEnabled(True)
                 self.DeletePowerDataButton_3.setEnabled(True)
                 self.calculatePowerButton.setEnabled(True)
-                self.plainTextEdit_6.setEnabled(True)
-                self.plainTextEdit_8.setEnabled(True)
+                self.lineEdit_AvgPower.setEnabled(True)
+                self.lineEdit_AvgPowerError.setEnabled(True)
                 CalcSettings.PowerMethod = "PowerProcessing"
 
         def handle_radio_selection_ODE(self):
@@ -341,13 +339,13 @@ def main():
                 self.groupBox_Conc_Process.setEnabled(True)
                 self.groupBox_blcorrLED.setEnabled(True)
                 self.groupBox_Conc_wlrange.setEnabled(True)
-                self.plainTextEdit_WavelengthRange_Min.setEnabled(True)
+                self.lineEdit_WavelengthRange_Min.setEnabled(True)
                 self.label_Conc_wlrange_dash.setEnabled(True)
-                self.plainTextEdit_WavelengthRange_Max.setEnabled(True)
+                self.lineEdit_WavelengthRange_Max.setEnabled(True)
                 self.label_Conc_wlrange_nm.setEnabled(True)
                                 
                 self.label_Threshold.setEnabled(False) # threshold label
-                self.plainTextEdit_Threshold.setEnabled(False) # 
+                self.lineEdit_Threshold.setEnabled(False) # 
                 self.ProcessPlotDataButton_Emission.setEnabled(False)
                 
                 CalcSettings.ODEMethod = "Concentrations"
@@ -361,11 +359,11 @@ def main():
                 self.groupBox_Conc_Process.setEnabled(False)
                 self.groupBox_blcorrLED.setEnabled(False)
                 self.groupBox_Conc_wlrange.setEnabled(False)
-                self.plainTextEdit_WavelengthRange_Min.setEnabled(False)
+                self.lineEdit_WavelengthRange_Min.setEnabled(False)
                 self.label_Conc_wlrange_dash.setEnabled(False)
-                self.plainTextEdit_WavelengthRange_Max.setEnabled(False)
+                self.lineEdit_WavelengthRange_Max.setEnabled(False)
                 self.label_Conc_wlrange_nm.setEnabled(False)
-                self.plainTextEdit_Threshold.setEnabled(True) # Integration wavelength (nm)
+                self.lineEdit_Threshold.setEnabled(True) # Integration wavelength (nm)
                 self.ProcessPlotDataButton_Emission.setEnabled(True)
                 self.label_Threshold.setEnabled(True)
                 CalcSettings.ODEMethod = "Emission"
@@ -415,8 +413,8 @@ def main():
     
             # print(f"main-DeletePowerData_1===LoadedData.PowersAtCuvette:{LoadedData.PowersAtCuvette}")
             
-            self.labels_power[count].setPlainText("")
-            self.labels_error[count].setPlainText("")
+            self.labels_power[count].setText("")
+            self.labels_error[count].setText("")
     
         ############################################################################################################
         ############################ POWER ############################
@@ -444,8 +442,8 @@ def main():
             ExpParams.I0_avg = final_averaged_power # set to calculated power
             ExpParams.I0_err = final_averaged_std # set to calculated error
             
-            self.plainTextEdit_6.setPlainText(f"{ExpParams.I0_avg:.2f}") # set PowerProcessing: Power, final averaged
-            self.plainTextEdit_8.setPlainText(f"{ExpParams.I0_err:.2f}") # set PowerProcessing: Error, final averaged
+            self.lineEdit_AvgPower.setText(f"{ExpParams.I0_avg:.2f}") # set PowerProcessing: Power, final averaged
+            self.lineEdit_AvgPowerError.setText(f"{ExpParams.I0_err:.2f}") # set PowerProcessing: Error, final averaged
             
             print(f"I0_avg: {ExpParams.I0_avg}\nI0_err: {ExpParams.I0_err}")
             

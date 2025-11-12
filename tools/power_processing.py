@@ -260,8 +260,8 @@ class WindowPowerProcessing(QtWidgets.QMainWindow, Ui_MainWindow):
         LoadedData.PowersAtCuvette[LoadedData.count] = power_at_cuv # calculated power
         LoadedData.ErrorsAtCuvette[LoadedData.count] = std_at_cuv # calculated error
 
-        self.parent.labels_power[LoadedData.count].setPlainText(f"{LoadedData.PowersAtCuvette[LoadedData.count]:.2f}") # calculated power
-        self.parent.labels_error[LoadedData.count].setPlainText(f"{LoadedData.ErrorsAtCuvette[LoadedData.count]:.2f}") # calculated power
+        self.parent.labels_power[LoadedData.count].setText(f"{LoadedData.PowersAtCuvette[LoadedData.count]:.2f}") # calculated power
+        self.parent.labels_error[LoadedData.count].setText(f"{LoadedData.ErrorsAtCuvette[LoadedData.count]:.2f}") # calculated power
 
         
 
