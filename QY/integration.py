@@ -4,12 +4,13 @@ Integrate over the emission spectrum of the LED
 """
 import numpy as np
 from scipy.integrate import trapezoid,odeint
-from scipy.signal import savgol_filter
+from scipy.signal import savgol_filter, find_peaks, peak_widths
 from lmfit import minimize, Parameters
 import matplotlib.pyplot as plt
 
 import QY.constants as Constants
 import data.experimental_parameters as ExpParams
+import data.calc_settings as CalcSettings
 
 ##################################################
 
@@ -21,13 +22,56 @@ LEDindex_last = None
 ##################################################
 ###################### LED #######################
 ##################################################
-def Processing_LEDemission(wavelengths_LED, intensity_LED, threshold):
+def Process_LEDemission(wavelengths_LED, intensity_LED):
+    ''' Apply smoothing and remove negative values in LED emission data '''
+    emission_Intensity_smoothed = savgol_filter(intensity_LED, 12,3) ## Smoothing
+    ##!!! REMOVE SMOOTHING (AND REPLACE BY PEKARIAN FIT)
+
+    if CalcSettings.BaselineCorrection_LED == "ON":
+        emission_Intensity_proc = BaselineCorrection_LED(wavelengths_LED,emission_Intensity_smoothed)
+    elif CalcSettings.BaselineCorrection_LED == "OFF":
+        emission_Intensity_proc = emission_Intensity_smoothed
+    else:
+        print("Something wrong with CalcSettings.BaselineCorrection_LED")
+
+    emission_Intensity_proc[emission_Intensity_proc[:]<0] = 0 ## removal of negative values
     
-    emission_Intensity_proc = savgol_filter(intensity_LED, 12,3) ## Smoothing
-    emission_Intensity_proc[emission_Intensity_proc[:]<0] = 0 ## removal of zeroes 
+    return emission_Intensity_proc
+
+def BaselineCorrection_LED(wavelengths, intensities):
+    # Step 1: Find peaks
+    peaks, _ = find_peaks(intensities, height=np.max(intensities)*0.5)
+    main_peak_index = peaks[np.argmax(intensities[peaks])]
+    main_peak_x = wavelengths[main_peak_index]
     
+    # Step 2: Estimate FWHM of the main peak
+    results_half = peak_widths(intensities, [main_peak_index], rel_height=0.5)
+    fwhm = results_half[0][0] * (wavelengths[1] - wavelengths[0])  # convert index width to nm
+    
+    # Step 3: Define adaptive window size
+    window_width = 10 * fwhm ##!!! make this an option in the GUI?
+    mask = (wavelengths < main_peak_x - window_width) | (wavelengths > main_peak_x + window_width)
+    
+    baseline_x = wavelengths[mask]
+    baseline_y = intensities[mask]
+    print(f"baseline_x:\n{baseline_x}")
+    print(f"baseline_y:\n{baseline_y}")
+    
+    # Step 4: Fit linear baseline
+    coeffs = np.polyfit(baseline_x, baseline_y, deg=0) ## vertical offset
+    baseline_fit = np.polyval(coeffs, wavelengths)
+    
+    # Step 5: Apply correction
+    intensities_baselinecorrected = intensities - baseline_fit
+    
+    print(f"Estimated FWHM: {fwhm:.2f} nm")
+    print(f"Exclusion window: ±{window_width:.2f} nm around the peak")
+    return intensities_baselinecorrected
+
+def LEDemission_WavelengthLimits(wavelengths_LED, intensity_LED_proc, threshold):
+    ''' Obtain wavelength limits of LED emission spectrum according to a set intensity threshold'''
     #### Cutting spectrum to match emission of LED 
-    above_threshold_indices = np.where(emission_Intensity_proc > threshold)[0] 
+    above_threshold_indices = np.where(intensity_LED_proc > threshold)[0] 
     
     #### Find the first and last indices
     first_index = above_threshold_indices[0]
@@ -36,8 +80,27 @@ def Processing_LEDemission(wavelengths_LED, intensity_LED, threshold):
     low = wavelengths_LED[first_index]
     high = wavelengths_LED[last_index]
     
-    return emission_Intensity_proc, first_index, last_index, low, high
+    return low, high
     ####################################
+
+def Epsilons_WavelengthLimits(epsilon_A_wavelengths, epsilon_B_wavelengths):
+    ''' Obtain limits of epsilons wavelength data '''
+    
+    
+    epsilon_wl_low = min([epsilon_A_wavelengths[0],epsilon_B_wavelengths[0]])
+    epsilon_wl_high = min([epsilon_A_wavelengths[-1],epsilon_B_wavelengths[-1]])
+    
+    if epsilon_wl_low < CalcSettings.wl_low:
+        wavelength_low = CalcSettings.wl_low
+    else:
+        wavelength_low = epsilon_wl_low
+    
+    if epsilon_wl_high > CalcSettings.wl_high:
+        wavelength_high = CalcSettings.wl_high
+    else:
+        wavelength_high = epsilon_wl_high
+    
+    return wavelength_low, wavelength_high
 
 ##################################################
 ################### ABSORBANCE ###################
@@ -69,14 +132,45 @@ def Interpolate_Epsilons(IrrSpectra_wavelengths,
                          eA_wavelengths, eA_values,
                          eB_wavelengths, eB_values,
                          LED_wavelengths, LED_intensity_proc):
-    ## Interpolate ε_A and ε_B at each wavelength so that all data sets use the same 
-    ## wavelengths data
+    '''
+    Interpolate ε_A and ε_B at each wavelength so that all data sets use the same 
+        wavelengths data
+    LED emission data also at the same time gets cut to the same wavelength range as all other datasets.
+
+    Parameters
+    ----------
+    IrrSpectra_wavelengths : TYPE
+        DESCRIPTION.
+    eA_wavelengths : TYPE
+        DESCRIPTION.
+    eA_values : TYPE
+        DESCRIPTION.
+    eB_wavelengths : TYPE
+        DESCRIPTION.
+    eB_values : TYPE
+        DESCRIPTION.
+    LED_wavelengths : TYPE
+        DESCRIPTION.
+    LED_intensity_proc : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    epsilons_R_interp : TYPE
+        DESCRIPTION.
+    epsilons_P_interp : TYPE
+        DESCRIPTION.
+    emission_interp : TYPE
+        DESCRIPTION.
+
+    '''
     epsilons_R_interp = np.interp(IrrSpectra_wavelengths, eA_wavelengths, 
                                  eA_values)
     epsilons_P_interp = np.interp(IrrSpectra_wavelengths, eB_wavelengths, 
                                  eB_values)
     emission_interp = np.interp(IrrSpectra_wavelengths, LED_wavelengths,
                                 LED_intensity_proc)
+    
     return epsilons_R_interp, epsilons_P_interp, emission_interp
 
 ##################################################
@@ -109,9 +203,7 @@ def Plot_Epsilons(wavelengths,
     plt.show()
 
 ##################################################
-########## SOLVE RATE EQUATIONS AND PLOT RESULTS ##########
-# StartPercentage_A = float(input("Starting Percentage of A: "))
-# StartPercentage_A = float(100)
+############## SOLVE RATE EQUATIONS ##############
 ##################################################
 
 def CreateParameters(absorbance_values, wavelengths_data,
@@ -122,7 +214,7 @@ def CreateParameters(absorbance_values, wavelengths_data,
     #########################################
     ##### trying out: input starting percentages ######
     #########################################
-    StartPercentage_R = float(100) ##!!! turn into optional parameter
+    StartPercentage_R = float(100) 
 
     # print(f"Integration-CreateParameters===absorbance_values:{absorbance_values}\nand shape:{absorbance_values.shape}")
     # print(f"Integration-CreateParameters===e_A_inter:{e_A_inter}\nand shape:{e_A_inter.shape}")
@@ -135,13 +227,38 @@ def CreateParameters(absorbance_values, wavelengths_data,
     initial_conc_P = initial_conc_P_0/100*(100-StartPercentage_R)
 #########################################
 #########################################
-    # total_absorbance = absorbance_values.T  # array of total_absorbance values
     lambda_meters = wavelengths_data * 1e-9  ## Convert to meters
 
     ## Normalize the LED emission spectrum to ensure the area under the curve is 1
     normalized_emission = emission_inter / trapezoid(emission_inter, lambda_meters)
 
     return initial_conc_R, initial_conc_P, lambda_meters, normalized_emission
+
+def CreateParameters_Conc(absorbance_values, wavelengths_data,
+                          fractions_R, fractions_P,
+                          e_R_inter, e_P_inter,
+                          emission_inter):
+    """
+    Create the parameters needed for the subsequent functions used by the 
+    ODEMethod = Concentrations
+    """
+    total_conc = trapezoid(absorbance_values[:,0], x=wavelengths_data)\
+        / (fractions_R[0]*trapezoid(e_R_inter, x=wavelengths_data)\
+           + fractions_P[0]*trapezoid(e_P_inter, x=wavelengths_data))
+    print(f"CreateParameters_Conc\n=== total_conc: {total_conc}")
+    
+    concs_RP = (np.stack((fractions_R,fractions_P),axis=1))*total_conc ## make array of concentrations of R and P
+    initial_conc_R, initial_conc_P = concs_RP[0]
+    print(f"CreateParameters_Conc\n=== initial_conc_R: {initial_conc_R}\n=== initial_conc_P: {initial_conc_P}")
+    
+    #########################################
+    #########################################
+    lambda_meters = wavelengths_data * 1e-9  ## Convert to meters
+
+    ## Normalize the LED emission spectrum to ensure the area under the curve is 1
+    normalized_emission = emission_inter / trapezoid(emission_inter, lambda_meters)
+
+    return total_conc, initial_conc_R, initial_conc_P, concs_RP, lambda_meters, normalized_emission
 
 def rate_equations(concentrations, time, 
                    lambda_meters,
@@ -176,41 +293,74 @@ def rate_equations(concentrations, time,
     k_BA = ExpParams.k_BA
     
     A, B = concentrations
-    total_absorbance = A * epsilon_A_lambda + B * epsilon_B_lambda
+    
+    ### ----- Absorbance contributions -----
+    ### Total absorbance spectrum (base-10)
+    total_abs = (A * epsilon_A_lambda + B * epsilon_B_lambda) 
 
-    dAdt = QY_AB * trapezoid(-((A * epsilon_A_lambda / total_absorbance) \
-            * (1 - 10 ** (-total_absorbance)) * N_lambda) / V,lambda_meters)+ \
-            QY_BA * trapezoid(((B * epsilon_B_lambda / total_absorbance) \
-            * (1 - 10 ** (-total_absorbance)) * N_lambda) / V,lambda_meters) \
-            + k_BA * B
+    # Fraction of light absorbed by A vs. B at each λ
+    frac_A = (A * epsilon_A_lambda) / total_abs
+    frac_B = (B * epsilon_B_lambda) / total_abs
 
+    # Photon absorption rates (photons·s⁻¹·L⁻¹)
+    R_A_abs = np.trapezoid(-(frac_A * (1 - 10**(-total_abs)) * N_lambda) / V, x=lambda_meters)
+    R_B_abs = np.trapezoid((frac_B * (1 - 10**(-total_abs)) * N_lambda) / V, x=lambda_meters)
+
+    # ----- Kinetics -----
+    dAdt = QY_AB * R_A_abs + QY_BA * R_B_abs + k_BA * B
     dBdt = -dAdt
 
     return [dAdt, dBdt]
 
 #########################################
 
-def objective_function(params, lambda_meters, 
+def objective_function(params, 
+                       lambda_meters, 
                        init_conc_A, init_conc_B,
-                       time, experimental_data, 
+                       time, experimental_Abs, 
                        epsilon_A_lambda, epsilon_B_lambda, 
                        N_lambda, V):
+    '''
+    Function that minimises the QYs according to the absorbance values.
+    '''
     QY_AB = params['QY_AB'].value
     QY_BA = params['QY_BA'].value
 
-    concentrations_ode = odeint(rate_equations, [init_conc_A, init_conc_B], time,
-                               args=(lambda_meters, QY_AB, QY_BA, epsilon_A_lambda, 
-                                     epsilon_B_lambda, N_lambda, V))
+    concentrations_ode = odeint(rate_equations, 
+                                [init_conc_A, init_conc_B], 
+                                time,
+                               args=(lambda_meters, 
+                                     QY_AB, QY_BA, 
+                                     epsilon_A_lambda, epsilon_B_lambda, 
+                                     N_lambda, V))
     
     # Matrix multiplication using dot product
     total_absorbance_ode=concentrations_ode.dot(np.vstack([epsilon_A_lambda,
                                                             epsilon_B_lambda]))
 
-    ##!!! ADD WARNING IF: 
-        ## total_absorbance_ode (which is derived from #timestamps)
-        ## and experimental_data (which is derived from #spectra)
-        ## lengths do not match
-    return total_absorbance_ode - experimental_data.T
+    return total_absorbance_ode - experimental_Abs.T
+
+def objective_function_conc(params,
+                            lambda_meters,
+                            init_conc_A, init_conc_B,
+                            time,  experimental_concs,       # ← NEW
+                            epsilon_A_lambda, epsilon_B_lambda,
+                            N_lambda, V):
+    '''
+    Function that minimises the QYs according to the concentrations.
+    '''
+    QY_AB = params['QY_AB'].value
+    QY_BA = params['QY_BA'].value
+
+    concs_ode = odeint(rate_equations,
+                       [init_conc_A, init_conc_B],
+                       time,
+                       args=(lambda_meters, 
+                             QY_AB, QY_BA,
+                             epsilon_A_lambda, epsilon_B_lambda,
+                             N_lambda, V))
+
+    return (concs_ode - experimental_concs).ravel()   # flattened residual
 
 def MinimizeQYs(I0_list,
                 emission_norm, lambda_meters, 
@@ -243,6 +393,43 @@ def MinimizeQYs(I0_list,
                                               timestamps, absorbance_values, 
                                               e_A_inter, e_B_inter, 
                                               N, V))
+
+        fit_results.append(result_lmfit)
+    return N, fit_results
+
+def MinimizeQYs_Conc(I0_list,
+                emission_norm, 
+                lambda_meters, 
+                init_conc_R, init_conc_P,
+                timestamps, concs_RP,
+                e_A_inter, e_B_inter,
+                V):
+    
+    h = Constants.h
+    c = Constants.c
+    Avogadro = Constants.Avogadro
+    
+    ### loop over the powers in the list 
+    fit_results=[]
+    for total_power in I0_list:
+        # power_at_each_wavelength = emission_norm * total_power * 1e-6 ## Photon flux in mmol/s per wavelength # for microwatt
+        power_at_each_wavelength = emission_norm * total_power * 1e-3 ## Photon flux in mmol/s per wavelength # for milliwatt
+        N = power_at_each_wavelength / (h * c / lambda_meters) / Avogadro * 1000
+        
+        ## Add wavelength-specific parameters to the lmfit Parameters object
+        params = Parameters()
+        params.add('QY_AB', value=0.5, min=0, max=1) ## with boundaries
+        params.add('QY_BA', value=0.5, min=0, max=1) ## with boundaries
+        
+        ## Minimize the objective function using lmfit
+        ## Fitting method: Levenberg-Marquardt (default)
+        result_lmfit = minimize(objective_function_conc, 
+                                params, 
+                                args=(lambda_meters,
+                                      init_conc_R, init_conc_P,
+                                      timestamps, concs_RP,  ## concentrations instead of Abs
+                                      e_A_inter, e_B_inter, 
+                                      N, V))
 
         fit_results.append(result_lmfit)
     return N, fit_results

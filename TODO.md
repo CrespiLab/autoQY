@@ -2,10 +2,15 @@
 
 ## To Do
 - [ ] Add status field that shows message log
+- [ ] Add comparison plot of initial spectrum in measurement data with epsilon spectrum
 
 - [ ] Introduce DPI auto-scaling to accommodate all screen resolutions
- 
-- [ ] Take into account delays around acquisition of spectra; use actual irradiation times (shift timestamps) for ODE
+
+- [ ] Add general options for data processing
+  - [ ] Baseline correction of LED emission spectrum (move to general)
+  - [ ] Smoothing of LED emission spectrum
+
+- [ ] Include processed data, fits, etc., with results (to allow subsequent plotting by the user)
 
 ## In Progress :)
 - [ ] Error handling
@@ -23,3 +28,5 @@
 - [x] Add configuration file to set defaults (e.g., for Log format)
 - [x] Create CITATION.cff
 - [x] Release version 1.0.0
+- [x] Take into account delays around acquisition of spectra; use actual irradiation times (shift timestamps) for ODE
+- [x] Introduce alternative Concentrations method for solving the ODEs: involves initial retrieval of concentrations from absorption spectra by fitting of epsilons spectra

@@ -74,7 +74,7 @@ def Import_Epsilons(FileFormat,
     TO DO for GUI:
         - select delimiter: ',' or '\t'
         - select; ignore Wavenumbers column or not
-        
+    Returns: wavelengths and intensities as numpy.ndarray
     """
     if FileFormat == "Spectragryph":
         epsilon_data = pd.read_csv(X, delimiter='\t',
@@ -86,7 +86,6 @@ def Import_Epsilons(FileFormat,
     epsilon_data.columns = ['Wavelengths', 'Epsilons'] ## rename columns
     epsilon_wavelengths = epsilon_data['Wavelengths'].values
     epsilon_values = epsilon_data['Epsilons'].values
-    
     return epsilon_wavelengths, epsilon_values
 
 def Import_LEDemission(FileFormat, file_LEDemission_raw):

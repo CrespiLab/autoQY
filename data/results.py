@@ -4,6 +4,10 @@ Created on Wed Dec  4 12:12:13 2024
 
 @author: jorst136
 """
+fractions_R = []
+fractions_P = []
+reconstructed_spectra_fractions = []
+
 
 QY_AB_opt = None
 QY_BA_opt = None
