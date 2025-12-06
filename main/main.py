@@ -34,6 +34,7 @@ import tools.extractresults as ExtractResults
 #from tools.style import apply_dark_theme
 
 import tools.power_processing as PowerProcessing
+import tools.fractions_residuals as FractionsResiduals
 
 from UIs.MainWindow import Ui_MainWindow
 
@@ -94,7 +95,7 @@ def main():
             self.DeletePowerDataButton_3.clicked.connect(lambda: self.DeletePowerData(3))
     
             self.calculatePowerButton.clicked.connect(self.calculate_total_power) ## Calculates average power+error
-    
+            
             #######
             self.radioButton_ODE_Concentration.toggled.connect(self.handle_radio_selection_ODE)
             self.radioButton_ODE_Emission.toggled.connect(self.handle_radio_selection_ODE)
@@ -652,21 +653,29 @@ def main():
                 """ Plot the data using MplCanvas """
                 canvas.PlotFractions(LoadedData.SpectralDataCut_Wavelengths,
                                      LoadedData.SpectralDataCut_Abs,
-                                     Results.reconstructed_spectra_fractions,
+                                     Results.reconstructed_spectra_fractions_Abs,
                                      Results.fractions_R,
                                      Results.fractions_P)
             
             self.add_new_tab(plot_func, "Fractions")
 
-
-        def plot_fractions_residuals(self):
         ##!!! ADD function that starts a pop-up window 
-            ## to show the residuals for each spectrum    
+            ## to show the residuals for each spectrum 
+        def plot_fractions_residuals(self):
             '''
             Pop-up window that shows residuals for each fitted spectra
-                        
-
             '''
+            ##!!! ADD WARNING MESSAGEBOXES HERE
+            '''LoadedData.SpectralDataCut_Wavelengths,
+            Results.original_spectra[i],
+            Results.reconstructed_spectra_fractions_Abs[i],
+            Results.fractions_residuals[i]'''
+            # if self.x is None or self.Power is None:
+            #     QtWidgets.QMessageBox.warning("Error", "No data loaded")
+            #     return
+            
+            self.window_fractions_residuals = FractionsResiduals.WindowFractionsResiduals(parent=self) # load Class that includes loadUi
+            self.window_fractions_residuals.show()
 
         ################################################################################
         ################################################################################
@@ -796,13 +805,29 @@ def main():
                 QtWidgets.QMessageBox.warning(self, "Error", "Please perform processing of spectra.")
                 return
             
-            Results.fractions_R, Results.fractions_P, Results.reconstructed_spectra_fractions = \
+            (Results.fractions_R, Results.fractions_P, Results.reconstructed_spectra_fractions_epsilon,
+             Results.original_spectra) = \
                 Fractions.CalculateFractions(LoadedData.SpectralDataCut_Abs,
                                              LoadedData.SpectralDataCut_Wavelengths,
                                              LoadedData.epsilons_R_interp,
                                              LoadedData.epsilons_P_interp)
             
+            
+            (Datasets.total_conc, Datasets.initial_conc_R, Datasets.initial_conc_P, Datasets.concs_RP,
+             Datasets.wavelengths_meters, Datasets.normalized_emission) = \
+                Integration.CreateParameters_Conc(LoadedData.SpectralDataCut_Abs, 
+                                             LoadedData.SpectralDataCut_Wavelengths,
+                                             Results.fractions_R, Results.fractions_P,
+                                            LoadedData.epsilons_R_interp,LoadedData.epsilons_P_interp,
+                                            LoadedData.emission_interp)
+            
+            Results.reconstructed_spectra_fractions_Abs, Results.fractions_residuals = \
+                Fractions.CalculateResiduals(Results.original_spectra,
+                                             Results.reconstructed_spectra_fractions_epsilon,
+                                             Datasets.total_conc)
+            
             self.plot_fractions() ## plot retrieved fractions
+            self.PlotFractionsResidualsButton.setEnabled(True)
             self.CalcQYButton.setEnabled(True)
             
             ### Save as .csv ###
@@ -873,13 +898,14 @@ def main():
                 print(f"Calc_QY ODEMethod:\n{CalcSettings.ODEMethod}")
 
                 ## Create parameters needed for fitting
-                (Datasets.initial_conc_R, Datasets.initial_conc_P, Datasets.concs_RP,
-                 Datasets.wavelengths_meters, Datasets.normalized_emission) = \
-                    Integration.CreateParameters_Conc(LoadedData.SpectralDataCut_Abs, 
-                                                 LoadedData.SpectralDataCut_Wavelengths,
-                                                 Results.fractions_R, Results.fractions_P,
-                                                LoadedData.epsilons_R_interp,LoadedData.epsilons_P_interp,
-                                                LoadedData.emission_interp)
+                ##!!! MOVE TO Calculate Fractions function
+                # (Datasets.initial_conc_R, Datasets.initial_conc_P, Datasets.concs_RP,
+                #  Datasets.wavelengths_meters, Datasets.normalized_emission) = \
+                #     Integration.CreateParameters_Conc(LoadedData.SpectralDataCut_Abs, 
+                #                                  LoadedData.SpectralDataCut_Wavelengths,
+                #                                  Results.fractions_R, Results.fractions_P,
+                #                                 LoadedData.epsilons_R_interp,LoadedData.epsilons_P_interp,
+                #                                 LoadedData.emission_interp)
                 
                 Datasets.N, Datasets.fit_results = Integration.MinimizeQYs_Conc(Datasets.I0_list, 
                                                         Datasets.normalized_emission,

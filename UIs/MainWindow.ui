@@ -1909,7 +1909,7 @@
         </font>
        </property>
        <property name="text">
-        <string>Plot Residuals (TO DO)</string>
+        <string>Plot Residuals</string>
        </property>
       </widget>
       <widget class="QPushButton" name="CalculateFractionsButton">

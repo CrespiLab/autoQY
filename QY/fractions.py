@@ -45,11 +45,12 @@ def CalculateFractions(spectra, wavelengths, eps1, eps2):
     f1_list, f2_list = [], []
     
     for i, A_raw in enumerate(A_matrix_raw):
-        baseline = polynomial_baseline(wavelengths, A_raw, 0) ## polynomial: 0 (off)
-        A_corr = A_raw - baseline
-        # A_corr = A_raw ## no baseline correction
+        # baseline = polynomial_baseline(wavelengths, A_raw, 0) ## polynomial: 0 (off)
+        # A_corr = A_raw - baseline
+        # coeffs, _ = nnls(E, A_corr)
 
-        coeffs, _ = nnls(E, A_corr)
+        ## no baseline correction
+        coeffs, _ = nnls(E, A_raw) 
         total = coeffs.sum()
         frac1 = coeffs[0] / total if total > 0 else 0.0
         frac2 = coeffs[1] / total if total > 0 else 0.0
@@ -57,24 +58,25 @@ def CalculateFractions(spectra, wavelengths, eps1, eps2):
         f1_list.append(frac1)
         f2_list.append(frac2)
     
-    # Prepare to plot fits vs. original
     reconstructed_spectra = []
     
     for f1, f2 in zip(f1_list, f2_list):
         fit = f1 * eps1 + f2 * eps2
         reconstructed_spectra.append(fit)
-    
     reconstructed_spectra = np.array(reconstructed_spectra)  # shape = (n_spectra, n_points)
 
-    return f1_list, f2_list, reconstructed_spectra
+    original_spectra = A_matrix_raw
+    return f1_list, f2_list, reconstructed_spectra, original_spectra
 
-
-##!!! ADD RESIDUALS PLOT
-
-##def ResidualsPlot()
-### Compute residuals: Original - Reconstructed
-# residuals = A_matrix_raw - reconstructed_spectra
-
+def CalculateResiduals(original, reconstructed_epsilon, total_conc):
+    ''' 
+    Convert reconstructed spectra from epsilons to Abs using obtained total concentration
+    Calculate residuals in Abs: Original - Reconstructed
+    '''
+    reconstructed_Abs = reconstructed_epsilon * total_conc
+    residuals = original - reconstructed_Abs
+    return reconstructed_Abs, residuals
+    
 def Save_FractionsResults(f1_list, f2_list,
                           filepath_spectra):
     ''' 

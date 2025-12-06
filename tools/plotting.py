@@ -423,7 +423,7 @@ class MplCanvas(FigureCanvas):
                      color = colours_formap[i])
         ax2.set_title("Reconstructed Spectra from Fit")
         ax2.set_xlabel("Wavelength (nm)")
-        ax2.set_ylabel(r"$\epsilon$ (M$^{-1}$ cm$^{-1}$)")
+        ax2.set_ylabel("Absorbance")
         # ax2.set_xlim(xlim_left,xlim_right)
         # ax2.grid(True)
         # ax2.legend(fontsize="x-small")
@@ -448,6 +448,15 @@ class MplCanvas(FigureCanvas):
         
         # self.fig.tight_layout()
         self.draw() # Redraw the canvas
+
+    def PlotFractionsResiduals(wl, original, reconstructed, residuals):
+        ''' 
+        Original and reconstructed spectra on the top
+        Residuals (difference between original and reconstructed spectra) on the bottom
+        Creates one plot.
+        '''
+        ##!!! ADD FUNCTION FROM fractions_residuals.py HERE
+
 
     def PlotResults(self, 
                     LEDwavelength,

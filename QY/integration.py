@@ -258,7 +258,7 @@ def CreateParameters_Conc(absorbance_values, wavelengths_data,
     ## Normalize the LED emission spectrum to ensure the area under the curve is 1
     normalized_emission = emission_inter / trapezoid(emission_inter, lambda_meters)
 
-    return initial_conc_R, initial_conc_P, concs_RP, lambda_meters, normalized_emission
+    return total_conc, initial_conc_R, initial_conc_P, concs_RP, lambda_meters, normalized_emission
 
 def rate_equations(concentrations, time, 
                    lambda_meters,

@@ -1013,7 +1013,7 @@ class Ui_MainWindow(object):
         self.ProcessPlotDataButton_Emission.setText(_translate("MainWindow", "Process Spectra"))
         self.label_Threshold.setText(_translate("MainWindow", "Threshold"))
         self.radioButton_ODE_Concentration.setText(_translate("MainWindow", "Concentrations"))
-        self.PlotFractionsResidualsButton.setText(_translate("MainWindow", "Plot Residuals (TO DO)"))
+        self.PlotFractionsResidualsButton.setText(_translate("MainWindow", "Plot Residuals"))
         self.CalculateFractionsButton.setText(_translate("MainWindow", "Calculate Fractions"))
         self.groupBox_Conc_Process.setTitle(_translate("MainWindow", "Process Data"))
         self.ProcessPlotDataButton_Concentrations.setText(_translate("MainWindow", "Process Spectra"))
