@@ -3,6 +3,7 @@
 ## To Do
 - [ ] Add status field that shows message log
 - [ ] Add comparison plot of initial spectrum in measurement data with epsilon spectrum
+- [ ] Change residuals plot in QY Results: absolute residual of R; relative residual of R
 
 - [ ] Introduce DPI auto-scaling to accommodate all screen resolutions
 
