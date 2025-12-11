@@ -11,9 +11,9 @@
   - [ ] Baseline correction of LED emission spectrum (move to general)
   - [ ] Smoothing of LED emission spectrum
 
-- [ ] Include processed data, fits, etc., with results (to allow subsequent plotting by the user)
-
 ## In Progress :)
+- [ ] Create Results folder upon saving the results and save all data used into that folder
+  - [ ] Include processed data, fits, etc., with results (to allow subsequent plotting by the user)
 - [ ] Error handling
   - [ ] Upon save results: ask if users wants to overwrite existing filename
 - [ ] Improve tabs functionality
