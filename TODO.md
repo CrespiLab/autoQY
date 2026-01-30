@@ -1,7 +1,6 @@
 # To-Do List
 
 ## To Do
-- [ ] Add status field that shows message log
 - [ ] Add comparison plot of initial spectrum in measurement data with epsilon spectrum
 - [ ] Change residuals plot in QY Results: absolute residual of R; relative residual of R
 
@@ -31,3 +30,4 @@
 - [x] Release version 1.0.0
 - [x] Take into account delays around acquisition of spectra; use actual irradiation times (shift timestamps) for ODE
 - [x] Introduce alternative Concentrations method for solving the ODEs: involves initial retrieval of concentrations from absorption spectra by fitting of epsilons spectra
+- [x] Add status field that shows message log
