@@ -106,5 +106,7 @@ def Save_FractionsResults(f1_list, f2_list,
         for i, (f1, f2) in enumerate(zip(f1_list, f2_list)):
             writer.writerow([i+1, f1, f2])
 
-    print(f"Fractions saved to: {output_file}")
+    # print(f"Fractions saved to: {output_file}")
+    message = f"Fractions saved to: {output_file}"
+    return message
 

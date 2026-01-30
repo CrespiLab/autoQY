@@ -38,11 +38,6 @@ import tools.fractions_residuals as FractionsResiduals
 
 from UIs.MainWindow import Ui_MainWindow
 
-##!!! ADD statusBar messages: self.statusBar.showMessage(f"success, successful: {err}")    
-    ## for successful loading
-## make it a statusFIELD so that there is a log of messages visible
-## for severe issues: use pop-up window still
-
 def main():
     class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             ############################
@@ -81,8 +76,8 @@ def main():
                                        2: self.lineEdit_PowerError_2,
                                        3: self.lineEdit_PowerError_3}
             
-            ## Default Calculation Method is integration: see ExpParams
-    
+            self.message_console = self.textEdit_MessageConsole
+            
             ## Button connections
             self.loadDataButton_1.clicked.connect(lambda: self.OpenWindow_PowerProcessing(1))
             self.loadDataButton_2.clicked.connect(lambda: self.OpenWindow_PowerProcessing(2))
@@ -207,42 +202,42 @@ def main():
         def update_V(self):
             try:
                 ExpParams.V = float(self.lineEdit_Volume.text())  # Convert the input to a float
-                print(f"Updated V to {ExpParams.V}")
+                self.message_console.append(f"Updated V to {ExpParams.V}")
             except ValueError:
                 pass  # Handle the case where the input is not a valid number
     
         def update_k_BA(self):
             try:
                 ExpParams.k_BA = float(self.lineEdit_k.text())  # Convert the input to a float
-                print(f"Updated k_BA to {ExpParams.k_BA}")
+                self.message_console.append(f"Updated k_BA to {ExpParams.k_BA}")
             except ValueError:
                 pass
     
         def update_I0_avg(self):
             try:
                 ExpParams.I0_avg = float(self.lineEdit_ManPower.text())  # Convert the input to an integer
-                print(f"Updated I0_avg to {ExpParams.I0_avg}")
+                self.message_console.append(f"Updated I0_avg to {ExpParams.I0_avg}")
             except ValueError:
                 pass
     
         def update_I0_err(self):
             try:
                 ExpParams.I0_err = float(self.lineEdit_ManPowerError.text())  # Convert the input to an integer
-                print(f"Updated I0_err to {ExpParams.I0_err}")
+                self.message_console.append(f"Updated I0_err to {ExpParams.I0_err}")
             except ValueError:
                 pass
     
         def update_I0_avg_PP(self):
             try:
                 ExpParams.I0_avg = float(self.lineEdit_AvgPower.text())  # Convert the input to an integer
-                print(f"Updated I0_avg to {ExpParams.I0_avg}")
+                self.message_console.append(f"Updated I0_avg to {ExpParams.I0_avg}")
             except ValueError:
                 pass
     
         def update_I0_err_PP(self):
             try:
                 ExpParams.I0_err = float(self.lineEdit_AvgPowerError.text())  # Convert the input to an integer
-                print(f"Updated I0_err to {ExpParams.I0_err}")
+                self.message_console.append(f"Updated I0_err to {ExpParams.I0_err}")
             except ValueError:
                 pass
 
@@ -250,7 +245,7 @@ def main():
             """ For Integration Mode (default) """
             try:
                 ExpParams.LEDw = int(self.lineEdit_LEDWavelength.text())  # Convert the input to an integer
-                print(f"Updated LEDw to {ExpParams.LEDw}")
+                self.message_console.append(f"Updated LEDw to {ExpParams.LEDw}")
             except ValueError:
                 pass
     
@@ -258,7 +253,7 @@ def main():
             """ Update value for threshold used for LED emission spectrum """
             try:
                 CalcSettings.threshold = int(self.lineEdit_Threshold.text())  # Convert the input to an integer
-                print(f"Updated threshold to {CalcSettings.threshold}")
+                self.message_console.append(f"Updated threshold to {CalcSettings.threshold}")
             except ValueError:
                 pass
     
@@ -267,7 +262,7 @@ def main():
             try:
                 CalcSettings.wl_low = int(self.lineEdit_WavelengthRange_Min.text())
                 CalcSettings.wl_high = int(self.lineEdit_WavelengthRange_Max.text())
-                print(f"Updated wavelength range to {CalcSettings.wl_low}-{CalcSettings.wl_high}")
+                self.message_console.append(f"Updated wavelength range to {CalcSettings.wl_low}-{CalcSettings.wl_high}")
             except ValueError:
                 pass
     
@@ -375,15 +370,16 @@ def main():
         def handle_radio_selection_Log(self):
             if self.radioButton_Log_Default.isChecked(): # Timestamps: Default
                 CalcSettings.format_timestamps = "Default"
-    
             if self.radioButton_Log_AHK.isChecked(): # Timestamps: AHK format (Crespi group)
                 CalcSettings.format_timestamps = "AHK"
+            self.message_console.append(f"Format of Timestamps data: {CalcSettings.format_timestamps}")
 
         def handle_radio_selection_blcorrLED(self):
             if self.radioButton_blcorrLED_on.isChecked(): # Baseline Correction of LED
                 CalcSettings.BaselineCorrection_LED = "ON"
             if self.radioButton_blcorrLED_off.isChecked(): # Baseline Correction of LED
                 CalcSettings.BaselineCorrection_LED = "OFF"
+            self.message_console.append(f"Baseline Correction of LED Emission spectrum: {CalcSettings.BaselineCorrection_LED}")
 
         ############################################################################################################
 
@@ -400,7 +396,9 @@ def main():
             for module, vars_dict in self.default_state.items():
                 for name, value in vars_dict.items():
                     setattr(module, name, copy.deepcopy(value))
-            print("Variables reset!")
+            self.message_console.append("Experimental Parameters and Calculation Settings reset!")
+            
+            ##!!! also unload all loaded data
 
             self.SetTextfields()
             self.SetButtons()
@@ -409,14 +407,12 @@ def main():
             """"""
 
             if count not in LoadedData.PowersAtCuvette:
-                QtWidgets.QMessageBox.warning(self, "Error", "Data does not exist.")
+                self.message_console.append("Cannot remove: power data does not exist.")
                 return
     
             LoadedData.PowersAtCuvette.pop(count) # remove result from dictionary
             LoadedData.ErrorsAtCuvette.pop(count) # remove result from dictionary
     
-            # print(f"main-DeletePowerData_1===LoadedData.PowersAtCuvette:{LoadedData.PowersAtCuvette}")
-            
             self.labels_power[count].setText("")
             self.labels_error[count].setText("")
     
@@ -448,9 +444,7 @@ def main():
             
             self.lineEdit_AvgPower.setText(f"{ExpParams.I0_avg:.2f}") # set PowerProcessing: Power, final averaged
             self.lineEdit_AvgPowerError.setText(f"{ExpParams.I0_err:.2f}") # set PowerProcessing: Error, final averaged
-            
-            print(f"I0_avg: {ExpParams.I0_avg}\nI0_err: {ExpParams.I0_err}")
-            
+
             self.Save_PowerResults()
     
         def Save_PowerResults(self):
@@ -468,8 +462,6 @@ def main():
                 os.remove(savefile)
             except:
                 pass
-            # except OSError as e:
-            #     print(f"An error occurred for {e.filename} - {e.strerror}")
     
             try:
                 file=savefile
@@ -481,7 +473,7 @@ def main():
                     for i in avgdpowererror:
                         file.write(i+": "+str(avgdpowererror[i])+'\n')
             except IOError as e:
-                print(f"An error occurred: {e}")
+                self.message_console.append(f"An error occurred trying to save the power results: {e}")
         
         ####################################################################################################################################
         ############################ LOAD DATA ############################
@@ -490,6 +482,7 @@ def main():
         def load_file(self, file_type):
             """Load a file (LED emission, spectral data, epsilons) based on the file type."""
             ##!!! Move to tools.load_data
+            message = None
             try:
                 options = QtWidgets.QFileDialog.Options()
     
@@ -499,28 +492,32 @@ def main():
                                                                     "CSV, DAT Files (*.csv *dat);;DAT Files (*.dat);;All Files (*)", 
                                                                     options=options)
                 if not file_name:
-                    QtWidgets.QMessageBox.warning(self, "Error", f"No {file_type} file selected")
+                    self.message_console.append(f"No {file_type} file selected")
                     return
     
                 ##################################################
                 # Store the file path in the appropriate attribute based on the file type
                 file_ext = os.path.splitext(file_name)[1].lower()
                 if file_ext == '.csv':
-                    self.load_csv(file_name, file_type)
+                    message = self.load_csv(file_name, file_type)
                 elif file_ext == '.dat':
-                    self.load_dat(file_name, file_type)
+                    message = self.load_dat(file_name, file_type)
                 else:
-                    QtWidgets.QMessageBox.warning(self, "Error", f"Unknown file type: {file_type}")
+                    message = f"Unknown file extension: {file_ext}"
+
+                if message is None:
+                    self.message_console.append(f"{file_type} {file_ext} file loaded successfully!")
+                else:
+                    self.message_console.append(message)
+                    QtWidgets.QMessageBox.critical(self, "Error", message)
                 
-                ##!!! THIS MESSAGE STILL APPEARS EVEN IF A FILE IS UNSUCCESSFULLY LOADED...
-                ## CHANGE SO THAT ABOVE IF/ELIF-STATEMENT NEEDS TO BE SUCCESSFUL
-                QtWidgets.QMessageBox.information(self, "Success", f"{file_type} file loaded successfully!")
             except Exception as e:
-                    QtWidgets.QMessageBox.critical(self, "Error", f"Failed to load {file_type} file: {e}")
+                    QtWidgets.QMessageBox.critical(self, "Error", f"Failed to load {file_type} {file_ext} file: {e}")
     
         def load_dat(self, file_path, file_type):
             """Load the data file depending on its format (.csv or .dat)."""
             ##!!! Move to tools.load_data
+            message = None
             try:
                 if file_type == "LED Emission":
                     LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity = LoadData.Import_LEDemission("Spectragryph", file_path)
@@ -530,26 +527,23 @@ def main():
                     LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values = LoadData.Import_Epsilons("Spectragryph", file_path)
                 elif file_type == "Epsilons Product":
                     LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values = LoadData.Import_Epsilons("Spectragryph", file_path)
-                    print
                 elif file_type == "Spectral Data":
                     LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths, LoadedData.SpectralData_Absorbance = \
-                        LoadData.Import_SpectralData("Spectragryph",file_path) #HARDCODED IN THE WRONG PLACE # STILL??
+                        LoadData.Import_SpectralData("Spectragryph",file_path) #HARDCODED IN THE WRONG PLACE ##!!! STILL??
                     LoadedData.filename_spectra = file_path
-                    print(f"load_dat\n===LoadedData.filename_spectra: {LoadedData.filename_spectra}")
-                        
-                ########################################
                 ##!!! ADD in case of .dat format
                 # elif file_type == "Log Irr":
                 #      LoadedData.timestamps = LoadData.GetTimestamps(file_path)
-                else:
-                        raise ValueError(f"Unknown file type: {file_type}")
+
             except Exception as e:
-                QtWidgets.QMessageBox.critical(self, "Error", f"Failed to import .dat file for {file_type}: {e}")
+                message = f"Failed to load .dat file as {file_type}: {e}"
+            return message
     
         def load_csv(self, file_path, file_type):
             """Load the data file depending on its format (.csv or .dat)."""
+            message = None
             try:       
-                if file_type == "LED Emission": ###### A LOT OF PROBLEMS WITH '
+                if file_type == "LED Emission":
                     LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity = LoadData.Import_LEDemission("Not", file_path)
                     LoadedData.filename_LED = file_path
                 elif file_type == "Epsilons Reactant":
@@ -562,10 +556,9 @@ def main():
                         LoadData.Import_SpectralData("Not", file_path)
                 elif file_type == "Log Irr":
                     LoadedData.timestamps = LoadData.GetTimestamps(file_path)
-                else:
-                        raise ValueError(f"Unknown file type: {file_type}")
             except Exception as e:
-                QtWidgets.QMessageBox.critical(self, "Error", f"Failed to import .csv file for {file_type}: {e}")
+                message = f"Failed to load .csv file as {file_type}: {e}"
+            return message
     
         ###=========================================================================###
         ################################### PLOT ######################################
@@ -659,8 +652,6 @@ def main():
             
             self.add_new_tab(plot_func, "Fractions")
 
-        ##!!! ADD function that starts a pop-up window 
-            ## to show the residuals for each spectrum 
         def plot_fractions_residuals(self):
             '''
             Pop-up window that shows residuals for each fitted spectra
@@ -718,9 +709,17 @@ def main():
                 return
 
             ''' Obtain smoothed and non-negatived LED emission data '''
-            LoadedData.LEDemission_intensity_proc = \
+            message_blcorr, message, LoadedData.LEDemission_intensity_proc = \
                 Integration.Process_LEDemission(LoadedData.LEDemission_wavelengths,
                                                 LoadedData.LEDemission_intensity)
+            
+            if message is None:
+                self.message_console.append("Spectra successfully processed.")
+                self.message_console.append(message_blcorr) ## show message from Process_LEDemission function: baseline correction
+            else:
+                self.message_console.append(message_blcorr) ## show message from Process_LEDemission function: baseline correction
+                self.message_console.append(message) ## show message from Process_LEDemission function
+                return
             
             ########################################
             if CalcSettings.ODEMethod == "Emission":
@@ -811,7 +810,7 @@ def main():
                                              LoadedData.SpectralDataCut_Wavelengths,
                                              LoadedData.epsilons_R_interp,
                                              LoadedData.epsilons_P_interp)
-            
+            self.message_console.append("Fractions successfully retrieved.")
             
             (Datasets.total_conc, Datasets.initial_conc_R, Datasets.initial_conc_P, Datasets.concs_RP,
              Datasets.wavelengths_meters, Datasets.normalized_emission) = \
@@ -820,6 +819,7 @@ def main():
                                              Results.fractions_R, Results.fractions_P,
                                             LoadedData.epsilons_R_interp,LoadedData.epsilons_P_interp,
                                             LoadedData.emission_interp)
+            self.message_console.append(f"Total Concentration: {Datasets.total_conc:.2E} M. Initial concentrations: Reactant {Datasets.initial_conc_R:.2E} M, and Product {Datasets.initial_conc_P:.2E} M")
             
             Results.reconstructed_spectra_fractions_Abs, Results.fractions_residuals = \
                 Fractions.CalculateResiduals(Results.original_spectra,
@@ -831,8 +831,9 @@ def main():
             self.CalcQYButton.setEnabled(True)
             
             ### Save as .csv ###
-            Fractions.Save_FractionsResults(Results.fractions_R, Results.fractions_P,
+            message = Fractions.Save_FractionsResults(Results.fractions_R, Results.fractions_P,
                                             LoadedData.filename_spectra)
+            self.message_console.append(message)
             
         #######################################    
 
@@ -881,7 +882,6 @@ def main():
                                                  LoadedData.SpectralDataCut_Wavelengths,
                                                 LoadedData.epsilons_R_interp,
                                                 LoadedData.emission_interp)
-        
                 
                 Datasets.N, Datasets.fit_results = Integration.MinimizeQYs(Datasets.I0_list, 
                                                         Datasets.normalized_emission,
@@ -895,18 +895,7 @@ def main():
                 self.Extract_QY() # extract QY results and display
             ######################################################################    
             elif CalcSettings.ODEMethod == "Concentrations":
-                print(f"Calc_QY ODEMethod:\n{CalcSettings.ODEMethod}")
-
-                ## Create parameters needed for fitting
-                ##!!! MOVE TO Calculate Fractions function
-                # (Datasets.initial_conc_R, Datasets.initial_conc_P, Datasets.concs_RP,
-                #  Datasets.wavelengths_meters, Datasets.normalized_emission) = \
-                #     Integration.CreateParameters_Conc(LoadedData.SpectralDataCut_Abs, 
-                #                                  LoadedData.SpectralDataCut_Wavelengths,
-                #                                  Results.fractions_R, Results.fractions_P,
-                #                                 LoadedData.epsilons_R_interp,LoadedData.epsilons_P_interp,
-                #                                 LoadedData.emission_interp)
-                
+                self.message_console.append(f"ODE Solver Method: {CalcSettings.ODEMethod}")
                 Datasets.N, Datasets.fit_results = Integration.MinimizeQYs_Conc(Datasets.I0_list, 
                                                         Datasets.normalized_emission,
                                                         Datasets.wavelengths_meters, 
@@ -961,7 +950,7 @@ def main():
             ######################################################################
             self.SetResultTextfields() ## Update textfields to show results
             self.add_new_tab(self.Plot_QY, "QY") ## Plot and save the results
-            QtWidgets.QMessageBox.information(self, "Success", "Results extracted and plotted!")
+            self.message_console.append("Results extracted and plotted! (Not saved).")
     
         def Plot_QY(self, canvas):
             if CalcSettings.ODEMethod == "Emission":
@@ -987,7 +976,6 @@ def main():
                                    Results.QY_AB_opt, Results.QY_BA_opt,
                                    Results.error_QY_AB, Results.error_QY_BA,
                                    CalcSettings.ODEMethod)
-            
             else:
                 QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the CalcSettings.ODEMethod variable")
         
@@ -1014,6 +1002,7 @@ def main():
             
             canvas = MplCanvas(self)
             if not savefilename:
+                self.message_console.append("Results NOT saved.")
                 return
             else:
                 if CalcSettings.ODEMethod == "Emission":
@@ -1045,8 +1034,7 @@ def main():
                                        SaveFileName = Results.savefilename)
         
                 self.Save_Results()
-        
-                QtWidgets.QMessageBox.information(self, "Success", f"{Results.savefilename} file saved successfully!")
+                self.message_console.append(f"Files saved successfully as {Results.savefilename}")
     
         def Save_Results(self):
             """ Save results and all the parameters and settings used for the calculation """
@@ -1096,7 +1084,7 @@ def main():
                     for i in dict_calcsettings:
                         file.write(i+": "+str(dict_calcsettings[i])+'\n')
             except IOError as e:
-                print(f"An error occurred: {e}")
+                self.message_console.append(f"An error occurred upon saving the results textfile: {e}")
     #####################################################################
     app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()

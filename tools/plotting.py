@@ -551,9 +551,10 @@ class MplCanvas(FigureCanvas):
             savefile_png = SaveFileName+".png"
             self.fig.savefig(savefile_svg,bbox_inches="tight")
             self.fig.savefig(savefile_png,bbox_inches="tight")
-            print("Saved plots")
+            # print("Saved plots")
         elif SaveResults == "No":
-            print("Plots not saved")
+            # print("Plots not saved")
+            pass
         else:
             print("Wrong ToSave input")
 
@@ -664,9 +665,10 @@ class MplCanvas(FigureCanvas):
             savefile_png = SaveFileName+".png"
             self.fig.savefig(savefile_svg,bbox_inches="tight")
             self.fig.savefig(savefile_png,bbox_inches="tight")
-            print("Saved plots")
+            # print("Saved plots")
         elif SaveResults == "No":
-            print("Plots not saved")
+            # print("Plots not saved")
+            pass
         else:
             print("Wrong ToSave input")
 

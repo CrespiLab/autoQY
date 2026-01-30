@@ -106,7 +106,7 @@
      <property name="geometry">
       <rect>
        <x>130</x>
-       <y>740</y>
+       <y>750</y>
        <width>251</width>
        <height>141</height>
       </rect>
@@ -183,8 +183,8 @@
     <widget class="QGroupBox" name="groupBox">
      <property name="geometry">
       <rect>
-       <x>150</x>
-       <y>260</y>
+       <x>210</x>
+       <y>270</y>
        <width>820</width>
        <height>151</height>
       </rect>
@@ -652,9 +652,9 @@
      <property name="geometry">
       <rect>
        <x>340</x>
-       <y>10</y>
+       <y>0</y>
        <width>771</width>
-       <height>241</height>
+       <height>261</height>
       </rect>
      </property>
      <property name="font">
@@ -671,7 +671,7 @@
         <x>295</x>
         <y>20</y>
         <width>5</width>
-        <height>210</height>
+        <height>230</height>
        </rect>
       </property>
       <property name="lineWidth">
@@ -1523,7 +1523,7 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>70</y>
+       <y>160</y>
        <width>321</width>
        <height>101</height>
       </rect>
@@ -1697,7 +1697,7 @@
      <property name="geometry">
       <rect>
        <x>90</x>
-       <y>430</y>
+       <y>440</y>
        <width>940</width>
        <height>291</height>
       </rect>
@@ -2216,7 +2216,7 @@
      <property name="geometry">
       <rect>
        <x>440</x>
-       <y>740</y>
+       <y>750</y>
        <width>550</width>
        <height>141</height>
       </rect>
@@ -2539,8 +2539,8 @@
     <widget class="QPushButton" name="ButtonClearLoadedData">
      <property name="geometry">
       <rect>
-       <x>100</x>
-       <y>200</y>
+       <x>50</x>
+       <y>330</y>
        <width>120</width>
        <height>25</height>
       </rect>
@@ -2566,6 +2566,43 @@
       <string>Clear Loaded Data</string>
      </property>
     </widget>
+    <widget class="QTextEdit" name="textEdit_MessageConsole">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>30</y>
+       <width>321</width>
+       <height>121</height>
+      </rect>
+     </property>
+     <property name="readOnly">
+      <bool>true</bool>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_MessageConsole">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>0</y>
+       <width>101</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>200</width>
+       <height>25</height>
+      </size>
+     </property>
+     <property name="font">
+      <font>
+       <pointsize>16</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>Messages</string>
+     </property>
+    </widget>
    </widget>
   </widget>
   <widget class="QStatusBar" name="statusbar">
@@ -2585,8 +2622,8 @@
  <connections/>
  <buttongroups>
   <buttongroup name="buttonGroup_Power"/>
-  <buttongroup name="buttonGroup_blcorrLED"/>
   <buttongroup name="buttonGroup_ODEMethod"/>
   <buttongroup name="buttonGroup_logformat"/>
+  <buttongroup name="buttonGroup_blcorrLED"/>
  </buttongroups>
 </ui>

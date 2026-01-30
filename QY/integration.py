@@ -24,49 +24,56 @@ LEDindex_last = None
 ##################################################
 def Process_LEDemission(wavelengths_LED, intensity_LED):
     ''' Apply smoothing and remove negative values in LED emission data '''
-    emission_Intensity_smoothed = savgol_filter(intensity_LED, 12,3) ## Smoothing
-    ##!!! REMOVE SMOOTHING (AND REPLACE BY PEKARIAN FIT)
-
-    if CalcSettings.BaselineCorrection_LED == "ON":
-        emission_Intensity_proc = BaselineCorrection_LED(wavelengths_LED,emission_Intensity_smoothed)
-    elif CalcSettings.BaselineCorrection_LED == "OFF":
-        emission_Intensity_proc = emission_Intensity_smoothed
-    else:
-        print("Something wrong with CalcSettings.BaselineCorrection_LED")
-
-    emission_Intensity_proc[emission_Intensity_proc[:]<0] = 0 ## removal of negative values
+    message_blcorr = None
+    message = None
+    emission_Intensity_proc = None
     
-    return emission_Intensity_proc
+    try:
+        emission_Intensity_smoothed = savgol_filter(intensity_LED, 12,3) ## Smoothing
+        ##!!! REMOVE SMOOTHING (AND REPLACE BY PEKARIAN FIT)
+
+        if CalcSettings.BaselineCorrection_LED == "ON":
+            message_blcorr, emission_Intensity_proc = BaselineCorrection_LED(wavelengths_LED,emission_Intensity_smoothed)
+        elif CalcSettings.BaselineCorrection_LED == "OFF":
+            emission_Intensity_proc = emission_Intensity_smoothed
+            message_blcorr = "No baseline correction of LED emission spectrum."
+        emission_Intensity_proc[emission_Intensity_proc[:]<0] = 0 ## removal of negative values
+    except Exception as e:
+        message = f"Failed to process LED emission spectrum: {e}."
+
+    return message_blcorr, message, emission_Intensity_proc
 
 def BaselineCorrection_LED(wavelengths, intensities):
-    # Step 1: Find peaks
-    peaks, _ = find_peaks(intensities, height=np.max(intensities)*0.5)
-    main_peak_index = peaks[np.argmax(intensities[peaks])]
-    main_peak_x = wavelengths[main_peak_index]
+    try:
+        # Step 1: Find peaks
+        peaks, _ = find_peaks(intensities, height=np.max(intensities)*0.5)
+        main_peak_index = peaks[np.argmax(intensities[peaks])]
+        main_peak_x = wavelengths[main_peak_index]
+        
+        # Step 2: Estimate FWHM of the main peak
+        results_half = peak_widths(intensities, [main_peak_index], rel_height=0.5)
+        fwhm = results_half[0][0] * (wavelengths[1] - wavelengths[0])  # convert index width to nm
+        
+        # Step 3: Define adaptive window size
+        window_width = 10 * fwhm ##!!! make this an option in the GUI?
+        mask = (wavelengths < main_peak_x - window_width) | (wavelengths > main_peak_x + window_width)
+        
+        baseline_x = wavelengths[mask]
+        baseline_y = intensities[mask]
+        
+        # Step 4: Fit linear baseline
+        coeffs = np.polyfit(baseline_x, baseline_y, deg=0) ## vertical offset
+        baseline_fit = np.polyval(coeffs, wavelengths)
+        
+        # Step 5: Apply correction
+        intensities_baselinecorrected = intensities - baseline_fit
+
+        message = f"Performed baseline correction of LED Emission spectrum. Exclusion window: ±{window_width:.2f} nm around the peak at {main_peak_x} nm."
+    except Exception as e:
+        intensities_baselinecorrected = None
+        message = f"Failed to perform baseline correction: {e}"
     
-    # Step 2: Estimate FWHM of the main peak
-    results_half = peak_widths(intensities, [main_peak_index], rel_height=0.5)
-    fwhm = results_half[0][0] * (wavelengths[1] - wavelengths[0])  # convert index width to nm
-    
-    # Step 3: Define adaptive window size
-    window_width = 10 * fwhm ##!!! make this an option in the GUI?
-    mask = (wavelengths < main_peak_x - window_width) | (wavelengths > main_peak_x + window_width)
-    
-    baseline_x = wavelengths[mask]
-    baseline_y = intensities[mask]
-    print(f"baseline_x:\n{baseline_x}")
-    print(f"baseline_y:\n{baseline_y}")
-    
-    # Step 4: Fit linear baseline
-    coeffs = np.polyfit(baseline_x, baseline_y, deg=0) ## vertical offset
-    baseline_fit = np.polyval(coeffs, wavelengths)
-    
-    # Step 5: Apply correction
-    intensities_baselinecorrected = intensities - baseline_fit
-    
-    print(f"Estimated FWHM: {fwhm:.2f} nm")
-    print(f"Exclusion window: ±{window_width:.2f} nm around the peak")
-    return intensities_baselinecorrected
+    return message, intensities_baselinecorrected
 
 def LEDemission_WavelengthLimits(wavelengths_LED, intensity_LED_proc, threshold):
     ''' Obtain wavelength limits of LED emission spectrum according to a set intensity threshold'''
@@ -215,10 +222,6 @@ def CreateParameters(absorbance_values, wavelengths_data,
     ##### trying out: input starting percentages ######
     #########################################
     StartPercentage_R = float(100) 
-
-    # print(f"Integration-CreateParameters===absorbance_values:{absorbance_values}\nand shape:{absorbance_values.shape}")
-    # print(f"Integration-CreateParameters===e_A_inter:{e_A_inter}\nand shape:{e_A_inter.shape}")
-
     initial_conc_R_100 = trapezoid(absorbance_values[:,0],
                                    x=wavelengths_data) / trapezoid(e_R_inter,
                                                                    x=wavelengths_data)
@@ -245,13 +248,9 @@ def CreateParameters_Conc(absorbance_values, wavelengths_data,
     total_conc = trapezoid(absorbance_values[:,0], x=wavelengths_data)\
         / (fractions_R[0]*trapezoid(e_R_inter, x=wavelengths_data)\
            + fractions_P[0]*trapezoid(e_P_inter, x=wavelengths_data))
-    print(f"CreateParameters_Conc\n=== total_conc: {total_conc}")
     
     concs_RP = (np.stack((fractions_R,fractions_P),axis=1))*total_conc ## make array of concentrations of R and P
     initial_conc_R, initial_conc_P = concs_RP[0]
-    print(f"CreateParameters_Conc\n=== initial_conc_R: {initial_conc_R}\n=== initial_conc_P: {initial_conc_P}")
-    
-    #########################################
     #########################################
     lambda_meters = wavelengths_data * 1e-9  ## Convert to meters
 

@@ -23,13 +23,16 @@ class WindowFractionsResiduals(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self, parent):
         self.parent = parent
         super(WindowFractionsResiduals, self).__init__()
+        
+        # progress = pyqtSignal(str) ##!!! TRY TO SEND SIGNAL TO message_console
+        ### print(f"number of plots: {num_plots}")
+        
         self.setupUi(self)
         
         ##!!! ADD toolbar for zoom
 
         ## Generate several plots
         num_plots = Results.original_spectra.shape[0]
-        print(f"number of plots: {num_plots}")
         for i in range(num_plots):
             canvas = self.create_plot(i,
                                       LoadedData.SpectralDataCut_Wavelengths,
