@@ -18,6 +18,7 @@
   - [ ] Include processed data, fits, etc., with results (to allow subsequent plotting by the user)
 - [ ] Error handling
   - [ ] Upon save results: ask if users wants to overwrite existing filename
+  - [ ] Check for negative values in datasets
 - [ ] Improve tabs functionality
   - [x] Enable closing of tabs
   - [ ] Automatically show newly generated tab
