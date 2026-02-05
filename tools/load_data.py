@@ -100,3 +100,26 @@ def Import_LEDemission(FileFormat, file_LEDemission_raw):
     emission_wavelengths = emission_data['Wavelength [nm]'].values
     emission_Intensity = emission_data['Intensity'].values ## not normalised
     return emission_wavelengths, emission_Intensity
+
+def check_not_empty(thing):
+    ''' Check if a list or numpy array exists (i.e. is not empty) '''
+    try:
+        if type(thing) == list:
+            if not thing:
+                # print('empty list')
+                thing_exists = False
+            else:
+                # print("this list exists")
+                thing_exists = True
+        elif type(thing) == np.ndarray:
+            if thing.size == 0:
+                # print('empty numpy array')
+                thing_exists = False
+            else:
+                # print("this numpy array exists")
+                thing_exists = True
+        else:
+            print("this thing is something else")
+        return thing_exists
+    except Exception as e:
+        print(f"FAILED to check whether list or numpy array exists: {e}") ##!!! send this to message console somehow (need to make this module a class?)

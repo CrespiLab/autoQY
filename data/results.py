@@ -6,8 +6,10 @@ Created on Wed Dec  4 12:12:13 2024
 """
 fractions_R = []
 fractions_P = []
-reconstructed_spectra_fractions = []
-
+reconstructed_spectra_fractions_epsilon = []
+reconstructed_spectra_fractions_Abs = []
+fractions_residuals = []
+original_spectra = []
 
 QY_AB_opt = None
 QY_BA_opt = None

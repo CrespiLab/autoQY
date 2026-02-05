@@ -17,6 +17,7 @@
 - [ ] Create Results folder upon saving the results and save all data used into that folder
   - [ ] Include processed data, fits, etc., with results (to allow subsequent plotting by the user)
 - [ ] Error handling
+  - [x] Put functions in "try"-statements to catch errors and prevent crashing
   - [ ] Upon save results: ask if users wants to overwrite existing filename
   - [ ] Check for negative values in datasets
 - [ ] Improve tabs functionality

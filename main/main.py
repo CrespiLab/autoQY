@@ -130,9 +130,12 @@ def main():
             self.CalcQYButton.clicked.connect(self.Calc_QY)
             
             #### INITIALISATION ####
-            self.SetButtons()
-            self.SetTextfields() # Set ExpParams in text fields
-            self.handle_radio_selections()
+            try:
+                self.SetButtons()
+                self.SetTextfields() # Set ExpParams in text fields
+                self.handle_radio_selections()
+            except Exception as e:
+                self.message_console.append(f"FAILED to initialise: {e}")
         
         ######################################################################
         
@@ -150,19 +153,22 @@ def main():
             self.lineEdit_WavelengthRange_Max.setText(str(CalcSettings.wl_high)) # High wavelength range for Concentrations ODE METHOD
     
         def SetDefaultSettings(self):
-            CalcSettings.format_timestamps = Defaults.format_timestamps
-            CalcSettings.CalculationMethod = Defaults.CalculationMethod
-            CalcSettings.ODEMethod = Defaults.ODEMethod
-            CalcSettings.PowerMethod = Defaults.PowerMethod
-            CalcSettings.threshold = Defaults.threshold
-            CalcSettings.BaselineCorrection_LED = Defaults.BaselineCorrection_LED
-            CalcSettings.xlim_min_ProcessedData = Defaults.xlim_min_ProcessedData
-            CalcSettings.xlim_max_ProcessedData = Defaults.xlim_max_ProcessedData
-            CalcSettings.ylim_min_ProcessedData = Defaults.ylim_min_ProcessedData
-            CalcSettings.ylim_max_ProcessedData = Defaults.ylim_max_ProcessedData
-            CalcSettings.wl_low = Defaults.wl_low
-            CalcSettings.wl_high = Defaults.wl_high
-            ExpParams.LEDw = Defaults.LEDw
+            try:
+                CalcSettings.format_timestamps = Defaults.format_timestamps
+                CalcSettings.CalculationMethod = Defaults.CalculationMethod
+                CalcSettings.ODEMethod = Defaults.ODEMethod
+                CalcSettings.PowerMethod = Defaults.PowerMethod
+                CalcSettings.threshold = Defaults.threshold
+                CalcSettings.BaselineCorrection_LED = Defaults.BaselineCorrection_LED
+                CalcSettings.xlim_min_ProcessedData = Defaults.xlim_min_ProcessedData
+                CalcSettings.xlim_max_ProcessedData = Defaults.xlim_max_ProcessedData
+                CalcSettings.ylim_min_ProcessedData = Defaults.ylim_min_ProcessedData
+                CalcSettings.ylim_max_ProcessedData = Defaults.ylim_max_ProcessedData
+                CalcSettings.wl_low = Defaults.wl_low
+                CalcSettings.wl_high = Defaults.wl_high
+                ExpParams.LEDw = Defaults.LEDw
+            except Exception as e:
+                self.message_console.append(f"FAILED to set default settings: {e}")
     
         def SetButtons(self):
             if CalcSettings.format_timestamps == "AHK":
@@ -392,71 +398,82 @@ def main():
             None.
 
             """
-
-            for module, vars_dict in self.default_state.items():
-                for name, value in vars_dict.items():
-                    setattr(module, name, copy.deepcopy(value))
-            self.message_console.append("Experimental Parameters and Calculation Settings reset!")
-            
-            ##!!! also unload all loaded data
-
-            self.SetTextfields()
-            self.SetButtons()
-            
+            try:
+                for module, vars_dict in self.default_state.items():
+                    for name, value in vars_dict.items():
+                        setattr(module, name, copy.deepcopy(value))
+                self.message_console.append("Experimental Parameters and Calculation Settings reset!")
+                
+                ##!!! also unload all loaded data: make a function
+    
+                self.SetTextfields()
+                self.SetButtons()
+            except Exception as e:
+                self.message_console.append(f"FAILED to clear all loaded data: {e}")
+                
         def DeletePowerData(self, count):
             """"""
-
-            if count not in LoadedData.PowersAtCuvette:
-                self.message_console.append("Cannot remove: power data does not exist.")
-                return
-    
-            LoadedData.PowersAtCuvette.pop(count) # remove result from dictionary
-            LoadedData.ErrorsAtCuvette.pop(count) # remove result from dictionary
-    
-            self.labels_power[count].setText("")
-            self.labels_error[count].setText("")
-    
+            try:
+                if count not in LoadedData.PowersAtCuvette:
+                    self.message_console.append("Cannot remove: power data does not exist.")
+                    return
+        
+                LoadedData.PowersAtCuvette.pop(count) # remove result from dictionary
+                LoadedData.ErrorsAtCuvette.pop(count) # remove result from dictionary
+        
+                self.labels_power[count].setText("")
+                self.labels_error[count].setText("")
+            except Exception as e:
+                self.message_console.append(f"FAILED to delete power data: {e}")
         ############################################################################################################
         ############################ POWER ############################
         ############################################################################################################
 
         def OpenWindow_PowerProcessing(self, count):
             """Load the power data from a file and plot it in a new window."""
-            LoadedData.count = count
-            self.window_PP = PowerProcessing.WindowPowerProcessing(parent=self) # load Class that includes loadUi
-            self.window_PP.show()
+            try:
+                LoadedData.count = count
+                self.window_PP = PowerProcessing.WindowPowerProcessing(parent=self) # load Class that includes loadUi
+                self.window_PP.show()
+            except Exception as e:
+                self.message_console.append(f"FAILED to open PowerProcessing window: {e}")
     
         def calculate_total_power(self):
             """Calculate the total power and standard deviation from all baseline-corrected data."""
             if not LoadedData.PowersAtCuvette:
                 QtWidgets.QMessageBox.warning(self, "Error", "No power data has been processed yet.")
                 return
-    
-            averages_alldatasets = list(LoadedData.PowersAtCuvette.values())
-            errors_alldatasets = list(LoadedData.ErrorsAtCuvette.values())
-    
-            final_averaged_power = np.mean(averages_alldatasets)
-            final_variance = np.sum(np.square(errors_alldatasets)) / len(averages_alldatasets)
-            final_averaged_std = np.sqrt(final_variance)
             
-            ExpParams.I0_avg = final_averaged_power # set to calculated power
-            ExpParams.I0_err = final_averaged_std # set to calculated error
-            
-            self.lineEdit_AvgPower.setText(f"{ExpParams.I0_avg:.2f}") # set PowerProcessing: Power, final averaged
-            self.lineEdit_AvgPowerError.setText(f"{ExpParams.I0_err:.2f}") # set PowerProcessing: Error, final averaged
-
-            self.Save_PowerResults()
+            try:
+                averages_alldatasets = list(LoadedData.PowersAtCuvette.values())
+                errors_alldatasets = list(LoadedData.ErrorsAtCuvette.values())
+        
+                final_averaged_power = np.mean(averages_alldatasets)
+                final_variance = np.sum(np.square(errors_alldatasets)) / len(averages_alldatasets)
+                final_averaged_std = np.sqrt(final_variance)
+                
+                ExpParams.I0_avg = final_averaged_power # set to calculated power
+                ExpParams.I0_err = final_averaged_std # set to calculated error
+                
+                self.lineEdit_AvgPower.setText(f"{ExpParams.I0_avg:.2f}") # set PowerProcessing: Power, final averaged
+                self.lineEdit_AvgPowerError.setText(f"{ExpParams.I0_err:.2f}") # set PowerProcessing: Error, final averaged
+    
+                self.Save_PowerResults()
+            except Exception as e:
+                self.message_console.append(f"FAILED to calculate total power and standard deviation: {e}")
     
         def Save_PowerResults(self):
             """ Save Power Processing results """
-            
-            savefile = Results.savefilename_power+".txt"
-    
-            allpowers = LoadedData.PowersAtCuvette
-            allerrors = LoadedData.ErrorsAtCuvette
-            avgdpowererror = {'Averaged Power (mW)': ExpParams.I0_avg,
-                      'Averaged Error (mW)' : ExpParams.I0_err,
-                      }
+            try:
+                savefile = Results.savefilename_power+".txt"
+        
+                allpowers = LoadedData.PowersAtCuvette
+                allerrors = LoadedData.ErrorsAtCuvette
+                avgdpowererror = {'Averaged Power (mW)': ExpParams.I0_avg,
+                          'Averaged Error (mW)' : ExpParams.I0_err,
+                          }
+            except Exception as e:
+                self.message_console.append(f"FAILED to create the dictionary for the PowerResults textfile: {e}")
     
             try:
                 os.remove(savefile)
@@ -554,8 +571,11 @@ def main():
                     LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths,
                     LoadedData.SpectralData_Absorbance = \
                         LoadData.Import_SpectralData("Not", file_path)
+                    ##!!! ADD (INCLUDE IN Import_SpectralData): check and output number of spectra
                 elif file_type == "Log Irr":
                     LoadedData.timestamps = LoadData.GetTimestamps(file_path)
+                    ##!!! ADD: check and output number of timestamps
+                    ##!!! ADD IF POSSIBLE: show table of timestamps in pop-up window
             except Exception as e:
                 message = f"Failed to load .csv file as {file_type}: {e}"
             return message
@@ -592,7 +612,8 @@ def main():
                 self.tabWidget.tabCloseRequested.connect(self.tabWidget.removeTab)
     
             except Exception as e:
-                QtWidgets.QMessageBox.critical(self, "Error", f"Failed to add new tab: {e}")
+                self.message_console.append(f"FAILED to add new tab: {e}")
+                QtWidgets.QMessageBox.critical(self, "Error", "Failed to add new tab")
 
         def plot_epsilon(self):
             """ Plot epsilons spectra (before interpolation) """
@@ -600,12 +621,17 @@ def main():
                 QtWidgets.QMessageBox.warning(self, "Error", "Please load the epilons data first.")
                 return
             
-            def plot_func(canvas):
-                """ Plot the data using MplCanvas """
-                canvas.plot_EpsilonsOnly(LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values,
-                              LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values)
-            
-            self.add_new_tab(plot_func, "Epsilons")
+            try:
+                def plot_func(canvas):
+                    """ Plot the data using MplCanvas """
+                    canvas.plot_EpsilonsOnly(LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values,
+                                  LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values)
+                
+                self.add_new_tab(plot_func, "Epsilons")
+            except Exception as e:
+                self.message_console.append(f"FAILED to plot epsilons spectra (pre-processed): {e}")
+                
+            ##!!! ADD CHECK: if any negative values: issue warning
     
         def plot_spectra(self):
             """ Plot spectra recorded during irradiation """
@@ -613,13 +639,16 @@ def main():
                 QtWidgets.QMessageBox.warning(self, "Error", "Please first load Measurement Spectra.")
                 return
     
-            def plot_func(canvas):
-                """ Plot the data using MplCanvas """
-                canvas.PlotData_Full(LoadedData.SpectralData_Wavelengths,
-                                     LoadedData.SpectralData_Absorbance)
-            
-            self.add_new_tab(plot_func, "Measurement Spectra")
+            try:
+                def plot_func(canvas):
+                    """ Plot the data using MplCanvas """
+                    canvas.PlotData_Full(LoadedData.SpectralData_Wavelengths,
+                                         LoadedData.SpectralData_Absorbance)
                 
+                self.add_new_tab(plot_func, "Measurement Spectra")
+            except Exception as e:
+                self.message_console.append(f"FAILED to plot spectra recorded during irradiation (pre-processed): {e}")
+        
         def plot_LEDfull(self):
             """ Plot LED emission spectrum (full) """
             if LoadedData.LEDemission_wavelengths is None or LoadedData.LEDemission_intensity is None:
@@ -629,12 +658,15 @@ def main():
             if ExpParams.LEDw == 0:
                 QtWidgets.QMessageBox.warning(self, "Error", "Please set nominal wavelength (nm).")
                 return
-    
-            def plot_func(canvas):
-                """ Plot the data using MplCanvas """
-                canvas.plot_LEDemission_full(LoadedData.LEDemission_wavelengths,LoadedData.LEDemission_intensity)
             
-            self.add_new_tab(plot_func, "LED emission")
+            try:
+                def plot_func(canvas):
+                    """ Plot the data using MplCanvas """
+                    canvas.plot_LEDemission_full(LoadedData.LEDemission_wavelengths,LoadedData.LEDemission_intensity)
+                
+                self.add_new_tab(plot_func, "LED emission")
+            except Exception as e:
+                self.message_console.append(f"FAILED to plot LED emission spectrum (pre-processed): {e}")
 
         def plot_fractions(self):
             """ Plot fractions obtained from fitting epsilons spectra to all spectra during irradiation"""
@@ -642,31 +674,38 @@ def main():
                 QtWidgets.QMessageBox.warning(self, "Error", "Something went wrong with the calculation of the fractions.")
                 return
     
-            def plot_func(canvas):
-                """ Plot the data using MplCanvas """
-                canvas.PlotFractions(LoadedData.SpectralDataCut_Wavelengths,
-                                     LoadedData.SpectralDataCut_Abs,
-                                     Results.reconstructed_spectra_fractions_Abs,
-                                     Results.fractions_R,
-                                     Results.fractions_P)
-            
-            self.add_new_tab(plot_func, "Fractions")
+            try:
+                def plot_func(canvas):
+                    """ Plot the data using MplCanvas """
+                    canvas.PlotFractions(LoadedData.SpectralDataCut_Wavelengths,
+                                         LoadedData.SpectralDataCut_Abs,
+                                         Results.reconstructed_spectra_fractions_Abs,
+                                         Results.fractions_R,
+                                         Results.fractions_P)
+                
+                self.add_new_tab(plot_func, "Fractions")
+            except Exception as e:
+                self.message_console.append(f"FAILED to plot fractions: {e}")
 
         def plot_fractions_residuals(self):
             '''
             Pop-up window that shows residuals for each fitted spectra
             '''
-            ##!!! ADD WARNING MESSAGEBOXES HERE
-            '''LoadedData.SpectralDataCut_Wavelengths,
-            Results.original_spectra[i],
-            Results.reconstructed_spectra_fractions_Abs[i],
-            Results.fractions_residuals[i]'''
-            # if self.x is None or self.Power is None:
-            #     QtWidgets.QMessageBox.warning("Error", "No data loaded")
-            #     return
+            if not LoadData.check_not_empty(LoadedData.SpectralDataCut_Wavelengths):
+                QtWidgets.QMessageBox.warning("Error", "No processed data found")
+                return
+
+            if not (LoadData.check_not_empty(Results.original_spectra) or 
+                    LoadData.check_not_empty(Results.reconstructed_spectra_fractions_Abs) or 
+                    LoadData.check_not_empty(Results.fractions_residuals)):
+                QtWidgets.QMessageBox.warning("Error", "No processed fractions data found")
+                return
             
-            self.window_fractions_residuals = FractionsResiduals.WindowFractionsResiduals(parent=self) # load Class that includes loadUi
-            self.window_fractions_residuals.show()
+            try:
+                self.window_fractions_residuals = FractionsResiduals.WindowFractionsResiduals(parent=self) # load Class that includes loadUi
+                self.window_fractions_residuals.show()
+            except Exception as e:
+                self.message_console.append(f"FAILED to plot residuals of fractions in new window: {e}")
 
         ################################################################################
         ################################################################################
@@ -708,78 +747,90 @@ def main():
                 QtWidgets.QMessageBox.warning(self, "Error", "Please load Epsilons Product.")
                 return
 
-            ''' Obtain smoothed and non-negatived LED emission data '''
-            message_blcorr, message, LoadedData.LEDemission_intensity_proc = \
-                Integration.Process_LEDemission(LoadedData.LEDemission_wavelengths,
-                                                LoadedData.LEDemission_intensity)
-            
-            if message is None:
-                self.message_console.append("Spectra successfully processed.")
-                self.message_console.append(message_blcorr) ## show message from Process_LEDemission function: baseline correction
-            else:
-                self.message_console.append(message_blcorr) ## show message from Process_LEDemission function: baseline correction
-                self.message_console.append(message) ## show message from Process_LEDemission function
-                return
-            
+            try:
+                ''' Obtain smoothed and non-negatived LED emission data '''
+                message_blcorr, message, LoadedData.LEDemission_intensity_proc = \
+                    Integration.Process_LEDemission(LoadedData.LEDemission_wavelengths,
+                                                    LoadedData.LEDemission_intensity)
+                
+                if message is None:
+                    self.message_console.append("Spectra successfully processed.")
+                    self.message_console.append(message_blcorr) ## show message from Process_LEDemission function: baseline correction
+                else:
+                    self.message_console.append(message_blcorr) ## show message from Process_LEDemission function: baseline correction
+                    self.message_console.append(message) ## show message from Process_LEDemission function
+                    return
+            except Exception as e:
+                self.message_console.append(f"FAILED to process LED emission spectrum: {e}")
+
             ########################################
-            if CalcSettings.ODEMethod == "Emission":
-                ''' Find indices for wavelengths low and high end of LED emission data'''
-                (Integration.wavelength_low, Integration.wavelength_high) = \
-                    Integration.LEDemission_WavelengthLimits(
-                        LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity_proc, CalcSettings.threshold)
-            
-            elif CalcSettings.ODEMethod == "Concentrations":
-                ''' Find indices for wavelengths low and high end of epsilons data'''
-                (Integration.wavelength_low, Integration.wavelength_high) = \
-                    Integration.Epsilons_WavelengthLimits(
-                        LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_P_wavelengths)
-            
-            else:
-                QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the CalcSettings.ODEMethod variable")
+            try:
+                if CalcSettings.ODEMethod == "Emission":
+                    ''' Find indices for wavelengths low and high end of LED emission data'''
+                    (Integration.wavelength_low, Integration.wavelength_high) = \
+                        Integration.LEDemission_WavelengthLimits(
+                            LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity_proc, CalcSettings.threshold)
+                elif CalcSettings.ODEMethod == "Concentrations":
+                    ''' Find indices for wavelengths low and high end of epsilons data'''
+                    (Integration.wavelength_low, Integration.wavelength_high) = \
+                        Integration.Epsilons_WavelengthLimits(
+                            LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_P_wavelengths)
+                # else:
+                #     QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the CalcSettings.ODEMethod variable")
+            except Exception as e:
+                self.message_console.append(f"FAILED to find indices for low and high ends of wavelength data: {e}")
+
             ########################################
             ''' 
             Process Spectral data: cut to part of spectrum according to 
             - LED emission band OR
             - epsilons data range 
             '''
-            (LoadedData.SpectralDataCut_Wavelengths, 
-             LoadedData.SpectralDataCut_Abs,
-             LoadedData.SpectralDataCut_Index) = \
-                Integration.Process_SpectralData(LoadedData.SpectralData_Full,
-                                                 Integration.wavelength_low,
-                                                 Integration.wavelength_high,
-                                                 ExpParams.LEDw)
-
-            (LoadedData.epsilons_R_interp, 
-             LoadedData.epsilons_P_interp, 
-             LoadedData.emission_interp) = \
-                Integration.Interpolate_Epsilons(LoadedData.SpectralDataCut_Wavelengths,
-                                                 LoadedData.epsilons_R_wavelengths,
-                                                 LoadedData.epsilons_R_values,
-                                                 LoadedData.epsilons_P_wavelengths,
-                                                 LoadedData.epsilons_P_values,
-                                                 LoadedData.LEDemission_wavelengths,
-                                                 LoadedData.LEDemission_intensity_proc)
-            ########################################
-            def plot_func(canvas):
-                """ 
-                Plot the data using MplCanvas.
-                The function PlotData_Cut plots the full spectra in grey,
-                    and the cut spectra in colour
-                """
-                ##!!! probably can remove: LoadedData.LEDemission_wavelengths, 
-                 
-                canvas.PlotData_Cut(LoadedData.SpectralData_Absorbance, LoadedData.SpectralData_Wavelengths,
-                                    LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Wavelengths,
-                                    LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity,
-                                    LoadedData.emission_interp) ## use interpolated (and cut) LED emission data
+            try:
+                (LoadedData.SpectralDataCut_Wavelengths, 
+                 LoadedData.SpectralDataCut_Abs,
+                 LoadedData.SpectralDataCut_Index) = \
+                    Integration.Process_SpectralData(LoadedData.SpectralData_Full,
+                                                     Integration.wavelength_low,
+                                                     Integration.wavelength_high,
+                                                     ExpParams.LEDw)
+            except Exception as e:
+                self.message_console.append(f"FAILED to process spectral data: {e}")
             
-            if CalcSettings.ODEMethod == "Emission":
-                self.CalcQYButton.setEnabled(True)
-            if CalcSettings.ODEMethod == "Concentrations":
-                self.CalculateFractionsButton.setEnabled(True)
+            try:
+                (LoadedData.epsilons_R_interp, 
+                 LoadedData.epsilons_P_interp, 
+                 LoadedData.emission_interp) = \
+                    Integration.Interpolate_Epsilons(LoadedData.SpectralDataCut_Wavelengths,
+                                                     LoadedData.epsilons_R_wavelengths,
+                                                     LoadedData.epsilons_R_values,
+                                                     LoadedData.epsilons_P_wavelengths,
+                                                     LoadedData.epsilons_P_values,
+                                                     LoadedData.LEDemission_wavelengths,
+                                                     LoadedData.LEDemission_intensity_proc)
+            except Exception as e:
+                self.message_console.append(f"FAILED to process epsilons data: {e}")
             
-            self.add_new_tab(plot_func, "Processed Spectra")
+            try:
+                ########################################
+                def plot_func(canvas):
+                    """ 
+                    Plot the data using MplCanvas.
+                    The function PlotData_Cut plots the full spectra in grey,
+                        and the cut spectra in colour
+                    """
+                    canvas.PlotData_Cut(LoadedData.SpectralData_Absorbance, LoadedData.SpectralData_Wavelengths,
+                                        LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Wavelengths,
+                                        LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity,
+                                        LoadedData.emission_interp) ## use interpolated (and cut) LED emission data
+                self.add_new_tab(plot_func, "Processed Spectra")
+                
+                if CalcSettings.ODEMethod == "Emission":
+                    self.CalcQYButton.setEnabled(True)
+                if CalcSettings.ODEMethod == "Concentrations":
+                    self.CalculateFractionsButton.setEnabled(True)
+            except Exception as e:
+                self.message_console.append(f"FAILED to plot processed data: {e}")
         #######################################
 
 
@@ -804,36 +855,48 @@ def main():
                 QtWidgets.QMessageBox.warning(self, "Error", "Please perform processing of spectra.")
                 return
             
-            (Results.fractions_R, Results.fractions_P, Results.reconstructed_spectra_fractions_epsilon,
-             Results.original_spectra) = \
-                Fractions.CalculateFractions(LoadedData.SpectralDataCut_Abs,
-                                             LoadedData.SpectralDataCut_Wavelengths,
-                                             LoadedData.epsilons_R_interp,
-                                             LoadedData.epsilons_P_interp)
-            self.message_console.append("Fractions successfully retrieved.")
+            try:
+                (Results.fractions_R, Results.fractions_P, Results.reconstructed_spectra_fractions_epsilon,
+                 Results.original_spectra) = \
+                    Fractions.CalculateFractions(LoadedData.SpectralDataCut_Abs,
+                                                 LoadedData.SpectralDataCut_Wavelengths,
+                                                 LoadedData.epsilons_R_interp,
+                                                 LoadedData.epsilons_P_interp)
+                self.message_console.append("Fractions successfully retrieved.")
+            except Exception as e:
+                self.message_console.append(f"FAILED to calculate fractions: {e}")
+
+            try:
+                (Datasets.total_conc, Datasets.initial_conc_R, Datasets.initial_conc_P, Datasets.concs_RP,
+                 Datasets.wavelengths_meters, Datasets.normalized_emission) = \
+                    Integration.CreateParameters_Conc(LoadedData.SpectralDataCut_Abs, 
+                                                 LoadedData.SpectralDataCut_Wavelengths,
+                                                 Results.fractions_R, Results.fractions_P,
+                                                LoadedData.epsilons_R_interp,LoadedData.epsilons_P_interp,
+                                                LoadedData.emission_interp)
+                self.message_console.append(f"Total Concentration: {Datasets.total_conc:.2E} M. Initial concentrations: Reactant {Datasets.initial_conc_R:.2E} M, and Product {Datasets.initial_conc_P:.2E} M")
+            except Exception as e:
+                self.message_console.append(f"FAILED to create parameters from fractions: {e}")
+
+            try:
+                Results.reconstructed_spectra_fractions_Abs, Results.fractions_residuals = \
+                    Fractions.CalculateResiduals(Results.original_spectra,
+                                                 Results.reconstructed_spectra_fractions_epsilon,
+                                                 Datasets.total_conc)
+                
+                self.plot_fractions() ## plot retrieved fractions
+                self.PlotFractionsResidualsButton.setEnabled(True)
+                self.CalcQYButton.setEnabled(True)
+            except Exception as e:
+                self.message_console.append(f"FAILED to calculate residuals of fractions calculation: {e}")
             
-            (Datasets.total_conc, Datasets.initial_conc_R, Datasets.initial_conc_P, Datasets.concs_RP,
-             Datasets.wavelengths_meters, Datasets.normalized_emission) = \
-                Integration.CreateParameters_Conc(LoadedData.SpectralDataCut_Abs, 
-                                             LoadedData.SpectralDataCut_Wavelengths,
-                                             Results.fractions_R, Results.fractions_P,
-                                            LoadedData.epsilons_R_interp,LoadedData.epsilons_P_interp,
-                                            LoadedData.emission_interp)
-            self.message_console.append(f"Total Concentration: {Datasets.total_conc:.2E} M. Initial concentrations: Reactant {Datasets.initial_conc_R:.2E} M, and Product {Datasets.initial_conc_P:.2E} M")
-            
-            Results.reconstructed_spectra_fractions_Abs, Results.fractions_residuals = \
-                Fractions.CalculateResiduals(Results.original_spectra,
-                                             Results.reconstructed_spectra_fractions_epsilon,
-                                             Datasets.total_conc)
-            
-            self.plot_fractions() ## plot retrieved fractions
-            self.PlotFractionsResidualsButton.setEnabled(True)
-            self.CalcQYButton.setEnabled(True)
-            
-            ### Save as .csv ###
-            message = Fractions.Save_FractionsResults(Results.fractions_R, Results.fractions_P,
-                                            LoadedData.filename_spectra)
-            self.message_console.append(message)
+            try:
+                ### Save as .csv ###
+                message = Fractions.Save_FractionsResults(Results.fractions_R, Results.fractions_P,
+                                                LoadedData.filename_spectra)
+                self.message_console.append(message)
+            except Exception as e:
+                self.message_console.append(f"FAILED to save results from fractions calculation: {e}")
             
         #######################################    
 
@@ -870,44 +933,49 @@ def main():
                 return
 
             ##!!! ADD CHECK: len(measurements) should equal len(timestamps)
-            
-            Datasets.I0_list = Datasets.ListPowers(ExpParams.I0_avg, ExpParams.I0_err) ## Make list of powers
+            try:
+                Datasets.I0_list = Datasets.ListPowers(ExpParams.I0_avg, ExpParams.I0_err) ## Make list of powers
+            except Exception as e:
+                self.message_console.append(f"FAILED to create list of powers: {e}")
             ######################################################################
-
-            if CalcSettings.ODEMethod == "Emission":
-                ## Create parameters needed for fitting
-                (Datasets.initial_conc_R, Datasets.initial_conc_P, 
-                 Datasets.wavelengths_meters, Datasets.normalized_emission) = \
-                    Integration.CreateParameters(LoadedData.SpectralDataCut_Abs, 
-                                                 LoadedData.SpectralDataCut_Wavelengths,
-                                                LoadedData.epsilons_R_interp,
-                                                LoadedData.emission_interp)
+            try:
+                if CalcSettings.ODEMethod == "Emission":
+                    ## Create parameters needed for fitting
+                    (Datasets.initial_conc_R, Datasets.initial_conc_P, 
+                     Datasets.wavelengths_meters, Datasets.normalized_emission) = \
+                        Integration.CreateParameters(LoadedData.SpectralDataCut_Abs, 
+                                                     LoadedData.SpectralDataCut_Wavelengths,
+                                                    LoadedData.epsilons_R_interp,
+                                                    LoadedData.emission_interp)
+                    
+                    Datasets.N, Datasets.fit_results = Integration.MinimizeQYs(Datasets.I0_list, 
+                                                            Datasets.normalized_emission,
+                                                            Datasets.wavelengths_meters, 
+                                                            Datasets.initial_conc_R, Datasets.initial_conc_P,
+                                                            LoadedData.timestamps, LoadedData.SpectralDataCut_Abs,
+                                                            LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
+                                                            ExpParams.V)
+                    self.CalcQYButton.setEnabled(True)
+                    self.SaveResultsBtn.setEnabled(True)
+                    self.Extract_QY() # extract QY results and display
+                ######################################################################    
+                elif CalcSettings.ODEMethod == "Concentrations":
+                    # self.message_console.append(f"ODE Solver Method: {CalcSettings.ODEMethod}")
+                    Datasets.N, Datasets.fit_results = Integration.MinimizeQYs_Conc(Datasets.I0_list, 
+                                                            Datasets.normalized_emission,
+                                                            Datasets.wavelengths_meters, 
+                                                            Datasets.initial_conc_R, Datasets.initial_conc_P,
+                                                            LoadedData.timestamps, Datasets.concs_RP,
+                                                            LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
+                                                            ExpParams.V)
+                    self.CalcQYButton.setEnabled(True)
+                    self.SaveResultsBtn.setEnabled(True)
+                    self.Extract_QY() # extract QY results and display
                 
-                Datasets.N, Datasets.fit_results = Integration.MinimizeQYs(Datasets.I0_list, 
-                                                        Datasets.normalized_emission,
-                                                        Datasets.wavelengths_meters, 
-                                                        Datasets.initial_conc_R, Datasets.initial_conc_P,
-                                                        LoadedData.timestamps, LoadedData.SpectralDataCut_Abs,
-                                                        LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
-                                                        ExpParams.V)
-                self.CalcQYButton.setEnabled(True)
-                self.SaveResultsBtn.setEnabled(True)
-                self.Extract_QY() # extract QY results and display
-            ######################################################################    
-            elif CalcSettings.ODEMethod == "Concentrations":
-                self.message_console.append(f"ODE Solver Method: {CalcSettings.ODEMethod}")
-                Datasets.N, Datasets.fit_results = Integration.MinimizeQYs_Conc(Datasets.I0_list, 
-                                                        Datasets.normalized_emission,
-                                                        Datasets.wavelengths_meters, 
-                                                        Datasets.initial_conc_R, Datasets.initial_conc_P,
-                                                        LoadedData.timestamps, Datasets.concs_RP,
-                                                        LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
-                                                        ExpParams.V)
-                self.CalcQYButton.setEnabled(True)
-                self.SaveResultsBtn.setEnabled(True)
-                self.Extract_QY() # extract QY results and display
-            else:
-                QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the CalcSettings.ODEMethod variable")
+                self.message_console.append("QY calculation successful!")
+            except Exception as e:
+                self.message_console.append(f"FAILED to perform QY calculation: {e}")
+                QtWidgets.QMessageBox.warning(self, "Error", "QY calculation failed")
             ######################################################################
 
         def Extract_QY(self):
@@ -919,92 +987,47 @@ def main():
             None.
 
             '''
-
-            ## Extract results from the fit
-            (Results.QY_AB_opt, Results.QY_BA_opt, Results.error_QY_AB, 
-             Results.error_QY_BA) = ExtractResults.ExtractResults(Datasets.fit_results)
-
-    
-            ## Calculate optimized concentrations
-            (Results.conc_opt, Results.PSS_Reactant, 
-             Results.PSS_Product) = ExtractResults.CalculateConcentrations(Datasets.wavelengths_meters,
-                                                Datasets.initial_conc_R, Datasets.initial_conc_P, 
-                                                LoadedData.timestamps,
-                                                Results.QY_AB_opt, Results.QY_BA_opt, 
-                                                LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
-                                                Datasets.N, ExpParams.V)
-    
-                                                               
-            ## Calculate total absorbance and residuals
-            if CalcSettings.ODEMethod == "Emission":
-                Results.total_abs_fit, Results.residuals = \
-                    ExtractResults.GetFittedAbs(Datasets.fit_results,
-                                                Results.conc_opt,
-                                                LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
-                                                LoadedData.timestamps,
-                                                LoadedData.SpectralDataCut_Wavelengths)
-            else:
-                pass
-            ## Not needed for ODEMethod="Concentrations" => is done in the plotting.py function
+            try:
+                ## Extract results from the fit
+                (Results.QY_AB_opt, Results.QY_BA_opt, Results.error_QY_AB, 
+                 Results.error_QY_BA) = ExtractResults.ExtractResults(Datasets.fit_results)
+            except Exception as e:
+                self.message_console.append(f"FAILED to extract results from the fit: {e}")
             
-            ######################################################################
-            self.SetResultTextfields() ## Update textfields to show results
-            self.add_new_tab(self.Plot_QY, "QY") ## Plot and save the results
-            self.message_console.append("Results extracted and plotted! (Not saved).")
-    
+            try:
+                ## Calculate optimized concentrations
+                (Results.conc_opt, Results.PSS_Reactant, 
+                 Results.PSS_Product) = ExtractResults.CalculateConcentrations(Datasets.wavelengths_meters,
+                                                    Datasets.initial_conc_R, Datasets.initial_conc_P, 
+                                                    LoadedData.timestamps,
+                                                    Results.QY_AB_opt, Results.QY_BA_opt, 
+                                                    LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
+                                                    Datasets.N, ExpParams.V)
+                                                                               
+               ## Calculate total absorbance and residuals
+                if CalcSettings.ODEMethod == "Emission":
+                    Results.total_abs_fit, Results.residuals = \
+                        ExtractResults.GetFittedAbs(Datasets.fit_results,
+                                                    Results.conc_opt,
+                                                    LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
+                                                    LoadedData.timestamps,
+                                                    LoadedData.SpectralDataCut_Wavelengths)
+                else:
+                    pass ## Not needed for ODEMethod="Concentrations" => is done in the plotting.py function
+                                                                               
+            except Exception as e:
+                self.message_console.append(f"FAILED to calculate optimised concentration: {e}")
+            
+            ######################################################################                                                               
+            try:
+                self.SetResultTextfields() ## Update textfields to show results
+                self.add_new_tab(self.Plot_QY, "QY") ## Plot the results
+                self.message_console.append("Results extracted and plotted! (Not saved).")
+            except Exception as e:
+                self.message_console.append(f"FAILED to generate a new tab with the results: {e}")
+
         def Plot_QY(self, canvas):
-            if CalcSettings.ODEMethod == "Emission":
-                canvas.PlotResults(ExpParams.LEDw,
-                                   LoadedData.timestamps,
-                                   Results.conc_opt,
-                                   LoadedData.SpectralDataCut_Abs,
-                                   LoadedData.SpectralDataCut_Index,
-                                   Results.total_abs_fit,
-                                   Results.residuals,
-                                   Results.QY_AB_opt, Results.QY_BA_opt,
-                                   Results.error_QY_AB, Results.error_QY_BA,
-                                   CalcSettings.ODEMethod)
-
-            elif CalcSettings.ODEMethod == "Concentrations":
-                canvas.PlotResults_Conc(ExpParams.LEDw,
-                                   LoadedData.timestamps,
-                                   Results.conc_opt,
-                                   Datasets.concs_RP,
-                                   LoadedData.SpectralDataCut_Wavelengths,
-                                   LoadedData.epsilons_R_interp,
-                                   LoadedData.epsilons_P_interp,
-                                   Results.QY_AB_opt, Results.QY_BA_opt,
-                                   Results.error_QY_AB, Results.error_QY_BA,
-                                   CalcSettings.ODEMethod)
-            else:
-                QtWidgets.QMessageBox.warning(self, "Error", "Something wrong with the CalcSettings.ODEMethod variable")
-        
-        def Save_QY(self):
-            """ Save results: plots """
-            if Results.QY_AB_opt is None or Results.conc_opt is None:
-                QtWidgets.QMessageBox.warning(self, "Error", "Please perform Calculate QY first.")
-                return
-
-            options = QtWidgets.QFileDialog.Options()
-    
-            ## File dialog for selecting files
-            savefilename, _ = QtWidgets.QFileDialog.getSaveFileName(self, 
-                                                                 "Choose name of savefile", "",
-                                                                 options=options)
-            
-            path_split=savefilename.split('/')[0:-1] # leave only filepath (remove name)
-            path='\\'.join(path_split) # re-join into string
-    
-            end_nameonly=savefilename.split('/')[-1] # only filename
-            end=f"Results_{end_nameonly}_ODEMethod_{CalcSettings.ODEMethod}" # name with added info
-    
-            Results.savefilename = f"{path}\\{end}"
-            
-            canvas = MplCanvas(self)
-            if not savefilename:
-                self.message_console.append("Results NOT saved.")
-                return
-            else:
+            try:
                 if CalcSettings.ODEMethod == "Emission":
                     canvas.PlotResults(ExpParams.LEDw,
                                        LoadedData.timestamps,
@@ -1015,10 +1038,8 @@ def main():
                                        Results.residuals,
                                        Results.QY_AB_opt, Results.QY_BA_opt,
                                        Results.error_QY_AB, Results.error_QY_BA,
-                                       CalcSettings.ODEMethod,
-                                       SaveResults = "Yes",
-                                       SaveFileName = Results.savefilename)
-                
+                                       CalcSettings.ODEMethod)
+    
                 elif CalcSettings.ODEMethod == "Concentrations":
                     canvas.PlotResults_Conc(ExpParams.LEDw,
                                        LoadedData.timestamps,
@@ -1029,42 +1050,102 @@ def main():
                                        LoadedData.epsilons_P_interp,
                                        Results.QY_AB_opt, Results.QY_BA_opt,
                                        Results.error_QY_AB, Results.error_QY_BA,
-                                       CalcSettings.ODEMethod,
-                                       SaveResults = "Yes",
-                                       SaveFileName = Results.savefilename)
+                                       CalcSettings.ODEMethod)
+            except Exception as e:
+                self.message_console.append(f"FAILED to plot the QY results: {e}")
         
-                self.Save_Results()
-                self.message_console.append(f"Files saved successfully as {Results.savefilename}")
+        def Save_QY(self):
+            """ Save results: plots """
+            if Results.QY_AB_opt is None or Results.conc_opt is None:
+                QtWidgets.QMessageBox.warning(self, "Error", "Please perform Calculate QY first.")
+                return
+
+            try:
+
+                options = QtWidgets.QFileDialog.Options()
+        
+                ## File dialog for selecting files
+                savefilename, _ = QtWidgets.QFileDialog.getSaveFileName(self, 
+                                                                     "Choose name of savefile", "",
+                                                                     options=options)
+                
+                path_split=savefilename.split('/')[0:-1] # leave only filepath (remove name)
+                path='\\'.join(path_split) # re-join into string
+        
+                end_nameonly=savefilename.split('/')[-1] # only filename
+                end=f"Results_{end_nameonly}_ODEMethod_{CalcSettings.ODEMethod}" # name with added info
+        
+                Results.savefilename = f"{path}\\{end}"
+                
+                canvas = MplCanvas(self)
+                if not savefilename:
+                    self.message_console.append("Results NOT saved.")
+                    return
+                else:
+                    if CalcSettings.ODEMethod == "Emission":
+                        canvas.PlotResults(ExpParams.LEDw,
+                                           LoadedData.timestamps,
+                                           Results.conc_opt,
+                                           LoadedData.SpectralDataCut_Abs,
+                                           LoadedData.SpectralDataCut_Index,
+                                           Results.total_abs_fit,
+                                           Results.residuals,
+                                           Results.QY_AB_opt, Results.QY_BA_opt,
+                                           Results.error_QY_AB, Results.error_QY_BA,
+                                           CalcSettings.ODEMethod,
+                                           SaveResults = "Yes",
+                                           SaveFileName = Results.savefilename)
+                    elif CalcSettings.ODEMethod == "Concentrations":
+                        canvas.PlotResults_Conc(ExpParams.LEDw,
+                                           LoadedData.timestamps,
+                                           Results.conc_opt,
+                                           Datasets.concs_RP,
+                                           LoadedData.SpectralDataCut_Wavelengths,
+                                           LoadedData.epsilons_R_interp,
+                                           LoadedData.epsilons_P_interp,
+                                           Results.QY_AB_opt, Results.QY_BA_opt,
+                                           Results.error_QY_AB, Results.error_QY_BA,
+                                           CalcSettings.ODEMethod,
+                                           SaveResults = "Yes",
+                                           SaveFileName = Results.savefilename)
+                    self.Save_Results()
+                    self.message_console.append(f"Files saved successfully as {Results.savefilename}")
+            except Exception as e:
+                self.message_console.append(f"FAILED to save the QY plots: {e}")
     
         def Save_Results(self):
             """ Save results and all the parameters and settings used for the calculation """
-            savefile = Results.savefilename+".txt"
+            try:
+                savefile = Results.savefilename+".txt"
+        
+                dict_results = {'PSS_Reactant (%)': Results.PSS_Reactant,
+                         'PSS_Product (%)' : Results.PSS_Product,
+                         'QY_AB_opt (%)' : Results.QY_AB_opt,
+                         'QY_BA_opt (%)' : Results.QY_BA_opt,
+                         'error_QY_AB (%)' : Results.error_QY_AB,
+                         'error_QY_BA (%)' : Results.error_QY_BA}
+        
+                dict_expparams = {'Volume (ml)': ExpParams.V,
+                                  'k thermal back-reaction (s-1)': ExpParams.k_BA,
+                                  'Power average (mW)': ExpParams.I0_avg,
+                                  'Power error (mW)': ExpParams.I0_err,
+                                  'Wavelength of irradiation': ExpParams.LEDw}
     
-            dict_results = {'PSS_Reactant (%)': Results.PSS_Reactant,
-                     'PSS_Product (%)' : Results.PSS_Product,
-                     'QY_AB_opt (%)' : Results.QY_AB_opt,
-                     'QY_BA_opt (%)' : Results.QY_BA_opt,
-                     'error_QY_AB (%)' : Results.error_QY_AB,
-                     'error_QY_BA (%)' : Results.error_QY_BA}
+                dict_calcsettings = {'Calculation Method': CalcSettings.CalculationMethod,
+                                     'ODE Solving Method': CalcSettings.ODEMethod,
+                                     # 'Baseline Correction LED Spectrum': CalcSettings.BaselineCorrection_LED ##!!! add when general option
+                                     # 'Smoothing of LED Spectrum': CalcSettings.Smoothing_LED ##!!! add when general option
+                                     }
     
-            dict_expparams = {'Volume (ml)': ExpParams.V,
-                              'k thermal back-reaction (s-1)': ExpParams.k_BA,
-                              'Power average (mW)': ExpParams.I0_avg,
-                              'Power error (mW)': ExpParams.I0_err,
-                              'Wavelength of irradiation': ExpParams.LEDw}
-
-            dict_calcsettings = {'Calculation Method': CalcSettings.CalculationMethod,
-                                 'ODE Solving Method': CalcSettings.ODEMethod,
-                                 # 'Baseline Correction LED Spectrum': CalcSettings.BaselineCorrection_LED ##!!! add when general option
-                                 # 'Smoothing of LED Spectrum': CalcSettings.Smoothing_LED ##!!! add when general option
-                                 }
-
-            if CalcSettings.ODEMethod == "Emission":
-                dict_calcsettings['Threshold'] = CalcSettings.threshold
-
-            elif CalcSettings.ODEMethod == "Concentrations":
-                dict_calcsettings['Baseline Correction LED Spectrum'] = CalcSettings.BaselineCorrection_LED
-                dict_calcsettings['Wavelength Range'] = f"{CalcSettings.wl_low}-{CalcSettings.wl_high}"
+                if CalcSettings.ODEMethod == "Emission":
+                    dict_calcsettings['Threshold'] = CalcSettings.threshold
+    
+                elif CalcSettings.ODEMethod == "Concentrations":
+                    dict_calcsettings['Baseline Correction LED Spectrum'] = CalcSettings.BaselineCorrection_LED
+                    dict_calcsettings['Wavelength Range'] = f"{CalcSettings.wl_low}-{CalcSettings.wl_high}"
+            
+            except Exception as e:
+                self.message_console.append(f"FAILED to construct the dictionaries for the Results textfile: {e}")
     
             try:
                 os.remove(savefile)
@@ -1083,8 +1164,8 @@ def main():
                     file.write('\n')
                     for i in dict_calcsettings:
                         file.write(i+": "+str(dict_calcsettings[i])+'\n')
-            except IOError as e:
-                self.message_console.append(f"An error occurred upon saving the results textfile: {e}")
+            except Exception as e:
+                self.message_console.append(f"FAILED to save the results textfile: {e}")
     #####################################################################
     app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()

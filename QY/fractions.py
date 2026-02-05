@@ -65,7 +65,7 @@ def CalculateFractions(spectra, wavelengths, eps1, eps2):
         reconstructed_spectra.append(fit)
     reconstructed_spectra = np.array(reconstructed_spectra)  # shape = (n_spectra, n_points)
 
-    original_spectra = A_matrix_raw
+    original_spectra = A_matrix_raw # shape = (n_spectra, n_points)
     return f1_list, f2_list, reconstructed_spectra, original_spectra
 
 def CalculateResiduals(original, reconstructed_epsilon, total_conc):
