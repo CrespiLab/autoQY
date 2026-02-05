@@ -30,16 +30,17 @@ def GetTimestamps(LogFile):
         
         if len(measure) != len(timestamps): ## remove final element in case of extra set of LEDon-LEDoff lines in log file
             timestamps = timestamps[:len(measure)]
-            print(f"Cut timestamps array to length of Measure array: {len(measure)}")
+            # print(f"Cut timestamps array to length of Measure array: {len(measure)}")
         else:
             pass
-        print(f"timestamps len: {len(timestamps)}")
     elif CalcSettings.format_timestamps == "Default":
         log = pd.read_csv(LogFile,
                         sep = ",", decimal = ".", skiprows = 1, header=None,)
         log.columns = ["Measurement", "Timestamp (s)"]
         timestamps = log.iloc[:,1].to_numpy()
-    return timestamps
+    
+    number_of_timestamps = len(timestamps)
+    return timestamps, number_of_timestamps
 
 def Import_SpectralData(FileFormat, file):
     """ 
@@ -51,21 +52,11 @@ def Import_SpectralData(FileFormat, file):
     elif FileFormat == "Not":
         data_pd = pd.read_csv(file, delimiter=',', header=0)  # in nanometers ####ALFREDO: FIXED?
 
-    # print(f"Integration-Import_SpectralData===data_pd:{data_pd}")
-
-    # data_pd.columns = ['Wavelength [nm]', 'Absorbance'] ## rename columns
-    
     data_pd_full = data_pd
-    # print(f"Integration-Import_SpectralData===data_pd_full:{data_pd_full}")
-
     data_pd_wavelengths = data_pd['Wavelength [nm]']
-    # print(f"LoadData===Import_SpectralData===data_pd_wavelengths:\n{data_pd_wavelengths}")
     data_pd_absorbance = data_pd.iloc[:,1:]
-    # print(f"LoadData===Import_SpectralData===data_pd_absorbance:\n{data_pd_absorbance}\n \
-          # data_pd_absorbance.shape: {data_pd_absorbance.shape}")
-    # print(f"data_pd_absorbance[0]: {data_pd_absorbance[0]}")
-
-    return data_pd_full, data_pd_wavelengths, data_pd_absorbance
+    number_of_spectra = data_pd_absorbance.shape[1]
+    return data_pd_full, data_pd_wavelengths, data_pd_absorbance, number_of_spectra
 
 def Import_Epsilons(FileFormat, 
                     X):

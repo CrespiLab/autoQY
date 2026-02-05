@@ -1,9 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Fri Nov  8 17:21:49 2024
-
-@author: jorst136
-"""
 count = 0
 
 line_positions = [] 
@@ -24,10 +19,12 @@ epsilons_P_interp = None
 emission_interp = None
 
 timestamps = None
+number_of_timestamps = None
 
 SpectralData_Full = None
 SpectralData_Wavelengths = None
 SpectralData_Absorbance = None
+number_of_spectra = None
 
 SpectralDataCut_Wavelengths = None
 SpectralDataCut_Abs = None

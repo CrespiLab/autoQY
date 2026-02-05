@@ -545,8 +545,10 @@ def main():
                 elif file_type == "Epsilons Product":
                     LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values = LoadData.Import_Epsilons("Spectragryph", file_path)
                 elif file_type == "Spectral Data":
-                    LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths, LoadedData.SpectralData_Absorbance = \
+                    (LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths, 
+                    LoadedData.SpectralData_Absorbance, LoadedData.number_of_spectra) = \
                         LoadData.Import_SpectralData("Spectragryph",file_path) #HARDCODED IN THE WRONG PLACE ##!!! STILL??
+                    self.message_console.append(f"Number of spectra in Measurement Data: {LoadedData.number_of_spectra}")
                     LoadedData.filename_spectra = file_path
                 ##!!! ADD in case of .dat format
                 # elif file_type == "Log Irr":
@@ -568,14 +570,15 @@ def main():
                 elif file_type == "Epsilons Product":
                     LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values = LoadData.Import_Epsilons("Not", file_path)
                 elif file_type == "Spectral Data":
-                    LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths,
-                    LoadedData.SpectralData_Absorbance = \
+                    (LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths,
+                    LoadedData.SpectralData_Absorbance, LoadedData.number_of_spectra) = \
                         LoadData.Import_SpectralData("Not", file_path)
-                    ##!!! ADD (INCLUDE IN Import_SpectralData): check and output number of spectra
+                    self.message_console.append(f"Number of spectra in Measurement Data: {LoadedData.number_of_spectra}")
+                    LoadedData.filename_spectra = file_path
                 elif file_type == "Log Irr":
-                    LoadedData.timestamps = LoadData.GetTimestamps(file_path)
-                    ##!!! ADD: check and output number of timestamps
-                    ##!!! ADD IF POSSIBLE: show table of timestamps in pop-up window
+                    LoadedData.timestamps, LoadedData.number_of_timestamps = LoadData.GetTimestamps(file_path)
+                    self.message_console.append(f"Number of timestamps in log file: {LoadedData.number_of_timestamps}")
+                    ##!!! ADD IF POSSIBLE: a button to show a table of the timestamps in a pop-up window
             except Exception as e:
                 message = f"Failed to load .csv file as {file_type}: {e}"
             return message
@@ -932,7 +935,11 @@ def main():
                 QtWidgets.QMessageBox.warning(self, "Error", "Please calculate the fractions first.")
                 return
 
-            ##!!! ADD CHECK: len(measurements) should equal len(timestamps)
+            if LoadedData.number_of_timestamps != LoadedData.number_of_spectra:
+                self.message_console.append(f"FAILED because the number of spectra ({LoadedData.number_of_spectra}) does not equal the number of timestamps ({LoadedData.number_of_timestamps})")
+                QtWidgets.QMessageBox.warning(self, "Error", "Please check the number of spectra and the number of timestamps.")
+                return
+            
             try:
                 Datasets.I0_list = Datasets.ListPowers(ExpParams.I0_avg, ExpParams.I0_err) ## Make list of powers
             except Exception as e:

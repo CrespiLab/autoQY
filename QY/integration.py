@@ -115,6 +115,7 @@ def Epsilons_WavelengthLimits(epsilon_A_wavelengths, epsilon_B_wavelengths):
 def Process_SpectralData(data_pd, wl_low, wl_high, wavelength_of_interest):
     """ Process Spectral Data (the spectra recorded during irradiation) """
     # Clean up the first column by splitting space-separated values and selecting the first one
+    ##!!! Why is this done? Is it a remnant of a previous method of importing?
     def clean_column(value):
         if isinstance(value, str):
             parts = value.split()  # Split the string by spaces
