@@ -29,6 +29,7 @@ import data.datasets as Datasets
 import user_config.defaults as Defaults
 
 import tools.load_data as LoadData
+import tools.data_handling as DataHandling
 from tools.plotting import MplCanvas
 import tools.extractresults as ExtractResults
 #from tools.style import apply_dark_theme
@@ -1068,111 +1069,26 @@ def main():
                 return
 
             try:
-
                 options = QtWidgets.QFileDialog.Options()
         
                 ## File dialog for selecting files
                 savefilename, _ = QtWidgets.QFileDialog.getSaveFileName(self, 
                                                                      "Choose name of savefile", "",
                                                                      options=options)
-                
-                path_split=savefilename.split('/')[0:-1] # leave only filepath (remove name)
-                path='\\'.join(path_split) # re-join into string
-        
-                end_nameonly=savefilename.split('/')[-1] # only filename
-                end=f"Results_{end_nameonly}_ODEMethod_{CalcSettings.ODEMethod}" # name with added info
-        
-                Results.savefilename = f"{path}\\{end}"
-                
-                canvas = MplCanvas(self)
+
                 if not savefilename:
                     self.message_console.append("Results NOT saved.")
                     return
                 else:
-                    if CalcSettings.ODEMethod == "Emission":
-                        canvas.PlotResults(ExpParams.LEDw,
-                                           LoadedData.timestamps,
-                                           Results.conc_opt,
-                                           LoadedData.SpectralDataCut_Abs,
-                                           LoadedData.SpectralDataCut_Index,
-                                           Results.total_abs_fit,
-                                           Results.residuals,
-                                           Results.QY_AB_opt, Results.QY_BA_opt,
-                                           Results.error_QY_AB, Results.error_QY_BA,
-                                           CalcSettings.ODEMethod,
-                                           SaveResults = "Yes",
-                                           SaveFileName = Results.savefilename)
-                    elif CalcSettings.ODEMethod == "Concentrations":
-                        canvas.PlotResults_Conc(ExpParams.LEDw,
-                                           LoadedData.timestamps,
-                                           Results.conc_opt,
-                                           Datasets.concs_RP,
-                                           LoadedData.SpectralDataCut_Wavelengths,
-                                           LoadedData.epsilons_R_interp,
-                                           LoadedData.epsilons_P_interp,
-                                           Results.QY_AB_opt, Results.QY_BA_opt,
-                                           Results.error_QY_AB, Results.error_QY_BA,
-                                           CalcSettings.ODEMethod,
-                                           SaveResults = "Yes",
-                                           SaveFileName = Results.savefilename)
-                    self.Save_Results()
-                    self.message_console.append(f"Files saved successfully as {Results.savefilename}")
+                    results = DataHandling.FileHandler(f"{savefilename}", "save", parent=self) ## initialise FileHandler for Results files
+                    results.save_plots_results() ## save results plots as .png and .svg
+                    results.write_to_textfile_results() ## save results textfile
+                    
+                    ##!!! HERE SAVE FRACTIONS
+                    
             except Exception as e:
-                self.message_console.append(f"FAILED to save the QY plots: {e}")
+                self.message_console.append(f"FAILED to save the QY results: {e}")
     
-        def Save_Results(self):
-            """ Save results and all the parameters and settings used for the calculation """
-            try:
-                savefile = Results.savefilename+".txt"
-        
-                dict_results = {'PSS_Reactant (%)': Results.PSS_Reactant,
-                         'PSS_Product (%)' : Results.PSS_Product,
-                         'QY_AB_opt (%)' : Results.QY_AB_opt,
-                         'QY_BA_opt (%)' : Results.QY_BA_opt,
-                         'error_QY_AB (%)' : Results.error_QY_AB,
-                         'error_QY_BA (%)' : Results.error_QY_BA}
-        
-                dict_expparams = {'Volume (ml)': ExpParams.V,
-                                  'k thermal back-reaction (s-1)': ExpParams.k_BA,
-                                  'Power average (mW)': ExpParams.I0_avg,
-                                  'Power error (mW)': ExpParams.I0_err,
-                                  'Wavelength of irradiation': ExpParams.LEDw}
-    
-                dict_calcsettings = {'Calculation Method': CalcSettings.CalculationMethod,
-                                     'ODE Solving Method': CalcSettings.ODEMethod,
-                                     # 'Baseline Correction LED Spectrum': CalcSettings.BaselineCorrection_LED ##!!! add when general option
-                                     # 'Smoothing of LED Spectrum': CalcSettings.Smoothing_LED ##!!! add when general option
-                                     }
-    
-                if CalcSettings.ODEMethod == "Emission":
-                    dict_calcsettings['Threshold'] = CalcSettings.threshold
-    
-                elif CalcSettings.ODEMethod == "Concentrations":
-                    dict_calcsettings['Baseline Correction LED Spectrum'] = CalcSettings.BaselineCorrection_LED
-                    dict_calcsettings['Wavelength Range'] = f"{CalcSettings.wl_low}-{CalcSettings.wl_high}"
-            
-            except Exception as e:
-                self.message_console.append(f"FAILED to construct the dictionaries for the Results textfile: {e}")
-    
-            try:
-                os.remove(savefile)
-            except:
-                pass
-    
-            try:
-                file=savefile
-                
-                with open (file,'a') as file:
-                    for i in dict_results:
-                        file.write(i+": "+str(dict_results[i])+'\n')
-                    file.write('\n')
-                    for i in dict_expparams:
-                        file.write(i+": "+str(dict_expparams[i])+'\n')
-                    file.write('\n')
-                    for i in dict_calcsettings:
-                        file.write(i+": "+str(dict_calcsettings[i])+'\n')
-            except Exception as e:
-                self.message_console.append(f"FAILED to save the results textfile: {e}")
     #####################################################################
     app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()
