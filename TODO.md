@@ -21,7 +21,7 @@
 
 ## Completed ✓
 
-- [ ] Release version 1.1.1
+- [x] Release version 1.1.1
 - [x] Indicate baseline in loaded spectra to facilitate checking of negative values for user
 - [x] Error handling
   - [x] Put functions in "try"-statements to catch errors and prevent crashing
