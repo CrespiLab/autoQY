@@ -538,13 +538,17 @@ def main():
             message = None
             try:
                 if file_type == "LED Emission":
-                    LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity = LoadData.Import_LEDemission("Spectragryph", file_path)
+                    (LoadedData.LEDemission_wavelengths, 
+                     LoadedData.LEDemission_intensity) = LoadData.Import_LEDemission("Spectragryph", file_path)
                     LoadedData.filename_LED = file_path
-                    
                 elif file_type == "Epsilons Reactant":
-                    LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values = LoadData.Import_Epsilons("Spectragryph", file_path)
+                    (LoadedData.epsilons_R_wavelengths, 
+                     LoadedData.epsilons_R_values) = LoadData.Import_Epsilons("Spectragryph", file_path)
+                    LoadedData.epsilons_R = file_path
                 elif file_type == "Epsilons Product":
-                    LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values = LoadData.Import_Epsilons("Spectragryph", file_path)
+                    (LoadedData.epsilons_P_wavelengths, 
+                     LoadedData.epsilons_P_values) = LoadData.Import_Epsilons("Spectragryph", file_path)
+                    LoadedData.epsilons_P = file_path
                 elif file_type == "Spectral Data":
                     (LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths, 
                     LoadedData.SpectralData_Absorbance, LoadedData.number_of_spectra) = \
@@ -564,12 +568,17 @@ def main():
             message = None
             try:       
                 if file_type == "LED Emission":
-                    LoadedData.LEDemission_wavelengths, LoadedData.LEDemission_intensity = LoadData.Import_LEDemission("Not", file_path)
+                    (LoadedData.LEDemission_wavelengths, 
+                     LoadedData.LEDemission_intensity) = LoadData.Import_LEDemission("Not", file_path)
                     LoadedData.filename_LED = file_path
                 elif file_type == "Epsilons Reactant":
-                    LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values = LoadData.Import_Epsilons("Not", file_path)
+                    (LoadedData.epsilons_R_wavelengths,
+                    LoadedData.epsilons_R_values) = LoadData.Import_Epsilons("Not", file_path)
+                    LoadedData.epsilons_R = file_path
                 elif file_type == "Epsilons Product":
-                    LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values = LoadData.Import_Epsilons("Not", file_path)
+                    (LoadedData.epsilons_P_wavelengths, 
+                     LoadedData.epsilons_P_values) = LoadData.Import_Epsilons("Not", file_path)
+                    LoadedData.epsilons_P = file_path
                 elif file_type == "Spectral Data":
                     (LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths,
                     LoadedData.SpectralData_Absorbance, LoadedData.number_of_spectra) = \
@@ -577,7 +586,9 @@ def main():
                     self.message_console.append(f"Number of spectra in Measurement Data: {LoadedData.number_of_spectra}")
                     LoadedData.filename_spectra = file_path
                 elif file_type == "Log Irr":
-                    LoadedData.timestamps, LoadedData.number_of_timestamps = LoadData.GetTimestamps(file_path)
+                    (LoadedData.timestamps, 
+                     LoadedData.number_of_timestamps) = LoadData.GetTimestamps(file_path)
+                    LoadedData.filename_log = file_path
                     self.message_console.append(f"Number of timestamps in log file: {LoadedData.number_of_timestamps}")
                     ##!!! ADD IF POSSIBLE: a button to show a table of the timestamps in a pop-up window
             except Exception as e:
@@ -893,15 +904,6 @@ def main():
                 self.CalcQYButton.setEnabled(True)
             except Exception as e:
                 self.message_console.append(f"FAILED to calculate residuals of fractions calculation: {e}")
-            
-            try:
-                ### Save as .csv ###
-                message = Fractions.Save_FractionsResults(Results.fractions_R, Results.fractions_P,
-                                                LoadedData.filename_spectra)
-                self.message_console.append(message)
-            except Exception as e:
-                self.message_console.append(f"FAILED to save results from fractions calculation: {e}")
-            
         #######################################    
 
         def Calc_QY(self, canvas):
@@ -1075,7 +1077,7 @@ def main():
                 savefilename, _ = QtWidgets.QFileDialog.getSaveFileName(self, 
                                                                      "Choose name of savefile", "",
                                                                      options=options)
-
+    
                 if not savefilename:
                     self.message_console.append("Results NOT saved.")
                     return
@@ -1084,7 +1086,11 @@ def main():
                     results.save_plots_results() ## save results plots as .png and .svg
                     results.write_to_textfile_results() ## save results textfile
                     
-                    ##!!! HERE SAVE FRACTIONS
+                    if CalcSettings.ODEMethod == "Concentrations":
+                        try:
+                            results.Save_FractionsResults() ## save fractions .csv file
+                        except Exception as e:
+                            self.message_console.append(f"FAILED to save results from fractions calculation: {e}")
                     
             except Exception as e:
                 self.message_console.append(f"FAILED to save the QY results: {e}")

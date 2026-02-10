@@ -6,8 +6,11 @@ line_positions = []
 PowersAtCuvette = {}
 ErrorsAtCuvette = {}
 
+filename_epsilons_R = None
+filename_epsilons_P = None
 filename_LED = None
 filename_spectra = None
+filename_log = None
 
 epsilons_R_wavelengths = None 
 epsilons_R_values = None

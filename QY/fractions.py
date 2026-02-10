@@ -17,12 +17,7 @@ Options
            disable baseline correction entirely.
 """
 
-import csv
-
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-from matplotlib.colors import LinearSegmentedColormap
 from scipy.optimize import nnls
 
 def polynomial_baseline(x: np.ndarray, y: np.ndarray,
@@ -77,36 +72,3 @@ def CalculateResiduals(original, reconstructed_epsilon, total_conc):
     residuals = original - reconstructed_Abs
     return reconstructed_Abs, residuals
     
-def Save_FractionsResults(f1_list, f2_list,
-                          filepath_spectra):
-    ''' 
-    Save Fractions calculation results.
-    Using the same name as that of the Measurement Data (spectra measured during irradiation)
-    '''
-    ### Output results ###
-    # for i, (f1, f2) in enumerate(zip(f1_list, f2_list)):
-    #     print(f"{i+1}   f₁ = {f1:.4f}   f₂ = {f2:.4f}")
-    ##!!! OUTPUT RESULTS IN SOME WAY IN INFO SCREEN
-
-	### Output file path
-    filename_fractions="Fractions"
-    
-    path_split=filepath_spectra.split('/')[0:-1] # leave only filepath (remove name)
-    path='\\'.join(path_split) # re-join into string
-
-    end_nameonly=filepath_spectra.split('/')[-1].split('.')[0] # only filename (without .dat)
-    end=f"{filename_fractions}_{end_nameonly}.csv" # name with added info
-    
-    output_file = f"{path}\\{end}"
-
-	### Write to CSV ###
-    with open(output_file, "w", newline="") as f:
-        writer = csv.writer(f, delimiter=",")        
-        writer.writerow(["Spectrum", "Fraction_Reactant", "Fraction_Product"])
-        for i, (f1, f2) in enumerate(zip(f1_list, f2_list)):
-            writer.writerow([i+1, f1, f2])
-
-    # print(f"Fractions saved to: {output_file}")
-    message = f"Fractions saved to: {output_file}"
-    return message
-

@@ -23,10 +23,13 @@
 
 ## Completed ✓
 
+- [ ] Release version 1.1.1
+
 - [x] Error handling
   - [x] Put functions in "try"-statements to catch errors and prevent crashing
   - [x] Upon save results: do not overwrite existing filename
 - [x] Add status field that shows message log
+- [x] Release version 1.1.0
 - [x] Introduce alternative Concentrations method for solving the ODEs: involves initial retrieval of concentrations from absorption spectra by fitting of epsilons spectra (version 1.1.0)
 - [x] Take into account delays around acquisition of spectra; use actual irradiation times (shift timestamps) for ODE
 - [x] Release version 1.0.0
