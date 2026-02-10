@@ -26,6 +26,9 @@ class MplCanvas(FigureCanvas):
         self.line_positions = []
 
         self.colours = ["#000000","#808080","#346aa9","#7dadce","#e16203","#872f17"]
+        self.prop_hline = {'colour': 'k',
+                           'linestyle': '--',
+                           'linewidth': 1}
 
         self.idx = idx  # Store the idx for this canvas
 
@@ -227,6 +230,9 @@ class MplCanvas(FigureCanvas):
                  color = Defaults.colours_plot_first)
         ax1.plot(eP_wavelengths, eP_Abs, label="Product",
                  color = Defaults.colours_plot_last)
+        ax1.axhline(0, color = self.prop_hline['colour'],
+                    linestyle = self.prop_hline['linestyle'],
+                    lw = self.prop_hline['linewidth']) ## horizontal line to indicate baseline
         ax1.legend(fontsize=12)
         ax1.set_xlabel("Wavelength (nm)")
         # ax1.set_xlim(220, 650)
@@ -256,6 +262,9 @@ class MplCanvas(FigureCanvas):
         for i in range(0,len(absorbance.columns)):
             ax1.plot(wavelengths, absorbance[absorbance.columns[i]],
                      color = colours_formap[i])
+        ax1.axhline(0, color = self.prop_hline['colour'],
+                    linestyle = self.prop_hline['linestyle'],
+                    lw = self.prop_hline['linewidth']) ## horizontal line to indicate baseline
 
         ax1.set_xlabel("Wavelength (nm)")
         # ax1.set_xlim(220, 650)
@@ -287,6 +296,9 @@ class MplCanvas(FigureCanvas):
         ax1.plot(LED_wavelength, LED_intensity, 
                  label=f"{ExpParams.LEDw} nm",
                  color = Defaults.colours_plot_first)
+        ax1.axhline(0, color = self.prop_hline['colour'],
+                    linestyle = self.prop_hline['linestyle'],
+                    lw = self.prop_hline['linewidth']) ## horizontal line to indicate baseline
         ax1.legend(fontsize=12)
         ax1.set_xlabel("Wavelength (nm)")
         # ax1.set_xlim(220, 650)
@@ -328,18 +340,26 @@ class MplCanvas(FigureCanvas):
         for i in range(0,absorbance_cut.shape[1]): ## numpy array
             ax1.plot(wavelengths_cut, absorbance_cut.T[i],
                      color = colours_formap[i])
-
+        ax1.axhline(0, color = self.prop_hline['colour'],
+                    linestyle = self.prop_hline['linestyle'],
+                    lw = self.prop_hline['linewidth']) ## horizontal line to indicate baseline
+        
         ########### INSET ############
-        ax1_inset = ax1.inset_axes([0.62,0.22,0.35,0.7])
-        for i in range(0,absorbance_cut.shape[1]): ## numpy array
-            ax1_inset.plot(wavelengths_cut, absorbance_cut.T[i],
-                     color = colours_formap[i])
-
-        inset_x_min, inset_x_max = self.dynamic_range_x(wavelengths_cut)
-        inset_y_min, inset_y_max = self.dynamic_range_y(absorbance_cut)
-        ax1_inset.set_xlim(inset_x_min, inset_x_max)
-        ax1_inset.set_ylim(inset_y_min, inset_y_max)
+        if CalcSettings.ODEMethod == "Emission": ## only plot inset in case of Emission Method
+            ax1_inset = ax1.inset_axes([0.62,0.22,0.35,0.7])
+            for i in range(0,absorbance_cut.shape[1]): ## numpy array
+                ax1_inset.plot(wavelengths_cut, absorbance_cut.T[i],
+                         color = colours_formap[i])
+            ax1_inset.axhline(0, color = self.prop_hline['colour'],
+                        linestyle = self.prop_hline['linestyle'],
+                        lw = self.prop_hline['linewidth']) ## horizontal line to indicate baseline
+    
+            inset_x_min, inset_x_max = self.dynamic_range_x(wavelengths_cut)
+            inset_y_min, inset_y_max = self.dynamic_range_y(absorbance_cut)
+            ax1_inset.set_xlim(inset_x_min, inset_x_max)
+            ax1_inset.set_ylim(inset_y_min, inset_y_max)
         ###############################
+        
         xlim_min = wavelengths_full.values[0] ## xlimits of full absorption spectra
         xlim_max = wavelengths_full.values[-1]
         
@@ -376,7 +396,10 @@ class MplCanvas(FigureCanvas):
         ax2.plot(wavelengths_cut, em_int_proc, ## em_int_proc is the interpolated (and appropriately cut) LED emission data
                 label=f"Smoothed,\n{bl_corr},\nremoved negative values,\ncut to appropriate range",
                 color = Defaults.colours_plot_last)
-        
+        ax2.axhline(0, color = self.prop_hline['colour'],
+                    linestyle = self.prop_hline['linestyle'],
+                    lw = self.prop_hline['linewidth']) ## horizontal line to indicate baseline
+
         ax2.legend(fontsize=8)
         ax2.set_title(f"LED Emission ({ExpParams.LEDw} nm)")
         ax2.set_ylabel("Intensity")
@@ -407,6 +430,9 @@ class MplCanvas(FigureCanvas):
             ax1.plot(wavelengths, A_matrix_raw[i], 
                      # label=f"{spectrum_names[i]}", 
                      color = colours_formap[i])
+        ax1.axhline(0, color = self.prop_hline['colour'],
+                    linestyle = self.prop_hline['linestyle'],
+                    lw = self.prop_hline['linewidth']) ## horizontal line to indicate baseline
         ax1.set_title("Original Spectra")
         ax1.set_xlabel("Wavelength (nm)")
         ax1.set_ylabel("Absorbance")
@@ -421,6 +447,9 @@ class MplCanvas(FigureCanvas):
             ax2.plot(wavelengths, reconstructed_spectra[i], 
                      # label=f"{spectrum_names[i]}", 
                      color = colours_formap[i])
+        ax2.axhline(0, color = self.prop_hline['colour'],
+                    linestyle = self.prop_hline['linestyle'],
+                    lw = self.prop_hline['linewidth']) ## horizontal line to indicate baseline
         ax2.set_title("Reconstructed Spectra from Fit")
         ax2.set_xlabel("Wavelength (nm)")
         ax2.set_ylabel("Absorbance")
@@ -618,7 +647,9 @@ class MplCanvas(FigureCanvas):
                             color=Defaults.colours_plot_first)
         axconc_res_abs.plot(timestamps, residuals[:,1], 'o-', label='Product',
                             color=Defaults.colours_plot_last,)
-        axconc_res_abs.axhline(0, color='k', lw=1)
+        axconc_res_abs.axhline(0, color = self.prop_hline['colour'],
+                    linestyle = self.prop_hline['linestyle'],
+                    lw = self.prop_hline['linewidth']) ## horizontal line to indicate baseline
         axconc_res_abs.set_xlabel("Time (s)")
         axconc_res_abs.set_ylabel("Residuals (Exp - Fit)")
         axconc_res_abs.legend()
