@@ -2,7 +2,6 @@
 
 ## To Do
 - [ ] Add comparison plot of initial spectrum in measurement data with epsilon spectrum
-- [ ] Change residuals plot in QY Results: absolute residual of R; relative residual of R
 
 - [ ] Introduce DPI auto-scaling to accommodate all screen resolutions
 
@@ -18,6 +17,12 @@
   - [ ] Include processed data, fits, etc., with results (to allow subsequent plotting by the user)
 
 - [ ] Automatically show newly generated tab
+
+- [ ] Change residuals plot in QY Results: absolute residual of R; relative residual of R
+- [ ] Improve QY Results plot of absorption spectra (fit vs experimental): show residuals in a separate window
+
+- [ ] Include uncertainty in epsilon data
+
 
 ## Completed ✓
 
