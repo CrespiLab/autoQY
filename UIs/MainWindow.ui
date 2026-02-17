@@ -1411,6 +1411,9 @@
          <pointsize>10</pointsize>
         </font>
        </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
       </widget>
       <widget class="QLineEdit" name="lineEdit_Power_2">
        <property name="geometry">
@@ -1425,6 +1428,9 @@
         <font>
          <pointsize>10</pointsize>
         </font>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
        </property>
       </widget>
       <widget class="QLineEdit" name="lineEdit_Power_3">
@@ -1441,6 +1447,9 @@
          <pointsize>10</pointsize>
         </font>
        </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
       </widget>
       <widget class="QLineEdit" name="lineEdit_PowerError_1">
        <property name="geometry">
@@ -1455,6 +1464,9 @@
         <font>
          <pointsize>10</pointsize>
         </font>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
        </property>
       </widget>
       <widget class="QLineEdit" name="lineEdit_PowerError_2">
@@ -1471,6 +1483,9 @@
          <pointsize>10</pointsize>
         </font>
        </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
       </widget>
       <widget class="QLineEdit" name="lineEdit_PowerError_3">
        <property name="geometry">
@@ -1485,6 +1500,9 @@
         <font>
          <pointsize>10</pointsize>
         </font>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
        </property>
       </widget>
       <widget class="QLineEdit" name="lineEdit_AvgPower">
@@ -1501,6 +1519,9 @@
          <pointsize>10</pointsize>
         </font>
        </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
       </widget>
       <widget class="QLineEdit" name="lineEdit_AvgPowerError">
        <property name="geometry">
@@ -1515,6 +1536,9 @@
         <font>
          <pointsize>10</pointsize>
         </font>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
        </property>
       </widget>
      </widget>
@@ -2320,6 +2344,9 @@
          <pointsize>10</pointsize>
         </font>
        </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
       </widget>
       <widget class="QLineEdit" name="lineEdit_PSS_P">
        <property name="geometry">
@@ -2334,6 +2361,9 @@
         <font>
          <pointsize>10</pointsize>
         </font>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
        </property>
       </widget>
      </widget>
@@ -2488,6 +2518,9 @@
          <pointsize>10</pointsize>
         </font>
        </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
       </widget>
       <widget class="QLineEdit" name="lineEdit_QY_PtoR">
        <property name="geometry">
@@ -2502,6 +2535,9 @@
         <font>
          <pointsize>10</pointsize>
         </font>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
        </property>
       </widget>
       <widget class="QLineEdit" name="lineEdit_QYerror_RtoP">
@@ -2518,6 +2554,9 @@
          <pointsize>10</pointsize>
         </font>
        </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
       </widget>
       <widget class="QLineEdit" name="lineEdit_QYerror_PtoR">
        <property name="geometry">
@@ -2532,6 +2571,9 @@
         <font>
          <pointsize>10</pointsize>
         </font>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
        </property>
       </widget>
      </widget>
@@ -2627,9 +2669,9 @@
  <resources/>
  <connections/>
  <buttongroups>
-  <buttongroup name="buttonGroup_blcorrLED"/>
-  <buttongroup name="buttonGroup_Power"/>
-  <buttongroup name="buttonGroup_ODEMethod"/>
   <buttongroup name="buttonGroup_logformat"/>
+  <buttongroup name="buttonGroup_blcorrLED"/>
+  <buttongroup name="buttonGroup_ODEMethod"/>
+  <buttongroup name="buttonGroup_Power"/>
  </buttongroups>
 </ui>
