@@ -76,11 +76,21 @@ def Import_Epsilons(FileFormat,
     elif FileFormat == "Not":
         epsilon_data = pd.read_csv(X, delimiter=',', 
                                      skiprows=1, usecols=[0,1]) 
+
+    if CalcSettings.Epsilons_Uncertainties == "Including":
+        epsilon_data.columns = ['Wavelengths', 'Epsilons_Avg', 
+                                'Epsilons_Avg_plus_errors', 'Epsilons_Avg_minus_errors'] ## rename columns
+        epsilon_wavelengths = epsilon_data['Wavelengths'].values
+        epsilon_values_avg = epsilon_data['Epsilons_Avg'].values
+        epsilon_values_plus = epsilon_data['Epsilons_Avg_plus_errors'].values
+        epsilon_values_minus = epsilon_data['Epsilons_Avg_minus_errors'].values
+        return epsilon_wavelengths, epsilon_values_avg, epsilon_values_plus, epsilon_values_minus
         
-    epsilon_data.columns = ['Wavelengths', 'Epsilons'] ## rename columns
-    epsilon_wavelengths = epsilon_data['Wavelengths'].values
-    epsilon_values = epsilon_data['Epsilons'].values
-    return epsilon_wavelengths, epsilon_values
+    elif CalcSettings.Epsilons_Uncertainties == "Excluding":
+        epsilon_data.columns = ['Wavelengths', 'Epsilons'] ## rename columns
+        epsilon_wavelengths = epsilon_data['Wavelengths'].values
+        epsilon_values = epsilon_data['Epsilons'].values
+        return epsilon_wavelengths, epsilon_values
 
 def Import_LEDemission(FileFormat, file_LEDemission_raw):
     """ Import (raw) emission LED_file """

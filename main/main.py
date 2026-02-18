@@ -156,6 +156,7 @@ def main():
         def SetDefaultSettings(self):
             try:
                 CalcSettings.format_timestamps = Defaults.format_timestamps
+                CalcSettings.Epsilons_Uncertainties = Defaults.Epsilons_Uncertainties
                 CalcSettings.CalculationMethod = Defaults.CalculationMethod
                 CalcSettings.ODEMethod = Defaults.ODEMethod
                 CalcSettings.PowerMethod = Defaults.PowerMethod
@@ -172,6 +173,8 @@ def main():
                 self.message_console.append(f"FAILED to set default settings: {e}")
     
         def SetButtons(self):
+            ##!!! ADD: choose epsilons with uncertainties
+            
             if CalcSettings.format_timestamps == "AHK":
                 self.radioButton_Log_AHK.setChecked(True)
             elif CalcSettings.format_timestamps == "Default":
@@ -496,8 +499,8 @@ def main():
         ####################################################################################################################################
         ############################ LOAD DATA ############################
         ####################################################################################################################################
-    
-        def load_file(self, file_type):
+
+        def TEST_load_file(self, file_type, file_name):
             """Load a file (LED emission, spectral data, epsilons) based on the file type."""
             ##!!! Move to tools.load_data
             message = None
@@ -531,6 +534,43 @@ def main():
                 
             except Exception as e:
                     QtWidgets.QMessageBox.critical(self, "Error", f"Failed to load {file_type} {file_ext} file: {e}")
+
+
+    
+        def load_file(self, file_type):
+            """Load a file (LED emission, spectral data, epsilons) based on the file type."""
+            ##!!! Move to tools.load_data
+            message = None
+            try:
+                options = QtWidgets.QFileDialog.Options()
+    
+                ## File dialog for selecting files
+                file_name, _ = QtWidgets.QFileDialog.getOpenFileName(self, 
+                                                                    f"Load {file_type} File", "",
+                                                                    "CSV, DAT Files (*.csv *dat);;DAT Files (*.dat);;All Files (*)", 
+                                                                    options=options)
+                if not file_name:
+                    self.message_console.append(f"No {file_type} file selected")
+                    return
+    
+                ##################################################
+                # Store the file path in the appropriate attribute based on the file type
+                file_ext = os.path.splitext(file_name)[1].lower()
+                if file_ext == '.csv':
+                    message = self.load_csv(file_name, file_type)
+                elif file_ext == '.dat':
+                    message = self.load_dat(file_name, file_type)
+                else:
+                    message = f"Unknown file extension: {file_ext}"
+    
+                if message is None:
+                    self.message_console.append(f"{file_type} {file_ext} file loaded successfully!")
+                else:
+                    self.message_console.append(message)
+                    QtWidgets.QMessageBox.critical(self, "Error", message)
+                
+            except Exception as e:
+                    QtWidgets.QMessageBox.critical(self, "Error", f"Failed to load {file_type} {file_ext} file: {e}")
     
         def load_dat(self, file_path, file_type):
             """Load the data file depending on its format (.csv or .dat)."""
@@ -542,13 +582,28 @@ def main():
                      LoadedData.LEDemission_intensity) = LoadData.Import_LEDemission("Spectragryph", file_path)
                     LoadedData.filename_LED = file_path
                 elif file_type == "Epsilons Reactant":
-                    (LoadedData.epsilons_R_wavelengths, 
-                     LoadedData.epsilons_R_values) = LoadData.Import_Epsilons("Spectragryph", file_path)
-                    LoadedData.epsilons_R = file_path
+                    #!!! IMPROVEMENT: make dictionaries of LoadedData.epsilons_R and _P
+                    
+                    if CalcSettings.Epsilons_Uncertainties == "Including":
+                        (LoadedData.epsilons_R_wavelengths, 
+                         LoadedData.epsilons_R_values,
+                         LoadedData.epsilons_R_values_plus,
+                         LoadedData.epsilons_R_values_minus) = LoadData.Import_Epsilons("Spectragryph", file_path)
+                        LoadedData.filename_epsilons_R = file_path
+                    elif CalcSettings.Epsilons_Uncertainties == "Excluding":
+                        (LoadedData.epsilons_R_wavelengths, 
+                         LoadedData.epsilons_R_values) = LoadData.Import_Epsilons("Spectragryph", file_path)
+                        LoadedData.filename_epsilons_R = file_path
                 elif file_type == "Epsilons Product":
-                    (LoadedData.epsilons_P_wavelengths, 
-                     LoadedData.epsilons_P_values) = LoadData.Import_Epsilons("Spectragryph", file_path)
-                    LoadedData.epsilons_P = file_path
+                    if CalcSettings.Epsilons_Uncertainties == "Including":
+                        (LoadedData.epsilons_P_wavelengths, 
+                         LoadedData.epsilons_P_values,
+                         LoadedData.epsilons_P_values_plus,
+                         LoadedData.epsilons_P_values_minus) = LoadData.Import_Epsilons("Spectragryph", file_path)
+                    elif CalcSettings.Epsilons_Uncertainties == "Excluding":
+                        (LoadedData.epsilons_P_wavelengths, 
+                         LoadedData.epsilons_P_values) = LoadData.Import_Epsilons("Spectragryph", file_path)
+                        LoadedData.filename_epsilons_P = file_path
                 elif file_type == "Spectral Data":
                     (LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths, 
                     LoadedData.SpectralData_Absorbance, LoadedData.number_of_spectra) = \
@@ -572,13 +627,26 @@ def main():
                      LoadedData.LEDemission_intensity) = LoadData.Import_LEDemission("Not", file_path)
                     LoadedData.filename_LED = file_path
                 elif file_type == "Epsilons Reactant":
-                    (LoadedData.epsilons_R_wavelengths,
-                    LoadedData.epsilons_R_values) = LoadData.Import_Epsilons("Not", file_path)
-                    LoadedData.epsilons_R = file_path
+                    if CalcSettings.Epsilons_Uncertainties == "Including":
+                        (LoadedData.epsilons_R_wavelengths, 
+                         LoadedData.epsilons_R_values,
+                         LoadedData.epsilons_R_values_plus,
+                         LoadedData.epsilons_R_values_minus) = LoadData.Import_Epsilons("Not", file_path)
+                        LoadedData.filename_epsilons_R = file_path
+                    elif CalcSettings.Epsilons_Uncertainties == "Excluding":
+                        (LoadedData.epsilons_R_wavelengths, 
+                         LoadedData.epsilons_R_values) = LoadData.Import_Epsilons("Not", file_path)
+                        LoadedData.filename_epsilons_R = file_path
                 elif file_type == "Epsilons Product":
-                    (LoadedData.epsilons_P_wavelengths, 
-                     LoadedData.epsilons_P_values) = LoadData.Import_Epsilons("Not", file_path)
-                    LoadedData.epsilons_P = file_path
+                    if CalcSettings.Epsilons_Uncertainties == "Including":
+                        (LoadedData.epsilons_P_wavelengths, 
+                         LoadedData.epsilons_P_values,
+                         LoadedData.epsilons_P_values_plus,
+                         LoadedData.epsilons_P_values_minus) = LoadData.Import_Epsilons("Not", file_path)
+                    elif CalcSettings.Epsilons_Uncertainties == "Excluding":
+                        (LoadedData.epsilons_P_wavelengths, 
+                         LoadedData.epsilons_P_values) = LoadData.Import_Epsilons("Not", file_path)
+                        LoadedData.filename_epsilons_P = file_path
                 elif file_type == "Spectral Data":
                     (LoadedData.SpectralData_Full, LoadedData.SpectralData_Wavelengths,
                     LoadedData.SpectralData_Absorbance, LoadedData.number_of_spectra) = \
@@ -635,14 +703,25 @@ def main():
             if LoadedData.epsilons_R_wavelengths is None or LoadedData.epsilons_P_wavelengths is None:
                 QtWidgets.QMessageBox.warning(self, "Error", "Please load the epilons data first.")
                 return
-            
+
             try:
-                def plot_func(canvas):
-                    """ Plot the data using MplCanvas """
-                    canvas.plot_EpsilonsOnly(LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values,
-                                  LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values)
                 
-                self.add_new_tab(plot_func, "Epsilons")
+                if CalcSettings.Epsilons_Uncertainties == "Including":
+                    def plot_func(canvas):
+                        """ Plot the data using MplCanvas """
+                        canvas.plot_EpsilonsOnly(LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values, 
+                                                 LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values, ## four required arguments first
+                                                 LoadedData.epsilons_R_values_plus, LoadedData.epsilons_R_values_minus,
+                                                 LoadedData.epsilons_P_values_plus, LoadedData.epsilons_P_values_minus)
+
+                    self.add_new_tab(plot_func, "Epsilons including Uncertainties")
+                elif CalcSettings.Epsilons_Uncertainties == "Excluding":
+                    def plot_func(canvas):
+                        """ Plot the data using MplCanvas """
+                        canvas.plot_EpsilonsOnly(LoadedData.epsilons_R_wavelengths, LoadedData.epsilons_R_values,
+                                                 LoadedData.epsilons_P_wavelengths, LoadedData.epsilons_P_values)
+                
+                    self.add_new_tab(plot_func, "Epsilons")
             except Exception as e:
                 self.message_console.append(f"FAILED to plot epsilons spectra (pre-processed): {e}")
                 
@@ -813,18 +892,41 @@ def main():
                 self.message_console.append(f"FAILED to process spectral data: {e}")
             
             try:
-                (LoadedData.epsilons_R_interp, 
-                 LoadedData.epsilons_P_interp, 
-                 LoadedData.emission_interp) = \
-                    Integration.Interpolate_Epsilons(LoadedData.SpectralDataCut_Wavelengths,
+                LoadedData.epsilons_R_interp = \
+                    Integration.Interpolate_Spectra(LoadedData.SpectralDataCut_Wavelengths,
                                                      LoadedData.epsilons_R_wavelengths,
-                                                     LoadedData.epsilons_R_values,
+                                                     LoadedData.epsilons_R_values)
+            
+                LoadedData.epsilons_P_interp = \
+                    Integration.Interpolate_Spectra(LoadedData.SpectralDataCut_Wavelengths,
                                                      LoadedData.epsilons_P_wavelengths,
-                                                     LoadedData.epsilons_P_values,
+                                                     LoadedData.epsilons_P_values)
+
+                LoadedData.emission_interp = \
+                    Integration.Interpolate_Spectra(LoadedData.SpectralDataCut_Wavelengths,
                                                      LoadedData.LEDemission_wavelengths,
                                                      LoadedData.LEDemission_intensity_proc)
+            
+                if CalcSettings.Epsilons_Uncertainties == "Including": ## interpolate epsilons +/- error data
+                    LoadedData.epsilons_R_plus_interp = \
+                        Integration.Interpolate_Spectra(LoadedData.SpectralDataCut_Wavelengths,
+                                                         LoadedData.epsilons_R_wavelengths,
+                                                         LoadedData.epsilons_R_values_plus)
+                    LoadedData.epsilons_R_minus_interp = \
+                        Integration.Interpolate_Spectra(LoadedData.SpectralDataCut_Wavelengths,
+                                                         LoadedData.epsilons_R_wavelengths,
+                                                         LoadedData.epsilons_R_values_minus)
+                    LoadedData.epsilons_P_plus_interp = \
+                        Integration.Interpolate_Spectra(LoadedData.SpectralDataCut_Wavelengths,
+                                                         LoadedData.epsilons_P_wavelengths,
+                                                         LoadedData.epsilons_P_values_plus)
+                    LoadedData.epsilons_P_minus_interp = \
+                        Integration.Interpolate_Spectra(LoadedData.SpectralDataCut_Wavelengths,
+                                                         LoadedData.epsilons_P_wavelengths,
+                                                         LoadedData.epsilons_P_values_minus)
+            
             except Exception as e:
-                self.message_console.append(f"FAILED to process epsilons data: {e}")
+                self.message_console.append(f"FAILED to interpolate data: {e}")
             
             try:
                 ########################################
@@ -871,35 +973,122 @@ def main():
                 return
             
             try:
-                (Results.fractions_R, Results.fractions_P, Results.reconstructed_spectra_fractions_epsilon,
-                 Results.original_spectra) = \
-                    Fractions.CalculateFractions(LoadedData.SpectralDataCut_Abs,
-                                                 LoadedData.SpectralDataCut_Wavelengths,
-                                                 LoadedData.epsilons_R_interp,
-                                                 LoadedData.epsilons_P_interp)
+                ##!!! INCLUDING UNCERTAINTIES: run 3x3 times!
+                print("===Calc_Fractions===")
+                
+                if CalcSettings.Epsilons_Uncertainties == "Including":
+                    ##!!! MOVE: make dict in init if "Including"
+                    Results.dict_Epsilons_Uncertainties = {'avg-avg': {},
+                                                           'avg-plus': {}, 
+                                                           'avg-minus': {},
+                                                           'plus-avg': {},
+                                                           'plus-plus': {}, 
+                                                           'plus-minus': {}, 
+                                                           'minus-avg': {}, 
+                                                           'minus-plus': {},
+                                                           'minus-minus': {}}
+                    
+                    for i in ['avg-avg','avg-plus','avg-minus']:
+                        Results.dict_Epsilons_Uncertainties[i]['eps_R']  = LoadedData.epsilons_R_interp
+                    for i in ['plus-avg','plus-plus','plus-minus']:
+                        Results.dict_Epsilons_Uncertainties[i]['eps_R']  = LoadedData.epsilons_R_plus_interp
+                    for i in ['minus-avg','minus-plus','minus-minus']:
+                        Results.dict_Epsilons_Uncertainties[i]['eps_R']  = LoadedData.epsilons_R_minus_interp
+
+                    for i in ['avg-avg','plus-avg','minus-avg']:
+                        Results.dict_Epsilons_Uncertainties[i]['eps_P']  = LoadedData.epsilons_P_interp
+                    for i in ['avg-plus','plus-plus','minus-plus']:
+                        Results.dict_Epsilons_Uncertainties[i]['eps_P']  = LoadedData.epsilons_P_plus_interp
+                    for i in ['avg-minus','plus-minus','minus-minus']:
+                        Results.dict_Epsilons_Uncertainties[i]['eps_P']  = LoadedData.epsilons_P_minus_interp
+                    
+                    print("====== after assigning eps_R and eps_P ======")
+                    # print(f"Results.dict_Epsilons_Uncertainties: {Results.dict_Epsilons_Uncertainties}")
+                    
+                    for combination in Results.dict_Epsilons_Uncertainties:
+                        dict_combi = Results.dict_Epsilons_Uncertainties[combination]
+                        (dict_combi['fractions_R'],
+                         dict_combi['fractions_P'],
+                         dict_combi['reconstructed_spectra_fractions_epsilon'],
+                         dict_combi['original_spectra']) = Fractions.CalculateFractions(LoadedData.SpectralDataCut_Abs, 
+                                                                                        LoadedData.SpectralDataCut_Wavelengths,
+                                                                                        dict_combi['eps_R'],
+                                                                                        dict_combi['eps_P'])
+
+                    print("====== after Fractions.CalculateFractions ======")
+                    # print(f"Results.dict_Epsilons_Uncertainties: {Results.dict_Epsilons_Uncertainties}")
+                                                                                        
+                    # (Results.fractions_R, Results.fractions_P, 
+                    #  Results.reconstructed_spectra_fractions_epsilon,
+                    #  Results.original_spectra) = \
+                    #     Fractions.dict_CalculateFractions(LoadedData.SpectralDataCut_Abs, LoadedData.SpectralDataCut_Wavelengths,
+                    #                                  LoadedData.epsilons_R_interp, epsilons_R_plus_interp, epsilons_R_minus_interp,
+                    #                                  LoadedData.epsilons_P_interp, epsilons_P_plus_interp, epsilons_P_minus_interp)
+                
+                elif CalcSettings.Epsilons_Uncertainties == "Excluding":    
+                
+                    (Results.fractions_R, Results.fractions_P, 
+                     Results.reconstructed_spectra_fractions_epsilon,
+                     Results.original_spectra) = \
+                        Fractions.CalculateFractions(LoadedData.SpectralDataCut_Abs,
+                                                     LoadedData.SpectralDataCut_Wavelengths,
+                                                     LoadedData.epsilons_R_interp,
+                                                     LoadedData.epsilons_P_interp)
                 self.message_console.append("Fractions successfully retrieved.")
             except Exception as e:
                 self.message_console.append(f"FAILED to calculate fractions: {e}")
 
             try:
-                (Datasets.total_conc, Datasets.initial_conc_R, Datasets.initial_conc_P, Datasets.concs_RP,
-                 Datasets.wavelengths_meters, Datasets.normalized_emission) = \
-                    Integration.CreateParameters_Conc(LoadedData.SpectralDataCut_Abs, 
-                                                 LoadedData.SpectralDataCut_Wavelengths,
-                                                 Results.fractions_R, Results.fractions_P,
-                                                LoadedData.epsilons_R_interp,LoadedData.epsilons_P_interp,
-                                                LoadedData.emission_interp)
-                self.message_console.append(f"Total Concentration: {Datasets.total_conc:.2E} M. Initial concentrations: Reactant {Datasets.initial_conc_R:.2E} M, and Product {Datasets.initial_conc_P:.2E} M")
+                if CalcSettings.Epsilons_Uncertainties == "Including":
+                    ##!!! SEPARATE Datasets.wavelengths_meters and Datasets.normalized_emission from the rest
+                    
+                    for combination in Results.dict_Epsilons_Uncertainties:
+                        dict_combi = Results.dict_Epsilons_Uncertainties[combination]
+                        
+                        (dict_combi['total_conc'], dict_combi['init_conc_R'], 
+                         dict_combi['init_conc_P'], dict_combi['concs_RP'],
+                         Datasets.wavelengths_meters, Datasets.normalized_emission) = \
+                            Integration.CreateParameters_Conc(LoadedData.SpectralDataCut_Abs, 
+                                                         LoadedData.SpectralDataCut_Wavelengths,
+                                                         dict_combi['fractions_R'], dict_combi['fractions_P'],
+                                                         dict_combi['eps_R'], dict_combi['eps_P'],
+                                                         LoadedData.emission_interp)
+                    self.message_console.append(f"Created Parameters for Epsilons including Uncertainties") ##!!! print some useful message here
+                    
+                elif CalcSettings.Epsilons_Uncertainties == "Excluding":    
+                    (Datasets.total_conc, Datasets.initial_conc_R, Datasets.initial_conc_P, Datasets.concs_RP,
+                     Datasets.wavelengths_meters, Datasets.normalized_emission) = \
+                        Integration.CreateParameters_Conc(LoadedData.SpectralDataCut_Abs, 
+                                                     LoadedData.SpectralDataCut_Wavelengths,
+                                                     Results.fractions_R, Results.fractions_P,
+                                                    LoadedData.epsilons_R_interp,LoadedData.epsilons_P_interp,
+                                                    LoadedData.emission_interp)
+                    self.message_console.append(f"Total Concentration: {Datasets.total_conc:.2E} M. Initial concentrations: Reactant {Datasets.initial_conc_R:.2E} M, and Product {Datasets.initial_conc_P:.2E} M")
+            
+                print("====== after Integration.CreateParameters_Conc ======")
+            
             except Exception as e:
                 self.message_console.append(f"FAILED to create parameters from fractions: {e}")
 
             try:
-                Results.reconstructed_spectra_fractions_Abs, Results.fractions_residuals = \
-                    Fractions.CalculateResiduals(Results.original_spectra,
-                                                 Results.reconstructed_spectra_fractions_epsilon,
-                                                 Datasets.total_conc)
+                if CalcSettings.Epsilons_Uncertainties == "Including":
+                    for combination in Results.dict_Epsilons_Uncertainties:
+                        dict_combi = Results.dict_Epsilons_Uncertainties[combination]
+
+                        (dict_combi['reconstructed_spectra_fractions_Abs'], 
+                         dict_combi['fractions_residuals']) = Fractions.CalculateResiduals(dict_combi['original_spectra'],
+                                                                                           dict_combi['reconstructed_spectra_fractions_epsilon'],
+                                                                                           dict_combi['total_conc'])
+                         
+                elif CalcSettings.Epsilons_Uncertainties == "Excluding":
+                    Results.reconstructed_spectra_fractions_Abs, Results.fractions_residuals = \
+                        Fractions.CalculateResiduals(Results.original_spectra,
+                                                     Results.reconstructed_spectra_fractions_epsilon,
+                                                     Datasets.total_conc)
                 
-                self.plot_fractions() ## plot retrieved fractions
+                
+                ##!!! ADJUST for Including Uncertainties mode (probably easiest to also use dict here)
+                # self.plot_fractions() ## plot retrieved fractions 
                 self.PlotFractionsResidualsButton.setEnabled(True)
                 self.CalcQYButton.setEnabled(True)
             except Exception as e:
@@ -934,9 +1123,16 @@ def main():
                 QtWidgets.QMessageBox.warning(self, "Error", "Please load the Timestamps log file.")
                 return
 
-            if not Results.fractions_R or not Results.fractions_P:
-                QtWidgets.QMessageBox.warning(self, "Error", "Please calculate the fractions first.")
-                return
+            if CalcSettings.Epsilons_Uncertainties == "Including":
+                for combi in Results.dict_Epsilons_Uncertainties:
+                    combination = Results.dict_Epsilons_Uncertainties[combi]
+                    if not combination['fractions_R'] or not combination['fractions_P']:
+                        QtWidgets.QMessageBox.warning(self, "Error", "Please calculate the fractions first.")
+                        return
+            elif CalcSettings.Epsilons_Uncertainties == "Excluding":
+                if not Results.fractions_R or not Results.fractions_P:
+                    QtWidgets.QMessageBox.warning(self, "Error", "Please calculate the fractions first.")
+                    return
 
             if LoadedData.number_of_timestamps != LoadedData.number_of_spectra:
                 self.message_console.append(f"FAILED because the number of spectra ({LoadedData.number_of_spectra}) does not equal the number of timestamps ({LoadedData.number_of_timestamps})")
@@ -971,13 +1167,27 @@ def main():
                 ######################################################################    
                 elif CalcSettings.ODEMethod == "Concentrations":
                     # self.message_console.append(f"ODE Solver Method: {CalcSettings.ODEMethod}")
-                    Datasets.N, Datasets.fit_results = Integration.MinimizeQYs_Conc(Datasets.I0_list, 
-                                                            Datasets.normalized_emission,
-                                                            Datasets.wavelengths_meters, 
-                                                            Datasets.initial_conc_R, Datasets.initial_conc_P,
-                                                            LoadedData.timestamps, Datasets.concs_RP,
-                                                            LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
-                                                            ExpParams.V)
+                    
+                    if CalcSettings.Epsilons_Uncertainties == "Including":
+                        for combination in Results.dict_Epsilons_Uncertainties:
+                            dict_combi = Results.dict_Epsilons_Uncertainties[combination]
+                            
+                            (dict_combi['N'], dict_combi['fit_results']) = Integration.MinimizeQYs_Conc(Datasets.I0_list, 
+                                                                    Datasets.normalized_emission,
+                                                                    Datasets.wavelengths_meters, 
+                                                                    dict_combi['init_conc_R'], dict_combi['init_conc_P'],
+                                                                    LoadedData.timestamps, dict_combi['concs_RP'],
+                                                                    dict_combi['eps_R'], dict_combi['eps_P'],
+                                                                    ExpParams.V)
+                    
+                    elif CalcSettings.Epsilons_Uncertainties == "Excluding":
+                        Datasets.N, Datasets.fit_results = Integration.MinimizeQYs_Conc(Datasets.I0_list, 
+                                                                Datasets.normalized_emission,
+                                                                Datasets.wavelengths_meters, 
+                                                                Datasets.initial_conc_R, Datasets.initial_conc_P,
+                                                                LoadedData.timestamps, Datasets.concs_RP,
+                                                                LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
+                                                                ExpParams.V)
                     self.CalcQYButton.setEnabled(True)
                     self.SaveResultsBtn.setEnabled(True)
                     self.Extract_QY() # extract QY results and display
@@ -997,22 +1207,50 @@ def main():
             None.
 
             '''
+            print("===Extract_QY===")
             try:
                 ## Extract results from the fit
-                (Results.QY_AB_opt, Results.QY_BA_opt, Results.error_QY_AB, 
-                 Results.error_QY_BA) = ExtractResults.ExtractResults(Datasets.fit_results)
+                if CalcSettings.Epsilons_Uncertainties == "Including":
+                    for combination in Results.dict_Epsilons_Uncertainties:
+                        dict_combi = Results.dict_Epsilons_Uncertainties[combination]
+                        
+                        (dict_combi['QY_RP_opt'], dict_combi['QY_PR_opt'], 
+                         dict_combi['error_QY_RP'], dict_combi['error_QY_PR']) = ExtractResults.ExtractResults(dict_combi['fit_results'])
+
+                        
+                        print(dict_combi['QY_RP_opt'], dict_combi['QY_PR_opt'], dict_combi['error_QY_RP'], dict_combi['error_QY_PR'])
+                    
+                    ##!!! ADD: calculate final average and error of QYs
+
+                elif CalcSettings.Epsilons_Uncertainties == "Excluding":
+                    (Results.QY_AB_opt, Results.QY_BA_opt, Results.error_QY_AB, 
+                     Results.error_QY_BA) = ExtractResults.ExtractResults(Datasets.fit_results)
+                
             except Exception as e:
                 self.message_console.append(f"FAILED to extract results from the fit: {e}")
             
             try:
                 ## Calculate optimized concentrations
-                (Results.conc_opt, Results.PSS_Reactant, 
-                 Results.PSS_Product) = ExtractResults.CalculateConcentrations(Datasets.wavelengths_meters,
-                                                    Datasets.initial_conc_R, Datasets.initial_conc_P, 
-                                                    LoadedData.timestamps,
-                                                    Results.QY_AB_opt, Results.QY_BA_opt, 
-                                                    LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
-                                                    Datasets.N, ExpParams.V)
+                if CalcSettings.Epsilons_Uncertainties == "Including":
+                    for combination in Results.dict_Epsilons_Uncertainties:
+                        dict_combi = Results.dict_Epsilons_Uncertainties[combination]
+                        
+                        (dict_combi['conc_opt'], dict_combi['PSS_Reactant'], 
+                         dict_combi['PSS_Product']) = ExtractResults.CalculateConcentrations(Datasets.wavelengths_meters,
+                                                                                             dict_combi['init_conc_R'], dict_combi['init_conc_P'],
+                                                                                             LoadedData.timestamps,
+                                                            dict_combi['QY_RP_opt'], dict_combi['QY_PR_opt'], 
+                                                            dict_combi['eps_R'], dict_combi['eps_P'],
+                                                            dict_combi['N'], ExpParams.V)
+                
+                elif CalcSettings.Epsilons_Uncertainties == "Excluding":
+                    (Results.conc_opt, Results.PSS_Reactant, 
+                     Results.PSS_Product) = ExtractResults.CalculateConcentrations(Datasets.wavelengths_meters,
+                                                        Datasets.initial_conc_R, Datasets.initial_conc_P, 
+                                                        LoadedData.timestamps,
+                                                        Results.QY_AB_opt, Results.QY_BA_opt, 
+                                                        LoadedData.epsilons_R_interp, LoadedData.epsilons_P_interp,
+                                                        Datasets.N, ExpParams.V)
                                                                                
                ## Calculate total absorbance and residuals
                 if CalcSettings.ODEMethod == "Emission":
@@ -1029,9 +1267,9 @@ def main():
                 self.message_console.append(f"FAILED to calculate optimised concentration: {e}")
             
             ######################################################################                                                               
-            try:
-                self.SetResultTextfields() ## Update textfields to show results
-                self.add_new_tab(self.Plot_QY, "QY") ## Plot the results
+            try: ##!!! TURN BACK ON WHEN DONE
+                # self.SetResultTextfields() ## Update textfields to show results
+                # self.add_new_tab(self.Plot_QY, "QY") ## Plot the results
                 self.message_console.append("Results extracted and plotted! (Not saved).")
             except Exception as e:
                 self.message_console.append(f"FAILED to generate a new tab with the results: {e}")
@@ -1051,6 +1289,8 @@ def main():
                                        CalcSettings.ODEMethod)
     
                 elif CalcSettings.ODEMethod == "Concentrations":
+                    ##!!! ADD code for plotting Including Uncertainty
+                    
                     canvas.PlotResults_Conc(ExpParams.LEDw,
                                        LoadedData.timestamps,
                                        Results.conc_opt,
@@ -1082,12 +1322,15 @@ def main():
                     self.message_console.append("Results NOT saved.")
                     return
                 else:
+                    ##!!! ADJUST CODE for saving dictionaries of Including Uncertainties mode
+                    
                     results = DataHandling.FileHandler(f"{savefilename}", "save", parent=self) ## initialise FileHandler for Results files
                     results.save_plots_results() ## save results plots as .png and .svg
                     results.write_to_textfile_results() ## save results textfile
                     
                     if CalcSettings.ODEMethod == "Concentrations":
                         try:
+                            ##!!! ADJUST CODE for saving dictionaries of Including Uncertainties mode
                             results.Save_FractionsResults() ## save fractions .csv file
                         except Exception as e:
                             self.message_console.append(f"FAILED to save results from fractions calculation: {e}")

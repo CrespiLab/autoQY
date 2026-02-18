@@ -4,6 +4,11 @@
 format_timestamps = "AHK" ## Crespi group format
 ###############################################################################
 
+#################### EPSILONS INCLUDING UNCERTAINTIES #########################
+Epsilons_Uncertainties = "Including" ## include uncertainties of epsilons data
+# Epsilons_Uncertainties = "Excluding" ## exclude uncertainties of epsilons data
+###############################################################################
+
 ################# METHOD OF SOLVING DIFFERENTIAL EQUATIONS ####################
 CalculationMethod = "Integration" ## Integration over LED emission spectrum
 

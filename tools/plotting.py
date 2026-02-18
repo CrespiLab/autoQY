@@ -213,7 +213,8 @@ class MplCanvas(FigureCanvas):
         return y_min_dynamic, y_max_dynamic
     
 
-    def plot_EpsilonsOnly(self, eR_wavelengths, eR_Abs, eP_wavelengths,eP_Abs):
+    def plot_EpsilonsOnly(self, R_wavelengths, R_epsilons, P_wavelengths, P_epsilons,
+                          R_eps_plus=None, R_eps_minus=None, P_eps_plus=None, P_eps_minus=None): ## data plus/minus errors optional
         """Plot epsilons before interpolation."""
         self.fig.clear()  # Clear the entire figure
         self.fig.set_constrained_layout(True)
@@ -226,17 +227,36 @@ class MplCanvas(FigureCanvas):
         ax1 = self.fig.add_subplot(gs[0])
         
         # Plot epsilons on the first subplot
-        ax1.plot(eR_wavelengths, eR_Abs, label="Reactant",
-                 color = Defaults.colours_plot_first)
-        ax1.plot(eP_wavelengths, eP_Abs, label="Product",
-                 color = Defaults.colours_plot_last)
+        if CalcSettings.Epsilons_Uncertainties == "Including":
+            
+            ax1.plot(R_wavelengths, R_epsilons, label="Reactant (avg)",
+                     color = Defaults.colours_plot_first)
+            ax1.plot(R_wavelengths, R_eps_plus, label="Reactant (avg + error)",
+                     color = Defaults.colours['bluelight'])
+            ax1.plot(R_wavelengths, R_eps_minus, label="Reactant (avg - error)",
+                     color = Defaults.colours['bluelighter'])
+            
+            ax1.plot(P_wavelengths, P_epsilons, label="Product",
+                     color = Defaults.colours_plot_last)
+            ax1.plot(P_wavelengths, P_eps_plus, label="Product (avg + error)",
+                     color = Defaults.colours['orangered'])
+            ax1.plot(P_wavelengths, P_eps_minus, label="Product (avg - error)",
+                     color = Defaults.colours['orangelight'])
+            ax1.set_title("Epsilons including Uncertainties")
+            
+        elif CalcSettings.Epsilons_Uncertainties == "Excluding":
+            ax1.plot(R_wavelengths, R_epsilons, label="Reactant",
+                     color = Defaults.colours_plot_first)
+            ax1.plot(P_wavelengths, P_epsilons, label="Product",
+                     color = Defaults.colours_plot_last)
+            ax1.set_title("Epsilons")
+        
         ax1.axhline(0, color = self.prop_hline['colour'],
                     linestyle = self.prop_hline['linestyle'],
                     lw = self.prop_hline['linewidth']) ## horizontal line to indicate baseline
         ax1.legend(fontsize=12)
         ax1.set_xlabel("Wavelength (nm)")
         # ax1.set_xlim(220, 650)
-        ax1.set_title("Epsilons")
         ax1.set_ylabel(r"$\epsilon$ (M$^{-1}$ cm$^{-1}$)")
 
         self.draw()  # Redraw the canvas

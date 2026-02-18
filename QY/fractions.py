@@ -20,6 +20,8 @@ Options
 import numpy as np
 from scipy.optimize import nnls
 
+import data.results as Results
+
 def polynomial_baseline(x: np.ndarray, y: np.ndarray,
                         deg: int) -> np.ndarray:
     """Return polynomial baseline of degree `deg` (least-squares)."""
@@ -32,20 +34,19 @@ def CalculateFractions(spectra, wavelengths, eps1, eps2):
     '''
     Load absorption spectra recorded during irradiation, and epsilon spectra of both species.
     '''
-    A_matrix_raw = spectra.T  # shape = (n_spectra, n_points)
-    
-    E = np.column_stack([eps1, eps2])  # shape = (n_points, 2)
+    matrix_Abs_spectra = spectra.T  # shape = (n_spectra, n_points)
+    matrix_epsilons = np.column_stack([eps1, eps2])  # shape = (n_points, 2)
     
     # Fit each spectrum
     f1_list, f2_list = [], []
     
-    for i, A_raw in enumerate(A_matrix_raw):
-        # baseline = polynomial_baseline(wavelengths, A_raw, 0) ## polynomial: 0 (off)
-        # A_corr = A_raw - baseline
-        # coeffs, _ = nnls(E, A_corr)
+    for i, spectrum in enumerate(matrix_Abs_spectra):
+        # baseline = polynomial_baseline(wavelengths, spectrum, 0) ## polynomial: 0 (off)
+        # A_corr = spectrum - baseline
+        # coeffs, _ = nnls(matrix_epsilons, A_corr)
 
         ## no baseline correction
-        coeffs, _ = nnls(E, A_raw) 
+        coeffs, _ = nnls(matrix_epsilons, spectrum) 
         total = coeffs.sum()
         frac1 = coeffs[0] / total if total > 0 else 0.0
         frac2 = coeffs[1] / total if total > 0 else 0.0
@@ -60,7 +61,7 @@ def CalculateFractions(spectra, wavelengths, eps1, eps2):
         reconstructed_spectra.append(fit)
     reconstructed_spectra = np.array(reconstructed_spectra)  # shape = (n_spectra, n_points)
 
-    original_spectra = A_matrix_raw # shape = (n_spectra, n_points)
+    original_spectra = matrix_Abs_spectra # shape = (n_spectra, n_points)
     return f1_list, f2_list, reconstructed_spectra, original_spectra
 
 def CalculateResiduals(original, reconstructed_epsilon, total_conc):

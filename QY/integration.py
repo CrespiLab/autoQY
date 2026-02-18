@@ -136,50 +136,32 @@ def Process_SpectralData(data_pd, wl_low, wl_high, wavelength_of_interest):
 
     return wavelengths_lowhigh, absorbance_lowhigh, index
 
-def Interpolate_Epsilons(IrrSpectra_wavelengths,
-                         eA_wavelengths, eA_values,
-                         eB_wavelengths, eB_values,
-                         LED_wavelengths, LED_intensity_proc):
+def Interpolate_Spectra(reference_wavelengths,
+                         target_wavelengths, target_values):
     '''
-    Interpolate ε_A and ε_B at each wavelength so that all data sets use the same 
-        wavelengths data
+    Interpolate all spectral data according to wavelengths data of Irradiation Spectra,
+        so that all datasets use the same wavelengths data
     LED emission data also at the same time gets cut to the same wavelength range as all other datasets.
 
     Parameters
     ----------
-    IrrSpectra_wavelengths : TYPE
+    reference_wavelengths : TYPE
         DESCRIPTION.
-    eA_wavelengths : TYPE
+    target_wavelengths : TYPE
         DESCRIPTION.
-    eA_values : TYPE
-        DESCRIPTION.
-    eB_wavelengths : TYPE
-        DESCRIPTION.
-    eB_values : TYPE
-        DESCRIPTION.
-    LED_wavelengths : TYPE
-        DESCRIPTION.
-    LED_intensity_proc : TYPE
+    target_values : TYPE
         DESCRIPTION.
 
     Returns
     -------
-    epsilons_R_interp : TYPE
-        DESCRIPTION.
-    epsilons_P_interp : TYPE
-        DESCRIPTION.
-    emission_interp : TYPE
-        DESCRIPTION.
-
+    target_interp : numpy array
+        interpolated y-data according to reference wavelengths.
     '''
-    epsilons_R_interp = np.interp(IrrSpectra_wavelengths, eA_wavelengths, 
-                                 eA_values)
-    epsilons_P_interp = np.interp(IrrSpectra_wavelengths, eB_wavelengths, 
-                                 eB_values)
-    emission_interp = np.interp(IrrSpectra_wavelengths, LED_wavelengths,
-                                LED_intensity_proc)
-    
-    return epsilons_R_interp, epsilons_P_interp, emission_interp
+    target_interp = np.interp(reference_wavelengths,
+                             target_wavelengths,
+                             target_values)
+
+    return target_interp
 
 ##################################################
 ###################### PLOT ######################
@@ -246,6 +228,7 @@ def CreateParameters_Conc(absorbance_values, wavelengths_data,
     Create the parameters needed for the subsequent functions used by the 
     ODEMethod = Concentrations
     """
+    #########################################
     total_conc = trapezoid(absorbance_values[:,0], x=wavelengths_data)\
         / (fractions_R[0]*trapezoid(e_R_inter, x=wavelengths_data)\
            + fractions_P[0]*trapezoid(e_P_inter, x=wavelengths_data))

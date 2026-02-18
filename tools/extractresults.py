@@ -1,9 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Fri Nov  8 16:59:07 2024
-
-@author: jorst136
-"""
 import numpy as np
 from scipy.integrate import odeint
 from QY.integration import rate_equations
@@ -69,7 +64,6 @@ def CalculateConcentrations(lambda_meters,
     '''
     Calculate concentrations over time using optimised QYs
     '''
-    
     QY_AB_opt_frac = QY_AB_opt/100
     QY_BA_opt_frac = QY_BA_opt/100
     
