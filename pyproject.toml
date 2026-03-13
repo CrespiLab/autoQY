@@ -8,10 +8,10 @@ version = "1.1.1"
 description = "GUI for quantum yield calculation"
 license = "GPL-3.0-or-later"         							
 readme = "README.md"                                                                    
-requires-python = ">=3.1"
+requires-python = ">=3.12"
                                                                                         
 authors = [                                                                             
-  { name = "Jorn Steen", email = "jorn.steen@kemi.uu.se" },
+  { name = "Jorn D. Steen" },
   { name = "Alfredo Bellisario", email = "alfredo.bellisario@physics.uu.se" },
   { name = "Stefano Crespi", email = "stefano.crespi@kemi.uu.se" }
 ]                                                                                       

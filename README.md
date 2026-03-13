@@ -1,6 +1,4 @@
 # autoQY
-**May 6th, 2025**
-
 autoQY is a graphical user interface (GUI) for the calculation of the isomerization quantum yield using data recorded according to the following publication:
 
 A. Volker, J. D. Steen, S. Crespi, A fiber-optic spectroscopic setup for isomerization quantum yield determination, Beilstein J. Org. Chem. 2024, 20, 1684–1692, DOI: 10.3762/bjoc.20.150.
