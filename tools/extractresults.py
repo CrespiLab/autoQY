@@ -68,6 +68,15 @@ def CalculateConcentrations(lambda_meters,
                             N, V):
     '''
     Calculate concentrations over time using optimised QYs
+    
+    Returns
+    -------
+    conc_opt : 2D array
+        first column (conc_opt[:,0]) = Reactant (fit)
+        second column (conc_opt[:,1]) = Product (fit)
+    PSS_A : float
+        percentage of Reactant at PSS from fit (last item of first column)
+        percentage of Product at PSS from fit (last item of second column)
     '''
     
     QY_AB_opt_frac = QY_AB_opt/100

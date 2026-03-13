@@ -3,8 +3,6 @@
 ## To Do
 - [ ] Add comparison plot of initial spectrum in measurement data with epsilon spectrum
 
-- [ ] Introduce DPI auto-scaling to accommodate all screen resolutions
-
 - [ ] Add general options for data processing
   - [ ] Baseline correction of LED emission spectrum (move to general)
   - [ ] Smoothing of LED emission spectrum
@@ -12,14 +10,19 @@
 
 - [ ] Add instructions video
 
+
 ## In Progress :)
 - [ ] Create Results folder upon saving the results and save all data used into that folder
   - [ ] Include processed data, fits, etc., with results (to allow subsequent plotting by the user)
+  - [X] Save Concentrations Results (experimental and fitted)
+  - [ ] Save Reconstructed Spectra and Residuals from Fractions calculation
 
 - [ ] Automatically show newly generated tab
 
-- [ ] Change residuals plot in QY Results: absolute residual of R; relative residual of R
+- [ ] Change residuals plot in QY Results: absolute residual of R; relative residual/normalised of R
 - [ ] Improve QY Results plot of absorption spectra (fit vs experimental): show residuals in a separate window
+
+- [ ] Introduce DPI auto-scaling to accommodate all screen resolutions
 
 - [ ] Include uncertainty in epsilon data
 

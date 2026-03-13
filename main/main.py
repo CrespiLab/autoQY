@@ -1091,6 +1091,11 @@ def main():
                             results.Save_FractionsResults() ## save fractions .csv file
                         except Exception as e:
                             self.message_console.append(f"FAILED to save results from fractions calculation: {e}")
+                        
+                        try:
+                            results.save_concentrations_results() ## save concentrations (experimental and fitted)
+                        except Exception as e:
+                            self.message_console.append(f"FAILED to save concentrations results: {e}")
                     
             except Exception as e:
                 self.message_console.append(f"FAILED to save the QY results: {e}")

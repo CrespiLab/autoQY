@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import csv
+import numpy as np
 import data.experimental_parameters as ExpParams
 import data.loaded_data as LoadedData
 import data.results as Results
@@ -33,17 +34,21 @@ class FileHandler:
             - add {b} to end of name (if given)
         """
         name, ext = os.path.splitext(filename)
+
+        fullpathname_split=name.split('/') ## split full path according to /
+        path_split = fullpathname_split[0:-1] ## leave only filepath (remove name)
+        path='/'.join(path_split) # re-join into string
+        end_nameonly=fullpathname_split[-1] # only filename
         
-        path_split=name.split('/')[0:-1] # leave only filepath (remove name)
-        path='\\'.join(path_split) # re-join into string
-        
-        end_nameonly=name.split('/')[-1] # only filename
         if b != '':
-            end = f"{a}_{end_nameonly}_{b}" # name with added info
+            if a == '':
+                end = f"{end_nameonly}_{b}" # name with added info at the end only
+            else:
+                end = f"{a}_{end_nameonly}_{b}" # name with added info before and after
         else:
-            end = f"{a}_{end_nameonly}" # name with added info
+            end = f"{a}_{end_nameonly}" # name with added info before only
         
-        name_mod = f"{path}\\{end}"
+        name_mod = f"{path}/{end}"
         return name_mod
 
     def _get_unique_filename(self, base_filename):
@@ -160,6 +165,63 @@ class FileHandler:
                                SaveFileName = self.filename)
 
         self.parent.message_console.append(f"Plots and textfile of results saved successfully as {self.filename}")
+
+    def save_concentrations_results(self):
+        """ Save fitted and experimental concentrations versus timestamps as a tab-separated .dat file."""
+        if Results.conc_opt is None or LoadedData.timestamps is None:
+            self.parent.message_console.append("No concentration traces available to save.")
+            return
+            
+        filename = self.modify_filename(self.filename, a = '', b = "Concentrations")
+        output_file = f"{filename}.dat"
+
+        timestamps = np.asarray(LoadedData.timestamps, dtype=float).reshape(-1) ## array with correct shape
+        conc_fit = np.asarray(Results.conc_opt, dtype=float) ## array
+
+        if conc_fit.ndim != 2 or conc_fit.shape[0] != timestamps.shape[0]:
+            self.parent.message_console.append("FAILED to save concentration traces: inconsistent array dimensions.")
+            return
+
+        total_conc_init = np.sum(conc_fit[0]) ## initial total concentration (sum of both species)
+
+        columns = [timestamps]
+        headers = ["Timestamp (s)"]
+        
+        columns.append(conc_fit[:, 0]) ## Reactant
+        headers.append("Reactant_fit (M)")
+        columns.append(conc_fit[:, 1]) ## Product
+        headers.append("Product_fit (M)")
+
+        columns.append(100.0 * conc_fit[:, 0] / total_conc_init) ## Reactant
+        headers.append("Reactant_fit (%)") ##
+        columns.append(100.0 * conc_fit[:, 1] / total_conc_init) ## Product
+        headers.append("Product_fit (%)")
+
+        if Datasets.concs_RP is not None:
+            conc_exp = np.asarray(Datasets.concs_RP, dtype=float) ## array
+            if conc_exp.ndim == 2 and conc_exp.shape == conc_fit.shape:
+                columns.append(conc_exp[:, 0]) ## Reactant
+                headers.append("Reactant_exp (M)")
+                columns.append(conc_exp[:, 1]) ## Product
+                headers.append("Product_exp (M)")                
+
+                residuals = conc_exp - conc_fit
+                columns.append(residuals[:, 0]) ## residuals Reactant
+                headers.append("Residuals_Reactant (M)")
+                columns.append(residuals[:, 0]) ## residuals Product
+                headers.append("Residuals_Product (M)")
+
+        data = np.column_stack(columns)
+
+        np.savetxt(
+            output_file,
+            data,
+            delimiter="\t",
+            header="\t".join(headers),
+            comments=""
+        ) ## tab-separated (.dat) file
+
+        self.parent.message_console.append(f"Concentration traces (exp. and fit) saved to: {output_file}")
 
     def Save_FractionsResults(self):
         ''' 
