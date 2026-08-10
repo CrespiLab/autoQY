@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="autoqy_core/assets/autoqy-logo.png" alt="AutoQY" width="760">
+</p>
+
 # AutoQY Core
 
 AutoQY Core is the GUI-independent calculation engine for fitting bidirectional
@@ -175,7 +179,3 @@ analysis = run_analysis(config)
 See `autoqy_core/README.md` for configuration and file formats. The scientific
 method is described in A. Volker, J. D. Steen and S. Crespi, Beilstein J. Org.
 Chem. 2024, 20, 1684-1692, DOI: 10.3762/bjoc.20.150.
-
-## Acknowledgment
-
-Development assisted by OpenAI Codex.
