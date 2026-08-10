@@ -7,18 +7,101 @@ The analysis and power-calibration workflows are deliberately separate. Each
 has a versioned JSON input and can be run from the terminal, Python automation,
 or a future graphical interface.
 
-## Install
+## Installation
 
-Python 3.12 or newer is required.
+### Prerequisites
 
-```bash
-pip install -e .
+Install these before downloading AutoQY Core:
+
+- Python 3.12 or newer;
+- `pip` (included with current Python and Conda installations);
+- Git, if the repository will be downloaded with `git clone`;
+- a current web browser, if the power-treatment GUI will be used.
+
+NumPy, SciPy, pandas, and Matplotlib do **not** need to be installed manually.
+They are installed by `pip` with AutoQY Core. The optional power-GUI install
+also installs Dash and Plotly. Spectragryph and the Thorlabs Optical Power
+Monitor software are not runtime requirements; AutoQY only reads their exported
+files.
+
+Using a dedicated Python environment is strongly recommended. Do not install
+the project into Conda's `base` environment unless that is intentional.
+
+### Option A: Conda (recommended on Windows)
+
+Open **Anaconda PowerShell Prompt** and run:
+
+```powershell
+conda create --name autoqy-core python=3.12 pip
+conda activate autoqy-core
+conda install git
+
+cd C:\Users\YOUR_USERNAME\Documents\GitHub
+git clone https://github.com/CrespiLab/autoQY.git AutoQY-Core
+cd AutoQY-Core
 ```
 
-To include the local browser interface for power treatment:
+Replace `YOUR_USERNAME` and the parent folder if the repository should be kept
+elsewhere. The final `cd AutoQY-Core` is important: the installation command
+must be run from the folder containing `pyproject.toml`.
+
+Install the calculation core only:
+
+```powershell
+python -m pip install -e .
+```
+
+Or install the core **and** the browser-based power GUI:
+
+```powershell
+python -m pip install -e ".[power-gui]"
+```
+
+The second command includes the complete core, so it is not necessary to run
+both commands.
+
+### Option B: Python `venv`
+
+First install Python 3.12+ and Git using the normal installer for the operating
+system. Then clone the repository and create an environment inside it.
+
+Windows PowerShell:
+
+```powershell
+cd C:\Users\YOUR_USERNAME\Documents\GitHub
+git clone https://github.com/CrespiLab/autoQY.git AutoQY-Core
+cd AutoQY-Core
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[power-gui]"
+```
+
+macOS or Linux:
 
 ```bash
-pip install -e ".[power-gui]"
+cd ~/Documents/GitHub
+git clone https://github.com/CrespiLab/autoQY.git AutoQY-Core
+cd AutoQY-Core
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[power-gui]"
+```
+
+### Verify the installation
+
+With the environment activated and the terminal still in `AutoQY-Core`, run:
+
+```powershell
+autoqy-core --help
+autoqy-core validate ExampleData/Example-2_AB_455nm-100mA/analysis.json
+```
+
+If `autoqy-core` is not found, use the equivalent module form:
+
+```powershell
+python -m autoqy_core --help
 ```
 
 ## Quantum-yield analysis
@@ -85,3 +168,7 @@ analysis = run_analysis(config)
 See `autoqy_core/README.md` for configuration and file formats. The scientific
 method is described in A. Volker, J. D. Steen and S. Crespi, Beilstein J. Org.
 Chem. 2024, 20, 1684-1692, DOI: 10.3762/bjoc.20.150.
+
+## Acknowledgment
+
+Development assisted by OpenAI Codex.
