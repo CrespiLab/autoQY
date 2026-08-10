@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "format": "thorlabs_opm_csv",
+  "baseline_polynomial_degree": 3,
+  "uncertainty_output": "repeatability_sd",
+  "measurements": [
+    {
+      "path": "Power455nm_CH3CN_10pct_1.csv",
+      "regions": {
+        "open_off_before": [5, 30],
+        "open_on": [42, 58],
+        "open_off_after": [72, 100],
+        "cuvette_off_before": [120, 145],
+        "cuvette_on": [160, 180],
+        "cuvette_off_after": [195, 218]
+      }
+    },
+    {
+      "path": "Power455nm_CH3CN_10pct_2.csv",
+      "regions": {
+        "open_off_before": [5, 45],
+        "open_on": [60, 90],
+        "open_off_after": [105, 155],
+        "cuvette_off_before": [180, 205],
+        "cuvette_on": [225, 300],
+        "cuvette_off_after": [325, 410]
+      }
+    },
+    {
+      "path": "Power455nm_CH3CN_10pct_3.csv",
+      "regions": {
+        "open_off_before": [5, 30],
+        "open_on": [42, 62],
+        "open_off_after": [72, 95],
+        "cuvette_off_before": [110, 145],
+        "cuvette_on": [160, 185],
+        "cuvette_off_after": [200, 235]
+      }
+    }
+  ],
+  "output": "PowerProcessing_results.json",
+  "overwrite": false
+}

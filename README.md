@@ -1,90 +1,87 @@
-# autoQY
-autoQY is a graphical user interface (GUI) for the calculation of the isomerization quantum yield using data recorded according to the following publication:
+# AutoQY Core
 
-A. Volker, J. D. Steen, S. Crespi, A fiber-optic spectroscopic setup for isomerization quantum yield determination, Beilstein J. Org. Chem. 2024, 20, 1684–1692, DOI: 10.3762/bjoc.20.150.
+AutoQY Core is the GUI-independent calculation engine for fitting bidirectional
+photoisomerization quantum yields from time-resolved absorption spectra.
 
-## Installation
-Python 3.12 or higher is required
+The analysis and power-calibration workflows are deliberately separate. Each
+has a versioned JSON input and can be run from the terminal, Python automation,
+or a future graphical interface.
 
-### Conda
-The Anaconda Powershell Prompt is a good tool.
-#### Create a new Python environment and install pip
+## Install
+
+Python 3.12 or newer is required.
+
 ```bash
-(base) conda create -n autoQY
-(base) conda activate autoQY
-(autoQY) conda install pip
+pip install -e .
 ```
 
-#### Download the source files
-##### Clone using URL at desired location:
+To include the local browser interface for power treatment:
+
 ```bash
-(autoQY) conda install git
-(autoQY) cd desired-location
-(autoQY) \desired-location> git clone https://github.com/CrespiLab/autoQY.git
+pip install -e ".[power-gui]"
 ```
-A folder called "autoQY" is downloaded.
 
-#### Install
+## Quantum-yield analysis
+
 ```bash
-(autoQY) \desired-location> cd autoQY
-(autoQY) \desired-location\autoQY> pip install -e .
+autoqy-core validate ExampleData/Example-2_AB_455nm-100mA/analysis.json
+autoqy-core run ExampleData/Example-2_AB_455nm-100mA/analysis.json
 ```
 
-### Linux
-#### Download the source files
-Clone using URL at desired location:
+Set `fit.method` to `concentrations` or `emission` in `analysis.json`. Use
+`--output-directory PATH` to redirect a run without editing the configuration.
+
+## Power calibration
+
 ```bash
-~$ cd desired-location
-desired-location$ git clone https://github.com/CrespiLab/autoQY.git
+autoqy-core power ExampleData/Example-2_AB_455nm-100mA/Power/power_analysis.json
 ```
-A folder called "autoQY" is downloaded.
 
-#### Create a new Python environment and install pip
-Create the Python environment in the downloaded autoQY(-main) folder.
+The standalone result contains `power_mw` and `power_error_mw`. Those values can
+then be entered into `analysis.json`; the analysis runner never modifies that
+file or implicitly runs power processing.
+
+### Browser interface
+
 ```bash
-~$ cd desired-location
-desired-location$ sudo apt install python3-venv
-desired-location$ python3 -m venv autoQY
-desired-location$ source autoQY/bin/activate
-```
-If necessary, install pip:
-```bash
-(autoQY) desired-location$ sudo apt install pip
+autoqy-core power-gui
 ```
 
-#### Install
-```bash
-(autoQY) desired-location$ cd autoQY
-(autoQY) desired-location/autoQY$ pip install -e .
+This starts a local server at `http://127.0.0.1:8050` and opens it in the
+default browser. Upload one to three Thorlabs OPM CSV files, select the six
+off/on regions by dragging the twelve boundaries, inspect both baseline
+corrections, and calculate the individual and averaged power. `Export JSON`
+saves the selected regions and numerical results. Uploaded data stays in the
+browser session and the local Python process; this command does not publish a
+website or send data to an external service.
+
+Use `autoqy-power-gui --no-open` if the browser should not open automatically.
+
+## Outputs
+
+An analysis can produce:
+
+- a human-readable TXT summary;
+- matching PNG and SVG figures;
+- a machine-readable results JSON;
+- a snapshot of the exact input configuration;
+- a TSV of concentrations, fractions, and their residuals;
+- a long-form TSV of measured, reconstructed, and kinetically fitted spectra.
+
+Existing outputs are not replaced unless `outputs.overwrite` is `true`.
+Quantum-yield values are rounded to the decimal place justified by their
+uncertainty; the JSON retains the unrounded numerical values as well.
+
+## Python API
+
+```python
+from autoqy_core import load_config, run_analysis, run_power_analysis
+
+power = run_power_analysis("power_analysis.json")
+config = load_config("analysis.json")
+analysis = run_analysis(config)
 ```
 
-## Run
-Make sure to activate the environment, and then execute the command-line script:
-```
-(base) conda activate autoQY
-(autoQY) autoqy
-```
-The GUI should appear after a short while.
-
-Note:
-The program can be called from anywhere (no need to be in the install directory).
-
-### Configuration
-The user can adjust the desired default settings in the `defaults.py` file that is located in the folder `user_config`.
-
-## Notes
-### Linux
-Currently, there is a runtime error upon launching the programme in Linux, which causes re-sizing issues for the window.
-
-### Windows
-In some cases, upon launching autoQuant on a small screen (for example, a laptop), the font sizes are too big, leading to difficulty reading the labels. This is most likely due to a Windows scale setting that increases the size of text.
-To change this setting, go to:
-- Settings
-- Display
-- Scale and Layout
-- Change the size of text, apps and other items: set to 100% (the default is probably 150%)
-
-Start autoQY again and, hopefully, the GUI looks normal now.
-
-### Mac
-autoQY has been successfully tested on Mac using Anaconda for Mac
+See `autoqy_core/README.md` for configuration and file formats. The scientific
+method is described in A. Volker, J. D. Steen and S. Crespi, Beilstein J. Org.
+Chem. 2024, 20, 1684-1692, DOI: 10.3762/bjoc.20.150.
