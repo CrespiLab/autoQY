@@ -25,12 +25,14 @@ def format_value_uncertainty(value, uncertainty):
 def result_summary(result, data, irradiation_wavelength_nm):
     values = result.yield_fit.values * 100
     errors = result.yield_errors * 100
-    pss = result.yield_fit.concentrations[-1]
-    pss = pss / pss.sum() * 100
+    last_composition = result.yield_fit.concentrations[-1]
+    last_composition = last_composition / last_composition.sum() * 100
+    extrapolated_pss = result.extrapolated_pss
+    extrapolated_pss = extrapolated_pss / extrapolated_pss.sum() * 100
     formatted = [format_value_uncertainty(value, error)
                  for value, error in zip(values, errors)]
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "fit_method": result.fit_method,
         "quantum_yield_percent": {"R_to_P": float(values[0]), "P_to_R": float(values[1])},
         "quantum_yield_error_percent": {"R_to_P": float(errors[0]), "P_to_R": float(errors[1])},
@@ -38,8 +40,14 @@ def result_summary(result, data, irradiation_wavelength_nm):
             "R_to_P": {"value": formatted[0][0], "error": formatted[0][1]},
             "P_to_R": {"value": formatted[1][0], "error": formatted[1][1]},
         },
-        "photostationary_state_percent": {
-            "reactant": float(pss[0]), "product": float(pss[1])
+        "composition_at_last_timestamp_percent": {
+            "time_s": float(data.timestamps[-1]),
+            "reactant": float(last_composition[0]),
+            "product": float(last_composition[1]),
+        },
+        "extrapolated_pss_percent": {
+            "reactant": float(extrapolated_pss[0]),
+            "product": float(extrapolated_pss[1]),
         },
         "experiment": {
             "volume_ml": data.volume_ml,
@@ -55,11 +63,20 @@ def result_summary(result, data, irradiation_wavelength_nm):
 def write_results(path, result, data, irradiation_wavelength_nm):
     summary = result_summary(result, data, irradiation_wavelength_nm)
     formatted = summary["quantum_yield_formatted_percent"]
-    pss = summary["photostationary_state_percent"]
+    last_composition = summary["composition_at_last_timestamp_percent"]
+    extrapolated_pss = summary["extrapolated_pss_percent"]
     low, high = data.wavelength_limits
-    method = "Concentrations" if result.fit_method == "concentrations" else "Emission"
-    text = f"""PSS_Reactant (%): {pss['reactant']:.1f}
-PSS_Product (%): {pss['product']:.1f}
+    method = {
+        "concentrations": "Concentrations",
+        "emission": "Emission (legacy)",
+        "regularized_concentrations": "Regularized concentrations",
+        "ode_absorbance": "Full-spectrum ODE absorbance",
+    }[result.fit_method]
+    text = f"""Composition at the last timestamp (s): {last_composition['time_s']:g}
+Composition at the last timestamp - Reactant (%): {last_composition['reactant']:.1f}
+Composition at the last timestamp - Product (%): {last_composition['product']:.1f}
+Extrapolated PSS - Reactant (%): {extrapolated_pss['reactant']:.1f}
+Extrapolated PSS - Product (%): {extrapolated_pss['product']:.1f}
 QY_AB_opt (%): {formatted['R_to_P']['value']}
 QY_BA_opt (%): {formatted['P_to_R']['value']}
 error_QY_AB (%): {formatted['R_to_P']['error']}
@@ -111,14 +128,20 @@ def write_detailed_data(stem, result, data):
 
     measured_absorbance = result.absorbance.T
     concentration_reconstruction = result.concentration_fit.reconstructed_absorbance
-    kinetic_fit = (fitted @ np.vstack((result.epsilon_r, result.epsilon_p))
-                   * data.path_length_cm)
+    kinetic_model = (fitted @ np.vstack((result.epsilon_r, result.epsilon_p))
+                     * data.path_length_cm)
+    correction = result.yield_fit.absorbance_correction
+    if correction is None:
+        correction = np.zeros_like(kinetic_model)
+    kinetic_fit = kinetic_model + correction
     count_time, count_wavelength = measured_absorbance.shape
     spectra = pd.DataFrame({
         "time_s": np.repeat(data.timestamps, count_wavelength),
         "wavelength_nm": np.tile(result.wavelengths, count_time),
         "absorbance_measured": measured_absorbance.ravel(),
         "absorbance_concentration_reconstruction": concentration_reconstruction.ravel(),
+        "absorbance_kinetic_model": kinetic_model.ravel(),
+        "absorbance_baseline_correction": correction.ravel(),
         "absorbance_kinetic_fit": kinetic_fit.ravel(),
         "concentration_reconstruction_residual": (
             measured_absorbance - concentration_reconstruction).ravel(),

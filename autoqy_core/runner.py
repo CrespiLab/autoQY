@@ -65,6 +65,9 @@ def run_analysis(config, output_directory=None):
         baseline_exclusion_fwhm_multiplier=baseline["exclusion_fwhm_multiplier"],
         fit_method=fit["method"],
         emission_threshold_fraction=fit.get("emission_threshold_fraction", 0.01),
+        regularization_strength=fit.get("regularization_strength", 1),
+        absorbance_baseline_order=fit.get("absorbance_baseline_order", 1),
+        robust_loss_scale=fit.get("robust_loss_scale", 0.02),
         initial_yields=(initial["R_to_P"], initial["P_to_R"]),
         yield_bounds=(bounds["minimum"], bounds["maximum"]),
     )

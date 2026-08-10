@@ -111,8 +111,12 @@ autoqy-core validate ExampleData/Example-2_AB_455nm-100mA/analysis.json
 autoqy-core run ExampleData/Example-2_AB_455nm-100mA/analysis.json
 ```
 
-Set `fit.method` to `concentrations` or `emission` in `analysis.json`. Use
-`--output-directory PATH` to redirect a run without editing the configuration.
+Set `fit.method` to `concentrations`, `regularized_concentrations`,
+`ode_absorbance`, or the legacy `emission` method in `analysis.json`. New
+analyses should normally compare `regularized_concentrations` and
+`ode_absorbance`; see `autoqy_core/README.md` for their assumptions and the
+known sensitivity limitation of `emission`. Use `--output-directory PATH` to
+redirect a run without editing the configuration.
 
 ## Power calibration
 
@@ -154,6 +158,9 @@ An analysis can produce:
 Existing outputs are not replaced unless `outputs.overwrite` is `true`.
 Quantum-yield values are rounded to the decimal place justified by their
 uncertainty; the JSON retains the unrounded numerical values as well.
+The summaries report both the fitted composition at the last experimental
+timestamp and the extrapolated photostationary state (PSS) under continued
+constant irradiation.
 
 ## Python API
 
@@ -169,6 +176,6 @@ See `autoqy_core/README.md` for configuration and file formats. The scientific
 method is described in A. Volker, J. D. Steen and S. Crespi, Beilstein J. Org.
 Chem. 2024, 20, 1684-1692, DOI: 10.3762/bjoc.20.150.
 
-##
+## Acknowledgment
 
 Development assisted by OpenAI Codex.

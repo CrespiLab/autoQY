@@ -110,11 +110,20 @@ def validate_config(config):
         errors.append("LED baseline exclusion_fwhm_multiplier must be positive")
 
     fit = values["fit"]
-    if fit["method"] not in {"concentrations", "emission"}:
-        errors.append("fit.method must be concentrations or emission")
+    methods = {"concentrations", "emission", "regularized_concentrations",
+               "ode_absorbance"}
+    if fit["method"] not in methods:
+        errors.append("fit.method must be concentrations, emission, "
+                      "regularized_concentrations, or ode_absorbance")
     threshold = fit.get("emission_threshold_fraction", 0.01)
     if not (_positive(threshold) and threshold < 1):
         errors.append("fit.emission_threshold_fraction must be greater than 0 and less than 1")
+    if not _positive(fit.get("regularization_strength", 1)):
+        errors.append("fit.regularization_strength must be positive")
+    if fit.get("absorbance_baseline_order", 1) not in {-1, 0, 1}:
+        errors.append("fit.absorbance_baseline_order must be -1, 0, or 1")
+    if not _positive(fit.get("robust_loss_scale", 0.02)):
+        errors.append("fit.robust_loss_scale must be positive")
     initial = fit["initial_quantum_yields"]
     bounds = fit["quantum_yield_bounds"]
     minimum, maximum = bounds.get("minimum"), bounds.get("maximum")

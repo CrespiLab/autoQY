@@ -32,15 +32,77 @@ python -m autoqy_core power-gui
 
 ## Fitting methods
 
-`"method": "concentrations"` first recovers the two concentration traces by
-non-negative spectral decomposition and fits the kinetic model to those traces.
+`"method": "concentrations"` is the legacy-compatible concentration route. It
+recovers every time point independently by non-negative spectral decomposition,
+then fits the photochemical ODE to the resulting traces. It is fast and
+transparent, but a mismatch between experimental and reference spectra can pin
+several consecutive points to exactly 100% reactant or product. It has no
+temporal information during spectral decomposition.
 
-`"method": "emission"` fits the kinetic model directly to measured absorbance
-within the active LED-emission band. `emission_threshold_fraction` is the
-fraction of the processed LED maximum used to define that band.
+`"method": "regularized_concentrations"` fits all spectra together with a
+single conserved total concentration. Each timestamp retains an independent
+reactant fraction, but those fractions have a soft exponential envelope with a
+free starting fraction and free plateau. The exponential is only a
+regularizer, not the quantum-yield model; the quantum yields are still obtained
+from the full photochemical ODE. `regularization_strength` controls the soft
+constraint. Larger values follow the envelope more closely; the default is
+`1.0`.
 
-Both methods use the same rate equations, path length, power uncertainty,
-thermal back-reaction, bounds, outputs, and plotting pipeline.
+`"method": "ode_absorbance"` jointly fits the quantum yields, total
+concentration, and initial composition directly to the full measured spectral
+range. The concentration trajectory follows the photochemical ODE. An optional
+small baseline correction is fitted independently to each spectrum, and a
+robust loss reduces the influence of isolated bad wavelengths. This method is
+slower but avoids deriving the result from independently clipped concentration
+points. `absorbance_baseline_order` accepts `-1` (off), `0` (offset), or `1`
+(offset and slope); the default is `1`. `robust_loss_scale` defaults to `0.02`.
+
+`"method": "emission"` is retained to reproduce the older direct-absorbance
+calculation. It fits only wavelengths inside the active LED-emission band and
+assumes the first spectrum contains pure reactant. When the absorbance area and
+spectral shape sampled by the LED change little during irradiation—for example,
+when reactant and product absorptivities are similar in that band—the fit is
+poorly conditioned and can report large quantum-yield errors or concentrations
+that disagree with the full-spectrum methods. `emission_threshold_fraction`
+defines the active band as a fraction of the processed LED maximum.
+
+All four methods use the same rate equations, path length, power uncertainty,
+thermal back-reaction, bounds, outputs, and plotting pipeline. A practical
+configuration containing every method-specific control is:
+
+```json
+"fit": {
+  "method": "regularized_concentrations",
+  "regularization_strength": 1.0,
+  "absorbance_baseline_order": 1,
+  "robust_loss_scale": 0.02,
+  "emission_threshold_fraction": 0.01,
+  "initial_quantum_yields": {"R_to_P": 0.5, "P_to_R": 0.5},
+  "quantum_yield_bounds": {"minimum": 0.0, "maximum": 1.0}
+}
+```
+
+Controls unused by the selected method are ignored. For a new dataset, compare
+`regularized_concentrations` with `ode_absorbance` and inspect both the
+concentration and wavelength-resolved residuals. Agreement is stronger evidence
+than either result alone.
+
+### Bundled azobenzene comparison
+
+The table reports concentration-trajectory RMSE relative to `concentrations`,
+divided by the initial total concentration. It is a regression check for the
+bundled data, not a general accuracy estimate.
+
+| Example | `emission` | `regularized_concentrations` | `ode_absorbance` |
+|---|---:|---:|---:|
+| 340 nm, raw LED | 1.31% | 0.93% | 0.44% |
+| 340 nm, pre-baselined LED | 0.33% | 0.76% | 0.48% |
+| 455 nm, first 40 spectra | 9.16% | 1.53% | 2.43% |
+
+Both new methods therefore reproduce the established concentration trajectory
+within 2.5% normalized RMSE in all three examples. The older `emission` result
+also agrees for the 340 nm examples but not for the 455 nm example, illustrating
+why agreement should be checked rather than assumed.
 
 ## Input formats
 
@@ -114,6 +176,14 @@ When `outputs.write_detailed_data` is true, the traces TSV contains measured
 and fitted concentrations, fractions, and separate reactant/product residuals.
 The spectra TSV contains original absorbance, concentration reconstruction,
 kinetic reconstruction, and both residual matrices in long form.
+
+The TXT and results JSON distinguish two endpoint values:
+
+- **Composition at the last timestamp** is the fitted composition at the final
+  experimental measurement time.
+- **Extrapolated PSS** is the composition predicted by the fitted model when
+  constant irradiation is continued until `dC/dt = 0`. It includes the
+  configured thermal back-reaction.
 
 ## Power-treatment GUI
 

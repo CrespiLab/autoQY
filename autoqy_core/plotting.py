@@ -20,6 +20,8 @@ def write_figure(path, result, data, residual_percentile=100):
     epsilon = np.vstack((result.epsilon_r, result.epsilon_p))
     measured_absorbance = result.absorbance.T
     fitted_absorbance = fitted @ epsilon * data.path_length_cm
+    if result.yield_fit.absorbance_correction is not None:
+        fitted_absorbance = fitted_absorbance + result.yield_fit.absorbance_correction
     absorbance_residual = measured_absorbance - fitted_absorbance
 
     blue, orange = "#346aa9", "#e16203"

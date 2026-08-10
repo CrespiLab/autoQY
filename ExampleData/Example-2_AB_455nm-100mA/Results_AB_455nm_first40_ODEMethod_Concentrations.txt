@@ -1,5 +1,8 @@
-PSS_Reactant (%): 77.7
-PSS_Product (%): 22.3
+Composition at the last timestamp (s): 1094.47
+Composition at the last timestamp - Reactant (%): 77.7
+Composition at the last timestamp - Product (%): 22.3
+Extrapolated PSS - Reactant (%): 77.6
+Extrapolated PSS - Product (%): 22.4
 QY_AB_opt (%): 36.8
 QY_BA_opt (%): 49.9
 error_QY_AB (%): 0.4
