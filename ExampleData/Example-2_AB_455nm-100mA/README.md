@@ -1,9 +1,9 @@
-# 340 nm baselined-LED example
+# 455 nm concentration example
 
-`analysis.json` selects the direct absorbance (`emission`) fit and demonstrates
+`analysis.json` selects the NNLS fitter (`concentration`) fit and demonstrates
 mixed input formats: Spectragryph measurement/LED files, headerless generic CSV
 molar-absorptivity files, and Crespi Lab AHK timestamps.
 
 The historical TXT and figure outputs are retained as archival records. 
 They are now put in LegacyResults. The current core result is covered by 
-the automated emission method.
+the automated concentration method.
