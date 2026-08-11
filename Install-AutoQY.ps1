@@ -239,7 +239,7 @@ try {
     if ($CheckOnly) {
         Write-Step "Planned installation"
         Write-Host "Conda: $condaCommand"
-        Write-Host "Environment: $(if ($environmentPath) { "reuse $environmentPath" } else { "create $EnvironmentName" })"
+        Write-Host "Environment: $(if ($environmentPath) { "ask to remove $environmentPath, then recreate it" } else { "create $EnvironmentName" })"
         Write-Host "Source: $(if ($projectInInstallerFolder) { "use existing checkout $projectRoot" } else { "clone $RepositoryUrl into $projectRoot" })"
         Write-Host "Package: editable install with power GUI"
         Write-Host "Desktop entries: Power GUI, activated terminal, and JSON drag-and-drop runner"
@@ -248,26 +248,37 @@ try {
     }
 
     if ($environmentPath) {
-        if (-not (Read-Confirmation "The Conda environment '$EnvironmentName' already exists. Reuse and update it?" $true)) {
-            Write-Host "Installation cancelled."
+        Write-Step "Existing Conda environment detected"
+        Write-Host "   $environmentPath" -ForegroundColor Yellow
+        Write-Host "   Removing it deletes every package and file stored in that environment." -ForegroundColor Yellow
+        if (-not (Read-Confirmation "Delete '$EnvironmentName' and recreate it cleanly?" $false)) {
+            Write-Host "Installation cancelled; the existing environment was left unchanged."
             exit 0
         }
-        Write-Step "Updating Conda environment '$EnvironmentName'"
+        if ($env:CONDA_DEFAULT_ENV -eq $EnvironmentName) {
+            $condaHook = Get-CondaHookPath -CondaCommand $condaCommand
+            . $condaHook
+            conda deactivate
+        }
         Invoke-Checked -Command $condaCommand -Arguments @(
-            "install", "--name", $EnvironmentName, "python=3.12", "pip", "git", "--yes"
-        ) -Activity "Ensuring Python 3.12, pip, and Git are installed."
-    }
-    else {
-        Write-Step "Creating Conda environment '$EnvironmentName'"
-        Invoke-Checked -Command $condaCommand -Arguments @(
-            "create", "--name", $EnvironmentName, "python=3.12", "pip", "--yes"
-        ) -Activity "Installing Python 3.12 and pip. This may take several minutes."
-        Invoke-Checked -Command $condaCommand -Arguments @(
-            "install", "--name", $EnvironmentName, "git", "--yes"
-        ) -Activity "Installing Git into the AutoQY environment."
+            "env", "remove", "--name", $EnvironmentName, "--yes"
+        ) -Activity "Removing the existing AutoQY Conda environment."
         $environmentPath = Get-CondaEnvironmentPath -CondaCommand $condaCommand -Name $EnvironmentName
-        if (-not $environmentPath) { throw "The new Conda environment could not be located." }
+        if ($environmentPath) {
+            throw "Conda still reports the environment after removal: $environmentPath"
+        }
+        Write-Host "   Existing environment removed cleanly." -ForegroundColor Green
     }
+
+    Write-Step "Creating Conda environment '$EnvironmentName'"
+    Invoke-Checked -Command $condaCommand -Arguments @(
+        "create", "--name", $EnvironmentName, "python=3.12", "pip", "--yes"
+    ) -Activity "Installing Python 3.12 and pip. This may take several minutes."
+    Invoke-Checked -Command $condaCommand -Arguments @(
+        "install", "--name", $EnvironmentName, "git", "--yes"
+    ) -Activity "Installing Git into the AutoQY environment."
+    $environmentPath = Get-CondaEnvironmentPath -CondaCommand $condaCommand -Name $EnvironmentName
+    if (-not $environmentPath) { throw "The new Conda environment could not be located." }
 
     Write-Step "Activating Conda environment '$EnvironmentName'"
     Activate-AutoQYEnvironment -CondaCommand $condaCommand `

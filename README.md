@@ -15,10 +15,17 @@ or a future graphical interface.
 
 ### Guided Windows Conda installer (experimental)
 
-Put `Install-AutoQY.bat` and `Install-AutoQY.ps1` together in the folder where
-the `AutoQY-Core` repository folder should be created, then double-click the BAT.
-It automates the complete Conda workflow below: it creates or reuses the
-`autoqy-core` environment, installs Git into it, clones
+Download the single-file
+**[Install-AutoQY.bat](https://github.com/CrespiLab/autoQY/raw/refs/heads/feature/core-extraction/Install-AutoQY.bat)**
+into the folder where the `AutoQY-Core` repository folder should be created,
+then double-click it. The BAT downloads the current `Install-AutoQY.ps1` beside
+it and starts the installation; users do not need to download the PS1 manually.
+
+The installer automates the complete Conda workflow below. If an environment
+named `autoqy-core` already exists, it identifies its path and asks for explicit
+permission to delete it. Declining leaves it untouched and cancels installation;
+accepting removes it, verifies cleanup, and recreates it before downloading any
+repository source. It then installs Git into the clean environment, clones
 `feature/core-extraction` into `AutoQY-Core`, installs `.[power-gui]` in editable
 mode, and validates the bundled 455 nm configuration. If the installer is
 already inside a valid AutoQY checkout, it safely uses that checkout instead of
