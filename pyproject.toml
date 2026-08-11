@@ -45,4 +45,10 @@ autoqy-power-gui = "autoqy_core.power_web:main"
 packages = ["autoqy_core"]
 
 [tool.setuptools.package-data]
-autoqy_core = ["assets/*.css", "assets/*.png"]
+autoqy_core = [
+  "assets/*.css",
+  "assets/*.png",
+  "assets/icons/*.ico",
+  "assets/icons/*.png",
+  "assets/icons/*.svg"
+]

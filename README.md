@@ -13,9 +13,51 @@ or a future graphical interface.
 
 ## Installation
 
+### Guided Windows Conda installer (experimental)
+
+Put `Install-AutoQY.bat` and `Install-AutoQY.ps1` together in the folder where
+the `AutoQY-Core` repository folder should be created, then double-click the BAT.
+It automates the complete Conda workflow below: it creates or reuses the
+`autoqy-core` environment, installs Git into it, clones
+`feature/core-extraction` into `AutoQY-Core`, installs `.[power-gui]` in editable
+mode, and validates the bundled 455 nm configuration. If the installer is
+already inside a valid AutoQY checkout, it safely uses that checkout instead of
+creating a nested clone.
+
+The installer also creates three desktop entries:
+
+- **AutoQY Power GUI** opens the browser-based power-treatment interface;
+- **AutoQY Terminal** opens PowerShell in the repository with the
+  `autoqy-core` Conda environment activated;
+- **AutoQY Analyze JSON** accepts an `analysis.json` by drag and drop,
+  validates its absolute path, and asks before running the analysis.
+
+The three shortcuts use distinct AutoQY icons: a spectral Φ for the power GUI,
+an open Q with a terminal prompt for the activated shell, and a JSON document
+with a play symbol for drag-and-drop analysis.
+
+To inspect prerequisites and paths without installing anything, run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-AutoQY.ps1 -CheckOnly
+```
+
+After installation, run AutoQY from any terminal with:
+
+```powershell
+conda run --name autoqy-core autoqy-core --help
+```
+
 ### Prerequisites
 
-Install these before downloading AutoQY Core:
+For the guided Windows installer, install only:
+
+- Anaconda or Miniconda;
+- a current web browser for the power-treatment GUI.
+
+The installer creates Python 3.12 with `pip` and installs Git inside the
+dedicated `autoqy-core` environment. For the manual or `venv` installation
+methods, provide:
 
 - Python 3.12 or newer;
 - `pip` (included with current Python and Conda installations);
