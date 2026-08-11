@@ -9,7 +9,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $InstallerDirectory = Split-Path -Parent $PSCommandPath
-$ClonePath = Join-Path $InstallerDirectory "AutoQY-Core"
+$CurrentDirectory = (Get-Location).Path
 $InstallTimer = [System.Diagnostics.Stopwatch]::StartNew()
 
 function Get-ElapsedText {
@@ -34,6 +34,50 @@ function Read-Confirmation {
         if ($answer -match "^(?i:y|yes)$") { return $true }
         if ($answer -match "^(?i:n|no)$") { return $false }
         Write-Host "Please answer yes or no."
+    }
+}
+
+function Select-InstallDirectory {
+    param([string]$CurrentPath)
+
+    $currentFullPath = [System.IO.Path]::GetFullPath($CurrentPath)
+    Write-Host "Current folder: $currentFullPath"
+    if (Read-Confirmation "Use the current folder as the AutoQY installation folder?" $true) {
+        return $currentFullPath
+    }
+
+    while ($true) {
+        $enteredPath = (Read-Host "Enter the full path to the installation folder").Trim().Trim('"')
+        if (-not $enteredPath) {
+            Write-Host "Please enter a folder path."
+            continue
+        }
+
+        $enteredPath = [Environment]::ExpandEnvironmentVariables($enteredPath)
+        if (-not [System.IO.Path]::IsPathRooted($enteredPath)) {
+            $enteredPath = Join-Path $currentFullPath $enteredPath
+        }
+
+        try {
+            $selectedPath = [System.IO.Path]::GetFullPath($enteredPath)
+        }
+        catch {
+            Write-Host "The folder path is not valid: $enteredPath" -ForegroundColor Yellow
+            continue
+        }
+
+        if (Test-Path -LiteralPath $selectedPath) {
+            if (-not (Get-Item -LiteralPath $selectedPath).PSIsContainer) {
+                Write-Host "The selected path is not a folder: $selectedPath" -ForegroundColor Yellow
+                continue
+            }
+            return (Resolve-Path -LiteralPath $selectedPath).Path
+        }
+
+        if (Read-Confirmation "The folder does not exist. Create '$selectedPath'?" $true) {
+            New-Item -ItemType Directory -Path $selectedPath -Force | Out-Null
+            return (Resolve-Path -LiteralPath $selectedPath).Path
+        }
     }
 }
 
@@ -220,7 +264,17 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$analysisScript
 
 try {
     Write-Host "AutoQY Conda bootstrap installer" -ForegroundColor Blue
-    Write-Host "Installer folder: $InstallerDirectory"
+    Write-Host "Installer file folder: $InstallerDirectory"
+
+    $InstallDirectory = if ($CheckOnly) {
+        [System.IO.Path]::GetFullPath($CurrentDirectory)
+    }
+    else {
+        Select-InstallDirectory -CurrentPath $CurrentDirectory
+    }
+    $ClonePath = Join-Path $InstallDirectory "AutoQY-Core"
+
+    Write-Host "Installation folder: $InstallDirectory"
     Write-Host "Clone destination: $ClonePath"
     Write-Host "Conda environment: $EnvironmentName"
 
@@ -232,15 +286,15 @@ try {
         throw "Conda was not found. Install Anaconda/Miniconda or run this BAT from Anaconda PowerShell Prompt."
     }
 
-    $projectInInstallerFolder = Test-AutoQYProject -Path $InstallerDirectory
-    $projectRoot = if ($projectInInstallerFolder) { $InstallerDirectory } else { $ClonePath }
+    $projectInInstallFolder = Test-AutoQYProject -Path $InstallDirectory
+    $projectRoot = if ($projectInInstallFolder) { $InstallDirectory } else { $ClonePath }
     $environmentPath = Get-CondaEnvironmentPath -CondaCommand $condaCommand -Name $EnvironmentName
 
     if ($CheckOnly) {
         Write-Step "Planned installation"
         Write-Host "Conda: $condaCommand"
         Write-Host "Environment: $(if ($environmentPath) { "ask to remove $environmentPath, then recreate it" } else { "create $EnvironmentName" })"
-        Write-Host "Source: $(if ($projectInInstallerFolder) { "use existing checkout $projectRoot" } else { "clone $RepositoryUrl into $projectRoot" })"
+        Write-Host "Source: $(if ($projectInInstallFolder) { "use existing checkout $projectRoot" } else { "clone $RepositoryUrl into $projectRoot" })"
         Write-Host "Package: editable install with power GUI"
         Write-Host "Desktop entries: Power GUI, activated terminal, and JSON drag-and-drop runner"
         Write-Host "No files or environments were changed." -ForegroundColor Green
@@ -285,7 +339,7 @@ try {
         -Name $EnvironmentName -ExpectedPath $environmentPath
     Write-Host "   Activated: $env:CONDA_PREFIX" -ForegroundColor Green
 
-    if (-not $projectInInstallerFolder) {
+    if (-not $projectInInstallFolder) {
         if (Test-Path -LiteralPath $ClonePath) {
             if (-not (Test-AutoQYProject -Path $ClonePath)) {
                 throw "The clone destination already exists but is not an AutoQY project: $ClonePath"
@@ -296,7 +350,7 @@ try {
             }
         }
         else {
-            Write-Step "Cloning AutoQY into the current folder"
+            Write-Step "Cloning AutoQY into the selected installation folder"
             $gitCommand = Get-EnvironmentGit -EnvironmentPath $environmentPath
             if (-not $gitCommand) { throw "Git was installed but git.exe could not be located in the environment." }
             Invoke-Checked -Command $gitCommand -Arguments @(
@@ -305,7 +359,7 @@ try {
         }
     }
 
-    $projectRoot = if ($projectInInstallerFolder) { $InstallerDirectory } else { $ClonePath }
+    $projectRoot = if ($projectInInstallFolder) { $InstallDirectory } else { $ClonePath }
     $environmentPython = Join-Path $environmentPath "python.exe"
     if (-not (Test-Path -LiteralPath $environmentPython)) {
         throw "python.exe was not found in the AutoQY environment."
@@ -345,3 +399,4 @@ catch {
     Write-Host "Installation failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 }
+
