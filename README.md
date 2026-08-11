@@ -39,9 +39,7 @@ The installer also creates three desktop entries:
 - **AutoQY Analyze JSON** accepts an `analysis.json` by drag and drop,
   validates its absolute path, and asks before running the analysis.
 
-The three shortcuts use distinct AutoQY icons: a spectral Φ for the power GUI,
-an open Q with a terminal prompt for the activated shell, and a JSON document
-with a play symbol for drag-and-drop analysis.
+
 
 To inspect prerequisites and paths without installing anything, run:
 
@@ -55,12 +53,15 @@ After installation, run AutoQY from any terminal with:
 conda run --name autoqy-core autoqy-core --help
 ```
 
+It is also possible to run AutoQY from the **AutoQY Terminal** linked on the Desktop
+or by using the **AutoQY Analyze JSON** directly.
+
 ### Prerequisites
 
 For the guided Windows installer, install only:
 
 - Anaconda or Miniconda;
-- a current web browser for the power-treatment GUI.
+- a web browser for the power-treatment GUI.
 
 The installer creates Python 3.12 with `pip` and installs Git inside the
 dedicated `autoqy-core` environment. For the manual or `venv` installation
