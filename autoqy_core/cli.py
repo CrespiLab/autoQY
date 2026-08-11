@@ -24,10 +24,17 @@ def main(argv=None):
     power_gui.add_argument("--host", default="127.0.0.1")
     power_gui.add_argument("--port", default=8050, type=int)
     power_gui.add_argument("--no-open", action="store_true")
+    smoother_gui = commands.add_parser("smoother-gui", help="open the spectral smoother GUI")
+    smoother_gui.add_argument("--host", default="127.0.0.1")
+    smoother_gui.add_argument("--port", default=8051, type=int)
+    smoother_gui.add_argument("--no-open", action="store_true")
     args = parser.parse_args(argv)
     try:
-        if args.command == "power-gui":
-            from .power_web import run_server
+        if args.command in {"power-gui", "smoother-gui"}:
+            if args.command == "power-gui":
+                from .tools.power_gui import run_server
+            else:
+                from .tools.smoother_gui import run_server
             run_server(args.host, args.port, not args.no_open)
             return 0
         if args.command == "power":

@@ -198,3 +198,19 @@ A future full analysis GUI should edit JSON-compatible values, call
 `validate_config`, and then call `run_analysis`. Power processing remains a
 separate workflow and should only offer its returned `power_mw` and
 `power_error_mw` for transfer into the analysis configuration.
+
+## Spectral smoother GUI
+
+Run `autoqy-core smoother-gui` (or `autoqy-smoother-gui`) to load a
+SpectraGryph matrix, TSV, or CSV dataset and inspect its singular values,
+spectral components, and measurement weights. The proposed rank is the minimum
+that retains 99.5% of squared singular-value weight and is only a starting
+point; the operator must check that weak chemistry or baseline drift has not
+been discarded. Optional baselining subtracts each spectrum's mean over a
+selected wavelength interval before decomposition. The exported file contains
+the chosen low-rank reconstruction and leaves the original file unchanged.
+Primary wavelength smoothing precedes optional SVD reduction. Savitzky–Golay
+is initially selected with a physical window in nm; Whittaker–Eilers and no
+spectral smoothing are alternatives. SVD can be disabled independently. The
+preview distinguishes the input, spectrally smoothed data, final SVD result,
+and total removed residual.

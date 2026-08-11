@@ -39,10 +39,11 @@ Homepage = "https://github.com/CrespiLab/autoQY"
 
 [project.scripts]
 autoqy-core = "autoqy_core.cli:main"
-autoqy-power-gui = "autoqy_core.power_web:main"
+autoqy-power-gui = "autoqy_core.tools.power_gui:main"
+autoqy-smoother-gui = "autoqy_core.tools.smoother_gui:main"
 
 [tool.setuptools]
-packages = ["autoqy_core"]
+packages = ["autoqy_core", "autoqy_core.tools"]
 
 [tool.setuptools.package-data]
 autoqy_core = [

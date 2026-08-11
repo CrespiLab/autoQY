@@ -60,6 +60,19 @@ body {
 
 label { display: block; margin: 16px 0 7px; color: #505661; font-size: 0.8rem; font-weight: 650; }
 input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d4; border-radius: 8px; font: inherit; }
+.input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+.warning-copy { color: #8a4b32; font-size: 0.78rem; line-height: 1.45; }
+.error-panel pre { min-height: 0; margin: 5px 0; color: #a33b20; white-space: pre-wrap; font: 0.78rem/1.4 Consolas, monospace; }
+.smoother-controls { gap: 12px; }
+.smoother-controls .panel { padding: 16px; }
+.smoother-controls .panel h2 { margin-bottom: 11px; }
+.smoother-controls label { margin-top: 11px; }
+.tool-details summary { position: relative; padding-right: 24px; cursor: pointer; list-style: none; font-size: 1.02rem; font-weight: 650; }
+.tool-details summary::-webkit-details-marker { display: none; }
+.tool-details summary::after { position: absolute; top: 4px; right: 0; content: "+"; color: var(--blue); font-size: 1.2rem; }
+.tool-details[open] summary { margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #ece9e3; }
+.tool-details[open] summary::after { content: "−"; }
+.tool-details summary .step-label { display: block; margin-bottom: 3px; }
 
 .upload-box {
   display: block;

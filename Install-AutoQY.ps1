@@ -216,17 +216,20 @@ Read-Host 'Press Enter to close'
     Set-Content -LiteralPath $analysisScript -Value $analysisContent -Encoding UTF8
 
     $desktop = [Environment]::GetFolderPath("Desktop")
+    $shortcutDirectory = Join-Path $desktop "AutoQY"
+    New-Item -ItemType Directory -Path $shortcutDirectory -Force | Out-Null
     $shell = New-Object -ComObject WScript.Shell
     $coreCommand = Join-Path $EnvironmentPath "Scripts\autoqy-core.exe"
     $iconDirectory = Join-Path $ProjectRoot "autoqy_core\assets\icons"
     $guiIcon = Join-Path $iconDirectory "power-gui.ico"
+    $smootherIcon = Join-Path $iconDirectory "spectral-smoother.ico"
     $terminalIcon = Join-Path $iconDirectory "terminal.ico"
     $jsonIcon = Join-Path $iconDirectory "analyze-json.ico"
-    foreach ($iconPath in @($guiIcon, $terminalIcon, $jsonIcon)) {
+    foreach ($iconPath in @($guiIcon, $smootherIcon, $terminalIcon, $jsonIcon)) {
         if (-not (Test-Path -LiteralPath $iconPath)) { throw "Desktop icon not found: $iconPath" }
     }
 
-    $guiShortcutPath = Join-Path $desktop "AutoQY Power GUI.lnk"
+    $guiShortcutPath = Join-Path $shortcutDirectory "AutoQY Power GUI.lnk"
     $guiShortcut = $shell.CreateShortcut($guiShortcutPath)
     $guiShortcut.TargetPath = $coreCommand
     $guiShortcut.Arguments = "power-gui"
@@ -235,7 +238,16 @@ Read-Host 'Press Enter to close'
     $guiShortcut.IconLocation = "$guiIcon,0"
     $guiShortcut.Save()
 
-    $terminalShortcutPath = Join-Path $desktop "AutoQY Terminal.lnk"
+    $smootherShortcutPath = Join-Path $shortcutDirectory "AutoQY Spectral Smoother.lnk"
+    $smootherShortcut = $shell.CreateShortcut($smootherShortcutPath)
+    $smootherShortcut.TargetPath = $coreCommand
+    $smootherShortcut.Arguments = "smoother-gui"
+    $smootherShortcut.WorkingDirectory = $ProjectRoot
+    $smootherShortcut.Description = "Open the AutoQY spectral smoother GUI"
+    $smootherShortcut.IconLocation = "$smootherIcon,0"
+    $smootherShortcut.Save()
+
+    $terminalShortcutPath = Join-Path $shortcutDirectory "AutoQY Terminal.lnk"
     $terminalShortcut = $shell.CreateShortcut($terminalShortcutPath)
     $terminalShortcut.TargetPath = "powershell.exe"
     $terminalShortcut.Arguments = "-NoExit -ExecutionPolicy Bypass -File `"$terminalScript`""
@@ -251,7 +263,7 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$analysisScript
 "@
     Set-Content -LiteralPath $dropCommand -Value $dropContent -Encoding Ascii
 
-    $jsonShortcutPath = Join-Path $desktop "AutoQY Analyze JSON.lnk"
+    $jsonShortcutPath = Join-Path $shortcutDirectory "AutoQY Analyze JSON.lnk"
     $jsonShortcut = $shell.CreateShortcut($jsonShortcutPath)
     $jsonShortcut.TargetPath = $dropCommand
     $jsonShortcut.WorkingDirectory = $ProjectRoot
@@ -259,7 +271,7 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$analysisScript
     $jsonShortcut.IconLocation = "$jsonIcon,0"
     $jsonShortcut.Save()
 
-    return @($guiShortcutPath, $terminalShortcutPath, $jsonShortcutPath)
+    return @($guiShortcutPath, $smootherShortcutPath, $terminalShortcutPath, $jsonShortcutPath)
 }
 
 try {
