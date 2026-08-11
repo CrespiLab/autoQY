@@ -16,7 +16,7 @@ and places four shortcuts inside **Desktop → AutoQY**.
 
 1. Open [Install-AutoQY.bat](Install-AutoQY.bat) on GitHub.
 2. Use GitHub's **Download raw file** button.
-3. Double-click it and follow the instructions (you may allow Windows to run it).
+3. Double-click it and follow the instructions (you may need to give permission to Windows to run it).
 
 The installer detects an existing `autoqy-core` environment and asks before
 removing it. It never silently deletes the environment or an existing checkout.
@@ -31,7 +31,7 @@ The Desktop `AutoQY` folder contains:
 - **AutoQY Analyze JSON** — validates and runs the `analysis.json` file used by AutoQY;
 - **AutoQY Terminal** — opens a shell with the AutoQY environment activated.
 
-While the following instruction is not mandatory, it is possible to check non-destructively the installer:
+While the following instruction is not mandatory, it is possible to check the installer non-destructively:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-AutoQY.ps1 -CheckOnly
