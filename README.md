@@ -16,7 +16,7 @@ or a future graphical interface.
 ### Guided Windows Conda installer (experimental)
 
 Download the single-file
-**[Install-AutoQY.bat](https://github.com/CrespiLab/autoQY/raw/refs/heads/feature/core-extraction/Install-AutoQY.bat)**
+**[Install-AutoQY.bat](https://github.com/CrespiLab/autoQY/releases/download/v2.0.0-beta.1/Install-AutoQY.bat)**
 into the folder where the `AutoQY-Core` repository folder should be created,
 then double-click it. The BAT downloads the current `Install-AutoQY.ps1` beside
 it and starts the installation; users do not need to download the PS1 manually.
