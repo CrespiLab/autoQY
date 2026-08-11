@@ -31,6 +31,42 @@ files.
 Using a dedicated Python environment is strongly recommended. Do not install
 the project into Conda's `base` environment unless that is intentional.
 
+### Optional clean reinstall on Windows
+
+The following block removes the Conda environment named `autoqy-core` and the
+old `AutoQY-Core` clone before reinstalling. **Back up or commit anything that
+must be retained first:** deleting the old clone permanently removes its
+uncommitted files.
+
+Edit only the first line so it points to the parent directory where the clone
+should be stored, then run the block in **Anaconda PowerShell Prompt**:
+
+```powershell
+$autoqyParent = "C:\Users\YOUR_USERNAME\Documents\GitHub"
+$autoqyClone = Join-Path $autoqyParent "AutoQY-Core"
+
+conda deactivate
+conda env remove --name autoqy-core --yes
+
+if (Test-Path -LiteralPath $autoqyClone) {
+    $resolvedAutoqyParent = (Resolve-Path -LiteralPath $autoqyParent).Path.TrimEnd('\')
+    $resolvedAutoqyClone = (Resolve-Path -LiteralPath $autoqyClone).Path
+    $expectedParent = Split-Path -Parent $resolvedAutoqyClone
+    $hasExpectedParent = [string]::Equals(
+        $expectedParent, $resolvedAutoqyParent,
+        [StringComparison]::OrdinalIgnoreCase
+    )
+    if (-not $hasExpectedParent -or
+        (Split-Path -Leaf $resolvedAutoqyClone) -ne "AutoQY-Core") {
+        throw "Refusing to delete unexpected path: $resolvedAutoqyClone"
+    }
+    Remove-Item -LiteralPath $resolvedAutoqyClone -Recurse -Force
+}
+```
+
+If the environment does not exist, Conda may report an environment-not-found
+message; continue with the installation below.
+
 ### Option A: Conda (recommended on Windows)
 
 Open **Anaconda PowerShell Prompt** and run:
@@ -41,7 +77,7 @@ conda activate autoqy-core
 conda install git
 
 cd C:\Users\YOUR_USERNAME\Documents\GitHub
-git clone https://github.com/CrespiLab/autoQY.git AutoQY-Core
+git clone --branch feature/core-extraction --single-branch https://github.com/CrespiLab/autoQY.git AutoQY-Core
 cd AutoQY-Core
 ```
 
@@ -73,7 +109,7 @@ Windows PowerShell:
 
 ```powershell
 cd C:\Users\YOUR_USERNAME\Documents\GitHub
-git clone https://github.com/CrespiLab/autoQY.git AutoQY-Core
+git clone --branch feature/core-extraction --single-branch https://github.com/CrespiLab/autoQY.git AutoQY-Core
 cd AutoQY-Core
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -85,7 +121,7 @@ macOS or Linux:
 
 ```bash
 cd ~/Documents/GitHub
-git clone https://github.com/CrespiLab/autoQY.git AutoQY-Core
+git clone --branch feature/core-extraction --single-branch https://github.com/CrespiLab/autoQY.git AutoQY-Core
 cd AutoQY-Core
 python3 -m venv .venv
 source .venv/bin/activate
