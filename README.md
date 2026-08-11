@@ -14,9 +14,9 @@ the easiest entry points for routine data treatment.
 The guided installer creates a dedicated Conda environment, installs AutoQY,
 and places four shortcuts inside **Desktop → AutoQY**.
 
-1. Open [Install-AutoQY.bat](Install-AutoQY.bat) on GitHub.
-2. Use GitHub's **Download raw file** button.
-3. Double-click it and follow the instructions (you may need to give permission to Windows to run it).
+1. **[Download Install-AutoQY.bat](https://github.com/CrespiLab/autoQY/releases/download/v2.0.0-beta.1/Install-AutoQY.bat)**.
+2. Double-click the downloaded file and follow the instructions (you may need
+   to give Windows permission to run it).
 
 The installer detects an existing `autoqy-core` environment and asks before
 removing it. It never silently deletes the environment or an existing checkout.
@@ -82,7 +82,6 @@ data is never overwritten.
 
 Both GUIs run only on the local computer. Uploaded data is held by the browser
 session and local Python process.
-
 
 ## Quantum-yield analysis
 
