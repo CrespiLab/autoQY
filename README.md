@@ -16,26 +16,28 @@ and places four shortcuts inside **Desktop → AutoQY**.
 
 1. Open [Install-AutoQY.bat](Install-AutoQY.bat) on GitHub.
 2. Use GitHub's **Download raw file** button.
-3. Put the BAT in the folder where AutoQY should be installed and double-click it.
+3. Double-click it and follow the instructions (you may allow Windows to run it).
 
 The installer detects an existing `autoqy-core` environment and asks before
 removing it. It never silently deletes the environment or an existing checkout.
 If the installer already resides in a valid checkout, that checkout is reused.
+The installer will ask for a preferred installation folder.
+The installation will produce a series of useful links in a folder on the Desktop.
 
 The Desktop `AutoQY` folder contains:
 
-- **AutoQY Power GUI** — treat Thorlabs optical-power traces;
-- **AutoQY Spectral Smoother** — denoise and export spectral datasets;
-- **AutoQY Analyze JSON** — validate and run an `analysis.json` file;
-- **AutoQY Terminal** — open a shell with the AutoQY environment activated.
+- **AutoQY Power GUI** — treats Thorlabs optical-power traces;
+- **AutoQY Spectral Smoother** — denoises and export spectral datasets;
+- **AutoQY Analyze JSON** — validates and runs the `analysis.json` file used by AutoQY;
+- **AutoQY Terminal** — opens a shell with the AutoQY environment activated.
 
-Run a non-destructive installer check with:
+While the following instruction is not mandatory, it is possible to check non-destructively the installer:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-AutoQY.ps1 -CheckOnly
 ```
 
-Requirements are Anaconda or Miniconda and a current browser. Python, Git, and
+Requirements are Anaconda or Miniconda and a browser. Python, Git, and
 the scientific dependencies are installed into the dedicated environment.
 
 ## Power GUI
@@ -48,11 +50,12 @@ autoqy-core power-gui
 
 The GUI accepts up to three Thorlabs OPM CSV traces. Drag the boundaries around
 the open-beam and cuvette regions, inspect baseline corrections, calculate the
-power at the cuvette, and export reproducible JSON settings and results.
+power at the cuvette, and export reproducible JSON settings and results to be used
+for automation.
 
 Power treatment remains separate from quantum-yield analysis. Transfer the
-reported `power_mw` and `power_error_mw` into `analysis.json`; AutoQY does not
-modify that file automatically.
+reported `power_mw` and `power_error_mw` manually into `analysis.json` if necessary; 
+**AutoQY Power GUI** does not modify the .json file automatically.
 
 ## Spectral Smoother GUI
 
@@ -63,22 +66,22 @@ autoqy-core smoother-gui
 ```
 
 The GUI reads both common SpectraGryph `.dat` layouts, wavelength-by-row TSV,
-and CSV files. Its processing order is visible and independently configurable:
+and CSV files. Its processing order is independently configurable:
 
 1. select the wavelength range;
-2. optionally zero each spectrum over a baseline interval;
+2. optionally baseline each spectrum over a selected interval;
 3. apply Savitzky–Golay, Whittaker–Eilers, or no wavelength smoothing;
 4. optionally apply SVD rank reduction;
 5. inspect the processed spectra and removed residual, then export.
 
 Savitzky–Golay is initially selected with a window expressed in nm. SVD starts
-at two components for switching datasets but can be disabled. The GUI reports
-the effective smoothing window, RMS changes, and the exact percentage of
-squared singular-value weight retained by the selected rank. Original uploaded
+at two components (typical for photoswitch datasets) but can be disabled. 
+The GUI reports the effective smoothing window, RMS changes, and the exact percentage 
+of squared singular-value weight retained by the selected rank. Original uploaded
 data is never overwritten.
 
 Both GUIs run only on the local computer. Uploaded data is held by the browser
-session and local Python process; it is not sent to an AutoQY service.
+session and local Python process.
 
 ## Quantum-yield analysis
 
@@ -102,18 +105,24 @@ New datasets should normally compare `regularized_concentrations` and
 residuals. Detailed schemas, assumptions, and file-format controls are in
 [autoqy_core/README.md](autoqy_core/README.md).
 
+Alternatively, run **AutoQY Analyze JSON**. In this way, it is possible to drag and 
+drop `analysis.json` files directly in the window. The script will check their
+validity and will ask to run them. An output folder with different output files 
+will be generated in the folder of origin of the `analysis.json` file.
+
+Depending on configuration, an analysis writes TXT, PNG/SVG figures, results
+JSON and input snapshots, concentration/residual TSV, and long-form measured
+and reconstructed spectral TSV. Existing files are replaced only when
+`outputs.overwrite` is `true` in the .json file.
+
+
 ### Power processing from JSON
 
 ```powershell
 autoqy-core power ExampleData/Example-Power/power_analysis.json
 ```
+This method is experimental and planned for future automation. 
 
-### Outputs
-
-Depending on configuration, an analysis writes TXT, PNG/SVG figures, results
-JSON and input snapshots, concentration/residual TSV, and long-form measured
-and reconstructed spectral TSV. Existing files are replaced only when
-`outputs.overwrite` is `true`.
 
 ## Manual installation
 
