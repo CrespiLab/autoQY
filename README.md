@@ -83,6 +83,24 @@ data is never overwritten.
 Both GUIs run only on the local computer. Uploaded data is held by the browser
 session and local Python process.
 
+## Repository layout
+
+```text
+AutoQY-Core/
+|-- autoqy_core/             Calculation engine and command-line interface
+|   |-- tools/               Power and Spectral Smoother GUI launchers
+|   |-- assets/icons/        Desktop shortcut icons
+|   |-- smoother.py          Spectral smoothing and SVD processing
+|   |-- power.py             Optical-power processing
+|   `-- pipeline.py          Quantum-yield analysis pipeline
+|-- ExampleData/             Example analysis and power datasets
+|-- method_comparison/       Reference method-comparison results
+|-- Install-AutoQY.bat       Windows installer launcher
+|-- Install-AutoQY.ps1       Guided Conda installer
+|-- pyproject.toml           Package metadata and dependencies
+`-- README.md                This guide
+```
+
 ## Quantum-yield analysis
 
 The GUI utilities prepare inputs, while quantum-yield fitting remains a
