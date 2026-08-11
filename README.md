@@ -16,8 +16,7 @@ and places four shortcuts inside **Desktop → AutoQY**.
 
 1. Open [Install-AutoQY.bat](Install-AutoQY.bat) on GitHub.
 2. Use GitHub's **Download raw file** button.
-3. Put the BAT in the folder where AutoQY should be installed and double-click
-   it.
+3. Put the BAT in the folder where AutoQY should be installed and double-click it.
 
 The installer detects an existing `autoqy-core` environment and asks before
 removing it. It never silently deletes the environment or an existing checkout.
@@ -111,15 +110,10 @@ autoqy-core power ExampleData/Example-Power/power_analysis.json
 
 ### Outputs
 
-Depending on configuration, an analysis writes:
-
-- TXT quantum-yield summary;
-- PNG and SVG figures;
-- machine-readable results JSON and input snapshot;
-- concentration, fraction, and residual TSV;
-- long-form measured and reconstructed spectral TSV.
-
-Existing files are replaced only when `outputs.overwrite` is `true`.
+Depending on configuration, an analysis writes TXT, PNG/SVG figures, results
+JSON and input snapshots, concentration/residual TSV, and long-form measured
+and reconstructed spectral TSV. Existing files are replaced only when
+`outputs.overwrite` is `true`.
 
 ## Manual installation
 

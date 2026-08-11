@@ -308,7 +308,7 @@ try {
         Write-Host "Environment: $(if ($environmentPath) { "ask to remove $environmentPath, then recreate it" } else { "create $EnvironmentName" })"
         Write-Host "Source: $(if ($projectInInstallFolder) { "use existing checkout $projectRoot" } else { "clone $RepositoryUrl into $projectRoot" })"
         Write-Host "Package: editable install with power GUI"
-        Write-Host "Desktop entries: Power GUI, activated terminal, and JSON drag-and-drop runner"
+        Write-Host "Desktop folder AutoQY: Power GUI, Spectral Smoother, activated terminal, and JSON runner"
         Write-Host "No files or environments were changed." -ForegroundColor Green
         exit 0
     }
