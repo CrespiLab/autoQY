@@ -54,7 +54,7 @@ conda run --name autoqy-core autoqy-core --help
 ```
 
 It is also possible to run AutoQY from the **AutoQY Terminal** linked on the Desktop
-or by using the **AutoQY Analyze JSON** directly.
+or by using the **AutoQY Analyze JSON** tool directly.
 
 ### Prerequisites
 
@@ -81,12 +81,11 @@ files.
 Using a dedicated Python environment is strongly recommended. Do not install
 the project into Conda's `base` environment unless that is intentional.
 
-### Optional clean reinstall on Windows
+### Optional manual clean reinstall on Windows
 
 The following block removes the Conda environment named `autoqy-core` and the
-old `AutoQY-Core` clone before reinstalling. **Back up or commit anything that
-must be retained first:** deleting the old clone permanently removes its
-uncommitted files.
+old `AutoQY-Core` clone before reinstalling. **Back up anything that
+must be retained first**. 
 
 Edit only the first line so it points to the parent directory where the clone
 should be stored, then run the block in **Anaconda PowerShell Prompt**:
@@ -117,7 +116,7 @@ if (Test-Path -LiteralPath $autoqyClone) {
 If the environment does not exist, Conda may report an environment-not-found
 message; continue with the installation below.
 
-### Option A: Conda (recommended on Windows)
+### Manual Install Option A: Conda (recommended on Windows)
 
 Open **Anaconda PowerShell Prompt** and run:
 
@@ -150,7 +149,7 @@ python -m pip install -e ".[power-gui]"
 The second command includes the complete core, so it is not necessary to run
 both commands.
 
-### Option B: Python `venv`
+### Manual Install Option B: Python `venv`
 
 First install Python 3.12+ and Git using the normal installer for the operating
 system. Then clone the repository and create an environment inside it.
@@ -194,7 +193,7 @@ If `autoqy-core` is not found, use the equivalent module form:
 python -m autoqy_core --help
 ```
 
-## Quantum-yield analysis
+## Quantum-yield analysis via Terminal
 
 ```bash
 autoqy-core validate ExampleData/Example-2_AB_455nm-100mA/analysis.json
@@ -208,7 +207,7 @@ analyses should normally compare `regularized_concentrations` and
 known sensitivity limitation of `emission`. Use `--output-directory PATH` to
 redirect a run without editing the configuration.
 
-## Power calibration
+## Power calibration via Terminal
 
 ```bash
 autoqy-core power ExampleData/Example-2_AB_455nm-100mA/Power/power_analysis.json
@@ -216,15 +215,17 @@ autoqy-core power ExampleData/Example-2_AB_455nm-100mA/Power/power_analysis.json
 
 The standalone result contains `power_mw` and `power_error_mw`. Those values can
 then be entered into `analysis.json`; the analysis runner never modifies that
-file or implicitly runs power processing.
+file or implicitly runs power processing. 
+We do not recommend this way as it is meant for future automation. 
+The browser interface should be used preferably. 
 
-### Browser interface
+### Browser interface via Terminal
 
 ```bash
 autoqy-core power-gui
 ```
 
-This starts a local server at `http://127.0.0.1:8050` and opens it in the
+This command starts a local server at `http://127.0.0.1:8050` and opens it in the
 default browser. Upload one to three Thorlabs OPM CSV files, select the six
 off/on regions by dragging the twelve boundaries, inspect both baseline
 corrections, and calculate the individual and averaged power. `Export JSON`
@@ -236,7 +237,7 @@ Use `autoqy-power-gui --no-open` if the browser should not open automatically.
 
 ## Outputs
 
-An analysis can produce:
+An analysis produces:
 
 - a human-readable TXT summary;
 - matching PNG and SVG figures;
@@ -251,6 +252,9 @@ uncertainty; the JSON retains the unrounded numerical values as well.
 The summaries report both the fitted composition at the last experimental
 timestamp and the extrapolated photostationary state (PSS) under continued
 constant irradiation.
+
+All results are stored in a new folder called CoreResults in the same path were 
+the .json file is.
 
 ## Python API
 
