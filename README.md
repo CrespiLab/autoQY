@@ -142,7 +142,7 @@ This method is experimental and planned for future automation.
 Python 3.12 or newer is required. A dedicated environment is recommended.
 
 ```powershell
-git clone --branch feature/core-extraction --single-branch https://github.com/CrespiLab/autoQY.git AutoQY-Core
+git clone --branch main --single-branch https://github.com/CrespiLab/autoQY.git AutoQY-Core
 cd AutoQY-Core
 python -m pip install -e ".[power-gui]"
 ```

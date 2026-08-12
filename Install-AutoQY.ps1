@@ -2,7 +2,7 @@
 param(
     [string]$EnvironmentName = "autoqy-core",
     [string]$RepositoryUrl = "https://github.com/CrespiLab/autoQY.git",
-    [string]$Branch = "feature/core-extraction",
+    [string]$Branch = "main",
     [switch]$CheckOnly
 )
 

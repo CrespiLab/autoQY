@@ -6,14 +6,15 @@ echo AutoQY Conda bootstrap installer
 echo.
 
 set "AUTOQY_PS1_TARGET=%~dp0Install-AutoQY.ps1"
-set "AUTOQY_PS1_URL=https://raw.githubusercontent.com/CrespiLab/autoQY/refs/heads/feature/core-extraction/Install-AutoQY.ps1"
+set "AUTOQY_PS1_URL=https://raw.githubusercontent.com/CrespiLab/autoQY/main/Install-AutoQY.ps1"
 
 echo Downloading the current installer logic beside this BAT file...
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $ProgressPreference='SilentlyContinue'; $target=$env:AUTOQY_PS1_TARGET; $temporary=$target+'.download'; try { Invoke-WebRequest -Uri $env:AUTOQY_PS1_URL -OutFile $temporary -UseBasicParsing; if ((Get-Item -LiteralPath $temporary).Length -lt 1000) { throw 'The downloaded installer is unexpectedly small.' }; Move-Item -LiteralPath $temporary -Destination $target -Force } catch { Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue; Write-Error $_; exit 1 }"
 if errorlevel 1 (
     echo.
-    echo Could not download Install-AutoQY.ps1 from GitHub.
-    echo Check the internet connection and try again.
+    echo Could not download Install-AutoQY.ps1 from:
+    echo %AUTOQY_PS1_URL%
+    echo GitHub may be unavailable, or the installer location may have changed.
     pause
     exit /b 1
 )
