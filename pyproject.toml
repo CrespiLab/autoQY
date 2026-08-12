@@ -1,58 +1,55 @@
-[build-system]										
-requires = ["setuptools>=64", "wheel"]                                                  
-build-backend = "setuptools.build_meta"                                                 
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
 
-[project]                                                                               
-name = "autoQY"                                                                    
-version = "1.1.1"                                                                       
-description = "GUI for quantum yield calculation"
-license = "GPL-3.0-or-later"         							
-readme = "README.md"                                                                    
+[project]
+name = "autoqy-core"
+version = "2.0.0b1"
+description = "Headless quantum-yield calculation core"
+license = "GPL-3.0-or-later"
+readme = "README.md"
 requires-python = ">=3.12"
-                                                                                        
-authors = [                                                                             
+authors = [
   { name = "Jorn D. Steen" },
   { name = "Alfredo Bellisario", email = "alfredo.bellisario@physics.uu.se" },
   { name = "Stefano Crespi", email = "stefano.crespi@kemi.uu.se" }
-]                                                                                       
-                                                                                        
-dependencies = [                                                                        
-  'numpy>=2.2.2',
-  'scipy>=1.15.1',
-  'lmfit>=1.3.2',
-  'pandas>=2.2.3',
-  'PyQt5',
-  'matplotlib>=3.10.0'
 ]
-
-keywords = [
-  "science",
-  "spectroscopy"
+dependencies = [
+  "numpy>=2.2.2",
+  "scipy>=1.15.1",
+  "pandas>=2.2.3",
+  "matplotlib>=3.10.0"
 ]
-
+keywords = ["photochemistry", "quantum yield", "spectroscopy"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Operating System :: OS Independent",
   "Intended Audience :: Science/Research",
-  "Topic :: Scientific/Engineering :: Physics",
-  "Topic :: Scientific/Engineering :: Chemistry",
-  "Topic :: Scientific/Engineering :: Spectroscopy",
-  "Topic :: Software Development :: Libraries :: Python Modules"
+  "Topic :: Scientific/Engineering :: Chemistry"
+]
+
+[project.optional-dependencies]
+power-gui = [
+  "dash>=2.18,<4",
+  "plotly>=5.24,<7"
 ]
 
 [project.urls]
 Homepage = "https://github.com/CrespiLab/autoQY"
 
 [project.scripts]
-autoqy = "main.main:main"
+autoqy-core = "autoqy_core.cli:main"
+autoqy-power-gui = "autoqy_core.tools.power_gui:main"
+autoqy-smoother-gui = "autoqy_core.tools.smoother_gui:main"
 
 [tool.setuptools]
-packages = [
-  'data',
-  'main',
-  'QY',
-  'tools',
-  'UIs',
-  'user_config'
-]
+packages = ["autoqy_core", "autoqy_core.tools"]
 
+[tool.setuptools.package-data]
+autoqy_core = [
+  "assets/*.css",
+  "assets/*.png",
+  "assets/icons/*.ico",
+  "assets/icons/*.png",
+  "assets/icons/*.svg"
+]

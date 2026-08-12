@@ -1,10 +1,9 @@
-# Miscellaneous
-TODO.md
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+CoreResults/
+PowerProcessing_results.json
 
 # C extensions
 *.so
@@ -40,6 +39,7 @@ pip-log.txt
 pip-delete-this-directory.txt
 
 # Unit test / coverage reports
+/tests/
 htmlcov/
 .tox/
 .nox/
@@ -125,6 +125,7 @@ celerybeat.pid
 *.sage.py
 
 # Environments
+.autoqy-launchers/
 .env
 .venv
 env/

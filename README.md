@@ -1,90 +1,167 @@
-# autoQY
-autoQY is a graphical user interface (GUI) for the calculation of the isomerization quantum yield using data recorded according to the following publication:
+<p align="center">
+  <img src="autoqy_core/assets/autoqy-logo.png" alt="AutoQY" width="760">
+</p>
 
-A. Volker, J. D. Steen, S. Crespi, A fiber-optic spectroscopic setup for isomerization quantum yield determination, Beilstein J. Org. Chem. 2024, 20, 1684–1692, DOI: 10.3762/bjoc.20.150.
+# AutoQY Core
 
-## Installation
-Python 3.12 or higher is required
+AutoQY analyzes photoisomerization quantum yields, treats optical-power traces,
+and prepares time-resolved spectra. Its calculation engine remains callable
+from JSON, the terminal, and Python, while the two local browser GUIs provide
+the easiest entry points for routine data treatment.
 
-### Conda
-The Anaconda Powershell Prompt is a good tool.
-#### Create a new Python environment and install pip
-```bash
-(base) conda create -n autoQY
-(base) conda activate autoQY
-(autoQY) conda install pip
+## Install on Windows
+
+The guided installer creates a dedicated Conda environment, installs AutoQY,
+and places four shortcuts inside **Desktop → AutoQY**.
+
+1. **[Download Install-AutoQY.bat](https://github.com/CrespiLab/autoQY/releases/download/v2.0.0-beta.1/Install-AutoQY.bat)**.
+2. Double-click the downloaded file and follow the instructions (you may need
+   to give Windows permission to run it).
+
+The installer detects an existing `autoqy-core` environment and asks before
+removing it. It never silently deletes the environment or an existing checkout.
+If the installer already resides in a valid checkout, that checkout is reused.
+The installer will ask for a preferred installation folder.
+The installation will produce a series of useful links in a folder on the Desktop.
+
+The Desktop `AutoQY` folder contains:
+
+- **AutoQY Power GUI** — treats Thorlabs optical-power traces;
+- **AutoQY Spectral Smoother** — denoises and export spectral datasets;
+- **AutoQY Analyze JSON** — validates and runs the `analysis.json` file used by AutoQY;
+- **AutoQY Terminal** — opens a shell with the AutoQY environment activated.
+
+While the following instruction is not mandatory, it is possible to check the installer non-destructively:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-AutoQY.ps1 -CheckOnly
 ```
 
-#### Download the source files
-##### Clone using URL at desired location:
-```bash
-(autoQY) conda install git
-(autoQY) cd desired-location
-(autoQY) \desired-location> git clone https://github.com/CrespiLab/autoQY.git
-```
-A folder called "autoQY" is downloaded.
+Requirements are Anaconda or Miniconda and a browser. Python, Git, and
+the scientific dependencies are installed into the dedicated environment.
 
-#### Install
-```bash
-(autoQY) \desired-location> cd autoQY
-(autoQY) \desired-location\autoQY> pip install -e .
+## Power GUI
+
+Open **Desktop → AutoQY → AutoQY Power GUI**, or run:
+
+```powershell
+autoqy-core power-gui
 ```
 
-### Linux
-#### Download the source files
-Clone using URL at desired location:
-```bash
-~$ cd desired-location
-desired-location$ git clone https://github.com/CrespiLab/autoQY.git
-```
-A folder called "autoQY" is downloaded.
+The GUI accepts up to three Thorlabs OPM CSV traces. Drag the boundaries around
+the open-beam and cuvette regions, inspect baseline corrections, calculate the
+power at the cuvette, and export reproducible JSON settings and results to be used
+for automation.
 
-#### Create a new Python environment and install pip
-Create the Python environment in the downloaded autoQY(-main) folder.
-```bash
-~$ cd desired-location
-desired-location$ sudo apt install python3-venv
-desired-location$ python3 -m venv autoQY
-desired-location$ source autoQY/bin/activate
-```
-If necessary, install pip:
-```bash
-(autoQY) desired-location$ sudo apt install pip
+Power treatment remains separate from quantum-yield analysis. Transfer the
+reported `power_mw` and `power_error_mw` manually into `analysis.json` if necessary; 
+**AutoQY Power GUI** does not modify the .json file automatically.
+
+## Spectral Smoother GUI
+
+Open **Desktop → AutoQY → AutoQY Spectral Smoother**, or run:
+
+```powershell
+autoqy-core smoother-gui
 ```
 
-#### Install
-```bash
-(autoQY) desired-location$ cd autoQY
-(autoQY) desired-location/autoQY$ pip install -e .
+The GUI reads both common SpectraGryph `.dat` layouts, wavelength-by-row TSV,
+and CSV files. Its processing order is independently configurable:
+
+1. select the wavelength range;
+2. optionally baseline each spectrum over a selected interval;
+3. apply Savitzky–Golay, Whittaker–Eilers, or no wavelength smoothing;
+4. optionally apply SVD rank reduction;
+5. inspect the processed spectra and removed residual, then export.
+
+Savitzky–Golay is initially selected with a window expressed in nm. SVD starts
+at two components (typical for photoswitch datasets) but can be disabled. 
+The GUI reports the effective smoothing window, RMS changes, and the exact percentage 
+of squared singular-value weight retained by the selected rank. Original uploaded
+data is never overwritten.
+
+Both GUIs run only on the local computer. Uploaded data is held by the browser
+session and local Python process.
+
+## Quantum-yield analysis
+
+The GUI utilities prepare inputs, while quantum-yield fitting remains a
+reproducible JSON workflow:
+
+```powershell
+autoqy-core validate ExampleData/Example-2_AB_455nm-100mA/analysis.json
+autoqy-core run ExampleData/Example-2_AB_455nm-100mA/analysis.json
 ```
 
-## Run
-Make sure to activate the environment, and then execute the command-line script:
+Set `fit.method` to one of:
+
+- `concentrations` — independent nonnegative spectral decomposition;
+- `regularized_concentrations` — concentration fitting with a kinetic envelope;
+- `ode_absorbance` — joint full-spectrum kinetic fitting;
+- `emission` — legacy active-LED-band fitting.
+
+New datasets should normally compare `regularized_concentrations` and
+`ode_absorbance` and inspect both concentration and wavelength-resolved
+residuals. Detailed schemas, assumptions, and file-format controls are in
+[autoqy_core/README.md](autoqy_core/README.md).
+
+Alternatively, run **AutoQY Analyze JSON**. In this way, it is possible to drag and 
+drop `analysis.json` files directly in the window. The script will check their
+validity and will ask to run them. An output folder with different output files 
+will be generated in the folder of origin of the `analysis.json` file.
+
+Depending on configuration, an analysis writes TXT, PNG/SVG figures, results
+JSON and input snapshots, concentration/residual TSV, and long-form measured
+and reconstructed spectral TSV. Existing files are replaced only when
+`outputs.overwrite` is `true` in the .json file.
+
+
+### Power processing from JSON
+
+```powershell
+autoqy-core power ExampleData/Example-Power/power_analysis.json
 ```
-(base) conda activate autoQY
-(autoQY) autoqy
+This method is experimental and planned for future automation. 
+
+
+## Manual installation
+
+Python 3.12 or newer is required. A dedicated environment is recommended.
+
+```powershell
+git clone --branch feature/core-extraction --single-branch https://github.com/CrespiLab/autoQY.git AutoQY-Core
+cd AutoQY-Core
+python -m pip install -e ".[power-gui]"
 ```
-The GUI should appear after a short while.
 
-Note:
-The program can be called from anywhere (no need to be in the install directory).
+The optional dependency group installs Dash and Plotly for both browser GUIs.
+Install only the headless calculation engine with `python -m pip install -e .`.
 
-### Configuration
-The user can adjust the desired default settings in the `defaults.py` file that is located in the folder `user_config`.
+Equivalent `venv` setup:
 
-## Notes
-### Linux
-Currently, there is a runtime error upon launching the programme in Linux, which causes re-sizing issues for the window.
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[power-gui]"
+```
 
-### Windows
-In some cases, upon launching autoQuant on a small screen (for example, a laptop), the font sizes are too big, leading to difficulty reading the labels. This is most likely due to a Windows scale setting that increases the size of text.
-To change this setting, go to:
-- Settings
-- Display
-- Scale and Layout
-- Change the size of text, apps and other items: set to 100% (the default is probably 150%)
+Verify with:
 
-Start autoQY again and, hopefully, the GUI looks normal now.
+```powershell
+autoqy-core --help
+autoqy-core validate ExampleData/Example-2_AB_455nm-100mA/analysis.json
+```
 
-### Mac
-autoQY has been successfully tested on Mac using Anaconda for Mac
+## Python API
+
+```python
+from autoqy_core import load_config, run_analysis, run_power_analysis
+
+power = run_power_analysis("power_analysis.json")
+analysis = run_analysis(load_config("analysis.json"))
+```
+
+The scientific method is described in A. Volker, J. D. Steen and S. Crespi,
+*Beilstein J. Org. Chem.* **2024**, 20, 1684–1692,
+[doi:10.3762/bjoc.20.150](https://doi.org/10.3762/bjoc.20.150).
