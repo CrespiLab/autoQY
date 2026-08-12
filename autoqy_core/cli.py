@@ -24,7 +24,7 @@ def main(argv=None):
     power_gui.add_argument("--host", default="127.0.0.1")
     power_gui.add_argument("--port", default=8050, type=int)
     power_gui.add_argument("--no-open", action="store_true")
-    smoother_gui = commands.add_parser("smoother-gui", help="open the spectral smoother GUI")
+    smoother_gui = commands.add_parser("smoother-gui", help="open the spectral treatment GUI")
     smoother_gui.add_argument("--host", default="127.0.0.1")
     smoother_gui.add_argument("--port", default=8051, type=int)
     smoother_gui.add_argument("--no-open", action="store_true")

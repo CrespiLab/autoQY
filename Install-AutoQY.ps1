@@ -238,12 +238,16 @@ Read-Host 'Press Enter to close'
     $guiShortcut.IconLocation = "$guiIcon,0"
     $guiShortcut.Save()
 
-    $smootherShortcutPath = Join-Path $shortcutDirectory "AutoQY Spectral Smoother.lnk"
+    $legacySmootherShortcut = Join-Path $shortcutDirectory "AutoQY Spectral Smoother.lnk"
+    if (Test-Path -LiteralPath $legacySmootherShortcut) {
+        Remove-Item -LiteralPath $legacySmootherShortcut -Force
+    }
+    $smootherShortcutPath = Join-Path $shortcutDirectory "AutoQY Spectral Treatment.lnk"
     $smootherShortcut = $shell.CreateShortcut($smootherShortcutPath)
     $smootherShortcut.TargetPath = $coreCommand
     $smootherShortcut.Arguments = "smoother-gui"
     $smootherShortcut.WorkingDirectory = $ProjectRoot
-    $smootherShortcut.Description = "Open the AutoQY spectral smoother GUI"
+    $smootherShortcut.Description = "Open the AutoQY spectral treatment GUI"
     $smootherShortcut.IconLocation = "$smootherIcon,0"
     $smootherShortcut.Save()
 
@@ -307,8 +311,8 @@ try {
         Write-Host "Conda: $condaCommand"
         Write-Host "Environment: $(if ($environmentPath) { "ask to remove $environmentPath, then recreate it" } else { "create $EnvironmentName" })"
         Write-Host "Source: $(if ($projectInInstallFolder) { "use existing checkout $projectRoot" } else { "clone $RepositoryUrl into $projectRoot" })"
-        Write-Host "Package: editable install with power GUI"
-        Write-Host "Desktop folder AutoQY: Power GUI, Spectral Smoother, activated terminal, and JSON runner"
+        Write-Host "Package: editable install with both browser GUIs"
+        Write-Host "Desktop folder AutoQY: Power GUI, Spectral Treatment, activated terminal, and JSON runner"
         Write-Host "No files or environments were changed." -ForegroundColor Green
         exit 0
     }

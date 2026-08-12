@@ -86,6 +86,29 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
   cursor: pointer;
 }
 .upload-box small { display: block; margin-top: 5px; color: var(--muted); }
+.compact-upload { padding: 15px 12px; }
+.nested-tool { margin: 12px 0; padding: 11px; border: 1px solid #e3dfd7; border-radius: 10px; background: #fcfbf8; }
+.nested-tool > summary, .parameter-details > summary { cursor: pointer; color: #31404a; font-size: .82rem; font-weight: 700; }
+.interaction-bar { display: grid; grid-template-columns: minmax(90px,.7fr) minmax(180px,1.5fr); gap: 8px; margin-top: 12px; }
+.toggle-control label, .segmented-control label { margin: 0; font-size: .76rem; font-weight: 650; cursor: pointer; }
+.toggle-control label { display: flex; align-items: center; justify-content: center; min-height: 38px; padding: 8px; border: 1px solid #b8c9d1; border-radius: 8px; background: #f3f8fa; color: var(--blue); }
+.segmented-control { display: grid; grid-template-columns: repeat(3, 1fr); overflow: hidden; border: 1px solid #cfd1d4; border-radius: 8px; }
+.segmented-control.two-options { grid-template-columns: repeat(2, 1fr); }
+.segmented-control label { display: flex; align-items: center; justify-content: center; padding: 8px 4px; border-left: 1px solid #d9dcdf; }
+.segmented-control label:first-child { border-left: 0; }
+.toggle-control input, .segmented-control input { margin-right: 4px; accent-color: var(--blue); }
+.toggle-control label:has(input:checked), .segmented-control label:has(input:checked) { color: #fff; background: var(--blue); }
+.parameter-details { margin-top: 9px; padding: 9px 0 0; border-top: 1px solid #ece9e3; }
+.status-message { margin-top: 10px; padding: 10px 11px; border-radius: 8px; font-size: .78rem; line-height: 1.45; }
+.status-ok { color: #285e48; background: #edf7f1; border: 1px solid #bddcca; }
+.status-warning { color: #7a4b17; background: #fff7e8; border: 1px solid #edd4a4; }
+.status-stop { color: #8f2f22; background: #fff0ed; border: 1px solid #e5b6ae; font-weight: 650; }
+.export-mode-control { margin-top: 12px; }
+.export-mode-control .toggle-control label { justify-content: flex-start; background: #fff8ef; border-color: #e4bd91; color: #8a4b32; }
+.export-mode-control .toggle-control label:has(input:checked) { color: #fff; background: var(--orange); }
+.export-mode-control small { display: block; margin-top: 6px; color: var(--muted); font-size: .72rem; line-height: 1.4; }
+.svd-control-row { display: grid; grid-template-columns: minmax(80px,.7fr) minmax(150px,1.3fr); gap: 8px; margin-top: 11px; }
+.svd-warning { margin: 8px 0 0; padding: 9px; border-left: 3px solid var(--orange); background: #fff8ef; color: #7a4b17; font-size: .74rem; line-height: 1.42; }
 
 .button {
   width: 100%;
@@ -101,6 +124,7 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
 .button-accent { color: #fff; background: var(--orange); }
 .button-secondary { color: #4a515c; background: #fff; border-color: #ccd0d4; }
 .button:hover { filter: brightness(0.97); }
+.button:disabled { opacity: .45; cursor: not-allowed; filter: none; }
 .message { min-height: 18px; margin-top: 9px; color: var(--muted); font-size: 0.78rem; }
 .radio-group label { margin: 8px 0; font-weight: 500; }
 
@@ -116,8 +140,19 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
 .repeat-row strong, .repeat-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .repeat-row small { margin-top: 3px; color: var(--muted); font-size: 0.74rem; }
 
+.epsilon-workspace { grid-template-columns: minmax(320px, 390px) minmax(0, 1fr); }
+.spectrum-card { margin-top: 12px; padding: 13px; border: 1px solid #e6e2da; border-radius: 11px; background: #fcfbf8; }
+.spectrum-card h3 { overflow: hidden; margin: 0 0 9px; color: #31404a; font-size: .86rem; text-overflow: ellipsis; white-space: nowrap; }
+.spectrum-card label { margin-top: 8px; }
+.parameter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; }
+.compact-radio { display: grid; grid-template-columns: 1fr; gap: 2px; }
+.compact-radio label { margin: 2px 0; font-size: .78rem; font-weight: 500; }
+.result-summary h2 { margin-bottom: 8px; }
+.export-panel small { display: block; margin-top: 9px; color: var(--muted); font-size: .74rem; line-height: 1.4; }
+
 @media (max-width: 900px) {
   .workspace { grid-template-columns: 1fr; }
+  .epsilon-workspace { grid-template-columns: 1fr; }
   .control-column { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
 }
 

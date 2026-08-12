@@ -11,6 +11,8 @@ from scipy.signal import savgol_filter
 from scipy.sparse import diags, eye
 from scipy.sparse.linalg import factorized
 
+from .io import load_avantes_abs8_bytes
+
 
 @dataclass(frozen=True)
 class SpectralDataset:
@@ -37,7 +39,29 @@ class SVDResult:
 
 
 def load_spectral_dataset(path, format_name="spectragryph"):
-    return load_spectral_text(Path(path).read_text(encoding="utf-8-sig"), format_name)
+    path = Path(path)
+    if path.suffix.lower() == ".abs8":
+        format_name = "avantes_abs8"
+    return load_spectral_bytes(path.read_bytes(), format_name)
+
+
+def load_spectral_bytes(data, format_name="spectragryph"):
+    """Load either an Avantes binary record or a supported text dataset."""
+    if format_name == "avantes_abs8":
+        wavelengths, absorbance = load_avantes_abs8_bytes(data)
+        absorbance, interpolated = _fill_missing_absorbance(
+            wavelengths, absorbance[:, None]
+        )
+        return SpectralDataset(
+            wavelengths, np.array([0.0]), absorbance, format_name, interpolated
+        )
+    try:
+        text = bytes(data).decode("utf-8-sig")
+    except UnicodeDecodeError as error:
+        raise ValueError(
+            "Input is not UTF-8 text; select Avantes Abs8 for AvaSoft binary files"
+        ) from error
+    return load_spectral_text(text, format_name)
 
 
 def load_spectral_text(text, format_name="spectragryph"):
@@ -168,8 +192,15 @@ def export_smoothed_text(dataset, reconstructed, format_name=None):
         stream = StringIO()
         np.savetxt(stream, table, fmt="%.8e", delimiter="\t")
         return stream.getvalue()
-    separator = "\t" if format_name == "tsv" else ","
-    columns = ["Wavelength"] + [f"{value:g}" for value in dataset.coordinates]
+    if format_name in {"tsv", "avantes_abs8"}:
+        separator = "\t"
+    elif format_name == "csv":
+        separator = ","
+    else:
+        raise ValueError(f"Unsupported smoother export format: {format_name}")
+    value_columns = (["Absorbance"] if format_name == "avantes_abs8"
+                     else [f"{value:g}" for value in dataset.coordinates])
+    columns = ["Wavelength"] + value_columns
     frame = pd.DataFrame(np.column_stack([dataset.wavelengths, reconstructed]), columns=columns)
     return frame.to_csv(index=False, sep=separator, float_format="%.8e")
 
@@ -192,6 +223,9 @@ def _numeric_labels(labels):
 
 def _load_column_table(text, separator):
     frame = pd.read_csv(StringIO(text), sep=separator)
+    # SpectraGryph exports can retain many trailing delimiters after the last
+    # spectrum. They are empty padding columns, not measured spectra.
+    frame = frame.dropna(axis=1, how="all")
     frame = frame.drop(columns="Wavenumbers [1/cm]", errors="ignore")
     if frame.shape[1] < 2:
         raise ValueError("Delimited data requires wavelength and at least one spectrum column")

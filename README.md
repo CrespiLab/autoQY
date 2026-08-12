@@ -27,7 +27,7 @@ The installation will produce a series of useful links in a folder on the Deskto
 The Desktop `AutoQY` folder contains:
 
 - **AutoQY Power GUI** — treats Thorlabs optical-power traces;
-- **AutoQY Spectral Smoother** — denoises and export spectral datasets;
+- **AutoQY Spectral Treatment** — preprocesses spectra and calculates molar absorptivity;
 - **AutoQY Analyze JSON** — validates and runs the `analysis.json` file used by AutoQY;
 - **AutoQY Terminal** — opens a shell with the AutoQY environment activated.
 
@@ -57,25 +57,38 @@ Power treatment remains separate from quantum-yield analysis. Transfer the
 reported `power_mw` and `power_error_mw` manually into `analysis.json` if necessary; 
 **AutoQY Power GUI** does not modify the .json file automatically.
 
-## Spectral Smoother GUI
+## Spectral Treatment GUI
 
-Open **Desktop → AutoQY → AutoQY Spectral Smoother**, or run:
+**Spectral Treatment is the default AutoQY interface for spectral work.** Use it
+to import and inspect spectra, select wavelengths, apply baseline correction or
+Savitzky–Golay smoothing, prepare absorptivity spectra with wavelength-resolved
+errors, and perform NMR-guided PSS subtraction. The terminal functions remain
+available for reproducible or automated processing.
+
+Open **Desktop → AutoQY → AutoQY Spectral Treatment**, or run:
 
 ```powershell
 autoqy-core smoother-gui
 ```
 
-The GUI reads both common SpectraGryph `.dat` layouts, wavelength-by-row TSV,
-and CSV files. Its processing order is independently configurable:
+The main AutoQY installer installs this GUI and its Desktop shortcut together
+with the calculation engine, Power GUI, terminal, and JSON runner.
+
+The GUI reads both common SpectraGryph `.dat` layouts, Avantes AvaSoft 8
+`.Abs8` files, wavelength-by-row TSV, and CSV files. `.Abs8` uploads are
+detected automatically and processed exports are written as TSV. Its workflow is
+independently configurable:
 
 1. select the wavelength range;
 2. optionally baseline each spectrum over a selected interval;
-3. apply Savitzky–Golay, Whittaker–Eilers, or no wavelength smoothing;
-4. optionally apply SVD rank reduction;
-5. inspect the processed spectra and removed residual, then export.
+3. apply Savitzky–Golay or no wavelength smoothing;
+4. optionally apply SVD rank reduction to ordered time-series data;
+5. calculate and export wavelength-resolved molar absorptivity and uncertainty;
+6. optionally reconstruct a product spectrum using a PSS composition measured by NMR.
 
-Savitzky–Golay is initially selected with a window expressed in nm. SVD starts
-at two components (typical for photoswitch datasets) but can be disabled. 
+Savitzky–Golay and SVD are off by default. When SVD is enabled, its proposed
+rank is at least two components when the dataset permits. SVD should not be used
+for independent repeat measurements because it mixes their variation.
 The GUI reports the effective smoothing window, RMS changes, and the exact percentage 
 of squared singular-value weight retained by the selected rank. Original uploaded
 data is never overwritten.
