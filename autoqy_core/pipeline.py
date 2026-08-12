@@ -49,6 +49,7 @@ class AnalysisResult:
     epsilon_p: np.ndarray
     fit_method: str
     extrapolated_pss: np.ndarray
+    epsilon_uncertainty: object | None = None
 
 
 def run_analysis_pipeline(data):

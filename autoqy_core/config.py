@@ -81,6 +81,22 @@ def validate_config(config):
             errors.append(f"inputs.{name} does not exist: {config.input_path(name)}")
         _validate_format(input_format(config, name), name, errors)
 
+    uncertainty = values.get("uncertainty", {})
+    if not isinstance(uncertainty, dict):
+        errors.append("uncertainty must be an object")
+    else:
+        epsilon_uncertainty = uncertainty.get("epsilon", {})
+        if not isinstance(epsilon_uncertainty, dict):
+            errors.append("uncertainty.epsilon must be an object")
+        else:
+            epsilon_method = epsilon_uncertainty.get("method", "none")
+            if epsilon_method not in {"none", "deterministic_extremes"}:
+                errors.append(
+                    "uncertainty.epsilon.method must be none or deterministic_extremes"
+                )
+            if epsilon_uncertainty.get("error_metric", "sd") not in {"sd", "sem"}:
+                errors.append("uncertainty.epsilon.error_metric must be sd or sem")
+
     experiment = values["experiment"]
     for name in ("volume_ul", "power_mw", "path_length_cm"):
         if not _positive(experiment[name]):
