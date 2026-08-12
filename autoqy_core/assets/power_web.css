@@ -145,8 +145,6 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
 .spectrum-card h3 { overflow: hidden; margin: 0 0 9px; color: #31404a; font-size: .86rem; text-overflow: ellipsis; white-space: nowrap; }
 .spectrum-card label { margin-top: 8px; }
 .parameter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; }
-.compact-radio { display: grid; grid-template-columns: 1fr; gap: 2px; }
-.compact-radio label { margin: 2px 0; font-size: .78rem; font-weight: 500; }
 .result-summary h2 { margin-bottom: 8px; }
 .export-panel small { display: block; margin-top: 9px; color: var(--muted); font-size: .74rem; line-height: 1.4; }
 

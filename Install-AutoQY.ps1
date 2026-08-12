@@ -2,7 +2,7 @@
 param(
     [string]$EnvironmentName = "autoqy-core",
     [string]$RepositoryUrl = "https://github.com/CrespiLab/autoQY.git",
-    [string]$Branch = "main",
+    [string]$Branch = "feature/epsilon_error",
     [switch]$CheckOnly
 )
 
@@ -310,7 +310,7 @@ try {
         Write-Step "Planned installation"
         Write-Host "Conda: $condaCommand"
         Write-Host "Environment: $(if ($environmentPath) { "ask to remove $environmentPath, then recreate it" } else { "create $EnvironmentName" })"
-        Write-Host "Source: $(if ($projectInInstallFolder) { "use existing checkout $projectRoot" } else { "clone $RepositoryUrl into $projectRoot" })"
+        Write-Host "Source: $(if ($projectInInstallFolder) { "use existing checkout $projectRoot" } else { "clone branch '$Branch' from $RepositoryUrl into $projectRoot" })"
         Write-Host "Package: editable install with both browser GUIs"
         Write-Host "Desktop folder AutoQY: Power GUI, Spectral Treatment, activated terminal, and JSON runner"
         Write-Host "No files or environments were changed." -ForegroundColor Green

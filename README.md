@@ -14,7 +14,7 @@ the easiest entry points for routine data treatment.
 The guided installer creates a dedicated Conda environment, installs AutoQY,
 and places four shortcuts inside **Desktop → AutoQY**.
 
-1. **[Download Install-AutoQY.bat](https://github.com/CrespiLab/autoQY/releases/download/v2.0.0-beta.1/Install-AutoQY.bat)**.
+1. **[Download Install-AutoQY.bat](https://github.com/CrespiLab/autoQY/releases/download/v2.1.0-beta.1/Install-AutoQY.bat)**.
 2. Double-click the downloaded file and follow the instructions (you may need
    to give Windows permission to run it).
 
@@ -23,6 +23,7 @@ removing it. It never silently deletes the environment or an existing checkout.
 If the installer already resides in a valid checkout, that checkout is reused.
 The installer will ask for a preferred installation folder.
 The installation will produce a series of useful links in a folder on the Desktop.
+This `v2.1.0-beta.1` prerelease installs the `feature/epsilon_error` branch.
 
 The Desktop `AutoQY` folder contains:
 

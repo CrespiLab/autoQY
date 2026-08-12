@@ -35,14 +35,6 @@ class NMRSubtractionResult:
     negative_bound_points: int
 
 
-def concentration_from_preparation(mass_mg, volume_ml, molecular_weight_g_mol):
-    """Return mol/L from solute mass, final solution volume, and molecular weight."""
-    mass = _positive_float(mass_mg, "Mass")
-    volume = _positive_float(volume_ml, "Solution volume")
-    molecular_weight = _positive_float(molecular_weight_g_mol, "Molecular weight")
-    return mass / (volume * molecular_weight)
-
-
 def calculate_epsilon(wavelengths, absorbance, concentrations_m, path_lengths_cm):
     """Apply Beer-Lambert independently to each wavelength x replicate column."""
     wavelengths = np.asarray(wavelengths, float)
@@ -249,13 +241,6 @@ def export_nmr_subtraction_tsv(result, preserve_negative=False):
         "Product_error_upper_M-1_cm-1": result.product_error_upper,
     })
     return frame.to_csv(sep="\t", index=False, float_format="%.8e")
-
-
-def _positive_float(value, name):
-    parsed = float(value)
-    if not np.isfinite(parsed) or parsed <= 0:
-        raise ValueError(f"{name} must be positive and finite")
-    return parsed
 
 
 def _unique_labels(labels):

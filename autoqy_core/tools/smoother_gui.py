@@ -9,8 +9,7 @@ import webbrowser
 import numpy as np
 
 from ..epsilon import (EpsilonResult, NMRSubtractionResult,
-                       calculate_epsilon_statistics,
-                       concentration_from_preparation, export_epsilon_tsv,
+                       calculate_epsilon_statistics, export_epsilon_tsv,
                        export_nmr_subtraction_tsv, load_epsilon_tsv,
                        nonnegative_error_bounds, reconstruct_product_from_nmr)
 from ..smoother import (SpectralDataset, analyze_svd, baseline_spectra,
@@ -121,9 +120,10 @@ def create_app():
                 ]),
                 html.Details(open=True, className="panel tool-details", children=[
                     html.Summary([html.Span("3 · Beer–Lambert", className="step-label"),
-                                  "Concentrations"]),
-                    html.P("Choose direct molarity or calculate it from each independent preparation. "
-                           "Path length is required in centimetres.", className="helper-text"),
+                                  "Final concentrations"]),
+                    html.P("Enter the final concentration of every measured solution directly "
+                           "in mol/L. Path length is required in centimetres.",
+                           className="helper-text"),
                     html.Div(id="concentration-parameters"),
                     html.Div(id="concentration-message", className="message"),
                 ]),
@@ -354,17 +354,12 @@ def create_app():
         Input("smoothing-method", "value"), Input("savgol-window", "value"),
         Input("savgol-order", "value"), Input("svd-enabled", "value"),
         Input("svd-rank", "value"),
-        Input({"type": "concentration-mode", "index": ALL}, "value"),
         Input({"type": "direct-concentration", "index": ALL}, "value"),
-        Input({"type": "mass-mg", "index": ALL}, "value"),
-        Input({"type": "volume-ml", "index": ALL}, "value"),
-        Input({"type": "molecular-weight", "index": ALL}, "value"),
         Input({"type": "path-length", "index": ALL}, "value"),
     )
     def preview(data, wavelength_low, wavelength_high, baseline_enabled,
                 baseline_low, baseline_high, method, sg_width, sg_order,
-                svd_enabled, svd_rank, modes, direct, masses, volumes,
-                molecular_weights, path_lengths):
+                svd_enabled, svd_rank, concentrations, path_lengths):
         if not data:
             return (_empty(go, "Load spectral data to begin"),
                     "No result yet.", "", "Smoothing is off.", None, True, "")
@@ -375,11 +370,10 @@ def create_app():
                 svd_enabled, svd_rank,
             )
             concentration_data = _read_concentrations(
-                len(data["labels"]), modes, direct, masses, volumes,
-                molecular_weights, path_lengths,
+                len(data["labels"]), concentrations, path_lengths
             )
             if concentration_data is None:
-                message = ("Enter the selected concentration inputs and path length for every "
+                message = ("Enter the final concentration and path length for every "
                            "spectrum to calculate molar absorptivity.")
                 return (_absorbance_figure(go, dataset, original, processed, data["labels"],
                                            method, svd_enabled, svd_rank),
@@ -583,32 +577,19 @@ def _parameter_cards(html, dcc, labels, concentrations=None, path_lengths=None):
     for index, label in enumerate(labels):
         cards.append(html.Div(className="spectrum-card", children=[
             html.H3(label),
-            dcc.RadioItems(
-                id={"type": "concentration-mode", "index": index},
-                value="direct", className="radio-group compact-radio",
-                options=[
-                    {"label": " Direct concentration", "value": "direct"},
-                    {"label": " Calculate from preparation", "value": "prepared"},
-                ],
-            ),
-            html.Label("Concentration (M)"),
-            dcc.Input(id={"type": "direct-concentration", "index": index},
-                      type="number", min=0, step="any", placeholder="mol/L",
-                      value=(concentrations[index] if concentrations else None)),
             html.Div(className="parameter-grid", children=[
-                html.Div([html.Label("Mass (mg)"),
-                          dcc.Input(id={"type": "mass-mg", "index": index},
-                                    type="number", min=0, step="any")]),
-                html.Div([html.Label("Final volume (mL)"),
-                          dcc.Input(id={"type": "volume-ml", "index": index},
-                                    type="number", min=0, step="any")]),
-                html.Div([html.Label("Molecular weight (g/mol)"),
-                          dcc.Input(id={"type": "molecular-weight", "index": index},
-                                    type="number", min=0, step="any")]),
+                html.Div([html.Label("Final concentration (mol/L)"),
+                          dcc.Input(
+                              id={"type": "direct-concentration", "index": index},
+                              type="number", min=0, step="any", placeholder="mol/L",
+                              value=(concentrations[index]
+                                     if concentrations is not None else None),
+                          )]),
                 html.Div([html.Label("Path length (cm)"),
                           dcc.Input(id={"type": "path-length", "index": index},
                                     type="number", min=0, step="any",
-                                    value=(path_lengths[index] if path_lengths else 1.0))]),
+                                    value=(path_lengths[index]
+                                           if path_lengths is not None else 1.0))]),
             ]),
         ]))
     return cards
@@ -647,31 +628,16 @@ def _combine_loaded(loaded):
     return combined, _display_unique(labels), resampled
 
 
-def _read_concentrations(count, modes, direct, masses, volumes,
-                         molecular_weights, path_lengths):
-    inputs = (modes, direct, masses, volumes, molecular_weights, path_lengths)
-    if any(len(values or []) != count for values in inputs):
+def _read_concentrations(count, concentrations, path_lengths):
+    if any(len(values or []) != count for values in (concentrations, path_lengths)):
         return None
-    concentrations = []
-    paths = []
-    for index, mode in enumerate(modes):
-        if path_lengths[index] is None:
+    parsed_concentrations, parsed_paths = [], []
+    for concentration, path_length in zip(concentrations, path_lengths):
+        if concentration is None or path_length is None:
             return None
-        paths.append(float(path_lengths[index]))
-        if mode == "direct":
-            if direct[index] is None:
-                return None
-            concentrations.append(float(direct[index]))
-        elif mode == "prepared":
-            if any(values[index] is None for values in
-                   (masses, volumes, molecular_weights)):
-                return None
-            concentrations.append(concentration_from_preparation(
-                masses[index], volumes[index], molecular_weights[index]
-            ))
-        else:
-            raise ValueError("Select a concentration method for every spectrum")
-    return np.asarray(concentrations), np.asarray(paths)
+        parsed_concentrations.append(float(concentration))
+        parsed_paths.append(float(path_length))
+    return np.asarray(parsed_concentrations), np.asarray(parsed_paths)
 
 
 def _prepare_processing(data, wavelength_low, wavelength_high, baseline_enabled,
