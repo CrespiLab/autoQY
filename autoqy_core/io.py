@@ -6,6 +6,47 @@ import numpy as np
 import pandas as pd
 
 
+AVANTES_HEADER_BYTES = 328
+
+
+def load_avantes_abs8(path):
+    """Load wavelength and absorbance arrays from an AvaSoft 8 Abs8 file."""
+    return load_avantes_abs8_bytes(Path(path).read_bytes())
+
+
+def load_avantes_abs8_bytes(data):
+    """Decode a single-channel AVS84 absorbance record from bytes."""
+    data = bytes(data)
+    if len(data) < AVANTES_HEADER_BYTES or data[:5] != b"AVS84":
+        raise ValueError("Not an Avantes AvaSoft 8 AVS84 file")
+    if data[11] != 2:
+        raise ValueError(
+            f"Expected Avantes absorbance mode (2), found measurement mode {data[11]}"
+        )
+    pixels = int.from_bytes(data[91:93], "little") + 1
+    required = AVANTES_HEADER_BYTES + 4 * pixels * np.dtype("<f4").itemsize
+    if pixels < 2 or len(data) < required:
+        raise ValueError("Avantes Abs8 file is truncated or has an invalid pixel count")
+
+    arrays = np.frombuffer(
+        data, dtype="<f4", count=4 * pixels, offset=AVANTES_HEADER_BYTES
+    ).reshape(4, pixels).astype(float)
+    wavelengths, sample, dark, reference = arrays
+    if not np.isfinite(arrays).all():
+        raise ValueError("Avantes Abs8 file contains non-finite instrument data")
+    if np.any(np.diff(wavelengths) <= 0):
+        raise ValueError("Avantes Abs8 wavelengths must increase")
+
+    numerator = sample - dark
+    denominator = reference - dark
+    valid = (numerator > 0) & (denominator > 0)
+    absorbance = np.full(pixels, np.nan)
+    absorbance[valid] = -np.log10(numerator[valid] / denominator[valid])
+    if np.count_nonzero(valid) < 2:
+        raise ValueError("Avantes Abs8 file has fewer than two valid absorbance points")
+    return wavelengths, absorbance
+
+
 def load_spectra(path, format_spec="spectragryph_tsv"):
     spec = _format_spec(format_spec)
     if spec["type"] == "spectragryph_tsv":

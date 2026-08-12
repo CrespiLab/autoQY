@@ -65,8 +65,10 @@ Open **Desktop → AutoQY → AutoQY Spectral Smoother**, or run:
 autoqy-core smoother-gui
 ```
 
-The GUI reads both common SpectraGryph `.dat` layouts, wavelength-by-row TSV,
-and CSV files. Its processing order is independently configurable:
+The GUI reads both common SpectraGryph `.dat` layouts, Avantes AvaSoft 8
+`.Abs8` files, wavelength-by-row TSV, and CSV files. `.Abs8` uploads are
+detected automatically and processed exports are written as TSV. Its processing
+order is independently configurable:
 
 1. select the wavelength range;
 2. optionally baseline each spectrum over a selected interval;

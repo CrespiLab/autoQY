@@ -9,7 +9,7 @@ import webbrowser
 import numpy as np
 
 from ..smoother import (SpectralDataset, analyze_svd, baseline_spectra,
-                        export_smoothed_text, load_spectral_text,
+                        export_smoothed_text, load_spectral_bytes,
                         savgol_window_points, select_wavelengths,
                         smooth_reconstruction)
 
@@ -40,10 +40,11 @@ def create_app():
                     html.Summary([html.Span("1 · Data", className="step-label"), "Dataset"]),
                     dcc.Upload(id="upload-spectra", className="upload-box", multiple=False,
                                children=html.Div([html.Span("Drop or choose a spectral dataset"),
-                                                  html.Small("SpectraGryph .dat, TSV, or CSV")])),
+                                                  html.Small("SpectraGryph .dat, Avantes .Abs8, TSV, or CSV")])),
                     html.Label("Input format"),
                     dcc.Dropdown(id="input-format", value="spectragryph", clearable=False,
                                  options=[{"label": "SpectraGryph matrix (default)", "value": "spectragryph"},
+                                          {"label": "Avantes AvaSoft 8 (.Abs8)", "value": "avantes_abs8"},
                                           {"label": "TSV: wavelength + spectra", "value": "tsv"},
                                           {"label": "CSV: wavelength + spectra", "value": "csv"}]),
                     html.Button("Clear dataset", id="clear-dataset", className="button button-secondary", disabled=True),
@@ -117,8 +118,10 @@ def create_app():
         try:
             if not contents:
                 return None, "Choose a dataset to begin.", no_update, no_update, ""
-            text = base64.b64decode(contents.split(",", 1)[1]).decode("utf-8-sig")
-            dataset = load_spectral_text(text, format_name)
+            payload = base64.b64decode(contents.split(",", 1)[1])
+            if Path(filename or "").suffix.lower() == ".abs8":
+                format_name = "avantes_abs8"
+            dataset = load_spectral_bytes(payload, format_name)
             note = (f" Interpolated {dataset.interpolated_values} missing absorbance value(s) along wavelength."
                     if dataset.interpolated_values else "")
             return (_pack(dataset, filename),
@@ -220,7 +223,8 @@ def create_app():
             original = Path(data["filename"] or "spectra.dat")
             suffix = "" if method == "off" else f"-{method}"
             svd_suffix = "" if rank == "off" else f"-svd-rank{rank}"
-            return dict(content=text, filename=f"{original.stem}{suffix}{svd_suffix}{original.suffix or '.dat'}"), ""
+            extension = ".tsv" if dataset.source_format == "avantes_abs8" else (original.suffix or ".dat")
+            return dict(content=text, filename=f"{original.stem}{suffix}{svd_suffix}{extension}"), ""
         except Exception as error:
             return no_update, f"Export error: {type(error).__name__}: {error}"
     return app
