@@ -49,6 +49,7 @@ packages = ["autoqy_core", "autoqy_core.tools"]
 autoqy_core = [
   "assets/*.css",
   "assets/*.png",
+  "assets/*.svg",
   "assets/icons/*.ico",
   "assets/icons/*.png",
   "assets/icons/*.svg"
