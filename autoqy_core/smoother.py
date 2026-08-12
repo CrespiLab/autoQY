@@ -223,6 +223,9 @@ def _numeric_labels(labels):
 
 def _load_column_table(text, separator):
     frame = pd.read_csv(StringIO(text), sep=separator)
+    # SpectraGryph exports can retain many trailing delimiters after the last
+    # spectrum. They are empty padding columns, not measured spectra.
+    frame = frame.dropna(axis=1, how="all")
     frame = frame.drop(columns="Wavenumbers [1/cm]", errors="ignore")
     if frame.shape[1] < 2:
         raise ValueError("Delimited data requires wavelength and at least one spectrum column")
