@@ -18,8 +18,10 @@ and places four shortcuts inside **Desktop → AutoQY**.
 2. Double-click the downloaded file and follow the instructions (you may need
    to give Windows permission to run it).
 
-The installer detects an existing `autoqy-core` environment and asks before
-removing it. It never silently deletes the environment or an existing checkout.
+The installer detects an existing `autoqy-core` environment and reuses it by
+default; clean recreation remains optional. If Conda's online repository access
+fails, environment operations retry from the local package cache. It never
+silently deletes the environment or an existing checkout.
 If the installer already resides in a valid checkout, that checkout is reused.
 The installer will ask for a preferred installation folder.
 The installation will produce a series of useful links in a folder on the Desktop.
