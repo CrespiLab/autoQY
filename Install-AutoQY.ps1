@@ -282,8 +282,8 @@ Read-Host 'Press Enter to close'
     $guiIcon = Join-Path $iconDirectory "power-gui.ico"
     $smootherIcon = Join-Path $iconDirectory "spectral-smoother.ico"
     $terminalIcon = Join-Path $iconDirectory "terminal.ico"
-    $jsonIcon = Join-Path $iconDirectory "analyze-json.ico"
-    foreach ($iconPath in @($guiIcon, $smootherIcon, $terminalIcon, $jsonIcon)) {
+    $analysisIcon = Join-Path $iconDirectory "analyze-json.ico"
+    foreach ($iconPath in @($guiIcon, $smootherIcon, $terminalIcon, $analysisIcon)) {
         if (-not (Test-Path -LiteralPath $iconPath)) { throw "Desktop icon not found: $iconPath" }
     }
 
@@ -330,10 +330,20 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$analysisScript
     $jsonShortcut.TargetPath = $dropCommand
     $jsonShortcut.WorkingDirectory = $ProjectRoot
     $jsonShortcut.Description = "Drag and drop an AutoQY analysis JSON file"
-    $jsonShortcut.IconLocation = "$jsonIcon,0"
+    $jsonShortcut.IconLocation = "$analysisIcon,0"
     $jsonShortcut.Save()
 
-    return @($guiShortcutPath, $smootherShortcutPath, $terminalShortcutPath, $jsonShortcutPath)
+    $analysisShortcutPath = Join-Path $shortcutDirectory "AutoQY Analysis GUI.lnk"
+    $analysisShortcut = $shell.CreateShortcut($analysisShortcutPath)
+    $analysisShortcut.TargetPath = $coreCommand
+    $analysisShortcut.Arguments = "analysis-gui"
+    $analysisShortcut.WorkingDirectory = $ProjectRoot
+    $analysisShortcut.Description = "Build, validate, run, and inspect AutoQY analyses"
+    $analysisShortcut.IconLocation = "$analysisIcon,0"
+    $analysisShortcut.Save()
+
+    return @($analysisShortcutPath, $guiShortcutPath, $smootherShortcutPath,
+             $terminalShortcutPath, $jsonShortcutPath)
 }
 
 try {
@@ -369,8 +379,8 @@ try {
         Write-Host "Conda: $condaCommand"
         Write-Host "Environment: $(if ($environmentPath) { "reuse $environmentPath by default; offer clean recreation" } else { "create $EnvironmentName; retry from local cache if online access fails" })"
         Write-Host "Source: $(if ($projectInInstallFolder) { "use existing checkout $projectRoot" } else { "clone branch '$Branch' from $RepositoryUrl into $projectRoot" })"
-        Write-Host "Package: editable install with both browser GUIs"
-        Write-Host "Desktop folder AutoQY: Power GUI, Spectral Treatment, activated terminal, and JSON runner"
+        Write-Host "Package: editable install with all three browser GUIs"
+        Write-Host "Desktop folder AutoQY: Analysis GUI, Power GUI, Spectral Treatment, activated terminal, and JSON runner"
         Write-Host "No files or environments were changed." -ForegroundColor Green
         exit 0
     }
@@ -455,7 +465,7 @@ try {
     }
 
     $projectRoot = if ($projectInInstallFolder) { $InstallDirectory } else { $ClonePath }
-    Write-Step "Installing AutoQY and the power GUI"
+    Write-Step "Installing AutoQY and its browser GUIs"
     Push-Location $projectRoot
     try {
         Invoke-Checked -Command $environmentPython -Arguments @(

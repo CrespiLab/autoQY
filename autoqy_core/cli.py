@@ -28,13 +28,19 @@ def main(argv=None):
     smoother_gui.add_argument("--host", default="127.0.0.1")
     smoother_gui.add_argument("--port", default=8051, type=int)
     smoother_gui.add_argument("--no-open", action="store_true")
+    analysis_gui = commands.add_parser("analysis-gui", help="open the analysis builder GUI")
+    analysis_gui.add_argument("--host", default="127.0.0.1")
+    analysis_gui.add_argument("--port", default=8052, type=int)
+    analysis_gui.add_argument("--no-open", action="store_true")
     args = parser.parse_args(argv)
     try:
-        if args.command in {"power-gui", "smoother-gui"}:
+        if args.command in {"power-gui", "smoother-gui", "analysis-gui"}:
             if args.command == "power-gui":
                 from .tools.power_gui import run_server
-            else:
+            elif args.command == "smoother-gui":
                 from .tools.smoother_gui import run_server
+            else:
+                from .tools.analysis_gui import run_server
             run_server(args.host, args.port, not args.no_open)
             return 0
         if args.command == "power":

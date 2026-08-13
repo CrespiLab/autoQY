@@ -28,7 +28,13 @@ python -m autoqy_core validate analysis.json
 python -m autoqy_core run analysis.json
 python -m autoqy_core power power_analysis.json
 python -m autoqy_core power-gui
+python -m autoqy_core analysis-gui
 ```
+
+The Analysis GUI can load or construct this complete schema, validate it, run
+the calculation, and display interactive versions of the four result panels.
+It can also open Spectral Treatment without coupling either GUI to the
+scientific core.
 
 ## Fitting methods
 

@@ -19,6 +19,7 @@ from .plotting import write_figure
 class RunOutput:
     result: object
     files: tuple[Path, ...]
+    data: object | None = None
 
 
 def run_analysis(config, output_directory=None):
@@ -97,7 +98,7 @@ def run_analysis(config, output_directory=None):
         data, *epsilon_envelopes, error_metric=epsilon_metric
     ) if epsilon_envelopes else run_analysis_pipeline(data))
     files = _write_outputs(config, data, result, output_directory)
-    return RunOutput(result, files)
+    return RunOutput(result, files, data)
 
 
 def _write_outputs(config, data, result, output_directory):

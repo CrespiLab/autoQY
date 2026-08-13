@@ -41,6 +41,7 @@ Homepage = "https://github.com/CrespiLab/autoQY"
 autoqy-core = "autoqy_core.cli:main"
 autoqy-power-gui = "autoqy_core.tools.power_gui:main"
 autoqy-smoother-gui = "autoqy_core.tools.smoother_gui:main"
+autoqy-analysis-gui = "autoqy_core.tools.analysis_gui:main"
 
 [tool.setuptools]
 packages = ["autoqy_core", "autoqy_core.tools"]
