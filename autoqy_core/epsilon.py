@@ -197,7 +197,7 @@ def reconstruct_product_from_nmr(wavelengths, reactant_absorbance, pss_absorbanc
     epsilon_lower, epsilon_upper = nonnegative_error_bounds(
         reactant_epsilon.mean, reactant_sd
     )
-    epsilon_scenarios = (epsilon_lower, reactant_epsilon.mean, epsilon_upper)
+    epsilon_bounds = (epsilon_lower, reactant_epsilon.mean, epsilon_upper)
 
     def reconstruct(epsilon_curve, selected_fraction):
         scale = float(np.max(epsilon_curve))
@@ -210,7 +210,7 @@ def reconstruct_product_from_nmr(wavelengths, reactant_absorbance, pss_absorbanc
         reactant_epsilon.mean, fraction
     )
     candidates = [reconstruct(curve, selected_fraction)[2]
-                  for curve in epsilon_scenarios for selected_fraction in fractions]
+                  for curve in epsilon_bounds for selected_fraction in fractions]
     raw_lower = np.min(candidates, axis=0)
     raw_upper = np.max(candidates, axis=0)
     lower = np.maximum(raw_lower, 0.0)

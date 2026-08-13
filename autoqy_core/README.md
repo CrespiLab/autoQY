@@ -188,11 +188,11 @@ epsilon TSV files and add:
 
 `sd` is the default for independently prepared samples; `sem` is also
 available. The product input may instead be an NMR-derived product epsilon TSV,
-whose asymmetric non-negative bounds are used directly. The core evaluates all
-nine low/mean/high reactant-product combinations through the complete selected
-fit and reports optimizer-plus-power, epsilon-only, and combined conservative
-error envelopes separately. Omitting this section, or setting `method` to
-`none`, preserves the original calculation and input formats.
+whose asymmetric non-negative bounds are used directly. The core evaluates the
+distinct low/mean/high reactant-product epsilon-bound combinations through the
+complete selected fit and reports optimizer-plus-power, epsilon-only, and
+combined conservative error envelopes separately. Omitting this section, or
+setting `method` to `none`, preserves the original calculation and input formats.
 
 Future import parsers can target the same TSV contract with normalization and
 concentration metadata left empty or zero and wavelength error set to zero; the

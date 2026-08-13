@@ -20,7 +20,7 @@ class EpsilonEnvelope:
     constrained_negative_points: int = 0
 
     @property
-    def scenarios(self):
+    def bounds(self):
         return self.lower, self.nominal, self.upper
 
 
@@ -28,7 +28,7 @@ class EpsilonEnvelope:
 class EpsilonUncertaintySummary:
     method: str
     error_metric: str
-    scenario_count: int
+    bound_combination_count: int
     reactant_source_schema: str
     product_source_schema: str
     reactant_source_path: str
@@ -41,6 +41,14 @@ class EpsilonUncertaintySummary:
     combined_errors: np.ndarray
     epsilon_yield_minimum: np.ndarray
     epsilon_yield_maximum: np.ndarray
+    concentration_data_minimum: np.ndarray
+    concentration_data_maximum: np.ndarray
+    concentration_fit_minimum: np.ndarray
+    concentration_fit_maximum: np.ndarray
+    fraction_residual_minimum: np.ndarray
+    fraction_residual_maximum: np.ndarray
+    absorbance_residual_rmse_minimum: float
+    absorbance_residual_rmse_maximum: float
 
 
 def load_epsilon_envelope(path, error_metric="sd"):
@@ -69,7 +77,14 @@ def load_epsilon_envelope(path, error_metric="sd"):
             lower = np.maximum(nominal - error, 0.0)
             upper = np.maximum(nominal + error, 0.0)
         source_schema = "epsilon_spectra"
-        negative_points = 0
+        negative_points = int(np.count_nonzero(nominal < 0))
+        if negative_points:
+            warnings.warn(
+                f"Negative mean epsilon values in {path} were constrained to zero",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            nominal = np.maximum(nominal, 0.0)
     elif "Product_epsilon_M-1_cm-1" in frame:
         nominal = _column(frame, "Product_epsilon_M-1_cm-1", path)
         if np.min(nominal) < -500:
@@ -101,7 +116,7 @@ def load_epsilon_envelope(path, error_metric="sd"):
 
 
 def run_with_epsilon_uncertainty(data, reactant, product, error_metric="sd"):
-    """Run all low/mean/high reactant-product combinations through the pipeline."""
+    """Run distinct low/mean/high epsilon-bound combinations through the pipeline."""
     from .pipeline import run_analysis_pipeline
 
     nominal_data = replace(
@@ -110,37 +125,60 @@ def run_with_epsilon_uncertainty(data, reactant, product, error_metric="sd"):
         epsilon_p=(product.wavelengths, product.nominal),
     )
     nominal_result = run_analysis_pipeline(nominal_data)
+    bound_pairs = []
+    for reactant_curve in reactant.bounds:
+        for product_curve in product.bounds:
+            if not any(np.array_equal(reactant_curve, existing_reactant) and
+                       np.array_equal(product_curve, existing_product)
+                       for existing_reactant, existing_product in bound_pairs):
+                bound_pairs.append((reactant_curve, product_curve))
     results = []
-    for reactant_index, reactant_curve in enumerate(reactant.scenarios):
-        for product_index, product_curve in enumerate(product.scenarios):
-            if reactant_index == 1 and product_index == 1:
-                result = nominal_result
-            else:
-                scenario_data = replace(
-                    data,
-                    epsilon_r=(reactant.wavelengths, reactant_curve),
-                    epsilon_p=(product.wavelengths, product_curve),
-                )
-                result = run_analysis_pipeline(scenario_data)
-            results.append(result)
+    for reactant_curve, product_curve in bound_pairs:
+        if (np.array_equal(reactant_curve, reactant.nominal) and
+                np.array_equal(product_curve, product.nominal)):
+            result = nominal_result
+        else:
+            bound_data = replace(
+                data,
+                epsilon_r=(reactant.wavelengths, reactant_curve),
+                epsilon_p=(product.wavelengths, product_curve),
+            )
+            result = run_analysis_pipeline(bound_data)
+        results.append(result)
 
     values = np.asarray([result.yield_fit.values for result in results])
-    scenario_errors = np.asarray([result.yield_errors for result in results])
+    bound_errors = np.asarray([result.yield_errors for result in results])
     nominal_values = nominal_result.yield_fit.values
     epsilon_minimum = np.min(values, axis=0)
     epsilon_maximum = np.max(values, axis=0)
     epsilon_errors = np.maximum(
         nominal_values - epsilon_minimum, epsilon_maximum - nominal_values
     )
-    combined_lower = np.min(values - scenario_errors, axis=0)
-    combined_upper = np.max(values + scenario_errors, axis=0)
+    combined_lower = np.min(values - bound_errors, axis=0)
+    combined_upper = np.max(values + bound_errors, axis=0)
     combined_errors = np.maximum(
         nominal_values - combined_lower, combined_upper - nominal_values
     )
+    concentration_data = np.asarray([
+        result.concentration_fit.concentrations for result in results
+    ])
+    concentration_fits = np.asarray([
+        result.yield_fit.concentrations for result in results
+    ])
+    fitted_totals = concentration_fits.sum(axis=2)
+    fitted_fractions = np.divide(
+        concentration_fits[:, :, 0], fitted_totals,
+        out=np.zeros_like(fitted_totals), where=fitted_totals != 0,
+    )
+    fraction_residuals = np.asarray([
+        result.concentration_fit.fractions[:, 0] for result in results
+    ]) - fitted_fractions
+    residual_rmse = np.asarray([_absorbance_residual_rmse(result, data.path_length_cm)
+                                for result in results])
     summary = EpsilonUncertaintySummary(
         method="deterministic_extremes",
         error_metric=str(error_metric).lower(),
-        scenario_count=len(results),
+        bound_combination_count=len(results),
         reactant_source_schema=reactant.source_schema,
         product_source_schema=product.source_schema,
         reactant_source_path=reactant.source_path,
@@ -156,12 +194,29 @@ def run_with_epsilon_uncertainty(data, reactant, product, error_metric="sd"):
         combined_errors=combined_errors,
         epsilon_yield_minimum=epsilon_minimum,
         epsilon_yield_maximum=epsilon_maximum,
+        concentration_data_minimum=np.min(concentration_data, axis=0),
+        concentration_data_maximum=np.max(concentration_data, axis=0),
+        concentration_fit_minimum=np.min(concentration_fits, axis=0),
+        concentration_fit_maximum=np.max(concentration_fits, axis=0),
+        fraction_residual_minimum=np.min(fraction_residuals, axis=0),
+        fraction_residual_maximum=np.max(fraction_residuals, axis=0),
+        absorbance_residual_rmse_minimum=float(np.min(residual_rmse)),
+        absorbance_residual_rmse_maximum=float(np.max(residual_rmse)),
     )
     return replace(
         nominal_result,
         yield_errors=combined_errors,
         epsilon_uncertainty=summary,
     )
+
+
+def _absorbance_residual_rmse(result, path_length_cm):
+    epsilon = np.vstack((result.epsilon_r, result.epsilon_p))
+    fitted = result.yield_fit.concentrations @ epsilon * path_length_cm
+    if result.yield_fit.absorbance_correction is not None:
+        fitted = fitted + result.yield_fit.absorbance_correction
+    residual = result.absorbance.T - fitted
+    return float(np.sqrt(np.mean(residual ** 2)))
 
 
 def _column(frame, name, path):

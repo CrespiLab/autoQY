@@ -23,6 +23,7 @@ def write_figure(path, result, data, residual_percentile=100):
     if result.yield_fit.absorbance_correction is not None:
         fitted_absorbance = fitted_absorbance + result.yield_fit.absorbance_correction
     absorbance_residual = measured_absorbance - fitted_absorbance
+    uncertainty = result.epsilon_uncertainty
 
     blue, orange = "#346aa9", "#e16203"
     figure, axes = plt.subplots(
@@ -31,27 +32,55 @@ def write_figure(path, result, data, residual_percentile=100):
     )
     concentration, spectra, residual, heatmap = axes.flat
 
+    if uncertainty is not None:
+        for index, colour in enumerate((blue, orange)):
+            concentration.errorbar(
+                times, measured[:, index],
+                yerr=np.vstack((
+                    measured[:, index] - uncertainty.concentration_data_minimum[:, index],
+                    uncertainty.concentration_data_maximum[:, index] - measured[:, index],
+                )),
+                fmt="none", ecolor=colour, elinewidth=0.8, alpha=0.35, capsize=2,
+            )
+            concentration.fill_between(
+                times, uncertainty.concentration_fit_minimum[:, index],
+                uncertainty.concentration_fit_maximum[:, index],
+                color=colour, alpha=0.13,
+            )
+    nominal = " (nominal ε)" if uncertainty is not None else ""
     concentration.scatter(times, measured[:, 0], s=24, facecolors="none",
-                          edgecolors=blue, label="Reactant data")
+                          edgecolors=blue, label=f"Reactant data{nominal}")
     concentration.scatter(times, measured[:, 1], s=24, facecolors="none",
-                          edgecolors=orange, label="Product data")
-    concentration.plot(times, fitted[:, 0], color=blue, label="Reactant fit")
-    concentration.plot(times, fitted[:, 1], color=orange, label="Product fit")
-    concentration.set(title="Concentration fit", xlabel="Irradiation time (s)",
+                          edgecolors=orange, label=f"Product data{nominal}")
+    concentration.plot(times, fitted[:, 0], color=blue, label=f"Reactant fit{nominal}")
+    concentration.plot(times, fitted[:, 1], color=orange, label=f"Product fit{nominal}")
+    concentration.set(title=("Concentrations: nominal ε and ε-bound ranges"
+                             if uncertainty is not None else "Concentration fit"),
+                      xlabel="Irradiation time (s)",
                       ylabel="Concentration (mol/L)")
     concentration.legend(frameon=False, ncol=2)
 
-    residual.plot(times, fraction_residual, "o-", color=blue, markersize=4)
+    if uncertainty is not None:
+        residual.fill_between(
+            times, uncertainty.fraction_residual_minimum,
+            uncertainty.fraction_residual_maximum,
+            color=blue, alpha=0.16, label="ε-bound range",
+        )
+    residual.plot(times, fraction_residual, "o-", color=blue, markersize=4,
+                  label=f"Nominal ε residual" if uncertainty is not None else None)
     residual.axhline(0, color="black", linewidth=0.8)
     residual.set(title="Reactant fraction residual", xlabel="Irradiation time (s)",
                  ylabel="Fraction data - fit")
+    if uncertainty is not None:
+        residual.legend(frameon=False)
 
     normalization = Normalize(times.min(), times.max())
     colour_map = plt.get_cmap("RdBu_r")
     for time, spectrum in zip(times, measured_absorbance):
         spectra.plot(result.wavelengths, spectrum, color=colour_map(normalization(time)),
                      linewidth=1)
-    formatted = [format_value_uncertainty(value, error) for value, error in
+    formatted = [format_value_uncertainty(value, error, two_digit_threshold=2)
+                 for value, error in
                  zip(result.yield_fit.values * 100, result.yield_errors * 100)]
     phi_rp = "$\\Phi_{\\mathrm{R}\\rightarrow\\mathrm{P}}$"
     phi_pr = "$\\Phi_{\\mathrm{P}\\rightarrow\\mathrm{R}}$"
@@ -73,8 +102,15 @@ def write_figure(path, result, data, residual_percentile=100):
     image = heatmap.imshow(absorbance_residual, aspect="auto", cmap=colour_map,
                            vmin=-limit, vmax=limit, origin="upper",
                            extent=(*wavelength_limits, times[-1], times[0]))
-    heatmap.set(title="Absorbance residuals", xlabel="Wavelength (nm)",
-                ylabel="Irradiation time (s)")
+    heatmap_title = "Absorbance residuals"
+    if uncertainty is not None:
+        heatmap_title = (
+            "Absorbance residuals (nominal ε)\n"
+            f"ε-bound RMSE {uncertainty.absorbance_residual_rmse_minimum:.3g}–"
+            f"{uncertainty.absorbance_residual_rmse_maximum:.3g}"
+        )
+    heatmap.set(title=heatmap_title, xlabel="Wavelength (nm)",
+                 ylabel="Irradiation time (s)")
     heatmap.set_xlim(*wavelength_limits)
     figure.colorbar(image, ax=heatmap, label="Data - fit")
 

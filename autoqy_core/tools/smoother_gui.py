@@ -3,7 +3,9 @@
 from argparse import ArgumentParser
 import base64
 from pathlib import Path
-from threading import Timer
+import subprocess
+from threading import Lock, Thread, Timer
+import time
 import webbrowser
 
 import numpy as np
@@ -28,6 +30,33 @@ def create_app():
     assets = Path(__file__).parents[1] / "assets"
     app = Dash(__name__, assets_folder=str(assets), suppress_callback_exceptions=True)
     app.title = "AutoQY Spectral treatment"
+    window_state = {"close_requested_at": None}
+    window_lock = Lock()
+    app.server.config["AUTOQY_WINDOW_STATE"] = (window_state, window_lock)
+
+    @app.server.post("/_autoqy_heartbeat")
+    def autoqy_heartbeat():
+        with window_lock:
+            window_state["close_requested_at"] = None
+        return "", 204
+
+    @app.server.post("/_autoqy_window_closed")
+    def autoqy_window_closed():
+        with window_lock:
+            window_state["close_requested_at"] = time.monotonic()
+        return "", 204
+
+    app.index_string = """<!DOCTYPE html>
+<html><head>{%metas%}<title>{%title%}</title>{%favicon%}{%css%}</head>
+<body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer>
+<script>
+(() => {
+  const heartbeat = () => fetch('/_autoqy_heartbeat', {method: 'POST', keepalive: true});
+  heartbeat();
+  window.addEventListener('pageshow', heartbeat);
+  window.addEventListener('pagehide', () => navigator.sendBeacon('/_autoqy_window_closed'));
+})();
+</script></body></html>"""
     app.layout = html.Div(className="app-shell", children=[
         html.Header(className="app-header", children=[html.Div([
             html.P("AUTOQY CORE", className="eyebrow"),
@@ -47,6 +76,9 @@ def create_app():
                             html.Small("SpectraGryph .dat, Avantes .Abs8, TSV, or CSV"),
                         ]),
                     ),
+                    html.Button("Open files from folder", id="open-local-spectra",
+                                className="button button-secondary"),
+                    html.Small("Using this button retains the source folder as the default save location."),
                     html.Label("Text input format"),
                     dcc.Dropdown(
                         id="input-format", value="spectragryph", clearable=False,
@@ -130,10 +162,18 @@ def create_app():
                 html.Section(className="panel export-panel", children=[
                     html.P("4 · Output", className="step-label"),
                     html.H2("Export absorptivity dataset"),
-                    html.Button("Export epsilon TSV", id="export-epsilon",
+                    html.Label("Save folder"),
+                    html.Div(className="input-row", children=[
+                        dcc.Input(id="save-folder", type="text",
+                                  placeholder="Choose a save folder"),
+                        html.Button("Choose folder", id="choose-save-folder",
+                                    className="button button-secondary"),
+                    ]),
+                    html.Button("Save reactant epsilon TSV", id="export-epsilon",
                                 className="button button-primary", disabled=True),
                     html.Small("Includes processed absorbance, each epsilon spectrum, mean, SD, and SEM."),
-                    dcc.Download(id="download-epsilon"),
+                    html.Div(id="epsilon-save-message", className="message"),
+                    dcc.ConfirmDialog(id="confirm-epsilon-overwrite"),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
                     html.Summary([html.Span("5 · Optional", className="step-label"),
@@ -213,9 +253,10 @@ def create_app():
                         html.Small("Default: the primary product ε column is clipped at zero. "
                                    "The raw audit column is always preserved."),
                     ]),
-                    html.Button("Export NMR-derived epsilon TSV", id="export-nmr",
+                    html.Button("Save reactant + NMR-derived epsilon TSVs", id="export-nmr",
                                 className="button button-accent", disabled=True),
-                    dcc.Download(id="download-nmr"),
+                    html.Div(id="nmr-save-message", className="message"),
+                    dcc.ConfirmDialog(id="confirm-nmr-overwrite"),
                 ]),
             ]),
             html.Div(className="plot-column", children=[
@@ -240,22 +281,31 @@ def create_app():
         dcc.Store(id="epsilon-store"),
         dcc.Store(id="nmr-spectra-store"),
         dcc.Store(id="nmr-result-store"),
+        dcc.Store(id="source-folder-store"),
     ])
 
     @app.callback(
         Output("dataset-store", "data"), Output("load-message", "children"),
         Output("upload-spectra", "contents"), Output("upload-spectra", "filename"),
-        Output("load-error", "children"),
+        Output("load-error", "children"), Output("source-folder-store", "data"),
         Input("upload-spectra", "contents"), Input("clear-dataset", "n_clicks"),
+        Input("open-local-spectra", "n_clicks"),
         State("upload-spectra", "filename"), State("input-format", "value"),
         prevent_initial_call=True,
     )
-    def load(contents, _, filenames, format_name):
+    def load(contents, _, __, filenames, format_name):
         if ctx.triggered_id == "clear-dataset":
-            return None, "All spectra cleared.", None, None, ""
+            return None, "All spectra cleared.", None, None, "", None
         try:
+            if ctx.triggered_id == "open-local-spectra":
+                paths = _choose_files()
+                if not paths:
+                    return no_update, "File selection cancelled.", no_update, no_update, "", no_update
+                packed, message = _load_local_paths(paths, format_name)
+                source_folder = str(Path(paths[0]).resolve().parent)
+                return packed, message, None, None, "", source_folder
             if not contents:
-                return None, "Choose one or more files to begin.", no_update, no_update, ""
+                return None, "Choose one or more files to begin.", no_update, no_update, "", None
             contents = contents if isinstance(contents, list) else [contents]
             filenames = filenames if isinstance(filenames, list) else [filenames]
             restored = _try_load_autoqy_export(contents, filenames)
@@ -270,7 +320,7 @@ def create_app():
                           result.path_lengths_cm),
                     f"Restored {len(labels)} processed absorbance spectrum/spectra, "
                     "concentrations, and path lengths from an AutoQY epsilon TSV.",
-                    no_update, no_update, "",
+                    no_update, no_update, "", None,
                 )
             loaded = []
             for content, filename in zip(contents, filenames):
@@ -290,11 +340,22 @@ def create_app():
                 _pack(dataset, labels, filenames),
                 f"Loaded {len(filenames)} file(s), {len(labels)} spectrum/spectra, "
                 f"and {len(dataset.wavelengths)} common wavelengths{note}.",
-                no_update, no_update, "",
+                no_update, no_update, "", None,
             )
         except Exception as error:
             return (None, "Could not load the selected files.", no_update, no_update,
-                    f"Load error: {type(error).__name__}: {error}")
+                    f"Load error: {type(error).__name__}: {error}", no_update)
+
+    @app.callback(
+        Output("save-folder", "value"),
+        Input("source-folder-store", "data"), Input("choose-save-folder", "n_clicks"),
+        State("save-folder", "value"), prevent_initial_call=True,
+    )
+    def select_save_folder(source_folder, _, current_folder):
+        if ctx.triggered_id == "source-folder-store":
+            return source_folder
+        selected = _choose_folder(current_folder or source_folder)
+        return selected or no_update
 
     @app.callback(
         Output("wavelength-low", "value"), Output("wavelength-high", "value"),
@@ -419,19 +480,29 @@ def create_app():
                     f"Preview error: {type(error).__name__}: {error}")
 
     @app.callback(
-        Output("download-epsilon", "data"), Output("export-error", "children"),
-        Input("export-epsilon", "n_clicks"), State("epsilon-store", "data"),
+        Output("epsilon-save-message", "children"),
+        Output("confirm-epsilon-overwrite", "displayed"),
+        Output("confirm-epsilon-overwrite", "message"),
+        Output("export-error", "children"),
+        Input("export-epsilon", "n_clicks"),
+        Input("confirm-epsilon-overwrite", "submit_n_clicks"),
+        State("epsilon-store", "data"), State("save-folder", "value"),
         prevent_initial_call=True,
     )
-    def download(_, data):
+    def save_epsilon(_, __, data, folder):
         try:
             if not data:
                 raise ValueError("Calculate epsilon before exporting")
+            destination = _save_path(folder, "epsilon-spectra-reactant.tsv")
             result, labels = _unpack_epsilon(data)
-            return dict(content=export_epsilon_tsv(result, labels),
-                        filename="epsilon-spectra.tsv"), ""
+            if ctx.triggered_id == "export-epsilon" and destination.exists():
+                return (f"Existing file: {destination}", True,
+                        f"Overwrite {destination.name}?", "")
+            destination.write_text(export_epsilon_tsv(result, labels), encoding="utf-8")
+            return f"Saved {destination}", False, "", ""
         except Exception as error:
-            return no_update, f"Export error: {type(error).__name__}: {error}"
+            return ("Save failed.", False, "",
+                    f"Export error: {type(error).__name__}: {error}")
 
     @app.callback(
         Output("nmr-spectra-store", "data"), Output("nmr-load-message", "children"),
@@ -560,17 +631,35 @@ def create_app():
                     "status-message status-stop", "Preprocessing could not be applied.")
 
     @app.callback(
-        Output("download-nmr", "data"),
-        Input("export-nmr", "n_clicks"), State("nmr-result-store", "data"),
-        State("nmr-export-raw", "value"),
+        Output("nmr-save-message", "children"),
+        Output("confirm-nmr-overwrite", "displayed"),
+        Output("confirm-nmr-overwrite", "message"),
+        Input("export-nmr", "n_clicks"),
+        Input("confirm-nmr-overwrite", "submit_n_clicks"),
+        State("nmr-result-store", "data"), State("epsilon-store", "data"),
+        State("nmr-export-raw", "value"), State("save-folder", "value"),
         prevent_initial_call=True,
     )
-    def download_nmr(_, data, preserve_negative):
-        if not data:
-            return no_update
-        return dict(content=export_nmr_subtraction_tsv(
-                        _unpack_nmr(data), "on" in (preserve_negative or [])),
-                    filename="nmr-derived-product-epsilon.tsv")
+    def save_nmr(_, __, nmr_data, epsilon_data, preserve_negative, folder):
+        try:
+            if not nmr_data or not epsilon_data:
+                raise ValueError("Calculate reactant and NMR-derived epsilon before saving")
+            reactant_path = _save_path(folder, "epsilon-spectra-reactant.tsv")
+            product_path = _save_path(folder, "nmr-derived-product-epsilon.tsv")
+            existing = [path.name for path in (reactant_path, product_path) if path.exists()]
+            if ctx.triggered_id == "export-nmr" and existing:
+                return ("Existing file(s): " + ", ".join(existing), True,
+                        "Overwrite " + " and ".join(existing) + "?",)
+            epsilon_result, labels = _unpack_epsilon(epsilon_data)
+            reactant_text = export_epsilon_tsv(epsilon_result, labels)
+            product_text = export_nmr_subtraction_tsv(
+                _unpack_nmr(nmr_data), "on" in (preserve_negative or [])
+            )
+            reactant_path.write_text(reactant_text, encoding="utf-8")
+            product_path.write_text(product_text, encoding="utf-8")
+            return f"Saved {reactant_path.name} and {product_path.name} in {reactant_path.parent}", False, ""
+        except Exception as error:
+            return f"Save error: {type(error).__name__}: {error}", False, ""
 
     return app
 
@@ -629,6 +718,86 @@ def _combine_loaded(loaded):
     combined = SpectralDataset(target, np.arange(len(columns), dtype=float),
                                np.column_stack(columns), "combined", 0)
     return combined, _display_unique(labels), resampled
+
+
+def _load_local_paths(paths, format_name):
+    paths = [Path(path) for path in paths]
+    if len(paths) == 1 and paths[0].suffix.lower() == ".tsv":
+        try:
+            result, labels = load_epsilon_tsv(paths[0].read_text(encoding="utf-8-sig"))
+            dataset = SpectralDataset(
+                result.wavelengths, np.arange(len(labels), dtype=float),
+                result.absorbance, "autoqy_epsilon", 0,
+            )
+            return (_pack(dataset, labels, [paths[0].name], result.concentrations_m,
+                          result.path_lengths_cm),
+                    f"Restored {len(labels)} processed spectrum/spectra from {paths[0].name}.")
+        except (UnicodeDecodeError, ValueError):
+            pass
+    loaded = []
+    for path in paths:
+        selected_format = "avantes_abs8" if path.suffix.lower() == ".abs8" else format_name
+        loaded.append((load_spectral_bytes(path.read_bytes(), selected_format), path.name))
+    dataset, labels, resampled = _combine_loaded(loaded)
+    missing = sum(item.interpolated_values for item, _ in loaded)
+    notes = []
+    if missing:
+        notes.append(f"interpolated {missing} non-finite detector value(s)")
+    if resampled:
+        notes.append(f"resampled {resampled} spectrum/spectra to the first common grid")
+    note = f" ({'; '.join(notes)})" if notes else ""
+    return (_pack(dataset, labels, [path.name for path in paths]),
+            f"Loaded {len(paths)} file(s), {len(labels)} spectrum/spectra, "
+            f"and {len(dataset.wavelengths)} common wavelengths{note}.")
+
+
+def _choose_files(initial_directory=None):
+    initial = _powershell_quote(str(initial_directory or ""))
+    script = (
+        "Add-Type -AssemblyName System.Windows.Forms; "
+        "$dialog = New-Object System.Windows.Forms.OpenFileDialog; "
+        "$dialog.Multiselect = $true; "
+        "$dialog.Filter = 'Spectral files|*.dat;*.txt;*.tsv;*.csv;*.Abs8|All files|*.*'; "
+        f"if ('{initial}') {{ $dialog.InitialDirectory = '{initial}' }}; "
+        "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { "
+        "$dialog.FileNames | ForEach-Object { Write-Output $_ } }"
+    )
+    return _run_powershell_dialog(script)
+
+
+def _choose_folder(initial_directory=None):
+    initial = _powershell_quote(str(initial_directory or ""))
+    script = (
+        "Add-Type -AssemblyName System.Windows.Forms; "
+        "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog; "
+        f"if ('{initial}') {{ $dialog.SelectedPath = '{initial}' }}; "
+        "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { "
+        "Write-Output $dialog.SelectedPath }"
+    )
+    selected = _run_powershell_dialog(script)
+    return selected[0] if selected else None
+
+
+def _run_powershell_dialog(script):
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    completed = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-STA", "-Command", script],
+        check=True, capture_output=True, text=True, creationflags=flags,
+    )
+    return [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+
+
+def _powershell_quote(value):
+    return str(value).replace("'", "''")
+
+
+def _save_path(folder, filename):
+    if not folder:
+        raise ValueError("Choose a save folder")
+    directory = Path(folder).expanduser()
+    if not directory.is_dir():
+        raise ValueError(f"Save folder does not exist: {directory}")
+    return directory / filename
 
 
 def _read_concentrations(count, concentrations, path_lengths):
@@ -979,10 +1148,25 @@ def _style(figure, height):
 
 
 def run_server(host="127.0.0.1", port=8051, open_browser=True):
+    from werkzeug.serving import make_server
+
     app = create_app()
+    server = make_server(host, port, app.server, threaded=True)
+    window_state, window_lock = app.server.config["AUTOQY_WINDOW_STATE"]
+
+    def close_after_browser():
+        while True:
+            time.sleep(0.5)
+            with window_lock:
+                requested = window_state["close_requested_at"]
+            if requested is not None and time.monotonic() - requested >= 3:
+                server.shutdown()
+                return
+
+    Thread(target=close_after_browser, daemon=True).start()
     if open_browser:
         Timer(1, lambda: webbrowser.open(f"http://{host}:{port}")).start()
-    app.run(host=host, port=port, debug=False)
+    server.serve_forever()
 
 
 def main(argv=None):

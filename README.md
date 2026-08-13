@@ -68,6 +68,11 @@ Savitzky–Golay smoothing, prepare absorptivity spectra with wavelength-resolve
 errors, and perform NMR-guided PSS subtraction. The terminal functions remain
 available for reproducible or automated processing.
 
+Use **Open files from folder** to retain the source directory as the default
+save location. The final NMR save writes both the reactant epsilon TSV and the
+NMR-derived product TSV, and asks before replacing either existing file. Closing
+the GUI browser window also closes its local terminal process.
+
 Open **Desktop → AutoQY → AutoQY Spectral Treatment**, or run:
 
 ```powershell

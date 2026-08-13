@@ -49,8 +49,8 @@ def main(argv=None):
         output = run_analysis(config, args.output_directory)
         values = output.result.yield_fit.values * 100
         errors = output.result.yield_errors * 100
-        forward = format_value_uncertainty(values[0], errors[0])
-        backward = format_value_uncertainty(values[1], errors[1])
+        forward = format_value_uncertainty(values[0], errors[0], two_digit_threshold=2)
+        backward = format_value_uncertainty(values[1], errors[1], two_digit_threshold=2)
         print(f"Phi_R->P: {forward[0]} +/- {forward[1]}%")
         print(f"Phi_P->R: {backward[0]} +/- {backward[1]}%")
         for path in output.files:

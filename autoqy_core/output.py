@@ -7,14 +7,14 @@ import numpy as np
 import pandas as pd
 
 
-def format_value_uncertainty(value, uncertainty):
-    """Round an uncertainty to 1-2 significant digits and its value to the same place."""
+def format_value_uncertainty(value, uncertainty, two_digit_threshold=3):
+    """Round uncertainty and value to a scientifically matching decimal place."""
     value, uncertainty = float(value), abs(float(uncertainty))
     if not math.isfinite(uncertainty) or uncertainty == 0:
         return f"{value:g}", f"{uncertainty:g}"
     exponent = math.floor(math.log10(uncertainty))
     leading = uncertainty / 10 ** exponent
-    significant_digits = 2 if leading < 3 else 1
+    significant_digits = 2 if leading < two_digit_threshold else 1
     place = exponent - significant_digits + 1
     rounded_value = round(value, -place)
     rounded_uncertainty = round(uncertainty, -place)
@@ -29,7 +29,7 @@ def result_summary(result, data, irradiation_wavelength_nm):
     last_composition = last_composition / last_composition.sum() * 100
     extrapolated_pss = result.extrapolated_pss
     extrapolated_pss = extrapolated_pss / extrapolated_pss.sum() * 100
-    formatted = [format_value_uncertainty(value, error)
+    formatted = [format_value_uncertainty(value, error, two_digit_threshold=2)
                  for value, error in zip(values, errors)]
     summary = {
         "schema_version": 2,
@@ -71,7 +71,7 @@ def result_summary(result, data, irradiation_wavelength_nm):
         summary["epsilon_uncertainty"] = {
             "method": uncertainty.method,
             "error_metric": uncertainty.error_metric,
-            "scenario_count": uncertainty.scenario_count,
+            "bound_combination_count": uncertainty.bound_combination_count,
             "reactant_source_schema": uncertainty.reactant_source_schema,
             "product_source_schema": uncertainty.product_source_schema,
             "reactant_source_path": uncertainty.reactant_source_path,
@@ -88,6 +88,10 @@ def result_summary(result, data, irradiation_wavelength_nm):
             "quantum_yield_maximum_percent": _yield_pair(
                 uncertainty.epsilon_yield_maximum * 100
             ),
+            "absorbance_residual_rmse_range": {
+                "minimum": uncertainty.absorbance_residual_rmse_minimum,
+                "maximum": uncertainty.absorbance_residual_rmse_maximum,
+            },
         }
     return summary
 
@@ -115,7 +119,8 @@ Error component epsilon P_to_R (%): {components['epsilon']['P_to_R']:g}
 Epsilon uncertainty method: {metadata['method']}
 Reactant epsilon error metric: {metadata['reactant_error_metric']}
 Product epsilon error metric: {metadata['product_error_metric']}
-Epsilon scenarios: {metadata['scenario_count']}
+Epsilon bound combinations: {metadata['bound_combination_count']}
+Reactant epsilon values constrained to zero: {metadata['constrained_negative_points']['reactant']}
 NMR epsilon values constrained to zero: {metadata['constrained_negative_points']['product']}
 
 """
@@ -158,7 +163,7 @@ def write_detailed_data(stem, result, data):
                                  where=fitted_totals[:, None] != 0)
     concentration_residual = measured - fitted
     fraction_residual = measured_fractions - fitted_fractions
-    traces = pd.DataFrame({
+    columns = {
         "time_s": data.timestamps,
         "reactant_concentration_data_M": measured[:, 0],
         "product_concentration_data_M": measured[:, 1],
@@ -172,7 +177,29 @@ def write_detailed_data(stem, result, data):
         "product_fraction_fit": fitted_fractions[:, 1],
         "reactant_fraction_residual": fraction_residual[:, 0],
         "product_fraction_residual": fraction_residual[:, 1],
-    })
+    }
+    uncertainty = result.epsilon_uncertainty
+    if uncertainty is not None:
+        for species, index in (("reactant", 0), ("product", 1)):
+            columns[f"{species}_concentration_data_epsilon_min_M"] = (
+                uncertainty.concentration_data_minimum[:, index]
+            )
+            columns[f"{species}_concentration_data_epsilon_max_M"] = (
+                uncertainty.concentration_data_maximum[:, index]
+            )
+            columns[f"{species}_concentration_fit_epsilon_min_M"] = (
+                uncertainty.concentration_fit_minimum[:, index]
+            )
+            columns[f"{species}_concentration_fit_epsilon_max_M"] = (
+                uncertainty.concentration_fit_maximum[:, index]
+            )
+        columns["reactant_fraction_residual_epsilon_min"] = (
+            uncertainty.fraction_residual_minimum
+        )
+        columns["reactant_fraction_residual_epsilon_max"] = (
+            uncertainty.fraction_residual_maximum
+        )
+    traces = pd.DataFrame(columns)
     traces_path = stem.parent / f"{stem.name}_traces.tsv"
     traces.to_csv(traces_path, sep="\t", index=False)
 
