@@ -160,8 +160,9 @@ def reconstruct_product_from_nmr(wavelengths, reactant_absorbance, pss_absorbanc
     """Infer product epsilon from a PSS spectrum and its NMR composition.
 
     Both absorbance spectra are divided by the reactant absorbance maximum. The
-    PSS trace is then placed on the reactant-epsilon scale before the mixture is
-    resolved as epsilon_PSS = f_R epsilon_R + (1-f_R) epsilon_P.
+    normalized product is resolved directly as
+    N_P = (N_PSS - f_R N_R) / (1 - f_R), then placed on the reactant-epsilon
+    scale. This keeps the subtraction entirely within the shared normalization.
     """
     wavelengths = np.asarray(wavelengths, float)
     reactant_absorbance = np.asarray(reactant_absorbance, float)
@@ -200,12 +201,15 @@ def reconstruct_product_from_nmr(wavelengths, reactant_absorbance, pss_absorbanc
 
     def reconstruct(epsilon_curve, selected_fraction):
         scale = float(np.max(epsilon_curve))
+        reactant = normalized_reactant * scale
         mixture = normalized_pss * scale
-        product = (mixture - selected_fraction * epsilon_curve) / (1 - selected_fraction)
-        return mixture, product
+        product = (mixture - selected_fraction * reactant) / (1 - selected_fraction)
+        return reactant, mixture, product
 
-    reconstructed_pss, nominal = reconstruct(reactant_epsilon.mean, fraction)
-    candidates = [reconstruct(curve, selected_fraction)[1]
+    reconstructed_reactant, reconstructed_pss, nominal = reconstruct(
+        reactant_epsilon.mean, fraction
+    )
+    candidates = [reconstruct(curve, selected_fraction)[2]
                   for curve in epsilon_scenarios for selected_fraction in fractions]
     raw_lower = np.min(candidates, axis=0)
     raw_upper = np.max(candidates, axis=0)
@@ -213,10 +217,9 @@ def reconstruct_product_from_nmr(wavelengths, reactant_absorbance, pss_absorbanc
     upper = np.maximum(raw_upper, 0.0)
     error_lower = np.abs(nominal - lower)
     error_upper = np.abs(upper - nominal)
-    scale = float(np.max(reactant_epsilon.mean))
     return NMRSubtractionResult(
         wavelengths, normalized_reactant, normalized_pss,
-        reactant_epsilon.mean, reconstructed_pss, nominal,
+        reconstructed_reactant, reconstructed_pss, nominal,
         lower, upper, error_lower, error_upper,
         int(np.count_nonzero(nominal < 0)),
         int(np.count_nonzero((raw_lower < 0) | (raw_upper < 0))),

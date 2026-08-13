@@ -140,7 +140,9 @@ def create_app():
                                   "NMR-guided PSS subtraction"]),
                     html.P("Load one UV–Vis dataset containing the full irradiation sequence. "
                            "The first spectrum is used as pure reactant and the last spectrum "
-                           "as the final PSS.", className="helper-text"),
+                           "as the final PSS. Subtraction is performed in the shared normalized "
+                           "space as (PSS − x · reactant) / (1 − x).",
+                           className="helper-text"),
                     dcc.Upload(
                         id="nmr-upload", className="upload-box compact-upload", multiple=False,
                         children=html.Div([
@@ -546,8 +548,9 @@ def create_app():
                            "visible; uncertainty bounds are constrained to zero.")
                 status = "status-message status-warning"
             else:
-                message = ("Product epsilon reconstructed. The band combines reactant sample SD "
-                           "and the selected NMR percentage-point error by min/max propagation.")
+                message = ("Product epsilon reconstructed from normalized "
+                           "(PSS − x · reactant) / (1 − x). The band combines the "
+                           "reactant epsilon scale SD and selected NMR error by min/max propagation.")
                 status = "status-message status-ok"
             return (figure, {"display": "block"}, message, _pack_nmr(result), False,
                     status, processing_message)
