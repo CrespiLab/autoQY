@@ -34,7 +34,7 @@ TIMESTAMP_INPUT = ("timestamps", "Irradiation timestamps")
 
 def create_app():
     try:
-        from dash import ALL, Dash, Input, Output, State, ctx, dcc, html
+        from dash import ALL, Dash, Input, Output, State, ctx, dcc, html, no_update
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
     except ImportError as error:
@@ -70,6 +70,16 @@ def create_app():
   heartbeat();
   window.addEventListener('pageshow', heartbeat);
   window.addEventListener('pagehide', () => navigator.sendBeacon('/_autoqy_analysis_window_closed'));
+  document.addEventListener('click', (event) => {
+    const popup = event.target.closest('.info-popup');
+    if (popup) {
+      event.preventDefault();
+      event.stopPropagation();
+      popup.focus();
+    } else if (document.activeElement?.classList.contains('info-popup')) {
+      document.activeElement.blur();
+    }
+  }, true);
 })();
 </script></body></html>"""
 
@@ -99,6 +109,17 @@ def create_app():
             html.Div([html.Label(label_b), component_b]),
         ])
 
+    def info_popup(text):
+        return html.Span(className="info-popup", tabIndex=0, children=[
+            html.Span("i", className="info-popup-icon", **{"aria-hidden": "true"}),
+            html.Span(text, className="info-popup-content"),
+        ])
+
+    def section_title(title, information):
+        return html.Div(className="section-title-row", children=[
+            html.H2(title), info_popup(information),
+        ])
+
     def file_card(name, label, timestamp=False):
         formats = (("ahk_csv", "AHK CSV"), ("simple_csv", "Simple CSV"),
                    ("generic_delimited", "Generic delimited")) if timestamp else (
@@ -123,21 +144,30 @@ def create_app():
 
     default_folder = str(Path.cwd())
     empty = _empty_figure(go, "Run a validated analysis to display this plot")
+
+    def analysis_graph(name):
+        return dcc.Graph(
+            id=name, figure=empty, responsive=True,
+            style={"height": "740px", "minHeight": "740px"},
+        )
     app.layout = html.Div(className="app-shell analysis-app", children=[
         html.Header(className="app-header", children=[
-            html.Div([
-                html.P("AUTOQY CORE", className="eyebrow"),
+            html.Div(className="analysis-header-brand", children=[
+                html.Img(src="/assets/autoqy-logo.svg", alt="AutoQY",
+                         className="analysis-header-logo"),
                 html.H1("Quantum-yield analysis"),
-                html.P("Build, validate, run, and inspect a reproducible analysis.json.",
-                       className="subtitle"),
             ]),
             html.Div("Local session", className="local-badge"),
         ]),
         html.Main(className="workspace analysis-workspace", children=[
             html.Aside(className="control-column analysis-controls", children=[
-                html.Details(open=True, className="panel tool-details", children=[
+                html.Details(open=False, className="panel tool-details", children=[
                     html.Summary([html.Span("1 · Project", className="step-label"),
-                                  html.Span("JSON and tools")]),
+                                  html.Span("JSON and tools"),
+                                  info_popup(
+                                      "Load or save analysis.json and open Spectral Treatment. "
+                                      "Relative input and output paths are resolved from the selected JSON base folder."
+                                  )]),
                     html.Button("Load existing analysis.json", id="load-analysis-json",
                                 n_clicks=0, className="button button-secondary"),
                     html.Label("JSON base folder"),
@@ -146,26 +176,64 @@ def create_app():
                         html.Button("Choose", id="choose-analysis-folder", n_clicks=0,
                                     className="button button-secondary compact-button"),
                     ]),
-                    html.P("Relative input and output paths are resolved from this folder.",
-                           className="helper-text"),
                     html.Button("Open Spectral Treatment", id="launch-spectral-treatment",
                                 n_clicks=0, className="button button-accent"),
                     html.Div(id="tool-message", className="message"),
                     html.Div(id="load-analysis-message", className="message"),
                 ]),
-                html.Details(open=True, className="panel tool-details", children=[
+                html.Details(open=False, className="panel tool-details", children=[
                     html.Summary([html.Span("2 · Identity and data", className="step-label"),
-                                  html.Span("Experiment files")]),
+                                  html.Span("Experiment files"),
+                                  info_popup(
+                                      "Select the time-resolved absorbance matrix, reactant and product "
+                                      "molar-absorptivity spectra, LED emission, and irradiation timestamps."
+                                  )]),
                     pair("Analysis ID", field("analysis_id", type="text", value="new_analysis"),
                          "Output stem", field("output_stem", type="text", value="AutoQY_results")),
                     pair("Reactant name", field("reactant_name", type="text", value="reactant"),
                          "Product name", field("product_name", type="text", value="product")),
-                    *[file_card(name, label) for name, label in SPECTRAL_INPUTS],
+                    file_card("measurement_spectra", "Measurement spectra"),
+                    html.Details(open=False, className="nested-tool input-file-group", children=[
+                        html.Summary(["Molar absorptivity spectra", info_popup(
+                            "Reactant and product ε spectra must overlap the measurement wavelength range. "
+                            "AutoQY Spectral Treatment TSV files can also carry wavelength-resolved errors."
+                        )]),
+                        file_card("reactant_absorptivity", "Reactant molar absorptivity"),
+                        file_card("product_absorptivity", "Product molar absorptivity"),
+                    ]),
+                    html.Details(open=False, className="nested-tool input-file-group", children=[
+                        html.Summary(["LED emission", info_popup(
+                            "The complete LED spectrum is processed and integrated in the photon-flux calculation."
+                        )]),
+                        file_card("led_emission", "LED emission spectrum"),
+                        html.Details(open=False, className="nested-tool led-processing-panel", children=[
+                            html.Summary(["Processing", info_popup(
+                                "These controls apply only to the LED spectrum. Time-resolved absorbance "
+                                "preprocessing remains in Spectral Treatment."
+                            )]),
+                            pair("Wavelength start (nm)",
+                                 number("wavelength_low", 250, step="any"),
+                                 "Wavelength end (nm)",
+                                 number("wavelength_high", 800, step="any")),
+                            pair("Savitzky–Golay window (points)",
+                                 number("led_window", 12, min=1, step=1),
+                                 "Polynomial order",
+                                 number("led_order", 3, min=0, step=1)),
+                            toggle("led_baseline", "Baseline-correct LED emission", True),
+                            html.Label("Baseline exclusion (FWHM multiplier)"),
+                            number("baseline_multiplier", 10, min=0, step="any"),
+                        ]),
+                    ]),
                     file_card(*TIMESTAMP_INPUT, timestamp=True),
                 ]),
-                html.Details(open=True, className="panel tool-details", children=[
+                html.Details(open=False, className="panel tool-details", children=[
                     html.Summary([html.Span("3 · Experiment", className="step-label"),
-                                  html.Span("Physical parameters")]),
+                                  html.Span("Physical parameters"),
+                                  info_popup(
+                                      "Volume, path length, power, power error, and thermal rate enter the model. "
+                                      "Irradiation wavelength is metadata and an LED consistency marker; the "
+                                      "calculation integrates the full processed LED spectrum."
+                                  )]),
                     pair("Sample volume", html.Div(className="volume-input-row", children=[
                              number("volume_value", 3000, min=0, step="any"),
                              dropdown("volume_unit", (("ul", "µL"), ("ml", "mL")), "ul"),
@@ -180,21 +248,12 @@ def create_app():
                     html.Div(id="physical-parameter-preview", className="message"),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
-                    html.Summary([html.Span("4 · Processing", className="step-label"),
-                                  html.Span("Wavelength and LED")]),
-                    pair("Wavelength start (nm)", number("wavelength_low", 250, step="any"),
-                         "Wavelength end (nm)", number("wavelength_high", 800, step="any")),
-                    pair("LED Savitzky–Golay window (points)", number("led_window", 12, min=1, step=1),
-                         "LED polynomial order", number("led_order", 3, min=0, step=1)),
-                    toggle("led_baseline", "Baseline-correct LED emission", True),
-                    html.Label("Baseline exclusion (FWHM multiplier)"),
-                    number("baseline_multiplier", 10, min=0, step="any"),
-                    html.P("This LED-only smoothing is separate from Spectral Treatment.",
-                           className="helper-text"),
-                ]),
-                html.Details(open=True, className="panel tool-details", children=[
-                    html.Summary([html.Span("5 · Fit", className="step-label"),
-                                  html.Span("Kinetic model")]),
+                    html.Summary([html.Span("4 · Fit", className="step-label"),
+                                  html.Span("Kinetic model"),
+                                  info_popup(
+                                      "Choose the kinetic fitting formulation, starting quantum yields, and bounds. "
+                                      "Method-specific controls refine emission, regularization, or full-spectrum fitting."
+                                  )]),
                     html.Label("Method"),
                     dropdown("fit_method", (
                         ("concentrations", "Concentrations (independent NNLS)"),
@@ -207,7 +266,11 @@ def create_app():
                     pair("Lower Φ bound", number("yield_min", 0.0, min=0, step="any"),
                          "Upper Φ bound", number("yield_max", 1.0, min=0, step="any")),
                     html.Details(className="nested-tool", children=[
-                        html.Summary("Method-specific controls"),
+                        html.Summary(["Method-specific controls", info_popup(
+                            "Emission threshold applies to the legacy emission fit; regularization strength "
+                            "applies to regularized concentrations; baseline order and robust-loss scale apply "
+                            "to the full-spectrum ODE fit. Expected PSS is an optional diagnostic reference."
+                        )]),
                         html.Label("Emission threshold fraction"),
                         number("emission_threshold", 0.01, min=0, max=1, step="any"),
                         html.Label("Concentration regularization strength"),
@@ -222,8 +285,13 @@ def create_app():
                     ]),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
-                    html.Summary([html.Span("6 · Uncertainty", className="step-label"),
-                                  html.Span("Molar absorptivity")]),
+                    html.Summary([html.Span("5 · Uncertainty", className="step-label"),
+                                  html.Span("Molar absorptivity"),
+                                  info_popup(
+                                      "Deterministic ε propagation requires AutoQY Spectral Treatment TSV files "
+                                      "for both species. Choose standard deviation or standard error as the "
+                                      "wavelength-resolved bound metric."
+                                  )]),
                     html.Label("ε propagation"),
                     dropdown("epsilon_method", (
                         ("none", "Off (default)"),
@@ -232,12 +300,14 @@ def create_app():
                     html.Label("Repeat-spectrum error metric"),
                     dropdown("epsilon_metric", (("sd", "Standard deviation"),
                                                  ("sem", "Standard error")), "sd"),
-                    html.P("Deterministic bounds require AutoQY Spectral Treatment TSV files for both ε spectra.",
-                           className="helper-text"),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
-                    html.Summary([html.Span("7 · Output", className="step-label"),
-                                  html.Span("Files and display")]),
+                    html.Summary([html.Span("6 · Output", className="step-label"),
+                                  html.Span("Files and display"),
+                                  info_popup(
+                                      "Choose the results folder, exported formats, overwrite behavior, "
+                                      "portable relative paths, and residual heatmap color scaling."
+                                  )]),
                     html.Label("Results directory"),
                     field("output_directory", type="text", value="results"),
                     html.Label("Residual color percentile"),
@@ -251,7 +321,15 @@ def create_app():
                     toggle("relative_paths", "Save absolute inputs as paths relative to JSON", True),
                 ]),
                 html.Section(className="panel action-panel", children=[
-                    html.P("8 · Analyze", className="step-label"),
+                    html.Div(className="action-title-row", children=[
+                        html.P("7 · Analyze", className="step-label"),
+                        info_popup(
+                            "Compare fit methods runs independent concentrations, regularized concentrations, "
+                            "and full-spectrum ODE fits on identical inputs. It disables ε uncertainty, omits "
+                            "the legacy emission fit, writes no files, and compares quantum yields plus fraction "
+                            "and absorbance residuals."
+                        ),
+                    ]),
                     html.Div(className="action-grid", children=[
                         html.Button("Save JSON", id="save-analysis-json", n_clicks=0,
                                     className="button button-secondary"),
@@ -276,27 +354,46 @@ def create_app():
                              id="result-fit", className="result-card result-card-neutral"),
                 ]),
                 html.Section(className="panel diagnostic-panel", children=[
-                    html.H2("Preflight and fit health"),
-                    html.Div("Validate or run to inspect the inputs.", id="preflight-checks",
+                    section_title(
+                        "Preprocessing and fit diagnostics",
+                        "Green means no automatic threshold was crossed; amber asks for inspection; "
+                        "red indicates invalid inputs or a strongly unstable fit. Thresholds: volume "
+                        "amber below 50 µL; missing alignment or overlap red; thermal rate amber when "
+                        "its half-life is shorter than one interval or one tenth of the experiment; "
+                        "spectral condition number amber 10–30 and red above 30; initial product amber "
+                        "above 2%; fraction, absorbance, or conservation error amber above 2% and red "
+                        "above 5%; parameter sensitivity amber at 10⁶–10⁸ or a yield bound and red "
+                        "above 10⁸ or optimizer failure; response time amber beyond two intervals or "
+                        "25%; expected PSS amber beyond 5 percentage points."
+                    ),
+                    html.Div("Validate or run to inspect the inputs.", id="diagnostic-checks",
                              className="diagnostic-list"),
                 ]),
                 html.Section(className="panel comparison-panel", children=[
-                    html.H2("Fit-method comparison"),
-                    html.Div("Use Compare fit methods to run nominal fits without ε propagation.",
-                             id="method-comparison", className="helper-text"),
+                    section_title(
+                        "Fit-method comparison",
+                        "Runs three fits with the same data and nominal ε spectra. It reports "
+                        "optimizer-and-power uncertainty, time-trace fraction RMSE, full-spectrum "
+                        "absorbance RMSE, and explicit optimizer flags. Fraction RMSE compares "
+                        "recovered and fitted reactant fractions over time; absorbance RMSE compares "
+                        "all measured and reconstructed absorbance points. Lower is better, but also "
+                        "inspect residual structure and method assumptions. ε uncertainty is disabled "
+                        "and no result files are written."
+                    ),
+                    html.Div("", id="method-comparison", className="helper-text"),
                 ]),
                 html.Section(className="plot-panel analysis-plot-panel", children=[
-                    dcc.Tabs(id="analysis-plot-tabs", value="concentrations", children=[
+                    dcc.Tabs(id="analysis-plot-tabs", value="spectra", children=[
                         dcc.Tab(label="Concentrations", value="concentrations",
-                                children=[dcc.Graph(id="concentration-figure", figure=empty)]),
+                                children=[analysis_graph("concentration-figure")]),
                         dcc.Tab(label="Fraction residual", value="fraction-residual",
-                                children=[dcc.Graph(id="fraction-figure", figure=empty)]),
-                        dcc.Tab(label="Spectra", value="spectra",
-                                children=[dcc.Graph(id="spectra-figure", figure=empty)]),
-                        dcc.Tab(label="Input compatibility", value="input-compatibility",
-                                children=[dcc.Graph(id="input-diagnostic-figure", figure=empty)]),
+                                children=[analysis_graph("fraction-figure")]),
+                        dcc.Tab(label="Preprocessing", value="spectra",
+                                children=[analysis_graph("spectra-figure")]),
+                        dcc.Tab(label="References and reconstruction", value="input-compatibility",
+                                children=[analysis_graph("input-diagnostic-figure")]),
                         dcc.Tab(label="Absorbance residuals", value="absorbance-residuals",
-                                children=[dcc.Graph(id="residual-heatmap", figure=empty)]),
+                                children=[analysis_graph("residual-heatmap")]),
                     ]),
                 ]),
                 html.Section(className="panel", children=[
@@ -317,6 +414,19 @@ def create_app():
             ]),
         ]),
     ])
+
+    @app.callback(
+        Output("analysis-plot-tabs", "value"),
+        Input("validate-analysis", "n_clicks"),
+        Input("run-analysis", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def select_analysis_plot(_, __):
+        if ctx.triggered_id == "validate-analysis":
+            return "spectra"
+        if ctx.triggered_id == "run-analysis":
+            return "concentrations"
+        return no_update
 
     @app.callback(
         Output({"type": "analysis-field", "name": ALL}, "value"),
@@ -407,7 +517,7 @@ def create_app():
         Output("spectra-figure", "figure"),
         Output("input-diagnostic-figure", "figure"),
         Output("residual-heatmap", "figure"),
-        Output("preflight-checks", "children"),
+        Output("diagnostic-checks", "children"),
         Output("method-comparison", "children"),
         Output("analysis-output-files", "children"),
         Output("analysis-python-error", "children"),
@@ -425,7 +535,7 @@ def create_app():
         blank_back = [html.Span("P → R"), html.Strong("—"), html.Small("Quantum yield")]
         blank_fit = [html.Span("Fit"), html.Strong("—"), html.Small("Not run")]
         blank_figures = [_empty_figure(go, "Run a validated analysis to display this plot")] * 5
-        blank_comparison = "Use Compare fit methods to run nominal fits without ε propagation."
+        blank_comparison = ""
         try:
             document = _configuration(values)
             base = Path(values.get("config_folder") or Path.cwd()).expanduser().resolve()
@@ -434,18 +544,21 @@ def create_app():
             with warnings.catch_warnings(record=True) as input_warnings:
                 warnings.simplefilter("always")
                 input_checks = _input_checks(config)
+                preprocessing_figure = _preprocessing_figure(
+                    go, make_subplots, config
+                )
             input_checks.extend({
                 "level": "warning",
                 "title": "Input processing warning",
                 "body": f"{item.category.__name__}: {item.message}",
             } for item in input_warnings)
-            preflight = _render_checks(html, input_checks)
+            diagnostics = _render_checks(html, input_checks)
             action = ctx.triggered_id
             if action == "save-analysis-json":
                 selected = _choose_save_json(base, "analysis.json")
                 if not selected:
                     return ("Save cancelled.", "message", blank_card, blank_back, blank_fit,
-                            *blank_figures, preflight, blank_comparison,
+                            *blank_figures, diagnostics, blank_comparison,
                             "No analysis was run.", "")
                 target = Path(selected)
                 saved = _portable_document(document, target.parent) if _on(values, "relative_paths") else document
@@ -453,15 +566,15 @@ def create_app():
                 target.write_text(json.dumps(saved, indent=2) + "\n", encoding="utf-8")
                 return (f"Saved and validated {target}", "message status-message status-ok",
                         blank_card, blank_back, blank_fit, *blank_figures,
-                        preflight, blank_comparison, html.Code(str(target)), "")
+                        diagnostics, blank_comparison, html.Code(str(target)), "")
             if action == "validate-analysis":
                 has_stop = any(item["level"] == "stop" for item in input_checks)
                 has_warning = any(item["level"] == "warning" for item in input_checks)
                 if has_stop:
-                    validation_message = "Configuration loaded, but preflight found blocking concerns."
+                    validation_message = "Configuration loaded, but preprocessing found blocking concerns."
                     validation_class = "message status-message status-stop"
                 elif has_warning:
-                    validation_message = "Configuration valid with preflight warnings."
+                    validation_message = "Configuration valid with preprocessing warnings."
                     validation_class = "message status-message status-warning"
                 else:
                     validation_message = "Configuration valid. All referenced files and settings passed validation."
@@ -469,8 +582,10 @@ def create_app():
                 warning_text = "\n".join(
                     f"{item.category.__name__}: {item.message}" for item in input_warnings
                 )
+                validation_figures = list(blank_figures)
+                validation_figures[2] = preprocessing_figure
                 return (validation_message, validation_class, blank_card, blank_back, blank_fit,
-                        *blank_figures, preflight, blank_comparison,
+                        *validation_figures, diagnostics, blank_comparison,
                         "No analysis was run.", warning_text)
 
             if action == "compare-fit-methods":
@@ -482,10 +597,10 @@ def create_app():
                     for item in caught_warnings
                 )
                 return (
-                    "Nominal fit-method comparison completed.",
+                    "Fit-method comparison completed with ε uncertainty disabled.",
                     "message status-message status-ok",
                     blank_card, blank_back, blank_fit, *blank_figures,
-                    preflight, _render_comparison(html, comparison, document["fit"]["method"]),
+                    diagnostics, _render_comparison(html, comparison, document["fit"]["method"]),
                     "No result files were generated by the comparison.", warning_text,
                 )
 
@@ -499,15 +614,16 @@ def create_app():
             figures = _interactive_figures(
                 go, make_subplots, output.result, output.data,
                 document["plots"]["absorbance_residual_percentile"],
+                document["experiment"]["irradiation_wavelength_nm"],
             )
             rp = _yield_card(html, "R → P", summary, "R_to_P")
             pr = _yield_card(html, "P → R", summary, "P_to_R")
             fit = [html.Span("Fit"), html.Strong(_method_label(output.result.fit_method)),
                    html.Small(_fit_note(summary))]
             files = [html.Code(str(path)) for path in output.files]
-            health_checks = _fit_health_checks(output.result, output.data, document)
-            all_checks = input_checks + health_checks
-            preflight = _render_checks(html, all_checks)
+            fit_checks = _fit_diagnostic_checks(output.result, output.data, document)
+            all_checks = input_checks + fit_checks
+            diagnostics = _render_checks(html, all_checks)
             warning_text = "\n".join(
                 f"{item.category.__name__}: {item.message}"
                 for item in [*input_warnings, *caught_warnings]
@@ -517,16 +633,16 @@ def create_app():
                 item["level"] == "warning" for item in all_checks
             )
             if has_stop:
-                message = "Analysis completed, but the fit is not reliable. Review fit health."
+                message = "Analysis completed, but a fit diagnostic is red. Review the details."
                 message_class = "message status-message status-stop"
             elif has_warning:
-                message = "Analysis completed with warnings. Review preflight and fit health."
+                message = "Analysis completed with warnings. Review preprocessing and fit diagnostics."
                 message_class = "message status-message status-warning"
             else:
                 message = "Analysis completed successfully."
                 message_class = "message status-message status-ok"
             return (message, message_class,
-                    rp, pr, fit, *figures, preflight, blank_comparison,
+                    rp, pr, fit, *figures, diagnostics, blank_comparison,
                     files, warning_text)
         except Exception as error:
             message = f"{type(error).__name__}: {error}"
@@ -707,6 +823,95 @@ def _physical_parameter_preview(values):
         return f"Cannot interpret physical parameters: {error}", "message status-message status-stop"
 
 
+def _preprocessing_figure(go, make_subplots, config):
+    values = config.values
+    processing = values["processing"]
+    wavelengths, absorbance = load_spectra(
+        config.input_path("measurement_spectra"),
+        input_format(config, "measurement_spectra"),
+    )
+    led_wavelengths, led_values = load_spectrum(
+        config.input_path("led_emission"), input_format(config, "led_emission")
+    )
+    smoothing = processing["led_smoothing"]
+    baseline = processing["led_baseline"]
+    led_processed = process_led(
+        led_wavelengths, led_values, baseline["enabled"],
+        smoothing["window_points"], smoothing["polynomial_order"],
+        baseline["exclusion_fwhm_multiplier"],
+    )
+    return _spectra_led_figure(
+        go, make_subplots, wavelengths, absorbance,
+        led_wavelengths, led_processed,
+        tuple(processing["wavelength_range_nm"]),
+        values["experiment"]["irradiation_wavelength_nm"],
+    )
+
+
+def _spectra_led_figure(go, make_subplots, wavelengths, absorbance,
+                        led_wavelengths, led_values, wavelength_limits,
+                        irradiation_wavelength):
+    wavelengths = np.asarray(wavelengths, float)
+    absorbance = np.asarray(absorbance, float)
+    low, high = map(float, wavelength_limits)
+    wavelength_mask = (wavelengths >= low) & (wavelengths <= high)
+    if not np.any(wavelength_mask):
+        wavelength_mask = np.ones_like(wavelengths, dtype=bool)
+    display_wavelengths = wavelengths[wavelength_mask]
+    display_absorbance = absorbance[wavelength_mask]
+
+    figure = make_subplots(specs=[[{"secondary_y": True}]])
+    count = display_absorbance.shape[1]
+    intermediate = np.arange(1, max(count - 1, 1), dtype=int)
+    if len(intermediate) > 60:
+        intermediate = np.unique(np.linspace(
+            intermediate[0], intermediate[-1], 60, dtype=int
+        ))
+    for position, index in enumerate(intermediate):
+        figure.add_trace(go.Scatter(
+            x=display_wavelengths, y=display_absorbance[:, index], mode="lines",
+            name="Intermediate spectra", legendgroup="intermediate",
+            showlegend=position == 0,
+            line={"color": "rgba(108,114,128,0.38)", "width": 1},
+            hovertemplate=f"spectrum={index + 1}<br>λ=%{{x:.1f}} nm<br>A=%{{y:.5g}}<extra></extra>",
+        ), secondary_y=False)
+    figure.add_trace(go.Scatter(
+        x=display_wavelengths, y=display_absorbance[:, 0], mode="lines",
+        name="Initial spectrum", line={"color": "#2d6f8e", "width": 2.4},
+    ), secondary_y=False)
+    if count > 1:
+        figure.add_trace(go.Scatter(
+            x=display_wavelengths, y=display_absorbance[:, -1], mode="lines",
+            name="Final spectrum", line={"color": "#d67b36", "width": 2.4},
+        ), secondary_y=False)
+
+    led_wavelengths = np.asarray(led_wavelengths, float)
+    led_values = np.asarray(led_values, float)
+    led_scale = max(float(np.max(np.abs(led_values))), np.finfo(float).eps)
+    figure.add_trace(go.Scatter(
+        x=led_wavelengths, y=led_values / led_scale, mode="lines",
+        name="Processed LED (normalized)",
+        line={"color": "#8a5a9b", "width": 2},
+    ), secondary_y=True)
+    irradiation_wavelength = float(irradiation_wavelength)
+    if display_wavelengths[0] <= irradiation_wavelength <= display_wavelengths[-1]:
+        figure.add_vline(
+            x=irradiation_wavelength, line={"color": "#725c42", "dash": "dot"},
+            annotation_text=f"Nominal {irradiation_wavelength:g} nm",
+            annotation_position="top left",
+        )
+    _style_figure(
+        figure, "Preprocessing preview: measured spectra and processed LED",
+        "Wavelength (nm)", "Absorbance",
+    )
+    figure.update_yaxes(title_text="Absorbance", secondary_y=False)
+    figure.update_yaxes(title_text="LED intensity (normalized)", secondary_y=True)
+    figure.update_xaxes(range=[float(display_wavelengths[0]),
+                               float(display_wavelengths[-1])])
+    figure.update_layout(uirevision="preprocessing-preview")
+    return figure
+
+
 def _input_checks(config):
     values = config.values
     experiment, processing = values["experiment"], values["processing"]
@@ -758,7 +963,7 @@ def _input_checks(config):
 
     epsilon_r = _load_reference(config, "reactant_absorptivity")
     epsilon_p = _load_reference(config, "product_absorptivity")
-    led_wavelengths, _ = load_spectrum(
+    led_wavelengths, led_values = load_spectrum(
         config.input_path("led_emission"), input_format(config, "led_emission")
     )
     requested_low, requested_high = processing["wavelength_range_nm"]
@@ -770,12 +975,33 @@ def _input_checks(config):
         "ok" if common_high > common_low else "stop", "Wavelength overlap",
         f"usable measurement/reference range {common_low:.1f}–{common_high:.1f} nm",
     ))
-    irradiation = float(experiment["irradiation_wavelength_nm"])
-    led_ok = float(led_wavelengths[0]) <= irradiation <= float(led_wavelengths[-1])
+    smoothing, baseline = processing["led_smoothing"], processing["led_baseline"]
+    led_processed = process_led(
+        led_wavelengths, led_values, baseline["enabled"],
+        smoothing["window_points"], smoothing["polynomial_order"],
+        baseline["exclusion_fwhm_multiplier"],
+    )
+    active = np.flatnonzero(led_processed > np.max(led_processed) * 0.01)
+    led_overlap = bool(len(active) and common_high > common_low and
+                       led_wavelengths[active[-1]] >= common_low and
+                       led_wavelengths[active[0]] <= common_high)
     checks.append(_check(
-        "ok" if led_ok else "stop", "LED coverage",
-        f"irradiation wavelength {irradiation:g} nm; LED file spans "
-        f"{led_wavelengths[0]:.1f}–{led_wavelengths[-1]:.1f} nm",
+        "ok" if led_overlap else "stop", "LED spectrum overlap",
+        ((f"active emission (above 1% of its maximum) spans "
+          f"{led_wavelengths[active[0]]:.1f}–{led_wavelengths[active[-1]]:.1f} nm "
+          f"and overlaps the fitted spectral range")
+         if len(active) else "processed LED has no positive active emission band") +
+        ("; green requires overlap" if led_overlap else "; red means no overlap"),
+    ))
+    irradiation = float(experiment["irradiation_wavelength_nm"])
+    nominal_inside = bool(len(active) and
+                          led_wavelengths[active[0]] <= irradiation <=
+                          led_wavelengths[active[-1]])
+    checks.append(_check(
+        "ok" if nominal_inside else "warning", "Nominal irradiation wavelength",
+        f"{irradiation:g} nm is " + ("inside" if nominal_inside else "outside") +
+        " the active LED band; this value is metadata only—the calculation integrates "
+        "the full processed LED spectrum",
     ))
     if common_high > common_low:
         grid = wavelengths[(wavelengths >= common_low) & (wavelengths <= common_high)]
@@ -783,11 +1009,16 @@ def _input_checks(config):
             np.interp(grid, epsilon_r[0], epsilon_r[1]),
             np.interp(grid, epsilon_p[0], epsilon_p[1]),
         ))
-        condition = float(np.linalg.cond(reference_matrix))
-        level = "stop" if condition > 1e6 else "warning" if condition > 1e3 else "ok"
+        norms = np.linalg.norm(reference_matrix, axis=0)
+        condition = (float(np.linalg.cond(reference_matrix / norms))
+                     if np.all(norms > 0) else np.inf)
+        level = "stop" if condition > 30 else "warning" if condition >= 10 else "ok"
         checks.append(_check(
-            level, "Reference-spectrum separation",
-            f"two-spectrum condition number {condition:.3g}; lower is better",
+            level, "Reactant/product spectral distinguishability",
+            f"shape condition number {condition:.3g}. It measures how independently the "
+            "normalized reactant and product ε shapes determine two concentrations: 1 is "
+            "best; green <10, amber 10–30, red >30. Large values mean small spectral "
+            "errors can cause large concentration errors",
         ))
     return checks
 
@@ -800,7 +1031,7 @@ def _load_reference(config, name):
     return load_spectrum(path, input_format(config, name))
 
 
-def _fit_health_checks(result, data, document):
+def _fit_diagnostic_checks(result, data, document):
     checks = []
     measured = result.concentration_fit.concentrations
     fitted = result.yield_fit.concentrations
@@ -810,8 +1041,9 @@ def _fit_health_checks(result, data, document):
     checks.append(_check(
         "warning" if initial_product > 0.02 else "ok", "Initial product",
         f"{initial_product:.2%} of total concentration" +
-        ("; verify references and baseline, while retaining it if physically real"
-         if initial_product > 0.02 else ""),
+        ("; amber above 2% because independent NNLS is then more sensitive to reference "
+         "or baseline mismatch. Keep the value if a mixed starting state is physically real"
+         if initial_product > 0.02 else "; green at or below 2%"),
     ))
 
     measured_fraction = result.concentration_fit.fractions[:, 0]
@@ -824,7 +1056,9 @@ def _fit_health_checks(result, data, document):
     fraction_level = "stop" if fraction_rmse > 0.05 else "warning" if fraction_rmse > 0.02 else "ok"
     checks.append(_check(
         fraction_level, "Kinetic fraction residual",
-        f"RMSE {fraction_rmse:.4g}; maximum |data − fit| {fraction_max:.4g}",
+        f"RMSE {fraction_rmse:.4g}; maximum |data − fit| {fraction_max:.4g}. "
+        "This compares the recovered reactant fraction with the kinetic model over time; "
+        "green ≤2%, amber 2–5%, red >5% RMSE",
     ))
 
     epsilon = np.vstack((result.epsilon_r, result.epsilon_p))
@@ -838,24 +1072,31 @@ def _fit_health_checks(result, data, document):
     absorbance_level = "stop" if relative_rmse > 0.05 else "warning" if relative_rmse > 0.02 else "ok"
     checks.append(_check(
         absorbance_level, "Full-spectrum reconstruction",
-        f"absorbance RMSE {absorbance_rmse:.4g} ({relative_rmse:.2%} of maximum absorbance)",
+        f"absorbance RMSE {absorbance_rmse:.4g} ({relative_rmse:.2%} of maximum absorbance). "
+        "This compares every measured wavelength and time with the fitted reconstruction; "
+        "green ≤2%, amber 2–5%, red >5% of maximum absorbance",
     ))
 
     total_cv = float(np.std(totals) / np.mean(totals)) if np.mean(totals) else np.inf
     total_level = "stop" if total_cv > 0.05 else "warning" if total_cv > 0.02 else "ok"
     checks.append(_check(
         total_level, "Concentration conservation",
-        f"total-concentration coefficient of variation {total_cv:.3%}",
+        f"total-concentration coefficient of variation {total_cv:.3%}; "
+        "green ≤2%, amber 2–5%, red >5%",
     ))
 
     fit = result.yield_fit
     condition = float(fit.jacobian_condition)
-    optimizer_level = ("stop" if not fit.optimizer_success or condition > 1e8 else
+    optimizer_level = ("stop" if not fit.optimizer_success or
+                       not np.isfinite(condition) or condition > 1e8 else
                        "warning" if condition > 1e6 or any(fit.active_bounds) else "ok")
-    bound_text = "; a quantum yield touches its bound" if any(fit.active_bounds) else ""
+    bound_text = "; at least one quantum yield touches its configured bound" if any(fit.active_bounds) else ""
     checks.append(_check(
-        optimizer_level, "Optimizer identifiability",
-        f"Jacobian condition number {condition:.3g}{bound_text}",
+        optimizer_level, "Quantum-yield parameter sensitivity",
+        f"local optimizer-Jacobian condition number {condition:.3g}{bound_text}. "
+        "This measures whether small changes in the residual can produce large changes in "
+        "the fitted quantum yields: green <10⁶ with no bound hit, amber 10⁶–10⁸ or a "
+        "bound hit, red above 10⁸ or when the optimizer fails",
     ))
 
     model_time = _transition_time(np.asarray(data.timestamps), 1 - fitted_fraction)
@@ -865,8 +1106,10 @@ def _fit_health_checks(result, data, document):
         interval = float(np.median(np.diff(data.timestamps))) if len(data.timestamps) > 1 else 0.0
         mismatch = abs(model_time - data_time) > max(2 * interval, 0.25 * max(data_time, interval))
         checks.append(_check(
-            "warning" if mismatch else "ok", "Conversion timescale",
-            f"95% transition: model {model_time:.4g} s; data {data_time:.4g} s",
+            "warning" if mismatch else "ok", "Observed versus fitted response time",
+            f"time to reach 95% of each trace's observed total composition change—not 95% "
+            f"absolute conversion: fit {model_time:.4g} s; data {data_time:.4g} s. Amber "
+            "when the difference exceeds two sampling intervals or 25% of the observed time",
         ))
 
     expected = document["analysis"].get("expected_pss_reactant_percent")
@@ -879,7 +1122,8 @@ def _fit_health_checks(result, data, document):
         difference = abs(fitted_pss - float(expected))
         checks.append(_check(
             "warning" if difference > 5 else "ok", "Expected versus fitted PSS",
-            f"reactant expected {float(expected):.2f}%; fitted {fitted_pss:.2f}%",
+            f"reactant expected {float(expected):.2f}%; fitted {fitted_pss:.2f}%. "
+            "Amber when the difference exceeds 5 percentage points",
         ))
 
     errors = np.asarray(result.yield_errors, float)
@@ -896,7 +1140,8 @@ def _fit_health_checks(result, data, document):
         checks.append(_check(
             level, "Most uncertain ε-bound combination",
             f"{uncertainty.bound_labels[worst]}: optimizer errors "
-            f"{worst_errors[0]:.3g}% and {worst_errors[1]:.3g}%",
+            f"{worst_errors[0]:.3g}% and {worst_errors[1]:.3g}%; "
+            "green below 25%, amber 25–100%, red at or above 100%",
         ))
     return checks
 
@@ -946,16 +1191,29 @@ def _compare_fit_methods(config):
                 "absorbance_rmse": float(np.sqrt(np.mean(
                     (result.absorbance.T - fitted_absorbance) ** 2
                 ))),
+                "optimizer_success": result.yield_fit.optimizer_success,
+                "jacobian_condition": result.yield_fit.jacobian_condition,
                 "active_bounds": any(result.yield_fit.active_bounds),
             })
     return rows
 
 
 def _render_comparison(html, rows, selected_method):
-    headings = ("Method", "Φ R→P", "Φ P→R", "Fraction RMSE", "Absorbance RMSE", "Health")
+    headings = ("Method", "Φ R→P", "Φ P→R", "Fraction RMSE", "Absorbance RMSE",
+                "Automatic fit flags")
     body = []
     for row in rows:
-        health = "Bound hit" if row["active_bounds"] else "Nominal"
+        condition = float(row["jacobian_condition"])
+        if not row["optimizer_success"]:
+            flags = "Optimizer did not converge"
+        elif not np.isfinite(condition) or condition > 1e8:
+            flags = "Very weak parameter sensitivity"
+        elif row["active_bounds"]:
+            flags = "Quantum yield at configured bound"
+        elif condition > 1e6:
+            flags = "High parameter sensitivity"
+        else:
+            flags = "No automatic optimizer flags"
         body.append(html.Tr(className="comparison-selected" if row["method"] == selected_method else "",
                             children=[
             html.Td(_method_label(row["method"])),
@@ -963,10 +1221,9 @@ def _render_comparison(html, rows, selected_method):
             html.Td(f"{row['values'][1]:.3g} ± {row['errors'][1]:.2g}%"),
             html.Td(f"{row['fraction_rmse']:.4g}"),
             html.Td(f"{row['absorbance_rmse']:.4g}"),
-            html.Td(health),
+            html.Td(flags),
         ]))
     return html.Div([
-        html.P("Nominal ε comparison; no result files were written.", className="helper-text"),
         html.Div(className="comparison-table-wrap", children=[
             html.Table(className="comparison-table", children=[
                 html.Thead(html.Tr([html.Th(name) for name in headings])),
@@ -981,7 +1238,7 @@ def _yield_card(html, label, summary, name):
     error = float(summary["quantum_yield_error_percent"][name])
     if not np.isfinite(error) or error >= 100:
         return [html.Span(label), html.Strong(f"Nominal {value:.3g}%"),
-                html.Small("Unidentifiable uncertainty · inspect fit health")]
+                html.Small("Unidentifiable uncertainty · inspect fit diagnostics")]
     formatted = summary["quantum_yield_formatted_percent"][name]
     return [html.Span(label),
             html.Strong(f"{formatted['value']} ± {formatted['error']}%"),
@@ -998,7 +1255,8 @@ def _render_checks(html, checks):
     ]) for item in checks]
 
 
-def _interactive_figures(go, make_subplots, result, data, residual_percentile):
+def _interactive_figures(go, make_subplots, result, data, residual_percentile,
+                         irradiation_wavelength):
     times = np.asarray(data.timestamps)
     measured = result.concentration_fit.concentrations
     fitted = result.yield_fit.concentrations
@@ -1048,27 +1306,16 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile):
     _style_figure(fraction, "Reactant fraction residual", "Irradiation time (s)",
                   "Fraction data − fit")
 
-    spectra = go.Figure()
     measured_absorbance = result.absorbance.T
-    count = len(times)
-    indices = np.unique(np.linspace(0, count - 1, min(count, 80), dtype=int))
-    for index in indices:
-        ratio = 0 if count == 1 else index / (count - 1)
-        colour = _interpolate_colour((45, 111, 142), (214, 123, 54), ratio)
-        spectra.add_trace(go.Scatter(
-            x=result.wavelengths, y=measured_absorbance[index], mode="lines",
-            name=f"{times[index]:g} s", showlegend=False,
-            line={"color": colour, "width": 1},
-            hovertemplate=f"time={times[index]:g} s<br>λ=%{{x:.1f}} nm<br>A=%{{y:.5g}}<extra></extra>",
-        ))
-    _style_figure(spectra, "Measured absorption spectra over time", "Wavelength (nm)",
-                  "Absorbance")
-    spectra.update_layout(coloraxis={"colorscale": [[0, blue], [1, orange]],
-                                     "cmin": float(times.min()), "cmax": float(times.max()),
-                                     "colorbar": {"title": "Time (s)"}})
-    spectra.add_trace(go.Scatter(x=[None], y=[None], mode="markers", showlegend=False,
-                                 marker={"color": [float(times.min())], "coloraxis": "coloraxis"},
-                                 hoverinfo="skip"))
+    led_processed = process_led(
+        *data.led, data.baseline_correct_led, data.led_smoothing_window,
+        data.led_polynomial_order, data.baseline_exclusion_fwhm_multiplier,
+    )
+    spectra = _spectra_led_figure(
+        go, make_subplots, result.wavelengths, result.absorbance,
+        data.led[0], led_processed, data.wavelength_limits,
+        irradiation_wavelength,
+    )
 
     epsilon = np.vstack((result.epsilon_r, result.epsilon_p))
     fitted_absorbance = fitted @ epsilon * data.path_length_cm
@@ -1079,7 +1326,8 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile):
         rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.12,
         specs=[[{"secondary_y": True}], [{}]],
         row_heights=[0.46, 0.54],
-        subplot_titles=("Reference absorptivity and fitted LED", "Measured and reconstructed spectra"),
+        subplot_titles=("Reference molar absorptivity and processed LED",
+                        "Measured and reconstructed endpoints"),
     )
     input_diagnostic.add_trace(go.Scatter(
         x=result.wavelengths, y=result.epsilon_r, mode="lines",
@@ -1089,10 +1337,6 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile):
         x=result.wavelengths, y=result.epsilon_p, mode="lines",
         name="Product ε", line={"color": orange, "width": 2},
     ), row=1, col=1, secondary_y=False)
-    led_processed = process_led(
-        *data.led, data.baseline_correct_led, data.led_smoothing_window,
-        data.led_polynomial_order, data.baseline_exclusion_fwhm_multiplier,
-    )
     led_aligned = np.interp(result.wavelengths, data.led[0], led_processed)
     led_scale = max(float(np.max(led_aligned)), np.finfo(float).eps)
     input_diagnostic.add_trace(go.Scatter(
@@ -1109,7 +1353,7 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile):
             name=f"{label} reconstructed",
             line={"color": colour, "width": 1.8, "dash": "dash"},
         ), row=2, col=1)
-    _style_figure(input_diagnostic, "Input and reconstruction compatibility", "", "")
+    _style_figure(input_diagnostic, "Reference spectra and endpoint reconstruction", "", "")
     input_diagnostic.update_yaxes(title_text="ε (M⁻¹ cm⁻¹)", row=1, col=1,
                                   secondary_y=False)
     input_diagnostic.update_yaxes(title_text="LED (normalized)", row=1, col=1,
@@ -1185,11 +1429,6 @@ def _on(values, name):
 
 def _toggle_value(enabled):
     return ["on"] if enabled else []
-
-
-def _interpolate_colour(start, stop, ratio):
-    rgb = tuple(round(a + (b - a) * ratio) for a, b in zip(start, stop))
-    return f"rgb{rgb}"
 
 
 def _hex_rgba(colour, alpha):
