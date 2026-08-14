@@ -26,6 +26,8 @@ class NMRSubtractionResult:
     normalized_pss: np.ndarray
     reconstructed_reactant: np.ndarray
     reconstructed_pss: np.ndarray
+    reactant_lower: np.ndarray
+    reactant_upper: np.ndarray
     product: np.ndarray
     product_lower: np.ndarray
     product_upper: np.ndarray
@@ -209,6 +211,10 @@ def reconstruct_product_from_nmr(wavelengths, reactant_absorbance, pss_absorbanc
     reconstructed_reactant, reconstructed_pss, nominal = reconstruct(
         reactant_epsilon.mean, fraction
     )
+    reactant_candidates = [reconstruct(curve, fraction)[0]
+                           for curve in epsilon_bounds]
+    reactant_lower = np.min(reactant_candidates, axis=0)
+    reactant_upper = np.max(reactant_candidates, axis=0)
     candidates = [reconstruct(curve, selected_fraction)[2]
                   for curve in epsilon_bounds for selected_fraction in fractions]
     raw_lower = np.min(candidates, axis=0)
@@ -219,7 +225,8 @@ def reconstruct_product_from_nmr(wavelengths, reactant_absorbance, pss_absorbanc
     error_upper = np.abs(upper - nominal)
     return NMRSubtractionResult(
         wavelengths, normalized_reactant, normalized_pss,
-        reconstructed_reactant, reconstructed_pss, nominal,
+        reconstructed_reactant, reconstructed_pss, reactant_lower,
+        reactant_upper, nominal,
         lower, upper, error_lower, error_upper,
         int(np.count_nonzero(nominal < 0)),
         int(np.count_nonzero((raw_lower < 0) | (raw_upper < 0))),
@@ -235,6 +242,8 @@ def export_nmr_subtraction_tsv(result, preserve_negative=False):
         "Reactant_normalized": result.normalized_reactant,
         "PSS_normalized_to_reactant": result.normalized_pss,
         "Reactant_reconstructed_M-1_cm-1": result.reconstructed_reactant,
+        "Reactant_lower_M-1_cm-1": result.reactant_lower,
+        "Reactant_upper_M-1_cm-1": result.reactant_upper,
         "PSS_reconstructed_M-1_cm-1": result.reconstructed_pss,
         "Product_epsilon_M-1_cm-1": exported_product,
         "Product_epsilon_raw_M-1_cm-1": result.product,

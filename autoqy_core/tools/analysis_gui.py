@@ -347,15 +347,15 @@ def create_app():
     )
     def launch_spectral_treatment(_):
         try:
-            if _port_open("127.0.0.1", 8051):
-                webbrowser.open("http://127.0.0.1:8051/")
-                return "Spectral Treatment was already running; opened it."
-            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            subprocess.Popen(
-                [sys.executable, "-m", "autoqy_core", "smoother-gui"],
-                cwd=str(Path.cwd()), creationflags=flags,
-            )
-            return "Starting Spectral Treatment in a separate local window."
+            started = _start_spectral_treatment()
+            address = "http://127.0.0.1:8051/"
+            webbrowser.open(address)
+            state = "started and is ready" if started else "was already running"
+            return html.Span([
+                f"Spectral Treatment {state}. ",
+                html.A("Open it", href=address, target="_blank"),
+                ".",
+            ])
         except Exception as error:
             return f"Could not open Spectral Treatment: {error}"
 
@@ -803,6 +803,35 @@ def _port_open(host, port):
     with socket.socket() as connection:
         connection.settimeout(0.2)
         return connection.connect_ex((host, port)) == 0
+
+
+def _start_spectral_treatment(host="127.0.0.1", port=8051, timeout=15):
+    """Start Spectral Treatment and return only after its local port is ready."""
+    if _port_open(host, port):
+        return False
+    inherited_paths = [path for path in sys.path if path]
+    code = (
+        "import sys; "
+        f"sys.path[:0] = {inherited_paths!r}; "
+        "from autoqy_core.tools.smoother_gui import run_server; "
+        f"run_server({host!r}, {int(port)}, False)"
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", code], cwd=str(Path(__file__).parents[2]),
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    deadline = time.monotonic() + float(timeout)
+    while time.monotonic() < deadline:
+        if _port_open(host, port):
+            return True
+        if process.poll() is not None:
+            raise RuntimeError(
+                f"the Spectral Treatment process exited with code {process.returncode}"
+            )
+        time.sleep(0.2)
+    process.terminate()
+    raise TimeoutError(f"Spectral Treatment did not become ready on port {port}")
 
 
 def run_server(host="127.0.0.1", port=8052, open_browser=True):

@@ -94,9 +94,10 @@ errors, and perform NMR-guided PSS subtraction. The terminal functions remain
 available for reproducible or automated processing.
 
 Use **Open files from folder** to retain the source directory as the default
-save location. The final NMR save writes both the reactant epsilon TSV and the
-NMR-derived product TSV, and asks before replacing either existing file. Closing
-the GUI browser window also closes its local terminal process.
+save location. The final NMR save writes the reactant epsilon dataset as
+`epsilon-spectra-reactant.tsv` and the NMR-derived dataset as
+`epsilon-spectra-product.tsv`, and asks before replacing either existing file.
+Closing the GUI browser window also closes its local terminal process.
 
 Open **Desktop → AutoQY → AutoQY Spectral Treatment**, or run:
 
@@ -107,10 +108,9 @@ autoqy-core smoother-gui
 The main AutoQY installer installs this GUI and its Desktop shortcut together
 with the calculation engine, Analysis GUI, Power GUI, terminal, and JSON runner.
 
-The GUI reads both common SpectraGryph `.dat` layouts, Avantes AvaSoft 8
-`.Abs8` files, wavelength-by-row TSV, and CSV files. `.Abs8` uploads are
-detected automatically and processed exports are written as TSV. Its workflow is
-independently configurable:
+The GUI automatically detects both common SpectraGryph `.dat` layouts, Avantes
+AvaSoft 8 `.Abs8` files, wavelength-by-row TSV, and CSV files. Processed exports
+are written as TSV. Its workflow is independently configurable:
 
 1. select the wavelength range;
 2. optionally baseline each spectrum over a selected interval;
