@@ -739,12 +739,15 @@ def _choose_files(initial_directory=None):
     initial = _powershell_quote(str(initial_directory or ""))
     script = (
         "Add-Type -AssemblyName System.Windows.Forms; "
+        + _foreground_owner_script() +
         "$dialog = New-Object System.Windows.Forms.OpenFileDialog; "
         "$dialog.Multiselect = $true; "
         "$dialog.Filter = 'Spectral files|*.dat;*.txt;*.tsv;*.csv;*.Abs8|All files|*.*'; "
         f"if ('{initial}') {{ $dialog.InitialDirectory = '{initial}' }}; "
-        "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { "
-        "$dialog.FileNames | ForEach-Object { Write-Output $_ } }"
+        "$result = $dialog.ShowDialog($owner); "
+        "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { "
+        "$dialog.FileNames | ForEach-Object { Write-Output $_ } }; "
+        "$owner.Close(); $owner.Dispose()"
     )
     return _run_powershell_dialog(script)
 
@@ -753,10 +756,12 @@ def _choose_folder(initial_directory=None):
     initial = _powershell_quote(str(initial_directory or ""))
     script = (
         "Add-Type -AssemblyName System.Windows.Forms; "
+        + _foreground_owner_script() +
         "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog; "
         f"if ('{initial}') {{ $dialog.SelectedPath = '{initial}' }}; "
-        "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { "
-        "Write-Output $dialog.SelectedPath }"
+        "$result = $dialog.ShowDialog($owner); "
+        "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { "
+        "Write-Output $dialog.SelectedPath }; $owner.Close(); $owner.Dispose()"
     )
     selected = _run_powershell_dialog(script)
     return selected[0] if selected else None
@@ -769,6 +774,15 @@ def _run_powershell_dialog(script):
         check=True, capture_output=True, text=True, creationflags=flags,
     )
     return [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+
+
+def _foreground_owner_script():
+    return (
+        "$owner = New-Object System.Windows.Forms.Form; "
+        "$owner.TopMost = $true; $owner.ShowInTaskbar = $false; "
+        "$owner.StartPosition = 'CenterScreen'; $owner.Width = 1; $owner.Height = 1; "
+        "$owner.Opacity = 0; $owner.Show(); $owner.Activate(); "
+    )
 
 
 def _powershell_quote(value):
@@ -1132,11 +1146,11 @@ def _empty(go, message):
 
 def _style(figure, height):
     figure.update_layout(
-        template="plotly_white", height=height,
-        margin=dict(l=68, r=24, t=72, b=52), hovermode="closest",
-        legend={"orientation": "v", "y": 0.99, "yanchor": "top",
-                "x": 0.99, "xanchor": "right", "bgcolor": "rgba(255,255,255,.92)",
-                "bordercolor": "#cfd1d4", "borderwidth": 1},
+        template="plotly_white", height=height + 113,
+        title={"x": 0.02, "y": 0.98, "yanchor": "top", "yref": "container"},
+        margin=dict(l=68, r=24, t=185, b=52), hovermode="closest",
+        legend={"orientation": "h", "y": 1.06, "yanchor": "bottom",
+                "x": 0, "xanchor": "left", "bgcolor": "rgba(255,255,255,.92)"},
     )
     return figure
 

@@ -49,6 +49,13 @@ class EpsilonUncertaintySummary:
     fraction_residual_maximum: np.ndarray
     absorbance_residual_rmse_minimum: float
     absorbance_residual_rmse_maximum: float
+    bound_labels: tuple[str, ...]
+    bound_yields: np.ndarray
+    bound_optimizer_errors: np.ndarray
+    bound_fraction_rmse: np.ndarray
+    bound_absorbance_rmse: np.ndarray
+    bound_active_bounds: np.ndarray
+    bound_jacobian_conditions: np.ndarray
 
 
 def load_epsilon_envelope(path, error_metric="sd"):
@@ -115,6 +122,20 @@ def load_epsilon_envelope(path, error_metric="sd"):
     )
 
 
+def load_epsilon_nominal(path):
+    """Return the nominal curve from an AutoQY epsilon TSV, or None otherwise."""
+    path = Path(path)
+    try:
+        columns = set(pd.read_csv(path, sep="\t", nrows=0).columns)
+    except (OSError, UnicodeError, pd.errors.ParserError):
+        return None
+    if not ({"Wavelength_nm", "Epsilon_mean_M-1_cm-1"}.issubset(columns) or
+            {"Wavelength_nm", "Product_epsilon_M-1_cm-1"}.issubset(columns)):
+        return None
+    envelope = load_epsilon_envelope(path, "sd")
+    return envelope.wavelengths, envelope.nominal
+
+
 def run_with_epsilon_uncertainty(data, reactant, product, error_metric="sd"):
     """Run distinct low/mean/high epsilon-bound combinations through the pipeline."""
     from .pipeline import run_analysis_pipeline
@@ -126,14 +147,16 @@ def run_with_epsilon_uncertainty(data, reactant, product, error_metric="sd"):
     )
     nominal_result = run_analysis_pipeline(nominal_data)
     bound_pairs = []
-    for reactant_curve in reactant.bounds:
-        for product_curve in product.bounds:
+    level_names = ("lower", "nominal", "upper")
+    for reactant_level, reactant_curve in zip(level_names, reactant.bounds):
+        for product_level, product_curve in zip(level_names, product.bounds):
             if not any(np.array_equal(reactant_curve, existing_reactant) and
                        np.array_equal(product_curve, existing_product)
-                       for existing_reactant, existing_product in bound_pairs):
-                bound_pairs.append((reactant_curve, product_curve))
+                       for existing_reactant, existing_product, _ in bound_pairs):
+                label = f"reactant {reactant_level} / product {product_level}"
+                bound_pairs.append((reactant_curve, product_curve, label))
     results = []
-    for reactant_curve, product_curve in bound_pairs:
+    for reactant_curve, product_curve, _ in bound_pairs:
         if (np.array_equal(reactant_curve, reactant.nominal) and
                 np.array_equal(product_curve, product.nominal)):
             result = nominal_result
@@ -143,7 +166,11 @@ def run_with_epsilon_uncertainty(data, reactant, product, error_metric="sd"):
                 epsilon_r=(reactant.wavelengths, reactant_curve),
                 epsilon_p=(product.wavelengths, product_curve),
             )
-            result = run_analysis_pipeline(bound_data)
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore", message="Initial product is .*", category=RuntimeWarning
+                )
+                result = run_analysis_pipeline(bound_data)
         results.append(result)
 
     values = np.asarray([result.yield_fit.values for result in results])
@@ -175,6 +202,7 @@ def run_with_epsilon_uncertainty(data, reactant, product, error_metric="sd"):
     ]) - fitted_fractions
     residual_rmse = np.asarray([_absorbance_residual_rmse(result, data.path_length_cm)
                                 for result in results])
+    bound_fraction_rmse = np.sqrt(np.mean(fraction_residuals ** 2, axis=1))
     summary = EpsilonUncertaintySummary(
         method="deterministic_extremes",
         error_metric=str(error_metric).lower(),
@@ -202,6 +230,17 @@ def run_with_epsilon_uncertainty(data, reactant, product, error_metric="sd"):
         fraction_residual_maximum=np.max(fraction_residuals, axis=0),
         absorbance_residual_rmse_minimum=float(np.min(residual_rmse)),
         absorbance_residual_rmse_maximum=float(np.max(residual_rmse)),
+        bound_labels=tuple(item[2] for item in bound_pairs),
+        bound_yields=values,
+        bound_optimizer_errors=bound_errors,
+        bound_fraction_rmse=bound_fraction_rmse,
+        bound_absorbance_rmse=residual_rmse,
+        bound_active_bounds=np.asarray([
+            result.yield_fit.active_bounds for result in results
+        ], dtype=bool),
+        bound_jacobian_conditions=np.asarray([
+            result.yield_fit.jacobian_condition for result in results
+        ], dtype=float),
     )
     return replace(
         nominal_result,

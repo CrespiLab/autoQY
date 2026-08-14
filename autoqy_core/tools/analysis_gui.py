@@ -1,21 +1,26 @@
 """Local browser GUI for building and running AutoQY analyses."""
 
 from argparse import ArgumentParser
+from copy import deepcopy
 import json
 from pathlib import Path
 import socket
 import subprocess
 import sys
 from threading import Lock, Thread, Timer
+from tempfile import TemporaryDirectory
 import time
 import warnings
 import webbrowser
 
 import numpy as np
 
-from ..config import AnalysisConfig, load_config, validate_config
+from ..config import AnalysisConfig, input_format, load_config, validate_config
+from ..epsilon_uncertainty import load_epsilon_nominal
+from ..io import load_spectra, load_spectrum, load_timestamps
 from ..output import result_summary
 from ..runner import run_analysis
+from ..spectra import process_led
 
 
 SPECTRAL_INPUTS = (
@@ -31,6 +36,7 @@ def create_app():
     try:
         from dash import ALL, Dash, Input, Output, State, ctx, dcc, html
         import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
     except ImportError as error:
         raise RuntimeError(
             "The analysis GUI requires the 'power-gui' optional dependencies"
@@ -160,7 +166,10 @@ def create_app():
                 html.Details(open=True, className="panel tool-details", children=[
                     html.Summary([html.Span("3 · Experiment", className="step-label"),
                                   html.Span("Physical parameters")]),
-                    pair("Sample volume (µL)", number("volume_ul", 3000, min=0),
+                    pair("Sample volume", html.Div(className="volume-input-row", children=[
+                             number("volume_value", 3000, min=0, step="any"),
+                             dropdown("volume_unit", (("ul", "µL"), ("ml", "mL")), "ul"),
+                         ]),
                          "Path length (cm)", number("path_length_cm", 1.0, min=0, step="any")),
                     pair("Power (mW)", number("power_mw", 1.0, min=0, step="any"),
                          "Power error (mW)", number("power_error_mw", 0.0, min=0, step="any")),
@@ -168,6 +177,7 @@ def create_app():
                          number("irradiation_wavelength_nm", 455, min=0, step="any"),
                          "Thermal back-reaction (s⁻¹)",
                          number("thermal_rate", 0.0, min=0, step="any")),
+                    html.Div(id="physical-parameter-preview", className="message"),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
                     html.Summary([html.Span("4 · Processing", className="step-label"),
@@ -206,6 +216,9 @@ def create_app():
                              dropdown("absorbance_baseline_order",
                                       ((-1, "None"), (0, "Constant"), (1, "Linear")), 1),
                              "Robust-loss scale", number("robust_loss_scale", 0.02, min=0, step="any")),
+                        html.Label("Expected reactant at PSS (%) · optional"),
+                        number("expected_pss_reactant_percent", None, min=0, max=100,
+                               step="any", placeholder="e.g. 23"),
                     ]),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
@@ -247,6 +260,8 @@ def create_app():
                     ]),
                     html.Button("Run analysis", id="run-analysis", n_clicks=0,
                                 className="button button-primary run-button"),
+                    html.Button("Compare fit methods", id="compare-fit-methods", n_clicks=0,
+                                className="button button-secondary"),
                     dcc.Loading(html.Div(id="analysis-action-message", className="message"),
                                 type="circle"),
                 ]),
@@ -260,6 +275,16 @@ def create_app():
                     html.Div([html.Span("Fit"), html.Strong("—"), html.Small("Not run")],
                              id="result-fit", className="result-card result-card-neutral"),
                 ]),
+                html.Section(className="panel diagnostic-panel", children=[
+                    html.H2("Preflight and fit health"),
+                    html.Div("Validate or run to inspect the inputs.", id="preflight-checks",
+                             className="diagnostic-list"),
+                ]),
+                html.Section(className="panel comparison-panel", children=[
+                    html.H2("Fit-method comparison"),
+                    html.Div("Use Compare fit methods to run nominal fits without ε propagation.",
+                             id="method-comparison", className="helper-text"),
+                ]),
                 html.Section(className="plot-panel analysis-plot-panel", children=[
                     dcc.Tabs(id="analysis-plot-tabs", value="concentrations", children=[
                         dcc.Tab(label="Concentrations", value="concentrations",
@@ -268,6 +293,8 @@ def create_app():
                                 children=[dcc.Graph(id="fraction-figure", figure=empty)]),
                         dcc.Tab(label="Spectra", value="spectra",
                                 children=[dcc.Graph(id="spectra-figure", figure=empty)]),
+                        dcc.Tab(label="Input compatibility", value="input-compatibility",
+                                children=[dcc.Graph(id="input-diagnostic-figure", figure=empty)]),
                         dcc.Tab(label="Absorbance residuals", value="absorbance-residuals",
                                 children=[dcc.Graph(id="residual-heatmap", figure=empty)]),
                     ]),
@@ -341,6 +368,16 @@ def create_app():
             return f"Cannot build JSON preview: {error}"
 
     @app.callback(
+        Output("physical-parameter-preview", "children"),
+        Output("physical-parameter-preview", "className"),
+        Input({"type": "analysis-field", "name": ALL}, "value"),
+        State({"type": "analysis-field", "name": ALL}, "id"),
+    )
+    def preview_physical_parameters(current_values, field_ids):
+        values = dict(zip((item["name"] for item in field_ids), current_values))
+        return _physical_parameter_preview(values)
+
+    @app.callback(
         Output("tool-message", "children"),
         Input("launch-spectral-treatment", "n_clicks"),
         prevent_initial_call=True,
@@ -368,44 +405,89 @@ def create_app():
         Output("concentration-figure", "figure"),
         Output("fraction-figure", "figure"),
         Output("spectra-figure", "figure"),
+        Output("input-diagnostic-figure", "figure"),
         Output("residual-heatmap", "figure"),
+        Output("preflight-checks", "children"),
+        Output("method-comparison", "children"),
         Output("analysis-output-files", "children"),
         Output("analysis-python-error", "children"),
         Input("save-analysis-json", "n_clicks"),
         Input("validate-analysis", "n_clicks"),
         Input("run-analysis", "n_clicks"),
+        Input("compare-fit-methods", "n_clicks"),
         State({"type": "analysis-field", "name": ALL}, "value"),
         State({"type": "analysis-field", "name": ALL}, "id"),
         prevent_initial_call=True,
     )
-    def analyze(_, __, ___, current_values, field_ids):
+    def analyze(_, __, ___, ____, current_values, field_ids):
         values = dict(zip((item["name"] for item in field_ids), current_values))
         blank_card = [html.Span("R → P"), html.Strong("—"), html.Small("Quantum yield")]
         blank_back = [html.Span("P → R"), html.Strong("—"), html.Small("Quantum yield")]
         blank_fit = [html.Span("Fit"), html.Strong("—"), html.Small("Not run")]
-        blank_figures = [_empty_figure(go, "Run a validated analysis to display this plot")] * 4
+        blank_figures = [_empty_figure(go, "Run a validated analysis to display this plot")] * 5
+        blank_comparison = "Use Compare fit methods to run nominal fits without ε propagation."
         try:
             document = _configuration(values)
             base = Path(values.get("config_folder") or Path.cwd()).expanduser().resolve()
             config = AnalysisConfig(document, base)
             validate_config(config)
+            with warnings.catch_warnings(record=True) as input_warnings:
+                warnings.simplefilter("always")
+                input_checks = _input_checks(config)
+            input_checks.extend({
+                "level": "warning",
+                "title": "Input processing warning",
+                "body": f"{item.category.__name__}: {item.message}",
+            } for item in input_warnings)
+            preflight = _render_checks(html, input_checks)
             action = ctx.triggered_id
             if action == "save-analysis-json":
                 selected = _choose_save_json(base, "analysis.json")
                 if not selected:
                     return ("Save cancelled.", "message", blank_card, blank_back, blank_fit,
-                            *blank_figures, "No analysis was run.", "")
+                            *blank_figures, preflight, blank_comparison,
+                            "No analysis was run.", "")
                 target = Path(selected)
                 saved = _portable_document(document, target.parent) if _on(values, "relative_paths") else document
                 validate_config(AnalysisConfig(saved, target.parent))
                 target.write_text(json.dumps(saved, indent=2) + "\n", encoding="utf-8")
                 return (f"Saved and validated {target}", "message status-message status-ok",
                         blank_card, blank_back, blank_fit, *blank_figures,
-                        html.Code(str(target)), "")
+                        preflight, blank_comparison, html.Code(str(target)), "")
             if action == "validate-analysis":
-                return ("Configuration valid. All referenced files and settings passed validation.",
-                        "message status-message status-ok", blank_card, blank_back, blank_fit,
-                        *blank_figures, "No analysis was run.", "")
+                has_stop = any(item["level"] == "stop" for item in input_checks)
+                has_warning = any(item["level"] == "warning" for item in input_checks)
+                if has_stop:
+                    validation_message = "Configuration loaded, but preflight found blocking concerns."
+                    validation_class = "message status-message status-stop"
+                elif has_warning:
+                    validation_message = "Configuration valid with preflight warnings."
+                    validation_class = "message status-message status-warning"
+                else:
+                    validation_message = "Configuration valid. All referenced files and settings passed validation."
+                    validation_class = "message status-message status-ok"
+                warning_text = "\n".join(
+                    f"{item.category.__name__}: {item.message}" for item in input_warnings
+                )
+                return (validation_message, validation_class, blank_card, blank_back, blank_fit,
+                        *blank_figures, preflight, blank_comparison,
+                        "No analysis was run.", warning_text)
+
+            if action == "compare-fit-methods":
+                with warnings.catch_warnings(record=True) as caught_warnings:
+                    warnings.simplefilter("always")
+                    comparison = _compare_fit_methods(config)
+                warning_text = "\n".join(
+                    f"{item.category.__name__}: {item.message}"
+                    for item in caught_warnings
+                )
+                return (
+                    "Nominal fit-method comparison completed.",
+                    "message status-message status-ok",
+                    blank_card, blank_back, blank_fit, *blank_figures,
+                    preflight, _render_comparison(html, comparison, document["fit"]["method"]),
+                    "No result files were generated by the comparison.", warning_text,
+                )
 
             with warnings.catch_warnings(record=True) as caught_warnings:
                 warnings.simplefilter("always")
@@ -415,34 +497,44 @@ def create_app():
                 document["experiment"]["irradiation_wavelength_nm"],
             )
             figures = _interactive_figures(
-                go, output.result, output.data,
+                go, make_subplots, output.result, output.data,
                 document["plots"]["absorbance_residual_percentile"],
             )
-            formatted = summary["quantum_yield_formatted_percent"]
-            rp = [html.Span("R → P"),
-                  html.Strong(f"{formatted['R_to_P']['value']} ± {formatted['R_to_P']['error']}%"),
-                  html.Small("Quantum yield")]
-            pr = [html.Span("P → R"),
-                  html.Strong(f"{formatted['P_to_R']['value']} ± {formatted['P_to_R']['error']}%"),
-                  html.Small("Quantum yield")]
+            rp = _yield_card(html, "R → P", summary, "R_to_P")
+            pr = _yield_card(html, "P → R", summary, "P_to_R")
             fit = [html.Span("Fit"), html.Strong(_method_label(output.result.fit_method)),
                    html.Small(_fit_note(summary))]
             files = [html.Code(str(path)) for path in output.files]
+            health_checks = _fit_health_checks(output.result, output.data, document)
+            all_checks = input_checks + health_checks
+            preflight = _render_checks(html, all_checks)
             warning_text = "\n".join(
-                f"{item.category.__name__}: {item.message}" for item in caught_warnings
+                f"{item.category.__name__}: {item.message}"
+                for item in [*input_warnings, *caught_warnings]
             )
-            message = (f"Analysis completed with {len(caught_warnings)} warning(s). "
-                       "See Python errors and warnings."
-                       if caught_warnings else "Analysis completed successfully.")
-            message_class = ("message status-message status-warning" if caught_warnings
-                             else "message status-message status-ok")
+            has_stop = any(item["level"] == "stop" for item in all_checks)
+            has_warning = caught_warnings or any(
+                item["level"] == "warning" for item in all_checks
+            )
+            if has_stop:
+                message = "Analysis completed, but the fit is not reliable. Review fit health."
+                message_class = "message status-message status-stop"
+            elif has_warning:
+                message = "Analysis completed with warnings. Review preflight and fit health."
+                message_class = "message status-message status-warning"
+            else:
+                message = "Analysis completed successfully."
+                message_class = "message status-message status-ok"
             return (message, message_class,
-                    rp, pr, fit, *figures, files, warning_text)
+                    rp, pr, fit, *figures, preflight, blank_comparison,
+                    files, warning_text)
         except Exception as error:
             message = f"{type(error).__name__}: {error}"
             return ("Validation or analysis stopped. See Python errors.",
                     "message status-message status-stop", blank_card, blank_back, blank_fit,
-                    *blank_figures, "No files were generated.", message)
+                    *blank_figures,
+                    _render_checks(html, [{"level": "stop", "title": "Stopped", "body": message}]),
+                    blank_comparison, "No files were generated.", message)
 
     return app
 
@@ -464,13 +556,14 @@ def _configuration(values):
             "id": values.get("analysis_id") or "",
             "reactant_name": values.get("reactant_name") or "",
             "product_name": values.get("product_name") or "",
+            "expected_pss_reactant_percent": values.get("expected_pss_reactant_percent"),
         },
         "inputs": {
             **{name: values.get(name) or "" for name, _ in (*SPECTRAL_INPUTS, TIMESTAMP_INPUT)},
             "formats": formats,
         },
         "experiment": {
-            "volume_ul": values.get("volume_ul"),
+            "volume_ul": _volume_ul(values),
             "power_mw": values.get("power_mw"),
             "power_error_mw": values.get("power_error_mw"),
             "thermal_back_reaction_s_1": values.get("thermal_rate"),
@@ -520,7 +613,8 @@ def _form_values(document):
         "reactant_name": document["analysis"]["reactant_name"],
         "product_name": document["analysis"]["product_name"],
         "output_stem": output["stem"],
-        "volume_ul": experiment["volume_ul"],
+        "volume_value": experiment["volume_ul"],
+        "volume_unit": "ul",
         "power_mw": experiment["power_mw"],
         "power_error_mw": experiment["power_error_mw"],
         "thermal_rate": experiment["thermal_back_reaction_s_1"],
@@ -537,6 +631,9 @@ def _form_values(document):
         "regularization_strength": fit.get("regularization_strength", 1),
         "absorbance_baseline_order": fit.get("absorbance_baseline_order", 1),
         "robust_loss_scale": fit.get("robust_loss_scale", 0.02),
+        "expected_pss_reactant_percent": document["analysis"].get(
+            "expected_pss_reactant_percent"
+        ),
         "initial_rp": fit["initial_quantum_yields"]["R_to_P"],
         "initial_pr": fit["initial_quantum_yields"]["P_to_R"],
         "yield_min": fit["quantum_yield_bounds"]["minimum"],
@@ -584,7 +681,324 @@ def _relative_path(path, folder):
     return os.path.relpath(path, folder)
 
 
-def _interactive_figures(go, result, data, residual_percentile):
+def _volume_ul(values):
+    value = values.get("volume_value")
+    if value is None:
+        return None
+    return float(value) * (1000.0 if values.get("volume_unit") == "ml" else 1.0)
+
+
+def _physical_parameter_preview(values):
+    try:
+        volume_ul = _volume_ul(values)
+        if volume_ul is None:
+            return "Enter the sample volume.", "message status-message status-warning"
+        text = f"Interpreted volume: {volume_ul:g} µL = {volume_ul / 1000:g} mL."
+        rate = values.get("thermal_rate")
+        if rate is not None and float(rate) > 0:
+            half_life = np.log(2) / float(rate)
+            text += f" Thermal half-life: {half_life:g} s."
+        warning = volume_ul < 50
+        if warning:
+            text += " Confirm that the volume was not entered in mL."
+        return text, ("message status-message status-warning" if warning
+                      else "message status-message status-ok")
+    except (TypeError, ValueError, ZeroDivisionError) as error:
+        return f"Cannot interpret physical parameters: {error}", "message status-message status-stop"
+
+
+def _input_checks(config):
+    values = config.values
+    experiment, processing = values["experiment"], values["processing"]
+    checks = []
+    volume_ul = float(experiment["volume_ul"])
+    checks.append(_check(
+        "warning" if volume_ul < 50 else "ok",
+        "Sample volume",
+        f"{volume_ul:g} µL = {volume_ul / 1000:g} mL" +
+        ("; confirm that an mL value was not entered as µL" if volume_ul < 50 else ""),
+    ))
+
+    wavelengths, absorbance = load_spectra(
+        config.input_path("measurement_spectra"),
+        input_format(config, "measurement_spectra"),
+    )
+    timestamps = load_timestamps(
+        config.input_path("timestamps"), input_format(config, "timestamps")
+    )
+    count_ok = absorbance.shape[1] == len(timestamps)
+    checks.append(_check(
+        "ok" if count_ok else "stop", "Spectra and timestamps",
+        f"{absorbance.shape[1]} spectra and {len(timestamps)} timestamps" +
+        (" are aligned" if count_ok else " do not match"),
+    ))
+    if len(timestamps) > 1:
+        intervals = np.diff(timestamps)
+        median_interval = float(np.median(intervals))
+        duration = float(timestamps[-1] - timestamps[0])
+        checks.append(_check(
+            "ok", "Acquisition timeline",
+            f"median interval {median_interval:.4g} s; duration {duration:.4g} s",
+        ))
+    else:
+        median_interval, duration = np.nan, 0.0
+
+    rate = float(experiment["thermal_back_reaction_s_1"])
+    if rate > 0:
+        half_life = float(np.log(2) / rate)
+        suspicious = ((np.isfinite(median_interval) and half_life < median_interval) or
+                      (duration > 0 and half_life < duration / 10))
+        checks.append(_check(
+            "warning" if suspicious else "ok", "Thermal back-reaction",
+            f"k = {rate:g} s⁻¹; half-life {half_life:.4g} s" +
+            (" is short relative to the experiment" if suspicious else ""),
+        ))
+    else:
+        checks.append(_check("ok", "Thermal back-reaction", "disabled (k = 0 s⁻¹)"))
+
+    epsilon_r = _load_reference(config, "reactant_absorptivity")
+    epsilon_p = _load_reference(config, "product_absorptivity")
+    led_wavelengths, _ = load_spectrum(
+        config.input_path("led_emission"), input_format(config, "led_emission")
+    )
+    requested_low, requested_high = processing["wavelength_range_nm"]
+    common_low = max(float(wavelengths[0]), float(epsilon_r[0][0]),
+                     float(epsilon_p[0][0]), float(requested_low))
+    common_high = min(float(wavelengths[-1]), float(epsilon_r[0][-1]),
+                      float(epsilon_p[0][-1]), float(requested_high))
+    checks.append(_check(
+        "ok" if common_high > common_low else "stop", "Wavelength overlap",
+        f"usable measurement/reference range {common_low:.1f}–{common_high:.1f} nm",
+    ))
+    irradiation = float(experiment["irradiation_wavelength_nm"])
+    led_ok = float(led_wavelengths[0]) <= irradiation <= float(led_wavelengths[-1])
+    checks.append(_check(
+        "ok" if led_ok else "stop", "LED coverage",
+        f"irradiation wavelength {irradiation:g} nm; LED file spans "
+        f"{led_wavelengths[0]:.1f}–{led_wavelengths[-1]:.1f} nm",
+    ))
+    if common_high > common_low:
+        grid = wavelengths[(wavelengths >= common_low) & (wavelengths <= common_high)]
+        reference_matrix = np.column_stack((
+            np.interp(grid, epsilon_r[0], epsilon_r[1]),
+            np.interp(grid, epsilon_p[0], epsilon_p[1]),
+        ))
+        condition = float(np.linalg.cond(reference_matrix))
+        level = "stop" if condition > 1e6 else "warning" if condition > 1e3 else "ok"
+        checks.append(_check(
+            level, "Reference-spectrum separation",
+            f"two-spectrum condition number {condition:.3g}; lower is better",
+        ))
+    return checks
+
+
+def _load_reference(config, name):
+    path = config.input_path(name)
+    nominal = load_epsilon_nominal(path)
+    if nominal is not None:
+        return nominal
+    return load_spectrum(path, input_format(config, name))
+
+
+def _fit_health_checks(result, data, document):
+    checks = []
+    measured = result.concentration_fit.concentrations
+    fitted = result.yield_fit.concentrations
+    totals = measured.sum(axis=1)
+    initial_total = float(totals[0])
+    initial_product = (float(measured[0, 1]) / initial_total if initial_total > 0 else 0.0)
+    checks.append(_check(
+        "warning" if initial_product > 0.02 else "ok", "Initial product",
+        f"{initial_product:.2%} of total concentration" +
+        ("; verify references and baseline, while retaining it if physically real"
+         if initial_product > 0.02 else ""),
+    ))
+
+    measured_fraction = result.concentration_fit.fractions[:, 0]
+    fitted_total = fitted.sum(axis=1)
+    fitted_fraction = np.divide(fitted[:, 0], fitted_total, out=np.zeros_like(fitted_total),
+                                where=fitted_total != 0)
+    fraction_residual = measured_fraction - fitted_fraction
+    fraction_rmse = float(np.sqrt(np.mean(fraction_residual ** 2)))
+    fraction_max = float(np.max(np.abs(fraction_residual)))
+    fraction_level = "stop" if fraction_rmse > 0.05 else "warning" if fraction_rmse > 0.02 else "ok"
+    checks.append(_check(
+        fraction_level, "Kinetic fraction residual",
+        f"RMSE {fraction_rmse:.4g}; maximum |data − fit| {fraction_max:.4g}",
+    ))
+
+    epsilon = np.vstack((result.epsilon_r, result.epsilon_p))
+    fitted_absorbance = fitted @ epsilon * data.path_length_cm
+    if result.yield_fit.absorbance_correction is not None:
+        fitted_absorbance += result.yield_fit.absorbance_correction
+    absorbance_residual = result.absorbance.T - fitted_absorbance
+    absorbance_rmse = float(np.sqrt(np.mean(absorbance_residual ** 2)))
+    absorbance_scale = max(float(np.max(np.abs(result.absorbance))), np.finfo(float).eps)
+    relative_rmse = absorbance_rmse / absorbance_scale
+    absorbance_level = "stop" if relative_rmse > 0.05 else "warning" if relative_rmse > 0.02 else "ok"
+    checks.append(_check(
+        absorbance_level, "Full-spectrum reconstruction",
+        f"absorbance RMSE {absorbance_rmse:.4g} ({relative_rmse:.2%} of maximum absorbance)",
+    ))
+
+    total_cv = float(np.std(totals) / np.mean(totals)) if np.mean(totals) else np.inf
+    total_level = "stop" if total_cv > 0.05 else "warning" if total_cv > 0.02 else "ok"
+    checks.append(_check(
+        total_level, "Concentration conservation",
+        f"total-concentration coefficient of variation {total_cv:.3%}",
+    ))
+
+    fit = result.yield_fit
+    condition = float(fit.jacobian_condition)
+    optimizer_level = ("stop" if not fit.optimizer_success or condition > 1e8 else
+                       "warning" if condition > 1e6 or any(fit.active_bounds) else "ok")
+    bound_text = "; a quantum yield touches its bound" if any(fit.active_bounds) else ""
+    checks.append(_check(
+        optimizer_level, "Optimizer identifiability",
+        f"Jacobian condition number {condition:.3g}{bound_text}",
+    ))
+
+    model_time = _transition_time(np.asarray(data.timestamps), 1 - fitted_fraction)
+    data_time = _transition_time(np.asarray(data.timestamps),
+                                 1 - measured_fraction)
+    if model_time is not None and data_time is not None:
+        interval = float(np.median(np.diff(data.timestamps))) if len(data.timestamps) > 1 else 0.0
+        mismatch = abs(model_time - data_time) > max(2 * interval, 0.25 * max(data_time, interval))
+        checks.append(_check(
+            "warning" if mismatch else "ok", "Conversion timescale",
+            f"95% transition: model {model_time:.4g} s; data {data_time:.4g} s",
+        ))
+
+    expected = document["analysis"].get("expected_pss_reactant_percent")
+    fitted_pss = float(result.extrapolated_pss[0] / np.sum(result.extrapolated_pss) * 100)
+    if expected is None:
+        checks.append(_check(
+            "ok", "Extrapolated PSS", f"reactant {fitted_pss:.2f}% (no expected value entered)"
+        ))
+    else:
+        difference = abs(fitted_pss - float(expected))
+        checks.append(_check(
+            "warning" if difference > 5 else "ok", "Expected versus fitted PSS",
+            f"reactant expected {float(expected):.2f}%; fitted {fitted_pss:.2f}%",
+        ))
+
+    errors = np.asarray(result.yield_errors, float)
+    if np.any(~np.isfinite(errors)) or np.any(errors >= 1):
+        checks.append(_check(
+            "stop", "Quantum-yield uncertainty",
+            "uncertainty is at least 100 percentage points; treat the fit as unidentifiable",
+        ))
+    uncertainty = result.epsilon_uncertainty
+    if uncertainty is not None and len(uncertainty.bound_labels):
+        worst = int(np.argmax(np.max(uncertainty.bound_optimizer_errors, axis=1)))
+        worst_errors = uncertainty.bound_optimizer_errors[worst] * 100
+        level = "stop" if np.max(worst_errors) >= 100 else "warning" if np.max(worst_errors) >= 25 else "ok"
+        checks.append(_check(
+            level, "Most uncertain ε-bound combination",
+            f"{uncertainty.bound_labels[worst]}: optimizer errors "
+            f"{worst_errors[0]:.3g}% and {worst_errors[1]:.3g}%",
+        ))
+    return checks
+
+
+def _transition_time(times, values, fraction=0.95):
+    values = np.asarray(values, float)
+    change = float(values[-1] - values[0])
+    if not np.isfinite(change) or abs(change) <= np.finfo(float).eps:
+        return None
+    target = values[0] + fraction * change
+    indices = np.flatnonzero(values >= target) if change > 0 else np.flatnonzero(values <= target)
+    return float(times[indices[0]]) if len(indices) else None
+
+
+def _compare_fit_methods(config):
+    methods = ("concentrations", "regularized_concentrations", "ode_absorbance")
+    rows = []
+    with TemporaryDirectory(prefix="autoqy-method-comparison-") as temporary:
+        for method in methods:
+            values = deepcopy(config.values)
+            values["fit"]["method"] = method
+            values.setdefault("uncertainty", {}).setdefault("epsilon", {})["method"] = "none"
+            for name in ("write_text", "write_figures", "write_json", "write_config",
+                         "write_detailed_data"):
+                values["outputs"][name] = False
+            output = run_analysis(
+                AnalysisConfig(values, config.base_directory, config.source), temporary
+            )
+            result, data = output.result, output.data
+            measured_fraction = result.concentration_fit.fractions[:, 0]
+            fitted_total = result.yield_fit.concentrations.sum(axis=1)
+            fitted_fraction = np.divide(
+                result.yield_fit.concentrations[:, 0], fitted_total,
+                out=np.zeros_like(fitted_total), where=fitted_total != 0,
+            )
+            epsilon = np.vstack((result.epsilon_r, result.epsilon_p))
+            fitted_absorbance = result.yield_fit.concentrations @ epsilon * data.path_length_cm
+            if result.yield_fit.absorbance_correction is not None:
+                fitted_absorbance += result.yield_fit.absorbance_correction
+            rows.append({
+                "method": method,
+                "values": result.yield_fit.values * 100,
+                "errors": result.yield_errors * 100,
+                "fraction_rmse": float(np.sqrt(np.mean(
+                    (measured_fraction - fitted_fraction) ** 2
+                ))),
+                "absorbance_rmse": float(np.sqrt(np.mean(
+                    (result.absorbance.T - fitted_absorbance) ** 2
+                ))),
+                "active_bounds": any(result.yield_fit.active_bounds),
+            })
+    return rows
+
+
+def _render_comparison(html, rows, selected_method):
+    headings = ("Method", "Φ R→P", "Φ P→R", "Fraction RMSE", "Absorbance RMSE", "Health")
+    body = []
+    for row in rows:
+        health = "Bound hit" if row["active_bounds"] else "Nominal"
+        body.append(html.Tr(className="comparison-selected" if row["method"] == selected_method else "",
+                            children=[
+            html.Td(_method_label(row["method"])),
+            html.Td(f"{row['values'][0]:.3g} ± {row['errors'][0]:.2g}%"),
+            html.Td(f"{row['values'][1]:.3g} ± {row['errors'][1]:.2g}%"),
+            html.Td(f"{row['fraction_rmse']:.4g}"),
+            html.Td(f"{row['absorbance_rmse']:.4g}"),
+            html.Td(health),
+        ]))
+    return html.Div([
+        html.P("Nominal ε comparison; no result files were written.", className="helper-text"),
+        html.Div(className="comparison-table-wrap", children=[
+            html.Table(className="comparison-table", children=[
+                html.Thead(html.Tr([html.Th(name) for name in headings])),
+                html.Tbody(body),
+            ])
+        ]),
+    ])
+
+
+def _yield_card(html, label, summary, name):
+    value = float(summary["quantum_yield_percent"][name])
+    error = float(summary["quantum_yield_error_percent"][name])
+    if not np.isfinite(error) or error >= 100:
+        return [html.Span(label), html.Strong(f"Nominal {value:.3g}%"),
+                html.Small("Unidentifiable uncertainty · inspect fit health")]
+    formatted = summary["quantum_yield_formatted_percent"][name]
+    return [html.Span(label),
+            html.Strong(f"{formatted['value']} ± {formatted['error']}%"),
+            html.Small("Quantum yield")]
+
+
+def _check(level, title, body):
+    return {"level": level, "title": title, "body": body}
+
+
+def _render_checks(html, checks):
+    return [html.Div(className=f"diagnostic-item diagnostic-{item['level']}", children=[
+        html.Strong(item["title"]), html.Span(item["body"]),
+    ]) for item in checks]
+
+
+def _interactive_figures(go, make_subplots, result, data, residual_percentile):
     times = np.asarray(data.timestamps)
     measured = result.concentration_fit.concentrations
     fitted = result.yield_fit.concentrations
@@ -660,6 +1074,49 @@ def _interactive_figures(go, result, data, residual_percentile):
     fitted_absorbance = fitted @ epsilon * data.path_length_cm
     if result.yield_fit.absorbance_correction is not None:
         fitted_absorbance += result.yield_fit.absorbance_correction
+
+    input_diagnostic = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.12,
+        specs=[[{"secondary_y": True}], [{}]],
+        row_heights=[0.46, 0.54],
+        subplot_titles=("Reference absorptivity and fitted LED", "Measured and reconstructed spectra"),
+    )
+    input_diagnostic.add_trace(go.Scatter(
+        x=result.wavelengths, y=result.epsilon_r, mode="lines",
+        name="Reactant ε", line={"color": blue, "width": 2},
+    ), row=1, col=1, secondary_y=False)
+    input_diagnostic.add_trace(go.Scatter(
+        x=result.wavelengths, y=result.epsilon_p, mode="lines",
+        name="Product ε", line={"color": orange, "width": 2},
+    ), row=1, col=1, secondary_y=False)
+    led_processed = process_led(
+        *data.led, data.baseline_correct_led, data.led_smoothing_window,
+        data.led_polynomial_order, data.baseline_exclusion_fwhm_multiplier,
+    )
+    led_aligned = np.interp(result.wavelengths, data.led[0], led_processed)
+    led_scale = max(float(np.max(led_aligned)), np.finfo(float).eps)
+    input_diagnostic.add_trace(go.Scatter(
+        x=result.wavelengths, y=led_aligned / led_scale, mode="lines",
+        name="Processed LED (normalized)", line={"color": "#8a5a9b", "width": 1.8},
+    ), row=1, col=1, secondary_y=True)
+    for index, label, colour in ((0, "Initial", blue), (-1, "Final", orange)):
+        input_diagnostic.add_trace(go.Scatter(
+            x=result.wavelengths, y=measured_absorbance[index], mode="lines",
+            name=f"{label} measured", line={"color": colour, "width": 2},
+        ), row=2, col=1)
+        input_diagnostic.add_trace(go.Scatter(
+            x=result.wavelengths, y=fitted_absorbance[index], mode="lines",
+            name=f"{label} reconstructed",
+            line={"color": colour, "width": 1.8, "dash": "dash"},
+        ), row=2, col=1)
+    _style_figure(input_diagnostic, "Input and reconstruction compatibility", "", "")
+    input_diagnostic.update_yaxes(title_text="ε (M⁻¹ cm⁻¹)", row=1, col=1,
+                                  secondary_y=False)
+    input_diagnostic.update_yaxes(title_text="LED (normalized)", row=1, col=1,
+                                  secondary_y=True)
+    input_diagnostic.update_yaxes(title_text="Absorbance", row=2, col=1)
+    input_diagnostic.update_xaxes(title_text="Wavelength (nm)", row=2, col=1)
+
     absorbance_residual = measured_absorbance - fitted_absorbance
     limit = float(np.percentile(np.abs(absorbance_residual), residual_percentile))
     limit = limit or float(np.finfo(float).eps)
@@ -675,7 +1132,7 @@ def _interactive_figures(go, result, data, residual_percentile):
                   f"{uncertainty.absorbance_residual_rmse_maximum:.3g}")
     _style_figure(heatmap, title, "Wavelength (nm)", "Irradiation time (s)")
     heatmap.update_yaxes(autorange="reversed")
-    return concentration, fraction, spectra, heatmap
+    return concentration, fraction, spectra, input_diagnostic, heatmap
 
 
 def _add_band(go, figure, x, lower, upper, colour, name):
@@ -689,10 +1146,12 @@ def _add_band(go, figure, x, lower, upper, colour, name):
 
 def _style_figure(figure, title, x_title, y_title):
     figure.update_layout(
-        template="plotly_white", height=610, title={"text": title, "x": 0.02},
-        margin={"l": 72, "r": 34, "t": 74, "b": 60}, hovermode="closest",
-        legend={"orientation": "h", "y": 1.02, "yanchor": "bottom", "x": 1,
-                "xanchor": "right", "bgcolor": "rgba(255,255,255,.9)"},
+        template="plotly_white", height=740,
+        title={"text": title, "x": 0.02, "y": 0.98,
+               "yanchor": "top", "yref": "container"},
+        margin={"l": 72, "r": 34, "t": 205, "b": 60}, hovermode="closest",
+        legend={"orientation": "h", "y": 1.06, "yanchor": "bottom", "x": 0,
+                "xanchor": "left", "bgcolor": "rgba(255,255,255,.9)"},
     )
     figure.update_xaxes(title=x_title, showgrid=False)
     figure.update_yaxes(title=y_title, gridcolor="rgba(32,36,44,.10)")
@@ -750,10 +1209,13 @@ def _choose_file(initial_directory=None, file_filter="All files|*.*"):
     file_filter = _powershell_quote(file_filter)
     script = (
         "Add-Type -AssemblyName System.Windows.Forms; "
+        + _foreground_owner_script() +
         "$dialog = New-Object System.Windows.Forms.OpenFileDialog; "
         f"$dialog.Filter = '{file_filter}'; "
         f"if ('{initial}' -and (Test-Path -LiteralPath '{initial}')) {{ $dialog.InitialDirectory = '{initial}' }}; "
-        "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.FileName }"
+        "$result = $dialog.ShowDialog($owner); "
+        "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.FileName }; "
+        "$owner.Close(); $owner.Dispose()"
     )
     selected = _run_powershell_dialog(script)
     return selected[0] if selected else None
@@ -763,9 +1225,12 @@ def _choose_folder(initial_directory=None):
     initial = _powershell_quote(str(initial_directory or ""))
     script = (
         "Add-Type -AssemblyName System.Windows.Forms; "
+        + _foreground_owner_script() +
         "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog; "
         f"if ('{initial}' -and (Test-Path -LiteralPath '{initial}')) {{ $dialog.SelectedPath = '{initial}' }}; "
-        "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath }"
+        "$result = $dialog.ShowDialog($owner); "
+        "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath }; "
+        "$owner.Close(); $owner.Dispose()"
     )
     selected = _run_powershell_dialog(script)
     return selected[0] if selected else None
@@ -776,11 +1241,14 @@ def _choose_save_json(initial_directory, filename):
     filename = _powershell_quote(filename)
     script = (
         "Add-Type -AssemblyName System.Windows.Forms; "
+        + _foreground_owner_script() +
         "$dialog = New-Object System.Windows.Forms.SaveFileDialog; "
         "$dialog.Filter = 'JSON files|*.json'; $dialog.DefaultExt = 'json'; "
         "$dialog.AddExtension = $true; $dialog.OverwritePrompt = $true; "
         f"$dialog.InitialDirectory = '{initial}'; $dialog.FileName = '{filename}'; "
-        "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.FileName }"
+        "$result = $dialog.ShowDialog($owner); "
+        "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.FileName }; "
+        "$owner.Close(); $owner.Dispose()"
     )
     selected = _run_powershell_dialog(script)
     return selected[0] if selected else None
@@ -793,6 +1261,15 @@ def _run_powershell_dialog(script):
         check=True, capture_output=True, text=True, creationflags=flags,
     )
     return [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+
+
+def _foreground_owner_script():
+    return (
+        "$owner = New-Object System.Windows.Forms.Form; "
+        "$owner.TopMost = $true; $owner.ShowInTaskbar = $false; "
+        "$owner.StartPosition = 'CenterScreen'; $owner.Width = 1; $owner.Height = 1; "
+        "$owner.Opacity = 0; $owner.Show(); $owner.Activate(); "
+    )
 
 
 def _powershell_quote(value):

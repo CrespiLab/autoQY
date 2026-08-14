@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from .config import AnalysisConfig, input_format, load_config, validate_config
-from .epsilon_uncertainty import (load_epsilon_envelope,
+from .epsilon_uncertainty import (load_epsilon_envelope, load_epsilon_nominal,
                                   run_with_epsilon_uncertainty)
 from .io import load_spectra, load_spectrum, load_timestamps
 from .output import result_summary, write_detailed_data, write_results
@@ -51,14 +51,8 @@ def run_analysis(config, output_directory=None):
         epsilon_p = (epsilon_envelopes[1].wavelengths,
                      epsilon_envelopes[1].nominal)
     else:
-        epsilon_r = load_spectrum(
-            config.input_path("reactant_absorptivity"),
-            input_format(config, "reactant_absorptivity"),
-        )
-        epsilon_p = load_spectrum(
-            config.input_path("product_absorptivity"),
-            input_format(config, "product_absorptivity"),
-        )
+        epsilon_r = _load_nominal_epsilon(config, "reactant_absorptivity")
+        epsilon_p = _load_nominal_epsilon(config, "product_absorptivity")
     led = load_spectrum(config.input_path("led_emission"), input_format(config, "led_emission"))
     timestamps = load_timestamps(
         config.input_path("timestamps"), input_format(config, "timestamps")
@@ -99,6 +93,13 @@ def run_analysis(config, output_directory=None):
     ) if epsilon_envelopes else run_analysis_pipeline(data))
     files = _write_outputs(config, data, result, output_directory)
     return RunOutput(result, files, data)
+
+
+def _load_nominal_epsilon(config, name):
+    path = config.input_path(name)
+    autoqy_epsilon = load_epsilon_nominal(path)
+    return (autoqy_epsilon if autoqy_epsilon is not None else
+            load_spectrum(path, input_format(config, name)))
 
 
 def _write_outputs(config, data, result, output_directory):

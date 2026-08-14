@@ -439,11 +439,12 @@ def _baseline_figure(detail, case, filename):
 
 def _style_figure(figure):
     figure.update_layout(
-        template="plotly_white", margin={"l": 70, "r": 30, "t": 80, "b": 60},
+        template="plotly_white", margin={"l": 70, "r": 30, "t": 180, "b": 60},
+        title={"x": 0.02, "y": 0.98, "yanchor": "top", "yref": "container"},
         paper_bgcolor="#ffffff", plot_bgcolor="#fbfaf7",
         font={"family": "Inter, Segoe UI, sans-serif", "color": "#20242c"},
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02,
-                "xanchor": "right", "x": 1},
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.06,
+                "xanchor": "left", "x": 0},
     )
     figure.update_xaxes(showgrid=False, zeroline=False)
     figure.update_yaxes(gridcolor="#e6e2db", zeroline=False)

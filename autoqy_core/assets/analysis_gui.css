@@ -29,6 +29,8 @@
 .analysis-file-card .Select-control { margin-top: 8px; }
 .path-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: stretch; }
 .compact-button { width: auto; min-width: 76px; margin: 0; padding: 8px 11px; }
+.volume-input-row { display: grid; grid-template-columns: minmax(0, 1fr) 88px; gap: 8px; }
+.volume-input-row .Select-control { min-height: 39px; }
 .format-options { margin-top: 8px; color: #505661; font-size: .78rem; }
 .format-options summary { cursor: pointer; font-weight: 650; }
 .format-options .input-row { margin-bottom: 0; }
@@ -52,7 +54,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.analysis-plot-panel { min-height: 660px; }
+.analysis-plot-panel { min-height: 790px; }
 .analysis-plot-panel .tab {
   padding: 12px 4px !important;
   font-size: .78rem;
@@ -73,6 +75,33 @@
 }
 .output-file-list { display: flex; flex-direction: column; gap: 7px; }
 .output-file-list code { overflow-wrap: anywhere; }
+.diagnostic-list { display: grid; gap: 8px; }
+.diagnostic-item {
+  display: grid;
+  grid-template-columns: minmax(150px, .7fr) minmax(220px, 1.3fr);
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #d9dcdf;
+  border-left-width: 4px;
+  border-radius: 9px;
+  background: #fafafa;
+  font-size: .8rem;
+  line-height: 1.4;
+}
+.diagnostic-item span { color: #505661; }
+.diagnostic-ok { border-left-color: #4f8a68; background: #f4faf6; }
+.diagnostic-warning { border-left-color: #d49a3a; background: #fff9ed; }
+.diagnostic-stop { border-left-color: #b85c4a; background: #fff3f0; }
+.comparison-table-wrap { overflow-x: auto; }
+.comparison-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.comparison-table th, .comparison-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #e3dfd7;
+  text-align: left;
+  white-space: nowrap;
+}
+.comparison-table th { color: #505661; font-weight: 700; }
+.comparison-selected { background: #edf6f9; }
 
 @media (max-width: 760px) {
   .workspace.analysis-workspace { grid-template-columns: 1fr; }
@@ -82,4 +111,5 @@
 @media (max-width: 650px) {
   .result-strip.analysis-result-strip { grid-template-columns: 1fr; }
   .analysis-controls .input-row { grid-template-columns: 1fr; }
+  .diagnostic-item { grid-template-columns: 1fr; gap: 4px; }
 }
