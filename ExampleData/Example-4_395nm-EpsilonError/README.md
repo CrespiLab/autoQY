@@ -1,14 +1,14 @@
-# Merve 395 nm epsilon-error example
+# 395 nm epsilon-error example
 
-This self-contained example uses Merve's 395 nm dataset and propagates the
+This self-contained 395 nm dataset propagates the
 wavelength-resolved errors of both reactant and product molar absorptivity with
 the deterministic-extremes method.
 
 From the repository root, run:
 
 ```text
-autoqy-core validate ExampleData/Example-4_Merve_395nm-EpsilonError/analysis.json
-autoqy-core run ExampleData/Example-4_Merve_395nm-EpsilonError/analysis.json
+autoqy-core validate ExampleData/Example-4_395nm-EpsilonError/analysis.json
+autoqy-core run ExampleData/Example-4_395nm-EpsilonError/analysis.json
 ```
 
 Outputs are written to the local `results` folder. The configuration uses the

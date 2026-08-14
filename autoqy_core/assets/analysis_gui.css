@@ -157,8 +157,9 @@
 .output-file-list code { overflow-wrap: anywhere; }
 .diagnostic-list { display: grid; gap: 8px; }
 .diagnostic-item {
-  display: grid;
-  grid-template-columns: minmax(150px, .7fr) minmax(220px, 1.3fr);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
   border: 1px solid #d9dcdf;
@@ -168,7 +169,8 @@
   font-size: .8rem;
   line-height: 1.4;
 }
-.diagnostic-item span { color: #505661; }
+.diagnostic-title-row { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.diagnostic-level { color: #505661; font-size: .72rem; font-weight: 750; white-space: nowrap; }
 .diagnostic-ok { border-left-color: #4f8a68; background: #f4faf6; }
 .diagnostic-warning { border-left-color: #d49a3a; background: #fff9ed; }
 .diagnostic-stop { border-left-color: #b85c4a; background: #fff3f0; }
@@ -191,5 +193,5 @@
 @media (max-width: 650px) {
   .result-strip.analysis-result-strip { grid-template-columns: 1fr; }
   .analysis-controls .input-row { grid-template-columns: 1fr; }
-  .diagnostic-item { grid-template-columns: 1fr; gap: 4px; }
+  .diagnostic-item { gap: 8px; }
 }

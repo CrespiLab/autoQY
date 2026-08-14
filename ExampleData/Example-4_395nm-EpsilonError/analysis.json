@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "analysis": {
-    "id": "Merve_395nm_epsilon_error",
+    "id": "example_395nm_epsilon_error",
     "reactant_name": "reactant",
     "product_name": "product"
   },
@@ -78,7 +78,7 @@
   },
   "outputs": {
     "directory": "results",
-    "stem": "Results_Merve_395nm_EpsilonError",
+    "stem": "Results_395nm_EpsilonError",
     "write_text": true,
     "write_figures": true,
     "write_json": true,
