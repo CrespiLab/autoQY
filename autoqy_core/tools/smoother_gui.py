@@ -3,14 +3,15 @@
 from argparse import ArgumentParser
 import base64
 from pathlib import Path
-from threading import Timer
+import subprocess
+from threading import Lock, Thread, Timer
+import time
 import webbrowser
 
 import numpy as np
 
 from ..epsilon import (EpsilonResult, NMRSubtractionResult,
-                       calculate_epsilon_statistics,
-                       concentration_from_preparation, export_epsilon_tsv,
+                       calculate_epsilon_statistics, export_epsilon_tsv,
                        export_nmr_subtraction_tsv, load_epsilon_tsv,
                        nonnegative_error_bounds, reconstruct_product_from_nmr)
 from ..smoother import (SpectralDataset, analyze_svd, baseline_spectra,
@@ -29,6 +30,50 @@ def create_app():
     assets = Path(__file__).parents[1] / "assets"
     app = Dash(__name__, assets_folder=str(assets), suppress_callback_exceptions=True)
     app.title = "AutoQY Spectral treatment"
+    window_state = {"close_requested_at": None}
+    window_lock = Lock()
+    app.server.config["AUTOQY_WINDOW_STATE"] = (window_state, window_lock)
+
+    @app.server.post("/_autoqy_heartbeat")
+    def autoqy_heartbeat():
+        with window_lock:
+            window_state["close_requested_at"] = None
+        return "", 204
+
+    @app.server.post("/_autoqy_window_closed")
+    def autoqy_window_closed():
+        with window_lock:
+            window_state["close_requested_at"] = time.monotonic()
+        return "", 204
+
+    app.index_string = """<!DOCTYPE html>
+<html><head>{%metas%}<title>{%title%}</title>{%favicon%}{%css%}</head>
+<body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer>
+<script>
+(() => {
+  const heartbeat = () => fetch('/_autoqy_heartbeat', {method: 'POST', keepalive: true});
+  heartbeat();
+  window.addEventListener('pageshow', heartbeat);
+  window.addEventListener('pagehide', () => navigator.sendBeacon('/_autoqy_window_closed'));
+  document.addEventListener('click', (event) => {
+    const popup = event.target.closest('.info-popup');
+    if (popup) {
+      event.preventDefault();
+      event.stopPropagation();
+      popup.focus();
+    } else if (document.activeElement?.classList.contains('info-popup')) {
+      document.activeElement.blur();
+    }
+  }, true);
+})();
+</script></body></html>"""
+
+    def info_popup(text):
+        return html.Span(className="info-popup", tabIndex=0, children=[
+            html.Span("i", className="info-popup-icon", **{"aria-hidden": "true"}),
+            html.Span(text, className="info-popup-content"),
+        ])
+
     app.layout = html.Div(className="app-shell", children=[
         html.Header(className="app-header", children=[html.Div([
             html.P("AUTOQY CORE", className="eyebrow"),
@@ -40,7 +85,10 @@ def create_app():
             html.Aside(className="control-column smoother-controls", children=[
                 html.Details(open=True, className="panel tool-details", children=[
                     html.Summary([html.Span("1 · Data", className="step-label"),
-                                  "Spectral data"]),
+                                  "Spectral data", info_popup(
+                                      "Load one or more spectra. File types are detected automatically; "
+                                      "folder loading also makes the source folder the default export location."
+                                  )]),
                     dcc.Upload(
                         id="upload-spectra", className="upload-box", multiple=True,
                         children=html.Div([
@@ -48,30 +96,28 @@ def create_app():
                             html.Small("SpectraGryph .dat, Avantes .Abs8, TSV, or CSV"),
                         ]),
                     ),
-                    html.Label("Text input format"),
-                    dcc.Dropdown(
-                        id="input-format", value="spectragryph", clearable=False,
-                        options=[
-                            {"label": "SpectraGryph matrix (default)", "value": "spectragryph"},
-                            {"label": "Avantes AvaSoft 8 (.Abs8)", "value": "avantes_abs8"},
-                            {"label": "TSV: wavelength + spectra", "value": "tsv"},
-                            {"label": "CSV: wavelength + spectra", "value": "csv"},
-                        ],
-                    ),
+                    html.Button("Open files from folder", id="open-local-spectra",
+                                className="button button-secondary"),
                     html.Button("Clear all spectra", id="clear-dataset",
                                 className="button button-secondary", disabled=True),
                     html.Div(id="load-message", className="message"),
                 ]),
                 html.Details(open=True, className="panel tool-details", children=[
                     html.Summary([html.Span("2 · Range", className="step-label"),
-                                  "Wavelengths"]),
+                                  "Wavelengths", info_popup(
+                                      "The selected range is used for the preview, molar-absorptivity "
+                                      "calculation, uncertainty statistics, and exported TSV."
+                                  )]),
                     html.Div([
                         dcc.Input(id="wavelength-low", type="number", placeholder="Start (nm)", disabled=True),
                         dcc.Input(id="wavelength-high", type="number", placeholder="End (nm)", disabled=True),
                     ], className="input-row"),
-                    html.Small("The preview, epsilon calculation, and export use this range."),
                     html.Details(open=False, className="nested-tool", children=[
-                        html.Summary("Preprocess spectra"),
+                        html.Summary(["Preprocess spectra", info_popup(
+                            "Baseline and Savitzky–Golay operate on each spectrum independently. "
+                            "SVD mixes columns and should only be used for ordered time-series data, "
+                            "never for independent concentration replicates. Uploaded values are unchanged."
+                        )]),
                         html.Div(className="interaction-bar", children=[
                             dcc.Checklist(
                                 id="baseline-enabled", value=[], className="toggle-control",
@@ -92,7 +138,10 @@ def create_app():
                             dcc.Input(id="baseline-high", type="number", placeholder="End"),
                         ], className="input-row"),
                         html.Details(open=False, className="parameter-details", children=[
-                            html.Summary("Smoothing parameters"),
+                            html.Summary(["Smoothing parameters", info_popup(
+                                "The Savitzky–Golay window is entered in nanometres and converted "
+                                "to a valid odd number of detector points; polynomial order must be lower."
+                            )]),
                             html.Label("Savitzky–Golay: window (nm) / polynomial order"),
                             html.Div([
                                 dcc.Input(id="savgol-window", type="number", value=5,
@@ -110,37 +159,46 @@ def create_app():
                                          placeholder="Load data for rank suggestion"),
                         ]),
                         html.Div(id="svd-message", className="message"),
-                        html.P("Use SVD only for ordered time-based datasets. Do not use it on "
-                               "independent repeat measurements: it mixes columns and can suppress "
-                               "the real between-measurement variation.", className="svd-warning"),
-                        html.P("Baseline and Savitzky–Golay are applied to each spectrum "
-                               "independently; uploaded values remain unchanged.",
-                               className="warning-copy"),
                         html.Div(id="smoothing-message", className="message"),
                     ]),
                 ]),
                 html.Details(open=True, className="panel tool-details", children=[
                     html.Summary([html.Span("3 · Beer–Lambert", className="step-label"),
-                                  "Concentrations"]),
-                    html.P("Choose direct molarity or calculate it from each independent preparation. "
-                           "Path length is required in centimetres.", className="helper-text"),
+                                  "Concentrations", info_popup(
+                                      "Enter each measured solution concentration directly in mol/L "
+                                      "and its optical path length in centimetres."
+                                  )]),
                     html.Div(id="concentration-parameters"),
                     html.Div(id="concentration-message", className="message"),
                 ]),
                 html.Section(className="panel export-panel", children=[
                     html.P("4 · Output", className="step-label"),
-                    html.H2("Export absorptivity dataset"),
-                    html.Button("Export epsilon TSV", id="export-epsilon",
+                    html.Div(className="section-title-row", children=[
+                        html.H2("Export absorptivity dataset"),
+                        info_popup(
+                            "The TSV stores processed absorbance, each individual ε spectrum, "
+                            "their mean, SD and SEM, and non-negative lower and upper bounds."
+                        ),
+                    ]),
+                    html.Label("Save folder"),
+                    html.Div(className="input-row", children=[
+                        dcc.Input(id="save-folder", type="text",
+                                  placeholder="Choose a save folder"),
+                        html.Button("Choose folder", id="choose-save-folder",
+                                    className="button button-secondary"),
+                    ]),
+                    html.Button("Save reactant ε TSV", id="export-epsilon",
                                 className="button button-primary", disabled=True),
-                    html.Small("Includes processed absorbance, each epsilon spectrum, mean, SD, and SEM."),
-                    dcc.Download(id="download-epsilon"),
+                    html.Div(id="epsilon-save-message", className="message"),
+                    dcc.ConfirmDialog(id="confirm-epsilon-overwrite"),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
                     html.Summary([html.Span("5 · Optional", className="step-label"),
-                                  "NMR-guided PSS subtraction"]),
-                    html.P("Load one UV–Vis dataset containing the full irradiation sequence. "
-                           "The first spectrum is used as pure reactant and the last spectrum "
-                           "as the final PSS.", className="helper-text"),
+                                  "NMR-guided PSS subtraction", info_popup(
+                                      "Load one UV–Vis dataset containing reactant and final PSS. "
+                                      "After shared normalization, product ε is reconstructed as "
+                                      "(PSS − x · reactant) / (1 − x), where x is the reactant fraction at PSS."
+                                  )]),
                     dcc.Upload(
                         id="nmr-upload", className="upload-box compact-upload", multiple=False,
                         children=html.Div([
@@ -148,17 +206,11 @@ def create_app():
                             html.Small("First spectrum = reactant · last spectrum = PSS"),
                         ]),
                     ),
-                    html.Label("Text input format"),
-                    dcc.Dropdown(
-                        id="nmr-input-format", value="spectragryph", clearable=False,
-                        options=[
-                            {"label": "SpectraGryph matrix (default)", "value": "spectragryph"},
-                            {"label": "TSV", "value": "tsv"},
-                            {"label": "CSV", "value": "csv"},
-                        ],
-                    ),
                     html.Details(open=True, className="nested-tool", children=[
-                        html.Summary("Preprocess reactant and PSS"),
+                        html.Summary(["Preprocess reactant and PSS", info_popup(
+                            "Apply the same baseline interval and Savitzky–Golay settings to the "
+                            "reactant and PSS spectra before their normalized subtraction."
+                        )]),
                         html.Div(className="interaction-bar", children=[
                             dcc.Checklist(
                                 id="nmr-baseline-enabled", value=[],
@@ -211,9 +263,10 @@ def create_app():
                         html.Small("Default: the primary product ε column is clipped at zero. "
                                    "The raw audit column is always preserved."),
                     ]),
-                    html.Button("Export NMR-derived epsilon TSV", id="export-nmr",
+                    html.Button("Save reactant + NMR-derived ε TSVs", id="export-nmr",
                                 className="button button-accent", disabled=True),
-                    dcc.Download(id="download-nmr"),
+                    html.Div(id="nmr-save-message", className="message"),
+                    dcc.ConfirmDialog(id="confirm-nmr-overwrite"),
                 ]),
             ]),
             html.Div(className="plot-column", children=[
@@ -223,14 +276,22 @@ def create_app():
                 html.Section(id="nmr-plot-panel", className="plot-panel", style={"display": "none"},
                              children=[dcc.Graph(id="nmr-plot", figure=_empty(go, "Load NMR spectra"))]),
                 html.Section(className="panel result-summary", children=[
-                    html.H2("Result"), html.Div(id="result-message", className="helper-text"),
+                    html.Div(className="section-title-row", children=[
+                        html.H2("Result"), info_popup(
+                            "Reports whether ε can be calculated or exported and highlights "
+                            "missing concentration, preprocessing, or non-negativity requirements."
+                        ),
+                    ]),
+                    html.Div(id="result-message", className="helper-text"),
                 ]),
                 html.Details(open=False, className="panel tool-details error-panel", children=[
-                    html.Summary("Python errors"),
+                    html.Summary(["Python errors", info_popup(
+                        "This panel contains detailed parser, preprocessing, reconstruction, "
+                        "or export exceptions. An empty panel means no Python error is active."
+                    )]),
                     html.Pre(id="load-error"), html.Pre(id="preview-error"),
                     html.Pre(id="svd-error"), html.Pre(id="nmr-error"),
                     html.Pre(id="export-error"),
-                    html.Small("An empty panel means no Python error is active."),
                 ]),
             ]),
         ]),
@@ -238,22 +299,31 @@ def create_app():
         dcc.Store(id="epsilon-store"),
         dcc.Store(id="nmr-spectra-store"),
         dcc.Store(id="nmr-result-store"),
+        dcc.Store(id="source-folder-store"),
     ])
 
     @app.callback(
         Output("dataset-store", "data"), Output("load-message", "children"),
         Output("upload-spectra", "contents"), Output("upload-spectra", "filename"),
-        Output("load-error", "children"),
+        Output("load-error", "children"), Output("source-folder-store", "data"),
         Input("upload-spectra", "contents"), Input("clear-dataset", "n_clicks"),
-        State("upload-spectra", "filename"), State("input-format", "value"),
+        Input("open-local-spectra", "n_clicks"),
+        State("upload-spectra", "filename"),
         prevent_initial_call=True,
     )
-    def load(contents, _, filenames, format_name):
+    def load(contents, _, __, filenames):
         if ctx.triggered_id == "clear-dataset":
-            return None, "All spectra cleared.", None, None, ""
+            return None, "All spectra cleared.", None, None, "", None
         try:
+            if ctx.triggered_id == "open-local-spectra":
+                paths = _choose_files()
+                if not paths:
+                    return no_update, "File selection cancelled.", no_update, no_update, "", no_update
+                packed, message = _load_local_paths(paths)
+                source_folder = str(Path(paths[0]).resolve().parent)
+                return packed, message, None, None, "", source_folder
             if not contents:
-                return None, "Choose one or more files to begin.", no_update, no_update, ""
+                return None, "Choose one or more files to begin.", no_update, no_update, "", None
             contents = contents if isinstance(contents, list) else [contents]
             filenames = filenames if isinstance(filenames, list) else [filenames]
             restored = _try_load_autoqy_export(contents, filenames)
@@ -267,14 +337,14 @@ def create_app():
                     _pack(dataset, labels, filenames, result.concentrations_m,
                           result.path_lengths_cm),
                     f"Restored {len(labels)} processed absorbance spectrum/spectra, "
-                    "concentrations, and path lengths from an AutoQY epsilon TSV.",
-                    no_update, no_update, "",
+                    "concentrations, and path lengths from an AutoQY ε TSV.",
+                    no_update, no_update, "", None,
                 )
             loaded = []
             for content, filename in zip(contents, filenames):
                 payload = base64.b64decode(content.split(",", 1)[1])
                 selected_format = ("avantes_abs8" if Path(filename or "").suffix.lower() == ".abs8"
-                                   else format_name)
+                                   else "auto")
                 loaded.append((load_spectral_bytes(payload, selected_format), filename))
             dataset, labels, resampled = _combine_loaded(loaded)
             missing = sum(item.interpolated_values for item, _ in loaded)
@@ -288,11 +358,22 @@ def create_app():
                 _pack(dataset, labels, filenames),
                 f"Loaded {len(filenames)} file(s), {len(labels)} spectrum/spectra, "
                 f"and {len(dataset.wavelengths)} common wavelengths{note}.",
-                no_update, no_update, "",
+                no_update, no_update, "", None,
             )
         except Exception as error:
             return (None, "Could not load the selected files.", no_update, no_update,
-                    f"Load error: {type(error).__name__}: {error}")
+                    f"Load error: {type(error).__name__}: {error}", no_update)
+
+    @app.callback(
+        Output("save-folder", "value"),
+        Input("source-folder-store", "data"), Input("choose-save-folder", "n_clicks"),
+        State("save-folder", "value"), prevent_initial_call=True,
+    )
+    def select_save_folder(source_folder, _, current_folder):
+        if ctx.triggered_id == "source-folder-store":
+            return source_folder
+        selected = _choose_folder(current_folder or source_folder)
+        return selected or no_update
 
     @app.callback(
         Output("wavelength-low", "value"), Output("wavelength-high", "value"),
@@ -354,17 +435,12 @@ def create_app():
         Input("smoothing-method", "value"), Input("savgol-window", "value"),
         Input("savgol-order", "value"), Input("svd-enabled", "value"),
         Input("svd-rank", "value"),
-        Input({"type": "concentration-mode", "index": ALL}, "value"),
         Input({"type": "direct-concentration", "index": ALL}, "value"),
-        Input({"type": "mass-mg", "index": ALL}, "value"),
-        Input({"type": "volume-ml", "index": ALL}, "value"),
-        Input({"type": "molecular-weight", "index": ALL}, "value"),
         Input({"type": "path-length", "index": ALL}, "value"),
     )
     def preview(data, wavelength_low, wavelength_high, baseline_enabled,
                 baseline_low, baseline_high, method, sg_width, sg_order,
-                svd_enabled, svd_rank, modes, direct, masses, volumes,
-                molecular_weights, path_lengths):
+                svd_enabled, svd_rank, concentrations, path_lengths):
         if not data:
             return (_empty(go, "Load spectral data to begin"),
                     "No result yet.", "", "Smoothing is off.", None, True, "")
@@ -375,15 +451,14 @@ def create_app():
                 svd_enabled, svd_rank,
             )
             concentration_data = _read_concentrations(
-                len(data["labels"]), modes, direct, masses, volumes,
-                molecular_weights, path_lengths,
+                len(data["labels"]), concentrations, path_lengths
             )
             if concentration_data is None:
-                message = ("Enter the selected concentration inputs and path length for every "
+                message = ("Enter the concentration and path length for every "
                            "spectrum to calculate molar absorptivity.")
                 return (_absorbance_figure(go, dataset, original, processed, data["labels"],
                                            method, svd_enabled, svd_rank),
-                        "Absorbance preview; epsilon is waiting for concentration inputs.",
+                        "Absorbance preview; ε is waiting for concentration inputs.",
                         message, smoothing_message, None, True, "")
             concentrations, paths = concentration_data
             result = calculate_epsilon_statistics(
@@ -395,7 +470,7 @@ def create_app():
                                   "the shaded region is ±1 sample SD at each wavelength. "
                                   "SEM is also included in the export.")
             else:
-                result_message = ("One epsilon spectrum calculated. At least two independent "
+                result_message = ("One ε spectrum calculated. At least two independent "
                                   "spectra are required to estimate wavelength-resolved SD.")
             negative_mean = int(np.count_nonzero(result.mean < 0))
             if count > 1:
@@ -423,29 +498,39 @@ def create_app():
                     f"Preview error: {type(error).__name__}: {error}")
 
     @app.callback(
-        Output("download-epsilon", "data"), Output("export-error", "children"),
-        Input("export-epsilon", "n_clicks"), State("epsilon-store", "data"),
+        Output("epsilon-save-message", "children"),
+        Output("confirm-epsilon-overwrite", "displayed"),
+        Output("confirm-epsilon-overwrite", "message"),
+        Output("export-error", "children"),
+        Input("export-epsilon", "n_clicks"),
+        Input("confirm-epsilon-overwrite", "submit_n_clicks"),
+        State("epsilon-store", "data"), State("save-folder", "value"),
         prevent_initial_call=True,
     )
-    def download(_, data):
+    def save_epsilon(_, __, data, folder):
         try:
             if not data:
-                raise ValueError("Calculate epsilon before exporting")
+                raise ValueError("Calculate ε before exporting")
+            destination = _save_path(folder, "epsilon-spectra-reactant.tsv")
             result, labels = _unpack_epsilon(data)
-            return dict(content=export_epsilon_tsv(result, labels),
-                        filename="epsilon-spectra.tsv"), ""
+            if ctx.triggered_id == "export-epsilon" and destination.exists():
+                return (f"Existing file: {destination}", True,
+                        f"Overwrite {destination.name}?", "")
+            destination.write_text(export_epsilon_tsv(result, labels), encoding="utf-8")
+            return f"Saved {destination}", False, "", ""
         except Exception as error:
-            return no_update, f"Export error: {type(error).__name__}: {error}"
+            return ("Save failed.", False, "",
+                    f"Export error: {type(error).__name__}: {error}")
 
     @app.callback(
         Output("nmr-spectra-store", "data"), Output("nmr-load-message", "children"),
         Output("nmr-upload", "contents"), Output("nmr-upload", "filename"),
         Output("clear-nmr", "disabled"), Output("nmr-error", "children"),
         Input("nmr-upload", "contents"), Input("clear-nmr", "n_clicks"),
-        State("nmr-upload", "filename"), State("nmr-input-format", "value"),
+        State("nmr-upload", "filename"),
         prevent_initial_call=True,
     )
-    def load_nmr(contents, _, filenames, format_name):
+    def load_nmr(contents, _, filenames):
         if ctx.triggered_id == "clear-nmr":
             return None, "NMR spectra cleared.", None, None, True, ""
         try:
@@ -458,7 +543,9 @@ def create_app():
             if isinstance(filenames, list):
                 filenames = filenames[0]
             payload = base64.b64decode(contents.split(",", 1)[1])
-            dataset = load_spectral_bytes(payload, format_name)
+            selected_format = ("avantes_abs8" if Path(filenames or "").suffix.lower() == ".abs8"
+                               else "auto")
+            dataset = load_spectral_bytes(payload, selected_format)
             if dataset.absorbance.shape[1] < 2:
                 raise ValueError("The NMR dataset must contain at least two spectra")
             return ({
@@ -493,9 +580,9 @@ def create_app():
             return (_empty(go, "Load reactant and PSS spectra"), {"display": "none"},
                     "", None, True, "status-message", "Preprocessing is off.")
         if not epsilon_data:
-            return (_empty(go, "Calculate or reload reactant epsilon first"), {"display": "block"},
-                    "Reactant epsilon is required before NMR subtraction.", None, True,
-                    "status-message status-warning", "Preprocessing is waiting for reactant epsilon.")
+            return (_empty(go, "Calculate or reload reactant ε first"), {"display": "block"},
+                    "Reactant ε is required before NMR subtraction.", None, True,
+                    "status-message status-warning", "Preprocessing is waiting for reactant ε.")
         try:
             epsilon_result, _ = _unpack_epsilon(epsilon_data)
             low = max(float(np.min(nmr_data["reactant_wavelengths"])),
@@ -505,7 +592,7 @@ def create_app():
             mask = ((epsilon_result.wavelengths >= low) &
                     (epsilon_result.wavelengths <= high))
             if np.count_nonzero(mask) < 2:
-                raise ValueError("NMR and reactant epsilon datasets do not share a wavelength range")
+                raise ValueError("NMR and reactant ε datasets do not share a wavelength range")
             epsilon_result = _subset_epsilon(epsilon_result, mask)
             target = epsilon_result.wavelengths
             raw_reactant = _interpolate_to_axis(
@@ -552,8 +639,9 @@ def create_app():
                            "visible; uncertainty bounds are constrained to zero.")
                 status = "status-message status-warning"
             else:
-                message = ("Product epsilon reconstructed. The band combines reactant sample SD "
-                           "and the selected NMR percentage-point error by min/max propagation.")
+                message = ("Product ε reconstructed from normalized "
+                           "(PSS − x · reactant) / (1 − x). The band combines the "
+                           "reactant ε scale SD and selected NMR error through minimum and maximum values.")
                 status = "status-message status-ok"
             return (figure, {"display": "block"}, message, _pack_nmr(result), False,
                     status, processing_message)
@@ -563,17 +651,35 @@ def create_app():
                     "status-message status-stop", "Preprocessing could not be applied.")
 
     @app.callback(
-        Output("download-nmr", "data"),
-        Input("export-nmr", "n_clicks"), State("nmr-result-store", "data"),
-        State("nmr-export-raw", "value"),
+        Output("nmr-save-message", "children"),
+        Output("confirm-nmr-overwrite", "displayed"),
+        Output("confirm-nmr-overwrite", "message"),
+        Input("export-nmr", "n_clicks"),
+        Input("confirm-nmr-overwrite", "submit_n_clicks"),
+        State("nmr-result-store", "data"), State("epsilon-store", "data"),
+        State("nmr-export-raw", "value"), State("save-folder", "value"),
         prevent_initial_call=True,
     )
-    def download_nmr(_, data, preserve_negative):
-        if not data:
-            return no_update
-        return dict(content=export_nmr_subtraction_tsv(
-                        _unpack_nmr(data), "on" in (preserve_negative or [])),
-                    filename="nmr-derived-product-epsilon.tsv")
+    def save_nmr(_, __, nmr_data, epsilon_data, preserve_negative, folder):
+        try:
+            if not nmr_data or not epsilon_data:
+                raise ValueError("Calculate reactant and NMR-derived ε before saving")
+            reactant_path = _save_path(folder, "epsilon-spectra-reactant.tsv")
+            product_path = _save_path(folder, "epsilon-spectra-product.tsv")
+            existing = [path.name for path in (reactant_path, product_path) if path.exists()]
+            if ctx.triggered_id == "export-nmr" and existing:
+                return ("Existing file(s): " + ", ".join(existing), True,
+                        "Overwrite " + " and ".join(existing) + "?",)
+            epsilon_result, labels = _unpack_epsilon(epsilon_data)
+            reactant_text = export_epsilon_tsv(epsilon_result, labels)
+            product_text = export_nmr_subtraction_tsv(
+                _unpack_nmr(nmr_data), "on" in (preserve_negative or [])
+            )
+            reactant_path.write_text(reactant_text, encoding="utf-8")
+            product_path.write_text(product_text, encoding="utf-8")
+            return f"Saved {reactant_path.name} and {product_path.name} in {reactant_path.parent}", False, ""
+        except Exception as error:
+            return f"Save error: {type(error).__name__}: {error}", False, ""
 
     return app
 
@@ -583,32 +689,19 @@ def _parameter_cards(html, dcc, labels, concentrations=None, path_lengths=None):
     for index, label in enumerate(labels):
         cards.append(html.Div(className="spectrum-card", children=[
             html.H3(label),
-            dcc.RadioItems(
-                id={"type": "concentration-mode", "index": index},
-                value="direct", className="radio-group compact-radio",
-                options=[
-                    {"label": " Direct concentration", "value": "direct"},
-                    {"label": " Calculate from preparation", "value": "prepared"},
-                ],
-            ),
-            html.Label("Concentration (M)"),
-            dcc.Input(id={"type": "direct-concentration", "index": index},
-                      type="number", min=0, step="any", placeholder="mol/L",
-                      value=(concentrations[index] if concentrations else None)),
             html.Div(className="parameter-grid", children=[
-                html.Div([html.Label("Mass (mg)"),
-                          dcc.Input(id={"type": "mass-mg", "index": index},
-                                    type="number", min=0, step="any")]),
-                html.Div([html.Label("Final volume (mL)"),
-                          dcc.Input(id={"type": "volume-ml", "index": index},
-                                    type="number", min=0, step="any")]),
-                html.Div([html.Label("Molecular weight (g/mol)"),
-                          dcc.Input(id={"type": "molecular-weight", "index": index},
-                                    type="number", min=0, step="any")]),
+                html.Div([html.Label("Concentration (mol/L)"),
+                          dcc.Input(
+                              id={"type": "direct-concentration", "index": index},
+                              type="number", min=0, step="any", placeholder="mol/L",
+                              value=(concentrations[index]
+                                     if concentrations is not None else None),
+                          )]),
                 html.Div([html.Label("Path length (cm)"),
                           dcc.Input(id={"type": "path-length", "index": index},
                                     type="number", min=0, step="any",
-                                    value=(path_lengths[index] if path_lengths else 1.0))]),
+                                    value=(path_lengths[index]
+                                           if path_lengths is not None else 1.0))]),
             ]),
         ]))
     return cards
@@ -647,31 +740,110 @@ def _combine_loaded(loaded):
     return combined, _display_unique(labels), resampled
 
 
-def _read_concentrations(count, modes, direct, masses, volumes,
-                         molecular_weights, path_lengths):
-    inputs = (modes, direct, masses, volumes, molecular_weights, path_lengths)
-    if any(len(values or []) != count for values in inputs):
+def _load_local_paths(paths):
+    paths = [Path(path) for path in paths]
+    if len(paths) == 1 and paths[0].suffix.lower() == ".tsv":
+        try:
+            result, labels = load_epsilon_tsv(paths[0].read_text(encoding="utf-8-sig"))
+            dataset = SpectralDataset(
+                result.wavelengths, np.arange(len(labels), dtype=float),
+                result.absorbance, "autoqy_epsilon", 0,
+            )
+            return (_pack(dataset, labels, [paths[0].name], result.concentrations_m,
+                          result.path_lengths_cm),
+                    f"Restored {len(labels)} processed spectrum/spectra from {paths[0].name}.")
+        except (UnicodeDecodeError, ValueError):
+            pass
+    loaded = []
+    for path in paths:
+        selected_format = "avantes_abs8" if path.suffix.lower() == ".abs8" else "auto"
+        loaded.append((load_spectral_bytes(path.read_bytes(), selected_format), path.name))
+    dataset, labels, resampled = _combine_loaded(loaded)
+    missing = sum(item.interpolated_values for item, _ in loaded)
+    notes = []
+    if missing:
+        notes.append(f"interpolated {missing} non-finite detector value(s)")
+    if resampled:
+        notes.append(f"resampled {resampled} spectrum/spectra to the first common grid")
+    note = f" ({'; '.join(notes)})" if notes else ""
+    return (_pack(dataset, labels, [path.name for path in paths]),
+            f"Loaded {len(paths)} file(s), {len(labels)} spectrum/spectra, "
+            f"and {len(dataset.wavelengths)} common wavelengths{note}.")
+
+
+def _choose_files(initial_directory=None):
+    initial = _powershell_quote(str(initial_directory or ""))
+    script = (
+        "Add-Type -AssemblyName System.Windows.Forms; "
+        + _foreground_owner_script() +
+        "$dialog = New-Object System.Windows.Forms.OpenFileDialog; "
+        "$dialog.Multiselect = $true; "
+        "$dialog.Filter = 'Spectral files|*.dat;*.txt;*.tsv;*.csv;*.Abs8|All files|*.*'; "
+        f"if ('{initial}') {{ $dialog.InitialDirectory = '{initial}' }}; "
+        "$result = $dialog.ShowDialog($owner); "
+        "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { "
+        "$dialog.FileNames | ForEach-Object { Write-Output $_ } }; "
+        "$owner.Close(); $owner.Dispose()"
+    )
+    return _run_powershell_dialog(script)
+
+
+def _choose_folder(initial_directory=None):
+    initial = _powershell_quote(str(initial_directory or ""))
+    script = (
+        "Add-Type -AssemblyName System.Windows.Forms; "
+        + _foreground_owner_script() +
+        "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog; "
+        f"if ('{initial}') {{ $dialog.SelectedPath = '{initial}' }}; "
+        "$result = $dialog.ShowDialog($owner); "
+        "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { "
+        "Write-Output $dialog.SelectedPath }; $owner.Close(); $owner.Dispose()"
+    )
+    selected = _run_powershell_dialog(script)
+    return selected[0] if selected else None
+
+
+def _run_powershell_dialog(script):
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    completed = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-STA", "-Command", script],
+        check=True, capture_output=True, text=True, creationflags=flags,
+    )
+    return [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+
+
+def _foreground_owner_script():
+    return (
+        "$owner = New-Object System.Windows.Forms.Form; "
+        "$owner.TopMost = $true; $owner.ShowInTaskbar = $false; "
+        "$owner.StartPosition = 'CenterScreen'; $owner.Width = 1; $owner.Height = 1; "
+        "$owner.Opacity = 0; $owner.Show(); $owner.Activate(); "
+    )
+
+
+def _powershell_quote(value):
+    return str(value).replace("'", "''")
+
+
+def _save_path(folder, filename):
+    if not folder:
+        raise ValueError("Choose a save folder")
+    directory = Path(folder).expanduser()
+    if not directory.is_dir():
+        raise ValueError(f"Save folder does not exist: {directory}")
+    return directory / filename
+
+
+def _read_concentrations(count, concentrations, path_lengths):
+    if any(len(values or []) != count for values in (concentrations, path_lengths)):
         return None
-    concentrations = []
-    paths = []
-    for index, mode in enumerate(modes):
-        if path_lengths[index] is None:
+    parsed_concentrations, parsed_paths = [], []
+    for concentration, path_length in zip(concentrations, path_lengths):
+        if concentration is None or path_length is None:
             return None
-        paths.append(float(path_lengths[index]))
-        if mode == "direct":
-            if direct[index] is None:
-                return None
-            concentrations.append(float(direct[index]))
-        elif mode == "prepared":
-            if any(values[index] is None for values in
-                   (masses, volumes, molecular_weights)):
-                return None
-            concentrations.append(concentration_from_preparation(
-                masses[index], volumes[index], molecular_weights[index]
-            ))
-        else:
-            raise ValueError("Select a concentration method for every spectrum")
-    return np.asarray(concentrations), np.asarray(paths)
+        parsed_concentrations.append(float(concentration))
+        parsed_paths.append(float(path_length))
+    return np.asarray(parsed_concentrations), np.asarray(parsed_paths)
 
 
 def _prepare_processing(data, wavelength_low, wavelength_high, baseline_enabled,
@@ -793,7 +965,7 @@ def _interpolate_to_axis(wavelengths, values, target):
     wavelengths, unique = np.unique(wavelengths[order], return_index=True)
     values = values[order][unique]
     if target[0] < wavelengths[0] or target[-1] > wavelengths[-1]:
-        raise ValueError("NMR spectra must span the full reactant epsilon wavelength range")
+        raise ValueError("NMR spectra must span the full reactant ε wavelength range")
     return np.interp(target, wavelengths, values)
 
 
@@ -835,7 +1007,8 @@ def _subset_epsilon(result, mask):
 def _pack_nmr(result):
     return {field: np.asarray(getattr(result, field)).tolist()
             for field in ("wavelengths", "normalized_reactant", "normalized_pss",
-                          "reconstructed_reactant", "reconstructed_pss", "product",
+                          "reconstructed_reactant", "reconstructed_pss",
+                          "reactant_lower", "reactant_upper", "product",
                           "product_lower", "product_upper", "product_error_lower",
                           "product_error_upper")} | {
         "negative_product_points": result.negative_product_points,
@@ -847,7 +1020,8 @@ def _unpack_nmr(data):
     return NMRSubtractionResult(
         *(np.asarray(data[field], float) for field in
           ("wavelengths", "normalized_reactant", "normalized_pss",
-           "reconstructed_reactant", "reconstructed_pss", "product",
+           "reconstructed_reactant", "reconstructed_pss",
+           "reactant_lower", "reactant_upper", "product",
            "product_lower", "product_upper", "product_error_lower",
            "product_error_upper")),
         int(data["negative_product_points"]), int(data["negative_bound_points"]),
@@ -956,13 +1130,21 @@ def _nmr_figure(go, make_subplots, result, raw_reactant=None, raw_pss=None,
         x=result.wavelengths, y=result.normalized_pss, mode="lines",
         name="PSS processed", line={"color": "#d67b36"}), row=1, col=1)
     figure.add_trace(go.Scatter(
+        x=result.wavelengths, y=result.reactant_lower, mode="lines",
+        line={"width": 0}, hoverinfo="skip", showlegend=False,
+        legendgroup="reactant-error"), row=2, col=1)
+    figure.add_trace(go.Scatter(
+        x=result.wavelengths, y=result.reactant_upper, mode="lines", fill="tonexty",
+        fillcolor="rgba(45,111,142,.20)", line={"width": 0},
+        name="Reactant ε SD envelope", legendgroup="reactant-error"), row=2, col=1)
+    figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.product_lower, mode="lines",
         line={"width": 0}, hoverinfo="skip", showlegend=False,
         legendgroup="product-error"), row=2, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.product_upper, mode="lines", fill="tonexty",
         fillcolor="rgba(42,157,143,.24)", line={"width": 0},
-        name="Propagation envelope", legendgroup="product-error"), row=2, col=1)
+        name="Product propagation envelope", legendgroup="product-error"), row=2, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.reconstructed_reactant, mode="lines",
         name="Reactant ε", line={"color": "#2d6f8e", "dash": "dot"}), row=2, col=1)
@@ -1000,20 +1182,35 @@ def _empty(go, message):
 
 def _style(figure, height):
     figure.update_layout(
-        template="plotly_white", height=height,
-        margin=dict(l=68, r=24, t=72, b=52), hovermode="closest",
-        legend={"orientation": "v", "y": 0.99, "yanchor": "top",
-                "x": 0.99, "xanchor": "right", "bgcolor": "rgba(255,255,255,.92)",
-                "bordercolor": "#cfd1d4", "borderwidth": 1},
+        template="plotly_white", height=height + 113,
+        title={"x": 0.02, "y": 0.98, "yanchor": "top", "yref": "container"},
+        margin=dict(l=68, r=24, t=185, b=52), hovermode="closest",
+        legend={"orientation": "h", "y": 1.06, "yanchor": "bottom",
+                "x": 0, "xanchor": "left", "bgcolor": "rgba(255,255,255,.92)"},
     )
     return figure
 
 
 def run_server(host="127.0.0.1", port=8051, open_browser=True):
+    from werkzeug.serving import make_server
+
     app = create_app()
+    server = make_server(host, port, app.server, threaded=True)
+    window_state, window_lock = app.server.config["AUTOQY_WINDOW_STATE"]
+
+    def close_after_browser():
+        while True:
+            time.sleep(0.5)
+            with window_lock:
+                requested = window_state["close_requested_at"]
+            if requested is not None and time.monotonic() - requested >= 3:
+                server.shutdown()
+                return
+
+    Thread(target=close_after_browser, daemon=True).start()
     if open_browser:
         Timer(1, lambda: webbrowser.open(f"http://{host}:{port}")).start()
-    app.run(host=host, port=port, debug=False)
+    server.serve_forever()
 
 
 def main(argv=None):

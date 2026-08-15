@@ -2,7 +2,7 @@
 param(
     [string]$EnvironmentName = "autoqy-core",
     [string]$RepositoryUrl = "https://github.com/CrespiLab/autoQY.git",
-    [string]$Branch = "main",
+    [string]$Branch = "feature/epsilon_error",
     [switch]$CheckOnly
 )
 
@@ -112,6 +112,28 @@ function Invoke-Checked {
     Write-Host "   Completed in $($commandTimer.Elapsed.ToString('hh\:mm\:ss'))." -ForegroundColor Green
 }
 
+function Invoke-CondaWithOfflineFallback {
+    param(
+        [string]$CondaCommand,
+        [string[]]$Arguments,
+        [string]$Activity
+    )
+    $commandTimer = [System.Diagnostics.Stopwatch]::StartNew()
+    Write-Host "   $Activity"
+    Write-Host "> $CondaCommand $($Arguments -join ' ')" -ForegroundColor DarkGray
+    & $CondaCommand @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        $offlineArguments = @($Arguments) + "--offline"
+        Write-Host "   Online Conda operation failed; retrying from the local package cache." -ForegroundColor Yellow
+        Write-Host "> $CondaCommand $($offlineArguments -join ' ')" -ForegroundColor DarkGray
+        & $CondaCommand @offlineArguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "Conda failed online and from its local package cache: $CondaCommand"
+        }
+    }
+    Write-Host "   Completed in $($commandTimer.Elapsed.ToString('hh\:mm\:ss'))." -ForegroundColor Green
+}
+
 function Get-CondaEnvironmentPath {
     param(
         [string]$CondaCommand,
@@ -139,6 +161,42 @@ function Get-EnvironmentGit {
         (Join-Path $EnvironmentPath "git.exe")
     )
     return $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+}
+
+function Update-AutoQYCheckout {
+    param(
+        [string]$GitCommand,
+        [string]$ProjectRoot,
+        [string]$Branch
+    )
+    $changes = & $GitCommand -C $ProjectRoot status --porcelain
+    if ($LASTEXITCODE -ne 0) { throw "Git could not inspect the existing AutoQY checkout." }
+    if ($changes) {
+        throw "The existing AutoQY checkout has local changes. Preserve them and choose another installation folder, or clean the checkout manually: $ProjectRoot"
+    }
+    Invoke-Checked -Command $GitCommand -Arguments @(
+        "-C", $ProjectRoot, "fetch", "origin",
+        "$Branch`:refs/remotes/origin/$Branch"
+    ) -Activity "Fetching branch '$Branch'."
+    $currentBranch = (& $GitCommand -C $ProjectRoot branch --show-current).Trim()
+    if ($LASTEXITCODE -ne 0) { throw "Git could not determine the current branch." }
+    if ($currentBranch -ne $Branch) {
+        $localBranch = & $GitCommand -C $ProjectRoot branch --list $Branch
+        if ($localBranch) {
+            Invoke-Checked -Command $GitCommand -Arguments @(
+                "-C", $ProjectRoot, "switch", $Branch
+            ) -Activity "Switching the existing checkout to '$Branch'."
+        }
+        else {
+            Invoke-Checked -Command $GitCommand -Arguments @(
+                "-C", $ProjectRoot, "switch", "--track", "-c", $Branch,
+                "origin/$Branch"
+            ) -Activity "Creating the local '$Branch' branch."
+        }
+    }
+    Invoke-Checked -Command $GitCommand -Arguments @(
+        "-C", $ProjectRoot, "merge", "--ff-only", "origin/$Branch"
+    ) -Activity "Fast-forwarding the checkout to the published branch."
 }
 
 function Get-CondaHookPath {
@@ -224,8 +282,8 @@ Read-Host 'Press Enter to close'
     $guiIcon = Join-Path $iconDirectory "power-gui.ico"
     $smootherIcon = Join-Path $iconDirectory "spectral-smoother.ico"
     $terminalIcon = Join-Path $iconDirectory "terminal.ico"
-    $jsonIcon = Join-Path $iconDirectory "analyze-json.ico"
-    foreach ($iconPath in @($guiIcon, $smootherIcon, $terminalIcon, $jsonIcon)) {
+    $analysisIcon = Join-Path $iconDirectory "analyze-json.ico"
+    foreach ($iconPath in @($guiIcon, $smootherIcon, $terminalIcon, $analysisIcon)) {
         if (-not (Test-Path -LiteralPath $iconPath)) { throw "Desktop icon not found: $iconPath" }
     }
 
@@ -272,10 +330,20 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$analysisScript
     $jsonShortcut.TargetPath = $dropCommand
     $jsonShortcut.WorkingDirectory = $ProjectRoot
     $jsonShortcut.Description = "Drag and drop an AutoQY analysis JSON file"
-    $jsonShortcut.IconLocation = "$jsonIcon,0"
+    $jsonShortcut.IconLocation = "$analysisIcon,0"
     $jsonShortcut.Save()
 
-    return @($guiShortcutPath, $smootherShortcutPath, $terminalShortcutPath, $jsonShortcutPath)
+    $analysisShortcutPath = Join-Path $shortcutDirectory "AutoQY Analysis GUI.lnk"
+    $analysisShortcut = $shell.CreateShortcut($analysisShortcutPath)
+    $analysisShortcut.TargetPath = $coreCommand
+    $analysisShortcut.Arguments = "analysis-gui"
+    $analysisShortcut.WorkingDirectory = $ProjectRoot
+    $analysisShortcut.Description = "Build, validate, run, and inspect AutoQY analyses"
+    $analysisShortcut.IconLocation = "$analysisIcon,0"
+    $analysisShortcut.Save()
+
+    return @($analysisShortcutPath, $guiShortcutPath, $smootherShortcutPath,
+             $terminalShortcutPath, $jsonShortcutPath)
 }
 
 try {
@@ -309,46 +377,67 @@ try {
     if ($CheckOnly) {
         Write-Step "Planned installation"
         Write-Host "Conda: $condaCommand"
-        Write-Host "Environment: $(if ($environmentPath) { "ask to remove $environmentPath, then recreate it" } else { "create $EnvironmentName" })"
-        Write-Host "Source: $(if ($projectInInstallFolder) { "use existing checkout $projectRoot" } else { "clone $RepositoryUrl into $projectRoot" })"
-        Write-Host "Package: editable install with both browser GUIs"
-        Write-Host "Desktop folder AutoQY: Power GUI, Spectral Treatment, activated terminal, and JSON runner"
+        Write-Host "Environment: $(if ($environmentPath) { "reuse $environmentPath by default; offer clean recreation" } else { "create $EnvironmentName; retry from local cache if online access fails" })"
+        Write-Host "Source: $(if ($projectInInstallFolder) { "use existing checkout $projectRoot" } else { "clone branch '$Branch' from $RepositoryUrl into $projectRoot" })"
+        Write-Host "Package: editable install with all three browser GUIs"
+        Write-Host "Desktop folder AutoQY: Analysis GUI, Power GUI, Spectral Treatment, activated terminal, and JSON runner"
         Write-Host "No files or environments were changed." -ForegroundColor Green
         exit 0
     }
 
+    $reuseEnvironment = $false
     if ($environmentPath) {
         Write-Step "Existing Conda environment detected"
         Write-Host "   $environmentPath" -ForegroundColor Yellow
-        Write-Host "   Removing it deletes every package and file stored in that environment." -ForegroundColor Yellow
-        if (-not (Read-Confirmation "Delete '$EnvironmentName' and recreate it cleanly?" $false)) {
-            Write-Host "Installation cancelled; the existing environment was left unchanged."
-            exit 0
+        $environmentPython = Join-Path $environmentPath "python.exe"
+        if (Test-Path -LiteralPath $environmentPython) {
+            $reuseEnvironment = Read-Confirmation "Reuse this environment and update AutoQY?" $true
         }
-        if ($env:CONDA_DEFAULT_ENV -eq $EnvironmentName) {
-            $condaHook = Get-CondaHookPath -CondaCommand $condaCommand
-            . $condaHook
-            conda deactivate
+        else {
+            Write-Host "   The registered environment is incomplete because python.exe is missing." -ForegroundColor Yellow
         }
-        Invoke-Checked -Command $condaCommand -Arguments @(
-            "env", "remove", "--name", $EnvironmentName, "--yes"
-        ) -Activity "Removing the existing AutoQY Conda environment."
-        $environmentPath = Get-CondaEnvironmentPath -CondaCommand $condaCommand -Name $EnvironmentName
-        if ($environmentPath) {
-            throw "Conda still reports the environment after removal: $environmentPath"
+        if (-not $reuseEnvironment) {
+            Write-Host "   Removing it deletes every package and file stored in that environment." -ForegroundColor Yellow
+            if (-not (Read-Confirmation "Delete '$EnvironmentName' and recreate it cleanly?" $false)) {
+                Write-Host "Installation cancelled; the existing environment was left unchanged."
+                exit 0
+            }
+            if ($env:CONDA_DEFAULT_ENV -eq $EnvironmentName) {
+                $condaHook = Get-CondaHookPath -CondaCommand $condaCommand
+                . $condaHook
+                conda deactivate
+            }
+            Invoke-Checked -Command $condaCommand -Arguments @(
+                "env", "remove", "--name", $EnvironmentName, "--yes", "--offline"
+            ) -Activity "Removing the existing AutoQY Conda environment without network access."
+            $environmentPath = Get-CondaEnvironmentPath -CondaCommand $condaCommand -Name $EnvironmentName
+            if ($environmentPath) {
+                throw "Conda still reports the environment after removal: $environmentPath"
+            }
+            Write-Host "   Existing environment removed cleanly." -ForegroundColor Green
         }
-        Write-Host "   Existing environment removed cleanly." -ForegroundColor Green
     }
 
-    Write-Step "Creating Conda environment '$EnvironmentName'"
-    Invoke-Checked -Command $condaCommand -Arguments @(
-        "create", "--name", $EnvironmentName, "python=3.12", "pip", "--yes"
-    ) -Activity "Installing Python 3.12 and pip. This may take several minutes."
-    Invoke-Checked -Command $condaCommand -Arguments @(
-        "install", "--name", $EnvironmentName, "git", "--yes"
-    ) -Activity "Installing Git into the AutoQY environment."
+    if (-not $reuseEnvironment) {
+        Write-Step "Creating Conda environment '$EnvironmentName'"
+        Invoke-CondaWithOfflineFallback -CondaCommand $condaCommand -Arguments @(
+            "create", "--name", $EnvironmentName, "python=3.12", "pip", "--yes"
+        ) -Activity "Installing Python 3.12 and pip. This may take several minutes."
+    }
     $environmentPath = Get-CondaEnvironmentPath -CondaCommand $condaCommand -Name $EnvironmentName
-    if (-not $environmentPath) { throw "The new Conda environment could not be located." }
+    if (-not $environmentPath) { throw "The AutoQY Conda environment could not be located." }
+    $environmentPython = Join-Path $environmentPath "python.exe"
+    if (-not (Test-Path -LiteralPath $environmentPython)) {
+        throw "python.exe was not found in the AutoQY environment."
+    }
+    $gitCommand = Get-EnvironmentGit -EnvironmentPath $environmentPath
+    if (-not $gitCommand) {
+        Invoke-CondaWithOfflineFallback -CondaCommand $condaCommand -Arguments @(
+            "install", "--name", $EnvironmentName, "git", "--yes"
+        ) -Activity "Installing Git into the AutoQY environment."
+        $gitCommand = Get-EnvironmentGit -EnvironmentPath $environmentPath
+        if (-not $gitCommand) { throw "Git was installed but git.exe could not be located in the environment." }
+    }
 
     Write-Step "Activating Conda environment '$EnvironmentName'"
     Activate-AutoQYEnvironment -CondaCommand $condaCommand `
@@ -360,15 +449,15 @@ try {
             if (-not (Test-AutoQYProject -Path $ClonePath)) {
                 throw "The clone destination already exists but is not an AutoQY project: $ClonePath"
             }
-            if (-not (Read-Confirmation "An AutoQY checkout already exists at the destination. Use it without overwriting local work?" $true)) {
+            if (-not (Read-Confirmation "An AutoQY checkout already exists. Update its clean working tree to '$Branch'?" $true)) {
                 Write-Host "Installation cancelled."
                 exit 0
             }
+            Write-Step "Updating the existing AutoQY checkout"
+            Update-AutoQYCheckout -GitCommand $gitCommand -ProjectRoot $ClonePath -Branch $Branch
         }
         else {
             Write-Step "Cloning AutoQY into the selected installation folder"
-            $gitCommand = Get-EnvironmentGit -EnvironmentPath $environmentPath
-            if (-not $gitCommand) { throw "Git was installed but git.exe could not be located in the environment." }
             Invoke-Checked -Command $gitCommand -Arguments @(
                 "clone", "--branch", $Branch, "--single-branch", $RepositoryUrl, $ClonePath
             ) -Activity "Downloading branch '$Branch' from GitHub."
@@ -376,12 +465,7 @@ try {
     }
 
     $projectRoot = if ($projectInInstallFolder) { $InstallDirectory } else { $ClonePath }
-    $environmentPython = Join-Path $environmentPath "python.exe"
-    if (-not (Test-Path -LiteralPath $environmentPython)) {
-        throw "python.exe was not found in the AutoQY environment."
-    }
-
-    Write-Step "Installing AutoQY and the power GUI"
+    Write-Step "Installing AutoQY and its browser GUIs"
     Push-Location $projectRoot
     try {
         Invoke-Checked -Command $environmentPython -Arguments @(

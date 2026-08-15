@@ -38,14 +38,14 @@ class SVDResult:
         return (self.left_vectors[:, :rank] * self.singular_values[:rank]) @ self.right_vectors[:rank]
 
 
-def load_spectral_dataset(path, format_name="spectragryph"):
+def load_spectral_dataset(path, format_name="auto"):
     path = Path(path)
     if path.suffix.lower() == ".abs8":
         format_name = "avantes_abs8"
     return load_spectral_bytes(path.read_bytes(), format_name)
 
 
-def load_spectral_bytes(data, format_name="spectragryph"):
+def load_spectral_bytes(data, format_name="auto"):
     """Load either an Avantes binary record or a supported text dataset."""
     if format_name == "avantes_abs8":
         wavelengths, absorbance = load_avantes_abs8_bytes(data)
@@ -58,14 +58,27 @@ def load_spectral_bytes(data, format_name="spectragryph"):
     try:
         text = bytes(data).decode("utf-8-sig")
     except UnicodeDecodeError as error:
-        raise ValueError(
-            "Input is not UTF-8 text; select Avantes Abs8 for AvaSoft binary files"
-        ) from error
+        if format_name == "auto":
+            try:
+                return load_spectral_bytes(data, "avantes_abs8")
+            except Exception as avantes_error:
+                raise ValueError(
+                    "Input is neither supported UTF-8 spectral text nor an Avantes Abs8 file"
+                ) from avantes_error
+        raise ValueError("Input is not UTF-8 spectral text") from error
     return load_spectral_text(text, format_name)
 
 
-def load_spectral_text(text, format_name="spectragryph"):
+def load_spectral_text(text, format_name="auto"):
     """Load SpectraGryph matrix, TSV, or CSV text into wavelength x measurement form."""
+    if format_name == "auto":
+        errors = []
+        for candidate in ("spectragryph", "tsv", "csv"):
+            try:
+                return load_spectral_text(text, candidate)
+            except (TypeError, ValueError) as error:
+                errors.append(f"{candidate}: {error}")
+        raise ValueError("Could not detect spectral text format (" + "; ".join(errors) + ")")
     if format_name == "spectragryph":
         try:
             table = np.loadtxt(StringIO(text))

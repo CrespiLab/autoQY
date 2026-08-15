@@ -1,6 +1,7 @@
 """Headless AutoQY analysis pipeline."""
 
 from dataclasses import dataclass
+import warnings
 
 import numpy as np
 
@@ -49,6 +50,7 @@ class AnalysisResult:
     epsilon_p: np.ndarray
     fit_method: str
     extrapolated_pss: np.ndarray
+    epsilon_uncertainty: object | None = None
 
 
 def run_analysis_pipeline(data):
@@ -73,6 +75,18 @@ def run_analysis_pipeline(data):
     else:
         concentration_fit = fit_concentrations(
             absorbance, wavelengths, epsilon_r, epsilon_p, data.path_length_cm
+        )
+
+    initial_total = float(np.sum(concentration_fit.concentrations[0]))
+    initial_product_fraction = (float(concentration_fit.concentrations[0, 1]) /
+                                initial_total if initial_total > 0 else 0.0)
+    if initial_product_fraction > 0.02:
+        warnings.warn(
+            f"Initial product is {initial_product_fraction:.1%} of total concentration; "
+            "verify spectral references, baseline, and species assignment. This can be "
+            "physical, but the legacy emission method assumes zero initial product.",
+            RuntimeWarning,
+            stacklevel=2,
         )
 
     kinetic_slice = slice(None)

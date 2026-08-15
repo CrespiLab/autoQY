@@ -1,0 +1,197 @@
+.analysis-header-brand {
+  display: flex;
+  align-items: center;
+  gap: clamp(16px, 2.5vw, 28px);
+}
+.analysis-header-logo {
+  display: block;
+  width: clamp(170px, 20vw, 250px);
+  height: auto;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 5px 18px rgba(10, 35, 48, .2);
+}
+
+.workspace.analysis-workspace {
+  grid-template-columns: minmax(330px, 420px) minmax(370px, 1fr);
+  max-width: 1760px;
+}
+
+.control-column.analysis-controls { display: flex; flex-direction: column; gap: 12px; }
+.analysis-controls .panel { padding: 16px; }
+.analysis-controls label { margin-top: 10px; }
+.analysis-controls .input-row { align-items: end; }
+.analysis-controls .input-row > div { min-width: 0; }
+.analysis-controls input[type="text"],
+.analysis-controls input[type="number"],
+.analysis-controls textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #cfd1d4;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+}
+
+.analysis-file-card {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #e3dfd7;
+  border-radius: 11px;
+  background: #fcfbf8;
+}
+.analysis-file-card > label { margin-top: 0; color: #31404a; }
+.analysis-file-card .Select-control { margin-top: 8px; }
+.input-file-group { margin-top: 12px; }
+.input-file-group > summary { color: #31404a; font-weight: 700; }
+.led-processing-panel .input-row input { min-height: 39px; }
+.path-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: stretch; }
+.compact-button { width: auto; min-width: 76px; margin: 0; padding: 8px 11px; }
+.volume-input-row { display: grid; grid-template-columns: minmax(0, 1fr) 88px; gap: 8px; }
+.volume-input-row .Select-control { min-height: 39px; }
+.format-options { margin-top: 8px; color: #505661; font-size: .78rem; }
+.format-options summary { cursor: pointer; font-weight: 650; }
+.format-options .input-row { margin-bottom: 0; }
+.format-options .toggle-control label { min-height: 37px; }
+
+.action-panel {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  box-shadow: 0 8px 28px rgba(23, 59, 76, .13);
+}
+.action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.action-grid .button { margin-top: 4px; }
+.run-button { margin-top: 8px; }
+.action-title-row, .section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  position: relative;
+}
+.action-title-row .step-label, .section-title-row h2 { margin: 0; }
+.info-popup {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  border: 1px solid #7aa5b7;
+  border-radius: 50%;
+  color: #2d6f8e;
+  background: #f3f8fa;
+  font: 700 .72rem/1 Inter, "Segoe UI", sans-serif;
+  cursor: help;
+  outline: none;
+}
+.info-popup:focus { box-shadow: 0 0 0 3px rgba(45,111,142,.18); }
+.info-popup-content {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 8px);
+  left: -8px;
+  visibility: hidden;
+  width: min(330px, calc(100vw - 44px));
+  padding: 11px 12px;
+  border: 1px solid #b8c9d1;
+  border-radius: 9px;
+  color: #26333b;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(23,59,76,.18);
+  font-size: .78rem;
+  font-weight: 500;
+  line-height: 1.45;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-3px);
+  transition: opacity .12s ease, transform .12s ease, visibility .12s ease;
+}
+.info-popup:hover .info-popup-content,
+.info-popup:focus .info-popup-content,
+.info-popup:focus-within .info-popup-content {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}
+.action-title-row .info-popup-content { left: -8px; }
+
+.result-strip.analysis-result-strip { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.result-card-neutral { border-left-color: #6c7280; }
+.analysis-result-strip .result-card strong {
+  overflow: hidden;
+  font-size: clamp(1.05rem, 1.7vw, 1.4rem);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.analysis-plot-panel { min-height: 790px; }
+.analysis-plot-panel .dash-graph,
+.analysis-plot-panel .js-plotly-plot,
+.analysis-plot-panel .plot-container,
+.analysis-plot-panel .svg-container {
+  height: 740px !important;
+  min-height: 740px !important;
+}
+.analysis-plot-panel .tab {
+  padding: 12px 4px !important;
+  font-size: .78rem;
+  line-height: 1.25;
+  white-space: normal;
+}
+.json-preview {
+  width: 100%;
+  min-height: 520px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid #d8d5cf;
+  border-radius: 9px;
+  background: #f8f7f3;
+  color: #26333b;
+  resize: vertical;
+  font: .78rem/1.45 Consolas, monospace;
+}
+.output-file-list { display: flex; flex-direction: column; gap: 7px; }
+.output-file-list code { overflow-wrap: anywhere; }
+.diagnostic-list { display: grid; gap: 8px; }
+.diagnostic-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #d9dcdf;
+  border-left-width: 4px;
+  border-radius: 9px;
+  background: #fafafa;
+  font-size: .8rem;
+  line-height: 1.4;
+}
+.diagnostic-title-row { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.diagnostic-level { color: #505661; font-size: .72rem; font-weight: 750; white-space: nowrap; }
+.diagnostic-ok { border-left-color: #4f8a68; background: #f4faf6; }
+.diagnostic-warning { border-left-color: #d49a3a; background: #fff9ed; }
+.diagnostic-stop { border-left-color: #b85c4a; background: #fff3f0; }
+.comparison-table-wrap { overflow-x: auto; }
+.comparison-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.comparison-table th, .comparison-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #e3dfd7;
+  text-align: left;
+  white-space: nowrap;
+}
+.comparison-table th { color: #505661; font-weight: 700; }
+.comparison-selected { background: #edf6f9; }
+
+@media (max-width: 760px) {
+  .workspace.analysis-workspace { grid-template-columns: 1fr; }
+  .action-panel { position: static; }
+}
+
+@media (max-width: 650px) {
+  .result-strip.analysis-result-strip { grid-template-columns: 1fr; }
+  .analysis-controls .input-row { grid-template-columns: 1fr; }
+  .diagnostic-item { gap: 8px; }
+}

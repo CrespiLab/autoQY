@@ -26,6 +26,8 @@ class NMRSubtractionResult:
     normalized_pss: np.ndarray
     reconstructed_reactant: np.ndarray
     reconstructed_pss: np.ndarray
+    reactant_lower: np.ndarray
+    reactant_upper: np.ndarray
     product: np.ndarray
     product_lower: np.ndarray
     product_upper: np.ndarray
@@ -33,14 +35,6 @@ class NMRSubtractionResult:
     product_error_upper: np.ndarray
     negative_product_points: int
     negative_bound_points: int
-
-
-def concentration_from_preparation(mass_mg, volume_ml, molecular_weight_g_mol):
-    """Return mol/L from solute mass, final solution volume, and molecular weight."""
-    mass = _positive_float(mass_mg, "Mass")
-    volume = _positive_float(volume_ml, "Solution volume")
-    molecular_weight = _positive_float(molecular_weight_g_mol, "Molecular weight")
-    return mass / (volume * molecular_weight)
 
 
 def calculate_epsilon(wavelengths, absorbance, concentrations_m, path_lengths_cm):
@@ -168,8 +162,9 @@ def reconstruct_product_from_nmr(wavelengths, reactant_absorbance, pss_absorbanc
     """Infer product epsilon from a PSS spectrum and its NMR composition.
 
     Both absorbance spectra are divided by the reactant absorbance maximum. The
-    PSS trace is then placed on the reactant-epsilon scale before the mixture is
-    resolved as epsilon_PSS = f_R epsilon_R + (1-f_R) epsilon_P.
+    normalized product is resolved directly as
+    N_P = (N_PSS - f_R N_R) / (1 - f_R), then placed on the reactant-epsilon
+    scale. This keeps the subtraction entirely within the shared normalization.
     """
     wavelengths = np.asarray(wavelengths, float)
     reactant_absorbance = np.asarray(reactant_absorbance, float)
@@ -204,27 +199,34 @@ def reconstruct_product_from_nmr(wavelengths, reactant_absorbance, pss_absorbanc
     epsilon_lower, epsilon_upper = nonnegative_error_bounds(
         reactant_epsilon.mean, reactant_sd
     )
-    epsilon_scenarios = (epsilon_lower, reactant_epsilon.mean, epsilon_upper)
+    epsilon_bounds = (epsilon_lower, reactant_epsilon.mean, epsilon_upper)
 
     def reconstruct(epsilon_curve, selected_fraction):
         scale = float(np.max(epsilon_curve))
+        reactant = normalized_reactant * scale
         mixture = normalized_pss * scale
-        product = (mixture - selected_fraction * epsilon_curve) / (1 - selected_fraction)
-        return mixture, product
+        product = (mixture - selected_fraction * reactant) / (1 - selected_fraction)
+        return reactant, mixture, product
 
-    reconstructed_pss, nominal = reconstruct(reactant_epsilon.mean, fraction)
-    candidates = [reconstruct(curve, selected_fraction)[1]
-                  for curve in epsilon_scenarios for selected_fraction in fractions]
+    reconstructed_reactant, reconstructed_pss, nominal = reconstruct(
+        reactant_epsilon.mean, fraction
+    )
+    reactant_candidates = [reconstruct(curve, fraction)[0]
+                           for curve in epsilon_bounds]
+    reactant_lower = np.min(reactant_candidates, axis=0)
+    reactant_upper = np.max(reactant_candidates, axis=0)
+    candidates = [reconstruct(curve, selected_fraction)[2]
+                  for curve in epsilon_bounds for selected_fraction in fractions]
     raw_lower = np.min(candidates, axis=0)
     raw_upper = np.max(candidates, axis=0)
     lower = np.maximum(raw_lower, 0.0)
     upper = np.maximum(raw_upper, 0.0)
     error_lower = np.abs(nominal - lower)
     error_upper = np.abs(upper - nominal)
-    scale = float(np.max(reactant_epsilon.mean))
     return NMRSubtractionResult(
         wavelengths, normalized_reactant, normalized_pss,
-        reactant_epsilon.mean, reconstructed_pss, nominal,
+        reconstructed_reactant, reconstructed_pss, reactant_lower,
+        reactant_upper, nominal,
         lower, upper, error_lower, error_upper,
         int(np.count_nonzero(nominal < 0)),
         int(np.count_nonzero((raw_lower < 0) | (raw_upper < 0))),
@@ -240,6 +242,8 @@ def export_nmr_subtraction_tsv(result, preserve_negative=False):
         "Reactant_normalized": result.normalized_reactant,
         "PSS_normalized_to_reactant": result.normalized_pss,
         "Reactant_reconstructed_M-1_cm-1": result.reconstructed_reactant,
+        "Reactant_lower_M-1_cm-1": result.reactant_lower,
+        "Reactant_upper_M-1_cm-1": result.reactant_upper,
         "PSS_reconstructed_M-1_cm-1": result.reconstructed_pss,
         "Product_epsilon_M-1_cm-1": exported_product,
         "Product_epsilon_raw_M-1_cm-1": result.product,
@@ -249,13 +253,6 @@ def export_nmr_subtraction_tsv(result, preserve_negative=False):
         "Product_error_upper_M-1_cm-1": result.product_error_upper,
     })
     return frame.to_csv(sep="\t", index=False, float_format="%.8e")
-
-
-def _positive_float(value, name):
-    parsed = float(value)
-    if not np.isfinite(parsed) or parsed <= 0:
-        raise ValueError(f"{name} must be positive and finite")
-    return parsed
 
 
 def _unique_labels(labels):

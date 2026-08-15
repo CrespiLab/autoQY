@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "analysis": {
+    "id": "example_395nm_epsilon_error",
+    "reactant_name": "reactant",
+    "product_name": "product",
+    "expected_pss_reactant_percent": 23
+  },
+  "inputs": {
+    "measurement_spectra": "measurement_spectra.dat",
+    "reactant_absorptivity": "reactant_epsilon.tsv",
+    "product_absorptivity": "product_epsilon.tsv",
+    "led_emission": "led_emission.dat",
+    "timestamps": "timestamps.csv",
+    "formats": {
+      "measurement_spectra": {
+        "type": "spectragryph_tsv"
+      },
+      "reactant_absorptivity": {
+        "type": "spectragryph_tsv"
+      },
+      "product_absorptivity": {
+        "type": "spectragryph_tsv"
+      },
+      "led_emission": {
+        "type": "spectragryph_tsv"
+      },
+      "timestamps": {
+        "type": "ahk_csv"
+      }
+    }
+  },
+  "experiment": {
+    "volume_ul": 1995,
+    "power_mw": 1.46,
+    "power_error_mw": 0.03,
+    "thermal_back_reaction_s_1": 6.3e-05,
+    "irradiation_wavelength_nm": 395,
+    "path_length_cm": 1
+  },
+  "processing": {
+    "wavelength_range_nm": [
+      250,
+      800
+    ],
+    "led_smoothing": {
+      "method": "savgol",
+      "window_points": 12,
+      "polynomial_order": 3
+    },
+    "led_baseline": {
+      "enabled": true,
+      "exclusion_fwhm_multiplier": 10
+    }
+  },
+  "fit": {
+    "method": "regularized_concentrations",
+    "emission_threshold_fraction": 0.01,
+    "regularization_strength": 1,
+    "absorbance_baseline_order": 1,
+    "robust_loss_scale": 0.02,
+    "initial_quantum_yields": {
+      "R_to_P": 0.5,
+      "P_to_R": 0.5
+    },
+    "quantum_yield_bounds": {
+      "minimum": 0,
+      "maximum": 1
+    }
+  },
+  "plots": {
+    "absorbance_residual_percentile": 99
+  },
+  "uncertainty": {
+    "epsilon": {
+      "method": "deterministic_extremes",
+      "error_metric": "sd"
+    }
+  },
+  "outputs": {
+    "directory": "results",
+    "stem": "Results_395nm_EpsilonError",
+    "write_text": true,
+    "write_figures": true,
+    "write_json": true,
+    "write_config": true,
+    "write_detailed_data": true,
+    "overwrite": true
+  }
+}

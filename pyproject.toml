@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "autoqy-core"
-version = "2.0.0b1"
+version = "2.1.0b1"
 description = "Headless quantum-yield calculation core"
 license = "GPL-3.0-or-later"
 readme = "README.md"
@@ -41,6 +41,7 @@ Homepage = "https://github.com/CrespiLab/autoQY"
 autoqy-core = "autoqy_core.cli:main"
 autoqy-power-gui = "autoqy_core.tools.power_gui:main"
 autoqy-smoother-gui = "autoqy_core.tools.smoother_gui:main"
+autoqy-analysis-gui = "autoqy_core.tools.analysis_gui:main"
 
 [tool.setuptools]
 packages = ["autoqy_core", "autoqy_core.tools"]

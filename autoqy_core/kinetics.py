@@ -17,6 +17,10 @@ class YieldFit:
     standard_errors: np.ndarray
     concentrations: np.ndarray
     absorbance_correction: np.ndarray | None = None
+    optimizer_success: bool = True
+    optimizer_message: str = ""
+    jacobian_condition: float = np.nan
+    active_bounds: tuple[bool, bool] = (False, False)
 
 
 def fit_quantum_yields(wavelengths_nm, emission, concentrations, timestamps,
@@ -102,7 +106,8 @@ def fit_quantum_yields_ode_absorbance(
     yields, concentrations, correction = evaluate(fit.x, return_model=True)
     return YieldFit(
         yields, np.sqrt(np.maximum(np.diag(covariance)[:2], 0)),
-        concentrations, correction,
+        concentrations, correction, bool(fit.success), str(fit.message),
+        _jacobian_condition(fit.jac), _active_yield_bounds(yields, yield_bounds),
     )
 
 
@@ -121,7 +126,23 @@ def _fit(wavelengths_nm, emission, initial, timestamps, epsilon_r, epsilon_p,
     covariance = np.linalg.pinv(fit.jac.T @ fit.jac) * np.dot(fit.fun, fit.fun) / dof
     fitted = _solve(fit.x, initial, timestamps, wavelengths_m, epsilon_r, epsilon_p,
                     path_length_cm, photons, volume_ml, thermal_rate)
-    return YieldFit(fit.x, np.sqrt(np.maximum(np.diag(covariance), 0)), fitted)
+    return YieldFit(
+        fit.x, np.sqrt(np.maximum(np.diag(covariance), 0)), fitted,
+        optimizer_success=bool(fit.success), optimizer_message=str(fit.message),
+        jacobian_condition=_jacobian_condition(fit.jac),
+        active_bounds=_active_yield_bounds(fit.x, yield_bounds),
+    )
+
+
+def _jacobian_condition(jacobian):
+    condition = float(np.linalg.cond(jacobian))
+    return condition if np.isfinite(condition) else np.inf
+
+
+def _active_yield_bounds(values, bounds):
+    tolerance = max((bounds[1] - bounds[0]) * 1e-5, 1e-10)
+    return tuple(bool(value <= bounds[0] + tolerance or value >= bounds[1] - tolerance)
+                 for value in values[:2])
 
 
 def _photon_flux(wavelengths_nm, emission, power_mw):
