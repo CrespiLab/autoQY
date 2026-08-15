@@ -2,12 +2,16 @@
   <img src="autoqy_core/assets/autoqy-logo.png" alt="AutoQY" width="760">
 </p>
 
-# AutoQY Core
+# AutoQY
 
 AutoQY analyzes photoisomerization quantum yields, treats optical-power traces,
 and prepares time-resolved spectra. Its calculation engine remains callable
-from JSON, the terminal, and Python, while three local browser GUIs provide
+from JSON, the terminal, and Python, while a series of local browser GUIs provide
 the easiest entry points for routine analysis and data treatment.
+
+The core scientific method is described in A. Volker, J. D. Steen and S. Crespi,
+*Beilstein J. Org. Chem.* **2024**, 20, 1684–1692,
+[doi:10.3762/bjoc.20.150](https://doi.org/10.3762/bjoc.20.150).
 
 ## Install on Windows
 
@@ -19,11 +23,7 @@ and places five shortcuts inside **Desktop → AutoQY**.
    to give Windows permission to run it).
 
 The installer detects an existing `autoqy-core` environment and reuses it by
-default; clean recreation remains optional. If Conda's online repository access
-fails, environment operations retry from the local package cache. It never
-silently deletes the environment or an existing checkout.
-If the installer already resides in a valid checkout, that checkout is reused.
-The installer will ask for a preferred installation folder.
+default; clean recreation remains optional.
 The installation will produce a series of useful links in a folder on the Desktop.
 The `v2.1.0` installer installs the stable release from `main`.
 
@@ -34,6 +34,9 @@ The Desktop `AutoQY` folder contains:
 - **AutoQY Spectral Treatment** — preprocesses spectra and calculates molar absorptivity;
 - **AutoQY Analyze JSON** — retains the lightweight drag-and-drop JSON runner;
 - **AutoQY Terminal** — opens a shell with the AutoQY environment activated.
+
+All GUIs run only on the local computer. Uploaded data is held by the browser
+session and local Python process.
 
 While the following instruction is not mandatory, it is possible to check the installer non-destructively:
 
@@ -56,7 +59,7 @@ building the current versioned `analysis.json` format. Use it to:
 - validate every referenced file and setting before calculation;
 - run the analysis and explore concentrations, fraction residuals, measured
   spectra, and wavelength-resolved absorbance residuals interactively;
-- open Spectral Treatment when inputs need baseline correction, smoothing,
+- open the **Spectral Treatment** GUI when inputs need baseline correction, smoothing,
   ε averaging, or NMR-guided PSS subtraction.
 
 Open **Desktop → AutoQY → AutoQY Analysis GUI**, or run:
@@ -64,73 +67,6 @@ Open **Desktop → AutoQY → AutoQY Analysis GUI**, or run:
 ```powershell
 autoqy-core analysis-gui
 ```
-
-The normal TXT, JSON, TSV, PNG, and SVG outputs remain available. Closing the
-GUI browser window also closes its local process.
-
-## Power GUI
-
-Open **Desktop → AutoQY → AutoQY Power GUI**, or run:
-
-```powershell
-autoqy-core power-gui
-```
-
-The GUI accepts up to three Thorlabs OPM CSV traces. Drag the boundaries around
-the open-beam and cuvette regions, inspect baseline corrections, calculate the
-power at the cuvette, and export reproducible JSON settings and results to be used
-for automation.
-
-Power treatment remains separate from quantum-yield analysis. Transfer the
-reported `power_mw` and `power_error_mw` manually into `analysis.json` if necessary; 
-**AutoQY Power GUI** does not modify the .json file automatically.
-
-## Spectral Treatment GUI
-
-**Spectral Treatment is the default AutoQY interface for spectral work.** Use it
-to import and inspect spectra, select wavelengths, apply baseline correction or
-Savitzky–Golay smoothing, prepare absorptivity spectra with wavelength-resolved
-errors, and perform NMR-guided PSS subtraction. The terminal functions remain
-available for reproducible or automated processing.
-
-Use **Open files from folder** to retain the source directory as the default
-save location. The final NMR save writes the reactant ε dataset as
-`epsilon-spectra-reactant.tsv` and the NMR-derived dataset as
-`epsilon-spectra-product.tsv`, and asks before replacing either existing file.
-Closing the GUI browser window also closes its local terminal process.
-
-Open **Desktop → AutoQY → AutoQY Spectral Treatment**, or run:
-
-```powershell
-autoqy-core smoother-gui
-```
-
-The main AutoQY installer installs this GUI and its Desktop shortcut together
-with the calculation engine, Analysis GUI, Power GUI, terminal, and JSON runner.
-
-The GUI automatically detects both common SpectraGryph `.dat` layouts, Avantes
-AvaSoft 8 `.Abs8` files, wavelength-by-row TSV, and CSV files. Processed exports
-are written as TSV. Its workflow is independently configurable:
-
-1. select the wavelength range;
-2. optionally baseline each spectrum over a selected interval;
-3. apply Savitzky–Golay or no wavelength smoothing;
-4. optionally apply SVD rank reduction to ordered time-series data;
-5. calculate and export wavelength-resolved molar absorptivity and uncertainty;
-6. optionally reconstruct a product spectrum using a PSS composition measured by NMR.
-
-Savitzky–Golay and SVD are off by default. When SVD is enabled, its proposed
-rank is at least two components when the dataset permits. SVD should not be used
-for independent repeat measurements because it mixes their variation.
-The GUI reports the effective smoothing window, RMS changes, and the exact percentage 
-of squared singular-value weight retained by the selected rank. Original uploaded
-data is never overwritten.
-
-All GUIs run only on the local computer. Uploaded data is held by the browser
-session and local Python process.
-
-## Quantum-yield analysis
-
 The Analysis GUI creates the same reproducible JSON used by the terminal:
 
 ```powershell
@@ -157,6 +93,63 @@ Depending on configuration, an analysis writes TXT, PNG/SVG figures, results
 JSON and input snapshots, concentration/residual TSV, and long-form measured
 and reconstructed spectral TSV. Existing files are replaced only when
 `outputs.overwrite` is `true` in the .json file.
+
+The GUI can output TXT, JSON, TSV, PNG, and SVG files.
+
+## Power GUI
+
+Open **Desktop → AutoQY → AutoQY Power GUI**, or run:
+
+```powershell
+autoqy-core power-gui
+```
+
+The GUI accepts up to three Thorlabs OPM CSV traces. Drag the boundaries around
+the open-beam and cuvette regions, inspect baseline corrections, calculate the
+power at the cuvette, and export reproducible JSON settings and results to be used
+for automation.
+
+Power treatment remains separate from quantum-yield analysis. Transfer the
+reported `power_mw` and `power_error_mw` manually into `analysis.json` if necessary; 
+**AutoQY Power GUI** does not automatically modify the .json file.
+
+## Spectral Treatment GUI
+
+**Spectral Treatment is the default AutoQY interface for spectral work.** Use it
+to import and inspect spectra, select wavelengths, apply baseline correction, SVD and/or
+Savitzky–Golay smoothing, prepare absorptivity spectra with wavelength-resolved
+errors, and perform NMR-guided PSS subtraction. The terminal functions remain
+available for reproducible or automated processing.
+
+Use **Open files from folder** to retain the source directory as the default
+save location. The final NMR save writes the reactant ε dataset as
+`epsilon-spectra-reactant.tsv` and the NMR-derived dataset as
+`epsilon-spectra-product.tsv`, and asks before replacing either existing file.
+Closing the GUI browser window also closes its local terminal process.
+
+Open **Desktop → AutoQY → AutoQY Spectral Treatment**, or run:
+
+```powershell
+autoqy-core smoother-gui
+```
+
+The GUI automatically detects both common SpectraGryph `.dat` layouts, Avantes
+AvaSoft 8 `.Abs8` files, wavelength-by-row TSV, and CSV files. Processed exports
+are written as TSV. Its workflow is independently configurable:
+
+1. select the wavelength range;
+2. optionally baseline each spectrum over a selected interval;
+3. apply Savitzky–Golay or no wavelength smoothing;
+4. optionally apply SVD rank reduction to ordered time-series data;
+5. calculate and export wavelength-resolved molar absorptivity and uncertainty;
+6. optionally reconstruct a product spectrum using a PSS composition measured by NMR.
+
+Savitzky–Golay and SVD are off by default. When SVD is enabled, its proposed
+rank is at least two components when the dataset permits. SVD should not be used
+for independent repeat measurements because it mixes their variation.
+The GUI reports the effective smoothing window, RMS changes, and the exact percentage 
+of squared singular-value weight retained by the selected rank. Original uploaded
+data is never overwritten.
 
 
 ### Power processing from JSON
@@ -205,6 +198,3 @@ power = run_power_analysis("power_analysis.json")
 analysis = run_analysis(load_config("analysis.json"))
 ```
 
-The scientific method is described in A. Volker, J. D. Steen and S. Crespi,
-*Beilstein J. Org. Chem.* **2024**, 20, 1684–1692,
-[doi:10.3762/bjoc.20.150](https://doi.org/10.3762/bjoc.20.150).
