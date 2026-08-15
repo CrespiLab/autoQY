@@ -3,7 +3,8 @@
   "analysis": {
     "id": "example_395nm_epsilon_error",
     "reactant_name": "reactant",
-    "product_name": "product"
+    "product_name": "product",
+    "expected_pss_reactant_percent": 23
   },
   "inputs": {
     "measurement_spectra": "measurement_spectra.dat",

@@ -55,8 +55,25 @@ def create_app():
   heartbeat();
   window.addEventListener('pageshow', heartbeat);
   window.addEventListener('pagehide', () => navigator.sendBeacon('/_autoqy_window_closed'));
+  document.addEventListener('click', (event) => {
+    const popup = event.target.closest('.info-popup');
+    if (popup) {
+      event.preventDefault();
+      event.stopPropagation();
+      popup.focus();
+    } else if (document.activeElement?.classList.contains('info-popup')) {
+      document.activeElement.blur();
+    }
+  }, true);
 })();
 </script></body></html>"""
+
+    def info_popup(text):
+        return html.Span(className="info-popup", tabIndex=0, children=[
+            html.Span("i", className="info-popup-icon", **{"aria-hidden": "true"}),
+            html.Span(text, className="info-popup-content"),
+        ])
+
     app.layout = html.Div(className="app-shell", children=[
         html.Header(className="app-header", children=[html.Div([
             html.P("AUTOQY CORE", className="eyebrow"),
@@ -68,7 +85,10 @@ def create_app():
             html.Aside(className="control-column smoother-controls", children=[
                 html.Details(open=True, className="panel tool-details", children=[
                     html.Summary([html.Span("1 · Data", className="step-label"),
-                                  "Spectral data"]),
+                                  "Spectral data", info_popup(
+                                      "Load one or more spectra. File types are detected automatically; "
+                                      "folder loading also makes the source folder the default export location."
+                                  )]),
                     dcc.Upload(
                         id="upload-spectra", className="upload-box", multiple=True,
                         children=html.Div([
@@ -78,22 +98,26 @@ def create_app():
                     ),
                     html.Button("Open files from folder", id="open-local-spectra",
                                 className="button button-secondary"),
-                    html.Small("The file type is detected automatically. Opening from a folder "
-                               "also retains that folder as the default save location."),
                     html.Button("Clear all spectra", id="clear-dataset",
                                 className="button button-secondary", disabled=True),
                     html.Div(id="load-message", className="message"),
                 ]),
                 html.Details(open=True, className="panel tool-details", children=[
                     html.Summary([html.Span("2 · Range", className="step-label"),
-                                  "Wavelengths"]),
+                                  "Wavelengths", info_popup(
+                                      "The selected range is used for the preview, molar-absorptivity "
+                                      "calculation, uncertainty statistics, and exported TSV."
+                                  )]),
                     html.Div([
                         dcc.Input(id="wavelength-low", type="number", placeholder="Start (nm)", disabled=True),
                         dcc.Input(id="wavelength-high", type="number", placeholder="End (nm)", disabled=True),
                     ], className="input-row"),
-                    html.Small("The preview, epsilon calculation, and export use this range."),
                     html.Details(open=False, className="nested-tool", children=[
-                        html.Summary("Preprocess spectra"),
+                        html.Summary(["Preprocess spectra", info_popup(
+                            "Baseline and Savitzky–Golay operate on each spectrum independently. "
+                            "SVD mixes columns and should only be used for ordered time-series data, "
+                            "never for independent concentration replicates. Uploaded values are unchanged."
+                        )]),
                         html.Div(className="interaction-bar", children=[
                             dcc.Checklist(
                                 id="baseline-enabled", value=[], className="toggle-control",
@@ -114,7 +138,10 @@ def create_app():
                             dcc.Input(id="baseline-high", type="number", placeholder="End"),
                         ], className="input-row"),
                         html.Details(open=False, className="parameter-details", children=[
-                            html.Summary("Smoothing parameters"),
+                            html.Summary(["Smoothing parameters", info_popup(
+                                "The Savitzky–Golay window is entered in nanometres and converted "
+                                "to a valid odd number of detector points; polynomial order must be lower."
+                            )]),
                             html.Label("Savitzky–Golay: window (nm) / polynomial order"),
                             html.Div([
                                 dcc.Input(id="savgol-window", type="number", value=5,
@@ -132,27 +159,27 @@ def create_app():
                                          placeholder="Load data for rank suggestion"),
                         ]),
                         html.Div(id="svd-message", className="message"),
-                        html.P("Use SVD only for ordered time-based datasets. Do not use it on "
-                               "independent repeat measurements: it mixes columns and can suppress "
-                               "the real between-measurement variation.", className="svd-warning"),
-                        html.P("Baseline and Savitzky–Golay are applied to each spectrum "
-                               "independently; uploaded values remain unchanged.",
-                               className="warning-copy"),
                         html.Div(id="smoothing-message", className="message"),
                     ]),
                 ]),
                 html.Details(open=True, className="panel tool-details", children=[
                     html.Summary([html.Span("3 · Beer–Lambert", className="step-label"),
-                                  "Concentrations"]),
-                    html.P("Enter the concentration of every measured solution directly "
-                           "in mol/L. Path length is required in centimetres.",
-                           className="helper-text"),
+                                  "Concentrations", info_popup(
+                                      "Enter each measured solution concentration directly in mol/L "
+                                      "and its optical path length in centimetres."
+                                  )]),
                     html.Div(id="concentration-parameters"),
                     html.Div(id="concentration-message", className="message"),
                 ]),
                 html.Section(className="panel export-panel", children=[
                     html.P("4 · Output", className="step-label"),
-                    html.H2("Export absorptivity dataset"),
+                    html.Div(className="section-title-row", children=[
+                        html.H2("Export absorptivity dataset"),
+                        info_popup(
+                            "The TSV stores processed absorbance, each individual epsilon spectrum, "
+                            "their mean, SD and SEM, and non-negative lower and upper bounds."
+                        ),
+                    ]),
                     html.Label("Save folder"),
                     html.Div(className="input-row", children=[
                         dcc.Input(id="save-folder", type="text",
@@ -162,18 +189,16 @@ def create_app():
                     ]),
                     html.Button("Save reactant epsilon TSV", id="export-epsilon",
                                 className="button button-primary", disabled=True),
-                    html.Small("Includes processed absorbance, each epsilon spectrum, mean, SD, and SEM."),
                     html.Div(id="epsilon-save-message", className="message"),
                     dcc.ConfirmDialog(id="confirm-epsilon-overwrite"),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
                     html.Summary([html.Span("5 · Optional", className="step-label"),
-                                  "NMR-guided PSS subtraction"]),
-                    html.P("Load one UV–Vis dataset containing the full irradiation sequence. "
-                           "The first spectrum is used as pure reactant and the last spectrum "
-                           "as the final PSS. Subtraction is performed in the shared normalized "
-                           "space as (PSS − x · reactant) / (1 − x).",
-                           className="helper-text"),
+                                  "NMR-guided PSS subtraction", info_popup(
+                                      "Load one UV–Vis dataset containing reactant and final PSS. "
+                                      "After shared normalization, product epsilon is reconstructed as "
+                                      "(PSS − x · reactant) / (1 − x), where x is the reactant fraction at PSS."
+                                  )]),
                     dcc.Upload(
                         id="nmr-upload", className="upload-box compact-upload", multiple=False,
                         children=html.Div([
@@ -182,7 +207,10 @@ def create_app():
                         ]),
                     ),
                     html.Details(open=True, className="nested-tool", children=[
-                        html.Summary("Preprocess reactant and PSS"),
+                        html.Summary(["Preprocess reactant and PSS", info_popup(
+                            "Apply the same baseline interval and Savitzky–Golay settings to the "
+                            "reactant and PSS spectra before their normalized subtraction."
+                        )]),
                         html.Div(className="interaction-bar", children=[
                             dcc.Checklist(
                                 id="nmr-baseline-enabled", value=[],
@@ -248,14 +276,22 @@ def create_app():
                 html.Section(id="nmr-plot-panel", className="plot-panel", style={"display": "none"},
                              children=[dcc.Graph(id="nmr-plot", figure=_empty(go, "Load NMR spectra"))]),
                 html.Section(className="panel result-summary", children=[
-                    html.H2("Result"), html.Div(id="result-message", className="helper-text"),
+                    html.Div(className="section-title-row", children=[
+                        html.H2("Result"), info_popup(
+                            "Reports whether epsilon can be calculated or exported and highlights "
+                            "missing concentration, preprocessing, or non-negativity requirements."
+                        ),
+                    ]),
+                    html.Div(id="result-message", className="helper-text"),
                 ]),
                 html.Details(open=False, className="panel tool-details error-panel", children=[
-                    html.Summary("Python errors"),
+                    html.Summary(["Python errors", info_popup(
+                        "This panel contains detailed parser, preprocessing, reconstruction, "
+                        "or export exceptions. An empty panel means no Python error is active."
+                    )]),
                     html.Pre(id="load-error"), html.Pre(id="preview-error"),
                     html.Pre(id="svd-error"), html.Pre(id="nmr-error"),
                     html.Pre(id="export-error"),
-                    html.Small("An empty panel means no Python error is active."),
                 ]),
             ]),
         ]),

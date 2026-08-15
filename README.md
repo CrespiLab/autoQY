@@ -138,6 +138,9 @@ autoqy-core validate ExampleData/Example-2_AB_455nm-100mA/analysis.json
 autoqy-core run ExampleData/Example-2_AB_455nm-100mA/analysis.json
 ```
 
+For an end-to-end GUI example with raw Avantes spectra and deterministic
+epsilon uncertainty, follow the [395 nm tutorial](ExampleData/Example-4_395nm-EpsilonError/TUTORIAL.md).
+
 Set `fit.method` to one of:
 
 - `concentrations` — independent nonnegative spectral decomposition;

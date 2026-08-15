@@ -4,6 +4,9 @@ This self-contained 395 nm dataset propagates the
 wavelength-resolved errors of both reactant and product molar absorptivity with
 the deterministic-extremes method.
 
+See [TUTORIAL.md](TUTORIAL.md) for the complete GUI workflow, beginning with
+the three raw Avantes measurements in `source_data`.
+
 From the repository root, run:
 
 ```text
