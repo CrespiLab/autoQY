@@ -94,7 +94,7 @@ errors, and perform NMR-guided PSS subtraction. The terminal functions remain
 available for reproducible or automated processing.
 
 Use **Open files from folder** to retain the source directory as the default
-save location. The final NMR save writes the reactant epsilon dataset as
+save location. The final NMR save writes the reactant ε dataset as
 `epsilon-spectra-reactant.tsv` and the NMR-derived dataset as
 `epsilon-spectra-product.tsv`, and asks before replacing either existing file.
 Closing the GUI browser window also closes its local terminal process.
@@ -138,8 +138,8 @@ autoqy-core validate ExampleData/Example-2_AB_455nm-100mA/analysis.json
 autoqy-core run ExampleData/Example-2_AB_455nm-100mA/analysis.json
 ```
 
-For an end-to-end GUI example with raw Avantes spectra and deterministic
-epsilon uncertainty, follow the [395 nm tutorial](ExampleData/Example-4_395nm-EpsilonError/TUTORIAL.md).
+For an end-to-end GUI example with raw Avantes spectra and ε range analysis,
+follow the [395 nm tutorial](ExampleData/Example-4_395nm-EpsilonError/TUTORIAL.md).
 
 Set `fit.method` to one of:
 

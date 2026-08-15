@@ -1,8 +1,8 @@
-# 455 nm epsilon-error example
+# 455 nm ε uncertainty example
 
 This self-contained example propagates wavelength-resolved uncertainty from
-both the reactant and product molar-absorptivity spectra using deterministic
-lower, nominal, and upper bounds.
+both the reactant and product molar-absorptivity spectra using the ε range
+method with lower, nominal, and upper curves.
 
 From the repository root, run:
 

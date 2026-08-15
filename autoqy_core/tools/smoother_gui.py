@@ -176,7 +176,7 @@ def create_app():
                     html.Div(className="section-title-row", children=[
                         html.H2("Export absorptivity dataset"),
                         info_popup(
-                            "The TSV stores processed absorbance, each individual epsilon spectrum, "
+                            "The TSV stores processed absorbance, each individual ε spectrum, "
                             "their mean, SD and SEM, and non-negative lower and upper bounds."
                         ),
                     ]),
@@ -187,7 +187,7 @@ def create_app():
                         html.Button("Choose folder", id="choose-save-folder",
                                     className="button button-secondary"),
                     ]),
-                    html.Button("Save reactant epsilon TSV", id="export-epsilon",
+                    html.Button("Save reactant ε TSV", id="export-epsilon",
                                 className="button button-primary", disabled=True),
                     html.Div(id="epsilon-save-message", className="message"),
                     dcc.ConfirmDialog(id="confirm-epsilon-overwrite"),
@@ -196,7 +196,7 @@ def create_app():
                     html.Summary([html.Span("5 · Optional", className="step-label"),
                                   "NMR-guided PSS subtraction", info_popup(
                                       "Load one UV–Vis dataset containing reactant and final PSS. "
-                                      "After shared normalization, product epsilon is reconstructed as "
+                                      "After shared normalization, product ε is reconstructed as "
                                       "(PSS − x · reactant) / (1 − x), where x is the reactant fraction at PSS."
                                   )]),
                     dcc.Upload(
@@ -263,7 +263,7 @@ def create_app():
                         html.Small("Default: the primary product ε column is clipped at zero. "
                                    "The raw audit column is always preserved."),
                     ]),
-                    html.Button("Save reactant + NMR-derived epsilon TSVs", id="export-nmr",
+                    html.Button("Save reactant + NMR-derived ε TSVs", id="export-nmr",
                                 className="button button-accent", disabled=True),
                     html.Div(id="nmr-save-message", className="message"),
                     dcc.ConfirmDialog(id="confirm-nmr-overwrite"),
@@ -278,7 +278,7 @@ def create_app():
                 html.Section(className="panel result-summary", children=[
                     html.Div(className="section-title-row", children=[
                         html.H2("Result"), info_popup(
-                            "Reports whether epsilon can be calculated or exported and highlights "
+                            "Reports whether ε can be calculated or exported and highlights "
                             "missing concentration, preprocessing, or non-negativity requirements."
                         ),
                     ]),
@@ -337,7 +337,7 @@ def create_app():
                     _pack(dataset, labels, filenames, result.concentrations_m,
                           result.path_lengths_cm),
                     f"Restored {len(labels)} processed absorbance spectrum/spectra, "
-                    "concentrations, and path lengths from an AutoQY epsilon TSV.",
+                    "concentrations, and path lengths from an AutoQY ε TSV.",
                     no_update, no_update, "", None,
                 )
             loaded = []
@@ -458,7 +458,7 @@ def create_app():
                            "spectrum to calculate molar absorptivity.")
                 return (_absorbance_figure(go, dataset, original, processed, data["labels"],
                                            method, svd_enabled, svd_rank),
-                        "Absorbance preview; epsilon is waiting for concentration inputs.",
+                        "Absorbance preview; ε is waiting for concentration inputs.",
                         message, smoothing_message, None, True, "")
             concentrations, paths = concentration_data
             result = calculate_epsilon_statistics(
@@ -470,7 +470,7 @@ def create_app():
                                   "the shaded region is ±1 sample SD at each wavelength. "
                                   "SEM is also included in the export.")
             else:
-                result_message = ("One epsilon spectrum calculated. At least two independent "
+                result_message = ("One ε spectrum calculated. At least two independent "
                                   "spectra are required to estimate wavelength-resolved SD.")
             negative_mean = int(np.count_nonzero(result.mean < 0))
             if count > 1:
@@ -510,7 +510,7 @@ def create_app():
     def save_epsilon(_, __, data, folder):
         try:
             if not data:
-                raise ValueError("Calculate epsilon before exporting")
+                raise ValueError("Calculate ε before exporting")
             destination = _save_path(folder, "epsilon-spectra-reactant.tsv")
             result, labels = _unpack_epsilon(data)
             if ctx.triggered_id == "export-epsilon" and destination.exists():
@@ -580,9 +580,9 @@ def create_app():
             return (_empty(go, "Load reactant and PSS spectra"), {"display": "none"},
                     "", None, True, "status-message", "Preprocessing is off.")
         if not epsilon_data:
-            return (_empty(go, "Calculate or reload reactant epsilon first"), {"display": "block"},
-                    "Reactant epsilon is required before NMR subtraction.", None, True,
-                    "status-message status-warning", "Preprocessing is waiting for reactant epsilon.")
+            return (_empty(go, "Calculate or reload reactant ε first"), {"display": "block"},
+                    "Reactant ε is required before NMR subtraction.", None, True,
+                    "status-message status-warning", "Preprocessing is waiting for reactant ε.")
         try:
             epsilon_result, _ = _unpack_epsilon(epsilon_data)
             low = max(float(np.min(nmr_data["reactant_wavelengths"])),
@@ -592,7 +592,7 @@ def create_app():
             mask = ((epsilon_result.wavelengths >= low) &
                     (epsilon_result.wavelengths <= high))
             if np.count_nonzero(mask) < 2:
-                raise ValueError("NMR and reactant epsilon datasets do not share a wavelength range")
+                raise ValueError("NMR and reactant ε datasets do not share a wavelength range")
             epsilon_result = _subset_epsilon(epsilon_result, mask)
             target = epsilon_result.wavelengths
             raw_reactant = _interpolate_to_axis(
@@ -639,9 +639,9 @@ def create_app():
                            "visible; uncertainty bounds are constrained to zero.")
                 status = "status-message status-warning"
             else:
-                message = ("Product epsilon reconstructed from normalized "
+                message = ("Product ε reconstructed from normalized "
                            "(PSS − x · reactant) / (1 − x). The band combines the "
-                           "reactant epsilon scale SD and selected NMR error by min/max propagation.")
+                           "reactant ε scale SD and selected NMR error through minimum and maximum values.")
                 status = "status-message status-ok"
             return (figure, {"display": "block"}, message, _pack_nmr(result), False,
                     status, processing_message)
@@ -663,7 +663,7 @@ def create_app():
     def save_nmr(_, __, nmr_data, epsilon_data, preserve_negative, folder):
         try:
             if not nmr_data or not epsilon_data:
-                raise ValueError("Calculate reactant and NMR-derived epsilon before saving")
+                raise ValueError("Calculate reactant and NMR-derived ε before saving")
             reactant_path = _save_path(folder, "epsilon-spectra-reactant.tsv")
             product_path = _save_path(folder, "epsilon-spectra-product.tsv")
             existing = [path.name for path in (reactant_path, product_path) if path.exists()]
@@ -965,7 +965,7 @@ def _interpolate_to_axis(wavelengths, values, target):
     wavelengths, unique = np.unique(wavelengths[order], return_index=True)
     values = values[order][unique]
     if target[0] < wavelengths[0] or target[-1] > wavelengths[-1]:
-        raise ValueError("NMR spectra must span the full reactant epsilon wavelength range")
+        raise ValueError("NMR spectra must span the full reactant ε wavelength range")
     return np.interp(target, wavelengths, values)
 
 

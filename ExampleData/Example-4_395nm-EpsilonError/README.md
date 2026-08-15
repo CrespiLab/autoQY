@@ -1,8 +1,8 @@
-# 395 nm epsilon-error example
+# 395 nm ε uncertainty example
 
 This self-contained 395 nm dataset propagates the
 wavelength-resolved errors of both reactant and product molar absorptivity with
-the deterministic-extremes method.
+the ε range method.
 
 See [TUTORIAL.md](TUTORIAL.md) for the complete GUI workflow, beginning with
 the three raw Avantes measurements in `source_data`.
@@ -18,5 +18,5 @@ Outputs are written to the local `results` folder. The configuration uses the
 regularized-concentrations fit and standard deviation (`sd`) columns from the
 two molar-absorptivity TSV files.
 
-The reactant input contains negative mean epsilon values in its low-signal
+The reactant input contains negative mean ε values in its low-signal
 region. AutoQY reports this and constrains those values to zero before fitting.

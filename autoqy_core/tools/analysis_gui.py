@@ -286,16 +286,16 @@ def create_app():
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
                     html.Summary([html.Span("5 · Uncertainty", className="step-label"),
-                                  html.Span("Molar absorptivity"),
+                                  html.Span("ε uncertainty"),
                                   info_popup(
-                                      "Deterministic ε propagation requires AutoQY Spectral Treatment TSV files "
-                                      "for both species. Choose standard deviation or standard error as the "
-                                      "wavelength-resolved bound metric."
+                                      "ε range analysis requires AutoQY Spectral Treatment TSV files for both "
+                                      "species. Choose standard deviation or standard error as the "
+                                      "wavelength-resolved error metric."
                                   )]),
-                    html.Label("ε propagation"),
+                    html.Label("Method"),
                     dropdown("epsilon_method", (
                         ("none", "Off (default)"),
-                        ("deterministic_extremes", "Deterministic wavelength bounds"),
+                        ("deterministic_extremes", "ε range"),
                     ), "none"),
                     html.Label("Repeat-spectrum error metric"),
                     dropdown("epsilon_metric", (("sd", "Standard deviation"),
@@ -1437,7 +1437,7 @@ def _method_label(method):
 
 def _fit_note(summary):
     uncertainty = summary.get("epsilon_uncertainty")
-    return (f"{uncertainty['bound_combination_count']} ε-bound combinations"
+    return (f"{uncertainty['bound_combination_count']} ε combinations"
             if uncertainty else "Power + optimizer uncertainty")
 
 

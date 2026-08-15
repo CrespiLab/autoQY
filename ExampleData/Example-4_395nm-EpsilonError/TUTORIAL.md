@@ -1,4 +1,4 @@
-# Tutorial: 395 nm analysis with deterministic epsilon uncertainty
+# Tutorial: 395 nm analysis with ε uncertainty
 
 This tutorial begins with three independently prepared reactant solutions and
 finishes with a quantum-yield fit that propagates wavelength-resolved errors in
@@ -41,19 +41,19 @@ can then be selected in the Analysis GUI.
 6. Under **3 · Beer–Lambert**, enter the concentrations in the same file order:
    **6.82e-5**, **6.87e-5**, and **6.80e-5 mol/L**. Enter **1 cm** for every
    path length.
-7. Inspect the individual epsilon traces, mean, and shaded error band. Large
+7. Inspect the individual ε traces, mean, and shaded error band. Large
    structured differences between measurements should be investigated before
    export; the band is not a substitute for inspecting the spectra.
 8. Under **4 · Output**, choose the Example 4 folder and select
-   **Save reactant epsilon TSV**. The file contains processed absorbance,
-   individual epsilon curves, their mean, SD, SEM, and non-negative bounds.
+   **Save reactant ε TSV**. The file contains processed absorbance,
+   individual ε curves, their mean, SD, SEM, and non-negative limits.
 
 The bundled result is `reactant_epsilon.tsv`. If the GUI proposes a different
 name, select or rename the export before using it in the analysis configuration.
 
-## 3. Derive product epsilon from the PSS composition
+## 3. Derive product ε from the PSS composition
 
-1. Keep the calculated reactant epsilon loaded in Spectral Treatment.
+1. Keep the calculated reactant ε loaded in Spectral Treatment.
 2. Expand **5 · Optional — NMR-guided PSS subtraction** and load
    `source_data/reactant_pss.dat`. Its first spectrum is the pure reactant and
    its last spectrum is the final PSS.
@@ -64,15 +64,15 @@ name, select or rename the export before using it in the analysis configuration.
    GUI default of **1%**. Change this value when a different uncertainty is
    justified by the composition measurement.
 6. Inspect the normalized reactant and PSS curves and the reconstructed product
-   epsilon. The calculation is:
+   ε. The calculation is:
 
    `product = (PSS − 0.23 × reactant) / (1 − 0.23)`
 
 7. Review any negative-value warning. Small negative results down to
    −500 M⁻¹ cm⁻¹ remain visible for diagnosis; values below that threshold stop
-   export. By default, the primary exported product epsilon is constrained to
+   export. By default, the primary exported product ε is constrained to
    zero while the raw audit column is retained.
-8. Select **Save reactant + NMR-derived epsilon TSVs**. Use the product export as
+8. Select **Save reactant + NMR-derived ε TSVs**. Use the product export as
    `product_epsilon.tsv` and retain the reactant export as
    `reactant_epsilon.tsv`.
 
@@ -142,24 +142,27 @@ Available fitting methods are:
   initially pure reactant.
 
 Use **Compare fit methods** to inspect nominal-method sensitivity. Comparison
-runs without epsilon uncertainty and writes no result files; it does not replace
+runs without ε uncertainty and writes no result files; it does not replace
 the selected uncertainty-enabled analysis.
 
-### Deterministic epsilon uncertainty
+### ε range
 
 Under **5 · Uncertainty** choose:
 
-- Epsilon propagation: **Deterministic wavelength bounds**.
+- ε uncertainty: **ε range**.
 - Repeat-spectrum error metric: **Standard deviation (SD)**.
 
 SD represents the observed variation among the three independent preparations.
 SEM is also available, but represents uncertainty in their mean and is smaller;
 select it only when that interpretation matches the scientific question.
 
-AutoQY evaluates lower, nominal, and upper wavelength-resolved epsilon curves
+AutoQY evaluates lower, nominal, and upper wavelength-resolved ε curves
 for both species. The reactant uses mean ± SD with non-negative bounds. The
 NMR-derived product uses its asymmetric exported bounds. The result separates
-optimizer/power, epsilon, and combined quantum-yield uncertainty contributions.
+optimizer/power, ε, and combined quantum-yield uncertainty contributions.
+
+The JSON retains `deterministic_extremes` as the backward-compatible internal
+method identifier.
 
 ### Output and validation
 
