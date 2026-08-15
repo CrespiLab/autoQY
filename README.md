@@ -96,22 +96,6 @@ and reconstructed spectral TSV. Existing files are replaced only when
 
 The GUI can output TXT, JSON, TSV, PNG, and SVG files.
 
-## Power GUI
-
-Open **Desktop → AutoQY → AutoQY Power GUI**, or run:
-
-```powershell
-autoqy-core power-gui
-```
-
-The GUI accepts up to three Thorlabs OPM CSV traces. Drag the boundaries around
-the open-beam and cuvette regions, inspect baseline corrections, calculate the
-power at the cuvette, and export reproducible JSON settings and results to be used
-for automation.
-
-Power treatment remains separate from quantum-yield analysis. Transfer the
-reported `power_mw` and `power_error_mw` manually into `analysis.json` if necessary; 
-**AutoQY Power GUI** does not automatically modify the .json file.
 
 ## Spectral Treatment GUI
 
@@ -150,6 +134,23 @@ for independent repeat measurements because it mixes their variation.
 The GUI reports the effective smoothing window, RMS changes, and the exact percentage 
 of squared singular-value weight retained by the selected rank. Original uploaded
 data is never overwritten.
+
+## Power GUI
+
+Open **Desktop → AutoQY → AutoQY Power GUI**, or run:
+
+```powershell
+autoqy-core power-gui
+```
+
+The GUI accepts up to three Thorlabs OPM CSV traces. Drag the boundaries around
+the open-beam and cuvette regions, inspect baseline corrections, calculate the
+power at the cuvette, and export reproducible JSON settings and results to be used
+for automation.
+
+Power treatment remains separate from quantum-yield analysis. Transfer the
+reported `power_mw` and `power_error_mw` manually into `analysis.json` if necessary; 
+**AutoQY Power GUI** does not automatically modify the .json file.
 
 
 ### Power processing from JSON
