@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "autoqy-core"
-version = "2.1.0"
-description = "Headless quantum-yield calculation core"
+version = "2.2.0"
+description = "Quantum-yield calculation software"
 license = "GPL-3.0-or-later"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
-  { name = "Jorn D. Steen" },
+  { name = "Jorn D. Steen", email = "jornsteen@outlook.com" },
   { name = "Alfredo Bellisario", email = "alfredo.bellisario@physics.uu.se" },
   { name = "Stefano Crespi", email = "stefano.crespi@kemi.uu.se" }
 ]
