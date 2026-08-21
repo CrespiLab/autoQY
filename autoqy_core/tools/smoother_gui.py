@@ -11,8 +11,8 @@ import webbrowser
 import numpy as np
 
 from ..epsilon import (EpsilonResult, NMRSubtractionResult,
-                       calculate_epsilon_statistics, export_epsilon_tsv,
-                       export_nmr_subtraction_tsv, load_epsilon_tsv,
+                       calculate_epsilon_statistics, export_epsilon_csv,
+                       export_nmr_subtraction_csv, load_epsilon_table,
                        nonnegative_error_bounds, reconstruct_product_from_nmr)
 from ..smoother import (SpectralDataset, analyze_svd, baseline_spectra,
                         load_spectral_bytes, savgol_window_points, select_wavelengths,
@@ -106,7 +106,7 @@ def create_app():
                     html.Summary([html.Span("2 · Range", className="step-label"),
                                   "Wavelengths", info_popup(
                                       "The selected range is used for the preview, molar-absorptivity "
-                                      "calculation, uncertainty statistics, and exported TSV."
+                                      "calculation, uncertainty statistics, and exported CSV."
                                   )]),
                     html.Div([
                         dcc.Input(id="wavelength-low", type="number", placeholder="Start (nm)", disabled=True),
@@ -176,7 +176,7 @@ def create_app():
                     html.Div(className="section-title-row", children=[
                         html.H2("Export absorptivity dataset"),
                         info_popup(
-                            "The TSV stores processed absorbance, each individual ε spectrum, "
+                            "The CSV stores processed absorbance, each individual ε spectrum, "
                             "their mean, SD and SEM, and non-negative lower and upper bounds."
                         ),
                     ]),
@@ -187,7 +187,7 @@ def create_app():
                         html.Button("Choose folder", id="choose-save-folder",
                                     className="button button-secondary"),
                     ]),
-                    html.Button("Save reactant ε TSV", id="export-epsilon",
+                    html.Button("Save reactant ε CSV", id="export-epsilon",
                                 className="button button-primary", disabled=True),
                     html.Div(id="epsilon-save-message", className="message"),
                     dcc.ConfirmDialog(id="confirm-epsilon-overwrite"),
@@ -263,7 +263,7 @@ def create_app():
                         html.Small("Default: the primary product ε column is clipped at zero. "
                                    "The raw audit column is always preserved."),
                     ]),
-                    html.Button("Save reactant + NMR-derived ε TSVs", id="export-nmr",
+                    html.Button("Save reactant + NMR-derived ε CSVs", id="export-nmr",
                                 className="button button-accent", disabled=True),
                     html.Div(id="nmr-save-message", className="message"),
                     dcc.ConfirmDialog(id="confirm-nmr-overwrite"),
@@ -337,7 +337,7 @@ def create_app():
                     _pack(dataset, labels, filenames, result.concentrations_m,
                           result.path_lengths_cm),
                     f"Restored {len(labels)} processed absorbance spectrum/spectra, "
-                    "concentrations, and path lengths from an AutoQY ε TSV.",
+                    "concentrations, and path lengths from an AutoQY ε CSV or legacy TSV.",
                     no_update, no_update, "", None,
                 )
             loaded = []
@@ -511,12 +511,12 @@ def create_app():
         try:
             if not data:
                 raise ValueError("Calculate ε before exporting")
-            destination = _save_path(folder, "epsilon-spectra-reactant.tsv")
+            destination = _save_path(folder, "epsilon-spectra-reactant.csv")
             result, labels = _unpack_epsilon(data)
             if ctx.triggered_id == "export-epsilon" and destination.exists():
                 return (f"Existing file: {destination}", True,
                         f"Overwrite {destination.name}?", "")
-            destination.write_text(export_epsilon_tsv(result, labels), encoding="utf-8")
+            destination.write_text(export_epsilon_csv(result, labels), encoding="utf-8")
             return f"Saved {destination}", False, "", ""
         except Exception as error:
             return ("Save failed.", False, "",
@@ -664,15 +664,15 @@ def create_app():
         try:
             if not nmr_data or not epsilon_data:
                 raise ValueError("Calculate reactant and NMR-derived ε before saving")
-            reactant_path = _save_path(folder, "epsilon-spectra-reactant.tsv")
-            product_path = _save_path(folder, "epsilon-spectra-product.tsv")
+            reactant_path = _save_path(folder, "epsilon-spectra-reactant.csv")
+            product_path = _save_path(folder, "epsilon-spectra-product.csv")
             existing = [path.name for path in (reactant_path, product_path) if path.exists()]
             if ctx.triggered_id == "export-nmr" and existing:
                 return ("Existing file(s): " + ", ".join(existing), True,
                         "Overwrite " + " and ".join(existing) + "?",)
             epsilon_result, labels = _unpack_epsilon(epsilon_data)
-            reactant_text = export_epsilon_tsv(epsilon_result, labels)
-            product_text = export_nmr_subtraction_tsv(
+            reactant_text = export_epsilon_csv(epsilon_result, labels)
+            product_text = export_nmr_subtraction_csv(
                 _unpack_nmr(nmr_data), "on" in (preserve_negative or [])
             )
             reactant_path.write_text(reactant_text, encoding="utf-8")
@@ -742,9 +742,9 @@ def _combine_loaded(loaded):
 
 def _load_local_paths(paths):
     paths = [Path(path) for path in paths]
-    if len(paths) == 1 and paths[0].suffix.lower() == ".tsv":
+    if len(paths) == 1 and paths[0].suffix.lower() in {".csv", ".tsv"}:
         try:
-            result, labels = load_epsilon_tsv(paths[0].read_text(encoding="utf-8-sig"))
+            result, labels = load_epsilon_table(paths[0].read_text(encoding="utf-8-sig"))
             dataset = SpectralDataset(
                 result.wavelengths, np.arange(len(labels), dtype=float),
                 result.absorbance, "autoqy_epsilon", 0,
@@ -947,12 +947,13 @@ def _unpack_epsilon(data):
 
 
 def _try_load_autoqy_export(contents, filenames):
-    if len(contents) != 1 or Path(filenames[0] or "").suffix.lower() != ".tsv":
+    if (len(contents) != 1 or
+            Path(filenames[0] or "").suffix.lower() not in {".csv", ".tsv"}):
         return None
     payload = base64.b64decode(contents[0].split(",", 1)[1])
     try:
         text = payload.decode("utf-8-sig")
-        return load_epsilon_tsv(text)
+        return load_epsilon_table(text)
     except (UnicodeDecodeError, ValueError):
         return None
 

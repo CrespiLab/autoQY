@@ -5,8 +5,8 @@ examples. Every PNG has a matching SVG with the same filename stem.
 
 ## Methods
 
-- `concentrations`: independent non-negative spectral decomposition at every
-  timestamp, followed by the photochemical ODE fit.
+- `concentrations`: legacy pure-NNLS decomposition at every timestamp,
+  followed by the photochemical ODE fit.
 - `emission`: legacy direct-absorbance method restricted to the active LED band
   and initialized as pure reactant.
 - `regularized_concentrations`: conserved total concentration with independent
@@ -18,8 +18,8 @@ examples. Every PNG has a matching SVG with the same filename stem.
 ## Metrics
 
 `Concentration difference` is the concentration-trajectory RMSE relative to
-`concentrations`, divided by that method's initial total concentration. It
-measures agreement with the established concentration trajectory; it does not
+the legacy `concentrations` result, divided by that method's initial total
+concentration. It measures agreement with the historical reference trajectory; it does not
 establish which trajectory is true.
 
 `Absorbance RMSE` evaluates every fitted trajectory over the same complete

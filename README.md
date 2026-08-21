@@ -70,18 +70,20 @@ autoqy-core analysis-gui
 The Analysis GUI creates the same reproducible JSON used by the terminal:
 
 ```powershell
-autoqy-core validate ExampleData/Example-2_AB_455nm-100mA/analysis.json
-autoqy-core run ExampleData/Example-2_AB_455nm-100mA/analysis.json
+autoqy-core validate ExampleData/Example-2_AB_455nm-100mA/generic_inputs/analysis.json
+autoqy-core run ExampleData/Example-2_AB_455nm-100mA/generic_inputs/analysis.json
 ```
 
 For an end-to-end GUI example with raw Avantes spectra and ε range analysis,
 follow the [395 nm tutorial](ExampleData/Example-4_395nm-EpsilonError/TUTORIAL.md).
+Every bundled example provides recommended plain CSV inputs alongside the
+original Crespi-group instrument inputs; see [ExampleData](ExampleData/README.md).
 
-Set `fit.method` to one of:
+Set `fit.method` to one of (the GUI presents them in this order):
 
-- `concentrations` — independent nonnegative spectral decomposition;
 - `regularized_concentrations` — concentration fitting with a kinetic envelope;
 - `ode_absorbance` — joint full-spectrum kinetic fitting;
+- `concentrations` — legacy independent pure-NNLS spectral decomposition;
 - `emission` — legacy active-LED-band fitting.
 
 New datasets should normally compare `regularized_concentrations` and
@@ -89,12 +91,15 @@ New datasets should normally compare `regularized_concentrations` and
 residuals. Detailed schemas, assumptions, and file-format controls are in
 [autoqy_core/README.md](autoqy_core/README.md).
 
+The kinetic model accepts independent first-order thermal rates for reactant
+to product and product to reactant. Both are editable in the Analysis GUI.
+
 Depending on configuration, an analysis writes TXT, PNG/SVG figures, results
-JSON and input snapshots, concentration/residual TSV, and long-form measured
-and reconstructed spectral TSV. Existing files are replaced only when
+JSON and input snapshots, concentration/residual CSV, and long-form measured
+and reconstructed spectral CSV. Existing files are replaced only when
 `outputs.overwrite` is `true` in the .json file.
 
-The GUI can output TXT, JSON, TSV, PNG, and SVG files.
+The GUI can output TXT, JSON, CSV, PNG, and SVG files.
 
 
 ## Spectral Treatment GUI
@@ -107,8 +112,8 @@ available for reproducible or automated processing.
 
 Use **Open files from folder** to retain the source directory as the default
 save location. The final NMR save writes the reactant ε dataset as
-`epsilon-spectra-reactant.tsv` and the NMR-derived dataset as
-`epsilon-spectra-product.tsv`, and asks before replacing either existing file.
+`epsilon-spectra-reactant.csv` and the NMR-derived dataset as
+`epsilon-spectra-product.csv`, and asks before replacing either existing file.
 Closing the GUI browser window also closes its local terminal process.
 
 Open **Desktop → AutoQY → AutoQY Spectral Treatment**, or run:
@@ -119,7 +124,7 @@ autoqy-core smoother-gui
 
 The GUI automatically detects both common SpectraGryph `.dat` layouts, Avantes
 AvaSoft 8 `.Abs8` files, wavelength-by-row TSV, and CSV files. Processed exports
-are written as TSV. Its workflow is independently configurable:
+are written as CSV. Its workflow is independently configurable:
 
 1. select the wavelength range;
 2. optionally baseline each spectrum over a selected interval;
@@ -156,7 +161,7 @@ reported `power_mw` and `power_error_mw` manually into `analysis.json` if necess
 ### Power processing from JSON
 
 ```powershell
-autoqy-core power ExampleData/Example-Power/power_analysis.json
+autoqy-core power ExampleData/Example-Power/generic_inputs/power_analysis.json
 ```
 This method is experimental and planned for future automation. 
 
@@ -187,7 +192,7 @@ Verify with:
 
 ```powershell
 autoqy-core --help
-autoqy-core validate ExampleData/Example-2_AB_455nm-100mA/analysis.json
+autoqy-core validate ExampleData/Example-2_AB_455nm-100mA/generic_inputs/analysis.json
 ```
 
 ## Python API

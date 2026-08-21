@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "analysis": {
+    "id": "azobenzene_340nm_baselined_led",
+    "reactant_name": "trans-azobenzene",
+    "product_name": "cis-azobenzene"
+  },
+  "inputs": {
+    "measurement_spectra": "Azobenzene_340nm_processed.dat",
+    "reactant_absorptivity": "trans_azobenzene_epsilons.csv",
+    "product_absorptivity": "cis_azobenzene_epsilons.csv",
+    "led_emission": "LED340nm_baselined.dat",
+    "timestamps": "Azobenzene_340nm_log.csv",
+    "formats": {
+      "measurement_spectra": {
+        "type": "spectragryph_tsv"
+      },
+      "reactant_absorptivity": {
+        "type": "generic_delimited",
+        "delimiter": ",",
+        "header": false,
+        "wavelength_column": 0,
+        "value_columns": [
+          1
+        ]
+      },
+      "product_absorptivity": {
+        "type": "generic_delimited",
+        "delimiter": ",",
+        "header": false,
+        "wavelength_column": 0,
+        "value_columns": [
+          1
+        ]
+      },
+      "led_emission": {
+        "type": "spectragryph_tsv"
+      },
+      "timestamps": {
+        "type": "ahk_csv"
+      }
+    }
+  },
+  "experiment": {
+    "volume_ul": 3000,
+    "power_mw": 0.743,
+    "power_error_mw": 0.004,
+    "thermal_back_reaction_s_1": 7.24e-07,
+    "irradiation_wavelength_nm": 340,
+    "path_length_cm": 1.0,
+    "thermal_forward_reaction_s_1": 0
+  },
+  "processing": {
+    "wavelength_range_nm": [
+      250,
+      800
+    ],
+    "led_smoothing": {
+      "method": "savgol",
+      "window_points": 12,
+      "polynomial_order": 3
+    },
+    "led_baseline": {
+      "enabled": false,
+      "exclusion_fwhm_multiplier": 10
+    }
+  },
+  "fit": {
+    "method": "emission",
+    "emission_threshold_fraction": 0.0118,
+    "initial_quantum_yields": {
+      "R_to_P": 0.5,
+      "P_to_R": 0.5
+    },
+    "quantum_yield_bounds": {
+      "minimum": 0.0,
+      "maximum": 1.0
+    }
+  },
+  "plots": {
+    "absorbance_residual_percentile": 99
+  },
+  "outputs": {
+    "directory": "results",
+    "stem": "Results_340nm_Emission",
+    "write_text": true,
+    "write_figures": true,
+    "write_json": true,
+    "write_config": true,
+    "write_detailed_data": true,
+    "overwrite": false
+  }
+}

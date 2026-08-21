@@ -36,7 +36,8 @@
     "power_error_mw": 0.03,
     "thermal_back_reaction_s_1": 6.3e-05,
     "irradiation_wavelength_nm": 395,
-    "path_length_cm": 1
+    "path_length_cm": 1,
+    "thermal_forward_reaction_s_1": 0
   },
   "processing": {
     "wavelength_range_nm": [

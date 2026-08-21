@@ -194,8 +194,8 @@ def savgol_window_points(wavelengths, width_nm, polynomial_order=3):
 
 
 def export_smoothed_text(dataset, reconstructed, format_name=None):
-    """Serialize a reconstruction in the selected input-compatible layout."""
-    format_name = format_name or dataset.source_format
+    """Serialize a reconstruction as CSV unless another format is requested."""
+    format_name = format_name or "csv"
     reconstructed = np.asarray(reconstructed, float)
     if reconstructed.shape != dataset.absorbance.shape:
         raise ValueError("Reconstructed matrix shape does not match the input")

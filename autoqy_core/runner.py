@@ -74,6 +74,7 @@ def run_analysis(config, output_directory=None):
         power_error_mw=power_error_mw,
         volume_ml=experiment["volume_ul"] / 1000,
         thermal_rate=experiment["thermal_back_reaction_s_1"],
+        thermal_forward_rate=experiment.get("thermal_forward_reaction_s_1", 0),
         path_length_cm=experiment["path_length_cm"],
         wavelength_limits=tuple(processing["wavelength_range_nm"]),
         baseline_correct_led=baseline["enabled"],
@@ -116,8 +117,8 @@ def _write_outputs(config, data, result, output_directory):
     if output["write_config"]:
         paths.append(directory / f"{output['stem']}_config.json")
     if output.get("write_detailed_data", False):
-        paths.extend((directory / f"{output['stem']}_traces.tsv",
-                      directory / f"{output['stem']}_spectra.tsv"))
+        paths.extend((directory / f"{output['stem']}_traces.csv",
+                      directory / f"{output['stem']}_spectra.csv"))
     existing = [path for path in paths if path.exists()]
     if existing and not output["overwrite"]:
         raise FileExistsError("Output exists and overwrite is false: " + ", ".join(map(str, existing)))

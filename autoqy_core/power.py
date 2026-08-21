@@ -83,7 +83,9 @@ def process_power_configuration(configuration, base_directory):
         path = Path(measurement["path"])
         if not path.is_absolute():
             path = Path(base_directory) / path
-        samples = load_thorlabs_opm(path)
+        samples = (load_generic_power_csv(path)
+                   if configuration["format"] == "generic_csv"
+                   else load_thorlabs_opm(path))
         traces.append(process_power_trace(samples, measurement["regions"], degree, path))
 
     return combine_power_traces(
@@ -112,14 +114,25 @@ def combine_power_traces(traces, uncertainty_output="repeatability_sd"):
 
 
 def load_thorlabs_opm(path):
-    data = pd.read_csv(path, skiprows=14)
+    data = pd.read_csv(path, skiprows=14, float_precision="round_trip")
     return _power_values(data, path)
 
 
 def load_thorlabs_opm_text(text, source="uploaded CSV"):
     """Read an uploaded Thorlabs OPM CSV without writing it to disk."""
-    data = pd.read_csv(StringIO(text), skiprows=14)
+    data = pd.read_csv(StringIO(text), skiprows=14, float_precision="round_trip")
     return _power_values(data, source)
+
+
+def load_generic_power_csv(path):
+    """Load a plain CSV containing a ``power_mw`` column."""
+    data = pd.read_csv(path, float_precision="round_trip")
+    if "power_mw" not in data:
+        raise ValueError(f"Generic power CSV has no 'power_mw' column: {path}")
+    values = pd.to_numeric(data["power_mw"], errors="raise").to_numpy(float)
+    if not np.isfinite(values).all():
+        raise ValueError(f"Non-finite power values found in {path}")
+    return values
 
 
 def _power_values(data, source):
@@ -196,8 +209,8 @@ def _region(value, length, name):
 def _validate_configuration(values, base_directory):
     if values.get("schema_version") != 1:
         raise ValueError("Power schema_version must be 1")
-    if values.get("format") != "thorlabs_opm_csv":
-        raise ValueError("Power format must be thorlabs_opm_csv")
+    if values.get("format") not in {"generic_csv", "thorlabs_opm_csv"}:
+        raise ValueError("Power format must be generic_csv or thorlabs_opm_csv")
     degree = values.get("baseline_polynomial_degree", 3)
     if not isinstance(degree, int) or degree < 0:
         raise ValueError("baseline_polynomial_degree must be a nonnegative integer")
