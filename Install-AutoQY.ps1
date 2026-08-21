@@ -478,7 +478,7 @@ try {
     }
 
     Write-Step "Validating the installation"
-    $analysisConfig = Join-Path $projectRoot "ExampleData\Example-2_AB_455nm-100mA\analysis.json"
+    $analysisConfig = Join-Path $projectRoot "ExampleData\Example-2_AB_455nm-100mA\generic_inputs\analysis.json"
     Invoke-Checked -Command $environmentPython -Arguments @(
         "-m", "autoqy_core", "validate", $analysisConfig
     ) -Activity "Validating the bundled 455 nm configuration."
