@@ -112,7 +112,8 @@ def _export_epsilon(result, labels, separator):
     columns["Epsilon_upper_nonnegative_M-1_cm-1"] = upper
     stream = StringIO()
     pd.DataFrame(columns).to_csv(
-        stream, sep=separator, index=False, float_format="%.8e"
+        stream, sep=separator, index=False, float_format="%.8e",
+        lineterminator="\n",
     )
     return stream.getvalue()
 
@@ -279,7 +280,9 @@ def _export_nmr_subtraction(result, preserve_negative, separator):
         "Product_error_lower_M-1_cm-1": result.product_error_lower,
         "Product_error_upper_M-1_cm-1": result.product_error_upper,
     })
-    return frame.to_csv(sep=separator, index=False, float_format="%.8e")
+    return frame.to_csv(
+        sep=separator, index=False, float_format="%.8e", lineterminator="\n"
+    )
 
 
 def _unique_labels(labels):

@@ -13,7 +13,11 @@ from autoqy_core.epsilon import (
 )
 from autoqy_core.kinetics import _rates
 from autoqy_core.power import load_generic_power_csv
-from autoqy_core.smoother import SpectralDataset, export_smoothed_text
+from autoqy_core.smoother import (
+    SpectralDataset,
+    export_smoothed_text,
+    load_spectral_text,
+)
 
 
 class ThermalRateTests(unittest.TestCase):
@@ -67,6 +71,28 @@ class CsvTests(unittest.TestCase):
         )
         text = export_smoothed_text(dataset, dataset.absorbance)
         self.assertTrue(text.startswith("Wavelength,0"))
+
+    def test_spectral_csv_accepts_headered_and_headerless_tables(self):
+        headered = load_spectral_text(
+            "Wavelength,Spectrum\n400,0.1\n401,0.2\n402,0.3\n", "csv"
+        )
+        headerless = load_spectral_text(
+            "400,0.1\n401,0.2\n402,0.3\n", "csv"
+        )
+        for dataset in (headered, headerless):
+            np.testing.assert_array_equal(dataset.wavelengths, [400, 401, 402])
+            np.testing.assert_allclose(dataset.absorbance[:, 0], [0.1, 0.2, 0.3])
+
+    def test_returned_csv_text_uses_lf_line_endings(self):
+        dataset = SpectralDataset(
+            np.array([400.0, 401.0]), np.array([0.0]),
+            np.array([[0.1], [0.2]]), source_format="csv",
+        )
+        for text in (
+            export_smoothed_text(dataset, dataset.absorbance),
+            export_epsilon_csv(self.result, ["sample"]),
+        ):
+            self.assertNotIn("\r", text)
 
 
 if __name__ == "__main__":

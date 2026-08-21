@@ -215,7 +215,9 @@ def export_smoothed_text(dataset, reconstructed, format_name=None):
                      else [f"{value:g}" for value in dataset.coordinates])
     columns = ["Wavelength"] + value_columns
     frame = pd.DataFrame(np.column_stack([dataset.wavelengths, reconstructed]), columns=columns)
-    return frame.to_csv(index=False, sep=separator, float_format="%.8e")
+    return frame.to_csv(
+        index=False, sep=separator, float_format="%.8e", lineterminator="\n"
+    )
 
 
 def validate_rank(rank, maximum):
@@ -235,7 +237,14 @@ def _numeric_labels(labels):
 
 
 def _load_column_table(text, separator):
-    frame = pd.read_csv(StringIO(text), sep=separator)
+    first_row = pd.read_csv(
+        StringIO(text), sep=separator, header=None, nrows=1, dtype=str
+    )
+    populated = first_row.iloc[0].dropna()
+    has_header = any(not _numeric_text(value) for value in populated)
+    frame = pd.read_csv(
+        StringIO(text), sep=separator, header=0 if has_header else None
+    )
     # SpectraGryph exports can retain many trailing delimiters after the last
     # spectrum. They are empty padding columns, not measured spectra.
     frame = frame.dropna(axis=1, how="all")
@@ -244,7 +253,17 @@ def _load_column_table(text, separator):
         raise ValueError("Delimited data requires wavelength and at least one spectrum column")
     wavelengths = pd.to_numeric(frame.iloc[:, 0], errors="raise").to_numpy(float)
     absorbance = frame.iloc[:, 1:].apply(pd.to_numeric, errors="raise").to_numpy(float)
-    return wavelengths, _numeric_labels(frame.columns[1:]), absorbance
+    coordinates = (_numeric_labels(frame.columns[1:]) if has_header
+                   else np.arange(frame.shape[1] - 1, dtype=float))
+    return wavelengths, coordinates, absorbance
+
+
+def _numeric_text(value):
+    try:
+        float(str(value).strip())
+    except ValueError:
+        return False
+    return True
 
 
 def _validate_axes(wavelengths, coordinates, absorbance):
