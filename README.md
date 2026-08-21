@@ -18,7 +18,7 @@ The core scientific method is described in A. Volker, J. D. Steen and S. Crespi,
 The guided installer creates a dedicated Conda environment, installs AutoQY,
 and places five shortcuts inside **Desktop → AutoQY**.
 
-1. **[Download Install-AutoQY.bat](https://github.com/CrespiLab/autoQY/releases/download/v2.1.0/Install-AutoQY.bat)**.
+1. **[Download Install-AutoQY.bat](https://github.com/CrespiLab/autoQY/releases/download/v2.2.0/Install-AutoQY.bat)**.
 2. Double-click the downloaded file and follow the instructions (you may need
    to give Windows permission to run it).
 
