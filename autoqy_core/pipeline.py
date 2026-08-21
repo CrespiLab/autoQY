@@ -37,6 +37,7 @@ class AnalysisInput:
     robust_loss_scale: float = 0.02
     initial_yields: tuple[float, float] = (0.5, 0.5)
     yield_bounds: tuple[float, float] = (0, 1)
+    thermal_forward_rate: float = 0
 
 
 @dataclass(frozen=True)
@@ -105,7 +106,7 @@ def run_analysis_pipeline(data):
                 wavelengths, emission, concentration_fit.concentrations,
                 data.timestamps, epsilon_r, epsilon_p, power, data.volume_ml,
                 data.thermal_rate, data.path_length_cm, data.initial_yields,
-                data.yield_bounds,
+                data.yield_bounds, data.thermal_forward_rate,
             ))
         elif data.fit_method == "emission":
             fits.append(fit_quantum_yields_absorbance(
@@ -113,7 +114,7 @@ def run_analysis_pipeline(data):
                 absorbance[kinetic_slice], data.timestamps,
                 epsilon_r[kinetic_slice], epsilon_p[kinetic_slice], power,
                 data.volume_ml, data.thermal_rate, data.path_length_cm,
-                data.initial_yields, data.yield_bounds,
+                data.initial_yields, data.yield_bounds, data.thermal_forward_rate,
             ))
         elif data.fit_method == "ode_absorbance":
             fits.append(fit_quantum_yields_ode_absorbance(
@@ -121,7 +122,7 @@ def run_analysis_pipeline(data):
                 epsilon_p, power, data.volume_ml, data.thermal_rate,
                 data.path_length_cm, data.initial_yields, data.yield_bounds,
                 concentration_fit.concentrations[0], data.absorbance_baseline_order,
-                data.robust_loss_scale,
+                data.robust_loss_scale, data.thermal_forward_rate,
             ))
         else:
             raise ValueError(f"Unsupported fit method: {data.fit_method}")
@@ -134,6 +135,7 @@ def run_analysis_pipeline(data):
         fits[0].concentrations[0].sum(), fits[0].values,
         epsilon_r[kinetic_slice], epsilon_p[kinetic_slice], data.power_mw,
         data.volume_ml, data.thermal_rate, data.path_length_cm,
+        data.thermal_forward_rate,
     )
     return AnalysisResult(
         concentration_fit, fits[0], errors, wavelengths, absorbance,

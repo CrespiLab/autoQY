@@ -107,6 +107,8 @@ def validate_config(config):
         errors.append("experiment.power_error_mw must be smaller than power_mw")
     if not _nonnegative(experiment["thermal_back_reaction_s_1"]):
         errors.append("experiment.thermal_back_reaction_s_1 must be nonnegative")
+    if not _nonnegative(experiment.get("thermal_forward_reaction_s_1", 0)):
+        errors.append("experiment.thermal_forward_reaction_s_1 must be nonnegative")
 
     processing = values["processing"]
     wavelength_range = processing["wavelength_range_nm"]

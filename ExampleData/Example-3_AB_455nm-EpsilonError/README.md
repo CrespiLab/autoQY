@@ -7,10 +7,12 @@ method with lower, nominal, and upper curves.
 From the repository root, run:
 
 ```text
-autoqy-core validate ExampleData/Example-3_AB_455nm-EpsilonError/analysis.json
-autoqy-core run ExampleData/Example-3_AB_455nm-EpsilonError/analysis.json
+autoqy-core validate ExampleData/Example-3_AB_455nm-EpsilonError/generic_inputs/analysis.json
+autoqy-core run ExampleData/Example-3_AB_455nm-EpsilonError/generic_inputs/analysis.json
 ```
 
-Outputs are written to the local `results` folder. The reactant TSV contains
-replicate-derived standard deviations; the NMR-derived product TSV contains
-asymmetric wavelength-resolved lower and upper bounds.
+Outputs are written to the input folder's local `results` directory. The
+generic reactant CSV contains replicate-derived standard deviations; the
+NMR-derived product CSV contains asymmetric wavelength-resolved bounds. The
+same data are preserved as legacy TSV/SpectraGryph files in
+`crespi_group_inputs`.

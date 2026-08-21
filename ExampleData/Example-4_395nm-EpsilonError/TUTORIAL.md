@@ -8,19 +8,20 @@ both reactant and product molar absorptivity.
 
 | File | Purpose | Concentration |
 | --- | --- | ---: |
-| `source_data/2107362U1_0001A.Abs8` | Reactant measurement 1 | 6.82e-5 M |
-| `source_data/2107362U1_0001B.Abs8` | Reactant measurement 2 | 6.87e-5 M |
-| `source_data/2107362U1_0001C.Abs8` | Reactant measurement 3 | 6.80e-5 M |
-| `source_data/reactant_pss.dat` | Pure reactant and final PSS spectra | 23% reactant at PSS |
-| `led_emission.dat` | Supplied `LED395nm_baselined.dat`, under a portable name | — |
-| `measurement_spectra.dat` | Time-resolved absorbance | — |
-| `timestamps.csv` | Irradiation times | — |
+| `crespi_group_inputs/source_data/2107362U1_0001A.Abs8` | Reactant measurement 1 | 6.82e-5 M |
+| `crespi_group_inputs/source_data/2107362U1_0001B.Abs8` | Reactant measurement 2 | 6.87e-5 M |
+| `crespi_group_inputs/source_data/2107362U1_0001C.Abs8` | Reactant measurement 3 | 6.80e-5 M |
+| `crespi_group_inputs/source_data/reactant_pss.dat` | Pure reactant and final PSS spectra | 23% reactant at PSS |
+| `generic_inputs/led_emission.csv` | Generic LED emission | — |
+| `generic_inputs/measurement_spectra.csv` | Generic time-resolved absorbance | — |
+| `generic_inputs/timestamps.csv` | Generic irradiation times | — |
 
 The optical path length is 1 cm. The irradiation power is 1.46 ± 0.03 mW.
 The sample volume is 1995 µL and the thermal back-reaction rate is 6.3e-5 s⁻¹.
 
-The ready-to-run `reactant_epsilon.tsv` and `product_epsilon.tsv` are bundled
-for comparison. The following steps regenerate them from the source spectra.
+Ready-to-run CSV files are bundled under `generic_inputs`; the original TSV
+files are under `crespi_group_inputs`. The following steps regenerate them
+from the source spectra.
 
 ## 1. Open Spectral Treatment from the Analysis GUI
 
@@ -45,17 +46,17 @@ can then be selected in the Analysis GUI.
    structured differences between measurements should be investigated before
    export; the band is not a substitute for inspecting the spectra.
 8. Under **4 · Output**, choose the Example 4 folder and select
-   **Save reactant ε TSV**. The file contains processed absorbance,
+   **Save reactant ε CSV**. The file contains processed absorbance,
    individual ε curves, their mean, SD, SEM, and non-negative limits.
 
-The bundled result is `reactant_epsilon.tsv`. If the GUI proposes a different
+The bundled generic result is `reactant_absorptivity.csv`. If the GUI proposes a different
 name, select or rename the export before using it in the analysis configuration.
 
 ## 3. Derive product ε from the PSS composition
 
 1. Keep the calculated reactant ε loaded in Spectral Treatment.
 2. Expand **5 · Optional — NMR-guided PSS subtraction** and load
-   `source_data/reactant_pss.dat`. Its first spectrum is the pure reactant and
+   `crespi_group_inputs/source_data/reactant_pss.dat`. Its first spectrum is the pure reactant and
    its last spectrum is the final PSS.
 3. Under **Preprocess reactant and PSS**, apply the same **600–650 nm** baseline
    and **Savitzky–Golay 5 nm / order 3** settings.
@@ -72,29 +73,30 @@ name, select or rename the export before using it in the analysis configuration.
    −500 M⁻¹ cm⁻¹ remain visible for diagnosis; values below that threshold stop
    export. By default, the primary exported product ε is constrained to
    zero while the raw audit column is retained.
-8. Select **Save reactant + NMR-derived ε TSVs**. Use the product export as
-   `product_epsilon.tsv` and retain the reactant export as
-   `reactant_epsilon.tsv`.
+8. Select **Save reactant + NMR-derived ε CSVs**. Use the product export as
+   `product_absorptivity.csv` and retain the reactant export as
+   `reactant_absorptivity.csv`.
 
 The product bounds combine the reactant measurement SD with the selected NMR
 composition error. They are therefore asymmetric and wavelength dependent.
 
 ## 4. Build the quantum-yield analysis
 
-Return to **AutoQY Analysis**. You may load the bundled `analysis.json` and
+Return to **AutoQY Analysis**. You may load the bundled
+`generic_inputs/analysis.json` and
 inspect each section, or enter the following values manually.
 
 ### Project and data
 
-- JSON base folder: the `Example-4_395nm-EpsilonError` directory.
+- JSON base folder: the `Example-4_395nm-EpsilonError/generic_inputs` directory.
 - Analysis ID: `example_395nm_epsilon_error`.
-- Measurement spectra: `measurement_spectra.dat`.
-- Reactant molar absorptivity: `reactant_epsilon.tsv`.
-- Product molar absorptivity: `product_epsilon.tsv`.
-- LED emission: `led_emission.dat`.
+- Measurement spectra: `measurement_spectra.csv`.
+- Reactant molar absorptivity: `reactant_absorptivity.csv`.
+- Product molar absorptivity: `product_absorptivity.csv`.
+- LED emission: `led_emission.csv`.
 - Irradiation timestamps: `timestamps.csv`.
-- Spectral formats: **SpectraGryph / AutoQY TSV**.
-- Timestamp format: **AHK CSV**.
+- Spectral formats: **Generic CSV (recommended)**.
+- Timestamp format: **Generic CSV (recommended)**.
 
 Store input paths relative to the JSON folder so the example remains portable.
 
@@ -112,13 +114,14 @@ only for the LED spectrum; it is distinct from treating absorbance spectra.
 - Power error: **0.03 mW**.
 - Irradiation wavelength: **395 nm**.
 - Thermal back-reaction: **6.3e-5 s⁻¹**.
+- Thermal forward reaction: **0 s⁻¹**.
 
 The irradiation wavelength is metadata and a consistency marker. Photon flux
 uses the complete processed LED emission spectrum rather than a single value.
 
 ### Kinetic model
 
-Select **Regularized concentrations** with:
+Select **Regularized concentrations**. Expand **Expert optimizer settings** for:
 
 - Initial Φ R→P: **0.5**.
 - Initial Φ P→R: **0.5**.
@@ -132,12 +135,12 @@ for reproducibility but only affect methods that use them.
 
 Available fitting methods are:
 
-- **Concentrations**: independent NNLS spectral decomposition at every time,
-  followed by the kinetic fit.
 - **Regularized concentrations**: conserves total concentration and softly
   regularizes fractions to a free exponential envelope; used in this example.
 - **Full-spectrum ODE absorbance**: jointly fits kinetics and the complete
   absorbance matrix, with optional spectral baselines.
+- **Concentrations (legacy pure NNLS)**: independent NNLS decomposition at every time,
+  followed by the kinetic fit.
 - **Emission (legacy)**: fits absorbance only in the active LED band and assumes
   initially pure reactant.
 
@@ -192,6 +195,6 @@ Small differences can result if preprocessing or uncertainty settings differ.
 From the repository root:
 
 ```text
-autoqy-core validate ExampleData/Example-4_395nm-EpsilonError/analysis.json
-autoqy-core run ExampleData/Example-4_395nm-EpsilonError/analysis.json
+autoqy-core validate ExampleData/Example-4_395nm-EpsilonError/generic_inputs/analysis.json
+autoqy-core run ExampleData/Example-4_395nm-EpsilonError/generic_inputs/analysis.json
 ```

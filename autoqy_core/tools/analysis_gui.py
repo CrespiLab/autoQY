@@ -121,12 +121,13 @@ def create_app():
         ])
 
     def file_card(name, label, timestamp=False):
-        formats = (("ahk_csv", "AHK CSV"), ("simple_csv", "Simple CSV"),
-                   ("generic_delimited", "Generic delimited")) if timestamp else (
-                       ("spectragryph_tsv", "SpectraGryph / AutoQY TSV"),
-                       ("generic_delimited", "Generic delimited"),
+        formats = (("generic_delimited", "Generic CSV (recommended)"),
+                   ("simple_csv", "Simple two-column CSV"),
+                   ("ahk_csv", "Crespi group AHK CSV")) if timestamp else (
+                       ("generic_delimited", "Generic CSV (recommended)"),
+                       ("spectragryph_tsv", "Crespi group / SpectraGryph TSV"),
                    )
-        default = "ahk_csv" if timestamp else "spectragryph_tsv"
+        default = "generic_delimited"
         return html.Div(className="analysis-file-card", children=[
             html.Label(label),
             html.Div(className="path-row", children=[
@@ -196,7 +197,8 @@ def create_app():
                     html.Details(open=False, className="nested-tool input-file-group", children=[
                         html.Summary(["Molar absorptivity spectra", info_popup(
                             "Reactant and product ε spectra must overlap the measurement wavelength range. "
-                            "AutoQY Spectral Treatment TSV files can also carry wavelength-resolved errors."
+                            "AutoQY Spectral Treatment CSV or legacy TSV files can also carry "
+                            "wavelength-resolved errors."
                         )]),
                         file_card("reactant_absorptivity", "Reactant molar absorptivity"),
                         file_card("product_absorptivity", "Product molar absorptivity"),
@@ -230,7 +232,7 @@ def create_app():
                     html.Summary([html.Span("3 · Experiment", className="step-label"),
                                   html.Span("Physical parameters"),
                                   info_popup(
-                                      "Volume, path length, power, power error, and thermal rate enter the model. "
+                                      "Volume, path length, power, power error, and both thermal rates enter the model. "
                                       "Irradiation wavelength is metadata and an LED consistency marker; the "
                                       "calculation integrates the full processed LED spectrum."
                                   )]),
@@ -241,9 +243,11 @@ def create_app():
                          "Path length (cm)", number("path_length_cm", 1.0, min=0, step="any")),
                     pair("Power (mW)", number("power_mw", 1.0, min=0, step="any"),
                          "Power error (mW)", number("power_error_mw", 0.0, min=0, step="any")),
-                    pair("Irradiation wavelength (nm)",
-                         number("irradiation_wavelength_nm", 455, min=0, step="any"),
-                         "Thermal back-reaction (s⁻¹)",
+                    html.Label("Irradiation wavelength (nm)"),
+                    number("irradiation_wavelength_nm", 455, min=0, step="any"),
+                    pair("Thermal R→P (s⁻¹)",
+                         number("thermal_forward_rate", 0.0, min=0, step="any"),
+                         "Thermal P→R (s⁻¹)",
                          number("thermal_rate", 0.0, min=0, step="any")),
                     html.Div(id="physical-parameter-preview", className="message"),
                 ]),
@@ -251,20 +255,27 @@ def create_app():
                     html.Summary([html.Span("4 · Fit", className="step-label"),
                                   html.Span("Kinetic model"),
                                   info_popup(
-                                      "Choose the kinetic fitting formulation, starting quantum yields, and bounds. "
+                                      "Choose the kinetic fitting formulation. Starting quantum yields and bounds "
+                                      "are available under Expert optimizer settings. "
                                       "Method-specific controls refine emission, regularization, or full-spectrum fitting."
                                   )]),
                     html.Label("Method"),
                     dropdown("fit_method", (
-                        ("concentrations", "Concentrations (independent NNLS)"),
                         ("regularized_concentrations", "Regularized concentrations"),
                         ("ode_absorbance", "Full-spectrum ODE absorbance"),
+                        ("concentrations", "Concentrations (legacy pure NNLS)"),
                         ("emission", "Emission (legacy)"),
-                    ), "concentrations"),
-                    pair("Initial Φ R→P", number("initial_rp", 0.5, min=0, step="any"),
-                         "Initial Φ P→R", number("initial_pr", 0.5, min=0, step="any")),
-                    pair("Lower Φ bound", number("yield_min", 0.0, min=0, step="any"),
-                         "Upper Φ bound", number("yield_max", 1.0, min=0, step="any")),
+                    ), "regularized_concentrations"),
+                    html.Details(className="nested-tool", children=[
+                        html.Summary(["Expert optimizer settings", info_popup(
+                            "Change the optimizer's initial quantum-yield guesses and shared bounds. "
+                            "The defaults are 0.5 for both directions and 0 to 1."
+                        )]),
+                        pair("Initial Φ R→P", number("initial_rp", 0.5, min=0, step="any"),
+                             "Initial Φ P→R", number("initial_pr", 0.5, min=0, step="any")),
+                        pair("Lower Φ bound", number("yield_min", 0.0, min=0, step="any"),
+                             "Upper Φ bound", number("yield_max", 1.0, min=0, step="any")),
+                    ]),
                     html.Details(className="nested-tool", children=[
                         html.Summary(["Method-specific controls", info_popup(
                             "Emission threshold applies to the legacy emission fit; regularization strength "
@@ -288,7 +299,7 @@ def create_app():
                     html.Summary([html.Span("5 · Uncertainty", className="step-label"),
                                   html.Span("ε uncertainty"),
                                   info_popup(
-                                      "ε range analysis requires AutoQY Spectral Treatment TSV files for both "
+                                      "ε range analysis requires AutoQY Spectral Treatment CSV or TSV files for both "
                                       "species. Choose standard deviation or standard error as the "
                                       "wavelength-resolved error metric."
                                   )]),
@@ -316,7 +327,7 @@ def create_app():
                     toggle("write_figures", "Write PNG and SVG", True),
                     toggle("write_json", "Write result JSON", True),
                     toggle("write_config", "Write configuration snapshot", True),
-                    toggle("write_detailed", "Write detailed TSV data", True),
+                    toggle("write_detailed", "Write detailed CSV data", True),
                     toggle("overwrite", "Allow replacing existing results", False),
                     toggle("relative_paths", "Save absolute inputs as paths relative to JSON", True),
                 ]),
@@ -324,8 +335,8 @@ def create_app():
                     html.Div(className="action-title-row", children=[
                         html.P("7 · Analyze", className="step-label"),
                         info_popup(
-                            "Compare fit methods runs independent concentrations, regularized concentrations, "
-                            "and full-spectrum ODE fits on identical inputs. It disables ε uncertainty, omits "
+                            "Compare fit methods runs regularized concentrations, full-spectrum ODE, and legacy "
+                            "pure-NNLS concentrations on identical inputs. It disables ε uncertainty, omits "
                             "the legacy emission fit, writes no files, and compares quantum yields plus fraction "
                             "and absorbance residuals."
                         ),
@@ -360,7 +371,7 @@ def create_app():
                         info_popup(
                         "Green means no automatic threshold was crossed; amber asks for inspection; "
                         "red indicates invalid inputs or a strongly unstable fit. Thresholds: volume "
-                        "amber below 50 µL; missing alignment or overlap red; thermal rate amber when "
+                        "amber below 50 µL; missing alignment or overlap red; either thermal rate amber when "
                         "its half-life is shorter than one interval or one tenth of the experiment; "
                         "spectral condition number amber 10–30 and red above 30; initial product amber "
                         "above 2%; fraction, absorbance, or conservation error amber above 2% and red "
@@ -693,6 +704,7 @@ def _configuration(values):
             "power_mw": values.get("power_mw"),
             "power_error_mw": values.get("power_error_mw"),
             "thermal_back_reaction_s_1": values.get("thermal_rate"),
+            "thermal_forward_reaction_s_1": values.get("thermal_forward_rate"),
             "irradiation_wavelength_nm": values.get("irradiation_wavelength_nm"),
             "path_length_cm": values.get("path_length_cm"),
         },
@@ -744,6 +756,7 @@ def _form_values(document):
         "power_mw": experiment["power_mw"],
         "power_error_mw": experiment["power_error_mw"],
         "thermal_rate": experiment["thermal_back_reaction_s_1"],
+        "thermal_forward_rate": experiment.get("thermal_forward_reaction_s_1", 0),
         "irradiation_wavelength_nm": experiment["irradiation_wavelength_nm"],
         "path_length_cm": experiment["path_length_cm"],
         "wavelength_low": processing["wavelength_range_nm"][0],
@@ -820,10 +833,12 @@ def _physical_parameter_preview(values):
         if volume_ul is None:
             return "Enter the sample volume.", "message status-message status-warning"
         text = f"Interpreted volume: {volume_ul:g} µL = {volume_ul / 1000:g} mL."
-        rate = values.get("thermal_rate")
-        if rate is not None and float(rate) > 0:
-            half_life = np.log(2) / float(rate)
-            text += f" Thermal half-life: {half_life:g} s."
+        rates = (("R→P", values.get("thermal_forward_rate")),
+                 ("P→R", values.get("thermal_rate")))
+        half_lives = [f"{label} half-life: {np.log(2) / float(rate):g} s"
+                      for label, rate in rates if rate is not None and float(rate) > 0]
+        if half_lives:
+            text += " Thermal " + "; ".join(half_lives) + "."
         warning = volume_ul < 50
         if warning:
             text += " Confirm that the volume was not entered in mL."
@@ -958,18 +973,22 @@ def _input_checks(config):
     else:
         median_interval, duration = np.nan, 0.0
 
-    rate = float(experiment["thermal_back_reaction_s_1"])
-    if rate > 0:
-        half_life = float(np.log(2) / rate)
-        suspicious = ((np.isfinite(median_interval) and half_life < median_interval) or
-                      (duration > 0 and half_life < duration / 10))
-        checks.append(_check(
-            "warning" if suspicious else "ok", "Thermal back-reaction",
-            f"k = {rate:g} s⁻¹; half-life {half_life:.4g} s" +
-            (" is short relative to the experiment" if suspicious else ""),
-        ))
-    else:
-        checks.append(_check("ok", "Thermal back-reaction", "disabled (k = 0 s⁻¹)"))
+    thermal_rates = (
+        ("Thermal R→P", float(experiment.get("thermal_forward_reaction_s_1", 0))),
+        ("Thermal P→R", float(experiment["thermal_back_reaction_s_1"])),
+    )
+    for label, rate in thermal_rates:
+        if rate > 0:
+            half_life = float(np.log(2) / rate)
+            suspicious = ((np.isfinite(median_interval) and half_life < median_interval) or
+                          (duration > 0 and half_life < duration / 10))
+            checks.append(_check(
+                "warning" if suspicious else "ok", label,
+                f"k = {rate:g} s⁻¹; half-life {half_life:.4g} s" +
+                (" is short relative to the experiment" if suspicious else ""),
+            ))
+        else:
+            checks.append(_check("ok", label, "disabled (k = 0 s⁻¹)"))
 
     epsilon_r = _load_reference(config, "reactant_absorptivity")
     epsilon_p = _load_reference(config, "product_absorptivity")
@@ -1167,7 +1186,7 @@ def _transition_time(times, values, fraction=0.95):
 
 
 def _compare_fit_methods(config):
-    methods = ("concentrations", "regularized_concentrations", "ode_absorbance")
+    methods = ("regularized_concentrations", "ode_absorbance", "concentrations")
     rows = []
     with TemporaryDirectory(prefix="autoqy-method-comparison-") as temporary:
         for method in methods:
@@ -1428,8 +1447,8 @@ def _empty_figure(go, message):
 
 def _method_label(method):
     return {
-        "concentrations": "Concentrations",
-        "regularized_concentrations": "Regularized",
+        "concentrations": "Concentrations (legacy pure NNLS)",
+        "regularized_concentrations": "Regularized concentrations",
         "ode_absorbance": "ODE absorbance",
         "emission": "Emission",
     }[method]

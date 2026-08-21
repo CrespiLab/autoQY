@@ -59,9 +59,9 @@ class EpsilonUncertaintySummary:
 
 
 def load_epsilon_envelope(path, error_metric="sd"):
-    """Load nominal and wavelength-resolved bounds from Spectral Treatment TSV."""
+    """Load nominal and wavelength-resolved bounds from Spectral Treatment CSV/TSV."""
     path = Path(path)
-    frame = pd.read_csv(path, sep="\t")
+    frame = _read_epsilon_frame(path)
     wavelengths = _column(frame, "Wavelength_nm", path)
     metric = str(error_metric).lower()
     if metric not in {"sd", "sem"}:
@@ -112,7 +112,7 @@ def load_epsilon_envelope(path, error_metric="sd"):
         metric = "asymmetric_bounds"
     else:
         raise ValueError(
-            f"{path} is not an AutoQY epsilon or NMR-derived product TSV"
+            f"{path} is not an AutoQY epsilon or NMR-derived product CSV/TSV"
         )
 
     _validate_envelope(path, wavelengths, nominal, lower, upper)
@@ -123,10 +123,10 @@ def load_epsilon_envelope(path, error_metric="sd"):
 
 
 def load_epsilon_nominal(path):
-    """Return the nominal curve from an AutoQY epsilon TSV, or None otherwise."""
+    """Return the nominal curve from an AutoQY epsilon CSV/TSV, or None otherwise."""
     path = Path(path)
     try:
-        columns = set(pd.read_csv(path, sep="\t", nrows=0).columns)
+        columns = set(_read_epsilon_frame(path, nrows=0).columns)
     except (OSError, UnicodeError, pd.errors.ParserError):
         return None
     if not ({"Wavelength_nm", "Epsilon_mean_M-1_cm-1"}.issubset(columns) or
@@ -265,6 +265,14 @@ def _column(frame, name, path):
     if not np.isfinite(values).all():
         raise ValueError(f"{name} in {path} must contain a finite value at every wavelength")
     return values
+
+
+def _read_epsilon_frame(path, nrows=None):
+    path = Path(path)
+    with path.open("r", encoding="utf-8-sig") as stream:
+        first_line = stream.readline()
+    separator = "\t" if first_line.count("\t") > first_line.count(",") else ","
+    return pd.read_csv(path, sep=separator, nrows=nrows, float_precision="round_trip")
 
 
 def _validate_envelope(path, wavelengths, nominal, lower, upper):

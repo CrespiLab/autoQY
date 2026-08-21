@@ -1,7 +1,8 @@
 # Power processing example
 
-`power_analysis.json` processes the three Thorlabs OPM CSV files independently
-from the quantum-yield analysis.
+`generic_inputs/power_analysis.json` processes plain CSV files containing a
+single `power_mw` column. `crespi_group_inputs/power_analysis.json` processes
+the three original Thorlabs OPM CSV files. Both produce equivalent results.
 
 Each trace records six explicit half-open index regions: LED off/on/off without
 the cuvette assembly, followed by LED off/on/off with the jacket, cuvette, and
@@ -16,8 +17,8 @@ pip install -e ".[power-gui]"
 autoqy-core power-gui
 ```
 
-Upload the three CSV files from this directory to reproduce the graphical
-workflow. The supplied `power_analysis.json` contains the already selected
+Upload the three CSV files from `crespi_group_inputs` to reproduce the graphical
+workflow. Each supplied `power_analysis.json` contains the already selected
 regions and remains the non-interactive example.
 
 Two uncertainty quantities are reported:

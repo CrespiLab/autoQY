@@ -12,41 +12,70 @@
     "led_emission": "LED340nm.csv",
     "timestamps": "log_Azobenzene_irr340nm.csv",
     "formats": {
-      "measurement_spectra": {"type": "spectragryph_tsv"},
-      "reactant_absorptivity": {"type": "spectragryph_tsv"},
-      "product_absorptivity": {"type": "spectragryph_tsv"},
+      "measurement_spectra": {
+        "type": "spectragryph_tsv"
+      },
+      "reactant_absorptivity": {
+        "type": "spectragryph_tsv"
+      },
+      "product_absorptivity": {
+        "type": "spectragryph_tsv"
+      },
       "led_emission": {
         "type": "generic_delimited",
         "delimiter": ",",
         "header": true,
         "wavelength_column": "Wavelength [nm]",
-        "value_columns": ["Intensity"]
+        "value_columns": [
+          "Intensity"
+        ]
       },
-      "timestamps": {"type": "ahk_csv"}
+      "timestamps": {
+        "type": "ahk_csv"
+      }
     }
   },
   "experiment": {
     "volume_ul": 3000,
     "power_mw": 0.743,
     "power_error_mw": 0.004,
-    "thermal_back_reaction_s_1": 7.24e-7,
+    "thermal_back_reaction_s_1": 7.24e-07,
     "irradiation_wavelength_nm": 340,
-    "path_length_cm": 1.0
+    "path_length_cm": 1.0,
+    "thermal_forward_reaction_s_1": 0
   },
   "processing": {
-    "wavelength_range_nm": [250, 800],
-    "led_smoothing": {"method": "savgol", "window_points": 12, "polynomial_order": 3},
-    "led_baseline": {"enabled": false, "exclusion_fwhm_multiplier": 10}
+    "wavelength_range_nm": [
+      250,
+      800
+    ],
+    "led_smoothing": {
+      "method": "savgol",
+      "window_points": 12,
+      "polynomial_order": 3
+    },
+    "led_baseline": {
+      "enabled": false,
+      "exclusion_fwhm_multiplier": 10
+    }
   },
   "fit": {
     "method": "emission",
     "emission_threshold_fraction": 0.0118,
-    "initial_quantum_yields": {"R_to_P": 0.5, "P_to_R": 0.5},
-    "quantum_yield_bounds": {"minimum": 0.0, "maximum": 1.0}
+    "initial_quantum_yields": {
+      "R_to_P": 0.5,
+      "P_to_R": 0.5
+    },
+    "quantum_yield_bounds": {
+      "minimum": 0.0,
+      "maximum": 1.0
+    }
   },
-  "plots": {"absorbance_residual_percentile": 99},
+  "plots": {
+    "absorbance_residual_percentile": 99
+  },
   "outputs": {
-    "directory": "CoreResults",
+    "directory": "results",
     "stem": "Results_340nm_Emission",
     "write_text": true,
     "write_figures": true,

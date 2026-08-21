@@ -54,6 +54,7 @@ def result_summary(result, data, irradiation_wavelength_nm):
             "power_mw": data.power_mw,
             "power_error_mw": data.power_error_mw,
             "thermal_back_reaction_s_1": data.thermal_rate,
+            "thermal_forward_reaction_s_1": getattr(data, "thermal_forward_rate", 0),
             "irradiation_wavelength_nm": irradiation_wavelength_nm,
             "path_length_cm": data.path_length_cm,
         },
@@ -103,7 +104,7 @@ def write_results(path, result, data, irradiation_wavelength_nm):
     extrapolated_pss = summary["extrapolated_pss_percent"]
     low, high = data.wavelength_limits
     method = {
-        "concentrations": "Concentrations",
+        "concentrations": "Concentrations (legacy pure NNLS)",
         "emission": "Emission (legacy)",
         "regularized_concentrations": "Regularized concentrations",
         "ode_absorbance": "Full-spectrum ODE absorbance",
@@ -135,6 +136,7 @@ error_QY_AB (%): {formatted['R_to_P']['error']}
 error_QY_BA (%): {formatted['P_to_R']['error']}
 {epsilon_text}Volume (ml): {data.volume_ml:g}
 k thermal back-reaction (s-1): {data.thermal_rate:g}
+k thermal forward-reaction (s-1): {getattr(data, 'thermal_forward_rate', 0):g}
 Power average (mW): {data.power_mw:g}
 Power error (mW): {data.power_error_mw:g}
 Wavelength of irradiation: {irradiation_wavelength_nm:g}
@@ -200,8 +202,8 @@ def write_detailed_data(stem, result, data):
             uncertainty.fraction_residual_maximum
         )
     traces = pd.DataFrame(columns)
-    traces_path = stem.parent / f"{stem.name}_traces.tsv"
-    traces.to_csv(traces_path, sep="\t", index=False)
+    traces_path = stem.parent / f"{stem.name}_traces.csv"
+    traces.to_csv(traces_path, index=False)
 
     measured_absorbance = result.absorbance.T
     concentration_reconstruction = result.concentration_fit.reconstructed_absorbance
@@ -224,6 +226,6 @@ def write_detailed_data(stem, result, data):
             measured_absorbance - concentration_reconstruction).ravel(),
         "kinetic_fit_residual": (measured_absorbance - kinetic_fit).ravel(),
     })
-    spectra_path = stem.parent / f"{stem.name}_spectra.tsv"
-    spectra.to_csv(spectra_path, sep="\t", index=False)
+    spectra_path = stem.parent / f"{stem.name}_spectra.csv"
+    spectra.to_csv(spectra_path, index=False)
     return traces_path, spectra_path
