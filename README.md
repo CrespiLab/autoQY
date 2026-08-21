@@ -25,7 +25,7 @@ and places five shortcuts inside **Desktop → AutoQY**.
 The installer detects an existing `autoqy-core` environment and reuses it by
 default; clean recreation remains optional.
 The installation will produce a series of useful links in a folder on the Desktop.
-The `v2.1.0` installer installs the stable release from `main`.
+The `v2.2.0` installer installs the stable release from `main`.
 
 The Desktop `AutoQY` folder contains:
 
