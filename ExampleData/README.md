@@ -1,85 +1,49 @@
 # AutoQY example data
 
-This directory contains reproducible example analyses for AutoQY Core and a
-separate example for processing optical-power measurements.
+Every example has the same two input tracks:
 
-All paths inside the JSON configuration files are relative to the directory
-containing that JSON file. The examples can therefore be copied or moved
-without editing absolute paths.
+- `generic_inputs` contains plain, headered CSV files and is the recommended
+  starting point for users outside the Crespi group;
+- `crespi_group_inputs` preserves the original SpectraGryph, AHK, Avantes, or
+  Thorlabs files and their matching configuration.
+
+Each input folder contains its own portable `analysis.json` (or
+`power_analysis.json`). The paired configurations produce numerically
+equivalent results. Check all six pairs from the repository root with:
+
+```powershell
+python ExampleData/verify_equivalent_inputs.py
+```
 
 ## Available examples
 
 | Directory | Irradiation | Fitting method | Purpose |
 |---|---:|---|---|
-| `Example-1a_340nm_ManualPower_noblcorrLED` | 340 nm | `emission` | Direct absorbance fitting using a raw LED spectrum without baseline correction |
-| `Example-1b_340nm_ManualPower_blcorrLED` | 340 nm | `emission` | Direct absorbance fitting using an externally baseline-corrected LED spectrum |
-| `Example-2_AB_455nm-100mA` | 455 nm | `concentrations` | Concentration extraction followed by kinetic quantum-yield fitting |
-| `Example-Power` | 455 nm | — | Independent processing of Thorlabs optical-power measurements |
+| `Example-1a_340nm_ManualPower_noblcorrLED` | 340 nm | `emission` | Raw LED without baseline correction |
+| `Example-1b_340nm_ManualPower_blcorrLED` | 340 nm | `emission` | Externally baseline-corrected LED |
+| `Example-2_AB_455nm-100mA` | 455 nm | `concentrations` | Legacy pure-NNLS concentration route |
+| `Example-3_AB_455nm-EpsilonError` | 455 nm | `concentrations` | Wavelength-resolved ε uncertainty |
+| `Example-4_395nm-EpsilonError` | 395 nm | `regularized_concentrations` | Regularized fit with ε uncertainty |
+| `Example-Power` | 455 nm | — | Optical-power processing |
 
-For a first command-line test, start with the 455 nm concentration example.
-
-## Running an analysis
-
-Run these commands from the repository root after installing AutoQY Core.
-
-Validate the configuration:
+For a first command-line test, use the generic CSV version of the 455 nm
+example:
 
 ```powershell
-autoqy-core validate ExampleData/Example-2_AB_455nm-100mA/analysis.json
+autoqy-core validate ExampleData/Example-2_AB_455nm-100mA/generic_inputs/analysis.json
+autoqy-core run ExampleData/Example-2_AB_455nm-100mA/generic_inputs/analysis.json
 ```
 
-Run the analysis:
+To reproduce the same calculation from the original group files, replace
+`generic_inputs` with `crespi_group_inputs`.
+
+The power example follows the same convention:
 
 ```powershell
-autoqy-core run ExampleData/Example-2_AB_455nm-100mA/analysis.json
+autoqy-core power ExampleData/Example-Power/generic_inputs/power_analysis.json
 ```
 
-The generated files are written to the `CoreResults` directory specified in
-the corresponding `analysis.json`.
-
-The 340 nm examples can be run in the same way:
-
-```powershell
-autoqy-core run ExampleData/Example-1a_340nm_ManualPower_noblcorrLED/analysis.json
-autoqy-core run ExampleData/Example-1b_340nm_ManualPower_blcorrLED/analysis.json
-```
-
-## Processing power measurements
-
-The power-processing example is independent of the quantum-yield analyses.
-
-Run it non-interactively with the regions stored in its JSON configuration:
-
-```powershell
-autoqy-core power ExampleData/Example-Power/power_analysis.json
-```
-
-Alternatively, start the browser-based graphical interface:
-
-```powershell
-autoqy-core power-gui
-```
-
-If AutoQY Core was installed using the Windows installer and desktop shortcuts
-were enabled during installation, the power GUI can also be opened using the
-**AutoQY Power GUI** shortcut on the desktop.
-
-The GUI allows the integration regions to be adjusted interactively and
-exported as a reproducible `power_analysis.json`.
-
-## Directory conventions
-
-- `analysis.json` is the reproducible definition of a quantum-yield analysis.
-- `power_analysis.json` is the reproducible definition of a power-processing
-  analysis.
-- `CoreResults` contains newly generated results.
-- `LegacyResults` contains outputs from earlier AutoQY implementations. These
-  files are retained for comparison and documentation but are not exact
-  numerical regression targets.
-- `ExpParams.txt` files are retained for historical reference. Current AutoQY
-  Core analyses obtain the required experimental parameters from
-  `analysis.json`.
-
-Some directories contain additional processed or smoothed spectra retained
-from the original workflow. Only files explicitly referenced by the JSON
-configuration are used during an analysis.
+`LegacyResults` directories contain outputs from earlier AutoQY
+implementations and are retained only for historical comparison. `ExpParams.txt`
+and raw instrument source files live under `crespi_group_inputs`; current
+analyses obtain experimental parameters from their JSON configuration.

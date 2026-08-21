@@ -50,7 +50,7 @@ def load_avantes_abs8_bytes(data):
 def load_spectra(path, format_spec="spectragryph_tsv"):
     spec = _format_spec(format_spec)
     if spec["type"] == "spectragryph_tsv":
-        data = pd.read_csv(path, sep="\t").drop(
+        data = pd.read_csv(path, sep="\t", float_precision="round_trip").drop(
             columns="Wavenumbers [1/cm]", errors="ignore"
         )
         wavelength_column, value_columns = data.columns[0], list(data.columns[1:])
@@ -86,7 +86,7 @@ def load_spectrum(path, format_spec="spectragryph_tsv"):
 def load_timestamps(path, format_spec="ahk_csv"):
     spec = _format_spec(format_spec)
     if spec["type"] == "ahk_csv":
-        data = pd.read_csv(path)
+        data = pd.read_csv(path, float_precision="round_trip")
         event_column = _column(data, spec.get("event_column", "Event"))
         time_column = _column(data, spec.get("time_column", "ElapsedTime (s)"))
         events = data[event_column].astype(str)
@@ -100,7 +100,8 @@ def load_timestamps(path, format_spec="ahk_csv"):
             spec = {"type": "generic_delimited", "delimiter": ",", "header": True,
                     "time_column": 1}
         data = _read_delimited(path, spec)
-        time_column = _column(data, spec.get("time_column", 1))
+        default_column = 0 if len(data.columns) == 1 else 1
+        time_column = _column(data, spec.get("time_column", default_column))
         timestamps = pd.to_numeric(data[time_column], errors="raise").to_numpy(float)
     else:
         raise ValueError(f"Unsupported timestamp format: {spec['type']}")
@@ -120,7 +121,8 @@ def _read_delimited(path, spec):
     header = 0 if spec.get("header", True) else None
     return pd.read_csv(Path(path), sep=delimiter, header=header,
                        skiprows=spec.get("skip_rows", 0),
-                       decimal=spec.get("decimal", "."))
+                       decimal=spec.get("decimal", "."),
+                       float_precision="round_trip")
 
 
 def _column(data, reference):

@@ -12,23 +12,37 @@
     "led_emission": "LED455nm_raw.dat",
     "timestamps": "log-AHK_first40.csv",
     "formats": {
-      "measurement_spectra": {"type": "spectragryph_tsv"},
-      "reactant_absorptivity": {"type": "spectragryph_tsv"},
-      "product_absorptivity": {"type": "spectragryph_tsv"},
-      "led_emission": {"type": "spectragryph_tsv"},
-      "timestamps": {"type": "ahk_csv"}
+      "measurement_spectra": {
+        "type": "spectragryph_tsv"
+      },
+      "reactant_absorptivity": {
+        "type": "spectragryph_tsv"
+      },
+      "product_absorptivity": {
+        "type": "spectragryph_tsv"
+      },
+      "led_emission": {
+        "type": "spectragryph_tsv"
+      },
+      "timestamps": {
+        "type": "ahk_csv"
+      }
     }
   },
   "experiment": {
     "volume_ul": 3020,
     "power_mw": 2.07,
     "power_error_mw": 0.02,
-    "thermal_back_reaction_s_1": 7.24e-7,
+    "thermal_back_reaction_s_1": 7.24e-07,
     "irradiation_wavelength_nm": 455,
-    "path_length_cm": 1.0
+    "path_length_cm": 1.0,
+    "thermal_forward_reaction_s_1": 0
   },
   "processing": {
-    "wavelength_range_nm": [250, 800],
+    "wavelength_range_nm": [
+      250,
+      800
+    ],
     "led_smoothing": {
       "method": "savgol",
       "window_points": 12,
@@ -55,7 +69,7 @@
     "absorbance_residual_percentile": 99
   },
   "outputs": {
-    "directory": "CoreResults",
+    "directory": "results",
     "stem": "Results_AB_455nm_first40_ODEMethod_Concentrations",
     "write_text": true,
     "write_figures": true,

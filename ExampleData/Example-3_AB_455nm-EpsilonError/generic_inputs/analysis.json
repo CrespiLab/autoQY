@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "analysis": {
+    "id": "AB_455nm_first40_epsilon_error",
+    "reactant_name": "trans-azobenzene",
+    "product_name": "cis-azobenzene"
+  },
+  "inputs": {
+    "measurement_spectra": "measurement_spectra.csv",
+    "reactant_absorptivity": "reactant_absorptivity.csv",
+    "product_absorptivity": "product_absorptivity.csv",
+    "led_emission": "led_emission.csv",
+    "timestamps": "timestamps.csv",
+    "formats": {
+      "measurement_spectra": {
+        "type": "generic_delimited",
+        "delimiter": ",",
+        "header": true,
+        "wavelength_column": "Wavelength_nm",
+        "value_columns": "remaining"
+      },
+      "reactant_absorptivity": {
+        "type": "generic_delimited",
+        "delimiter": ",",
+        "header": true,
+        "wavelength_column": "Wavelength_nm",
+        "value_columns": [
+          "value"
+        ]
+      },
+      "product_absorptivity": {
+        "type": "generic_delimited",
+        "delimiter": ",",
+        "header": true,
+        "wavelength_column": "Wavelength_nm",
+        "value_columns": [
+          "value"
+        ]
+      },
+      "led_emission": {
+        "type": "generic_delimited",
+        "delimiter": ",",
+        "header": true,
+        "wavelength_column": "Wavelength_nm",
+        "value_columns": [
+          "value"
+        ]
+      },
+      "timestamps": {
+        "type": "generic_delimited",
+        "delimiter": ",",
+        "header": true,
+        "time_column": "irradiation_seconds"
+      }
+    }
+  },
+  "experiment": {
+    "volume_ul": 3020,
+    "power_mw": 2.07,
+    "power_error_mw": 0.02,
+    "thermal_back_reaction_s_1": 7.24e-07,
+    "irradiation_wavelength_nm": 455,
+    "path_length_cm": 1.0,
+    "thermal_forward_reaction_s_1": 0
+  },
+  "processing": {
+    "wavelength_range_nm": [
+      250,
+      800
+    ],
+    "led_smoothing": {
+      "method": "savgol",
+      "window_points": 12,
+      "polynomial_order": 3
+    },
+    "led_baseline": {
+      "enabled": true,
+      "exclusion_fwhm_multiplier": 10
+    }
+  },
+  "fit": {
+    "method": "concentrations",
+    "emission_threshold_fraction": 0.01,
+    "initial_quantum_yields": {
+      "R_to_P": 0.5,
+      "P_to_R": 0.5
+    },
+    "quantum_yield_bounds": {
+      "minimum": 0.0,
+      "maximum": 1.0
+    }
+  },
+  "plots": {
+    "absorbance_residual_percentile": 99
+  },
+  "uncertainty": {
+    "epsilon": {
+      "method": "deterministic_extremes",
+      "error_metric": "sd"
+    }
+  },
+  "outputs": {
+    "directory": "results",
+    "stem": "Results_AB_455nm_first40_EpsilonError",
+    "write_text": true,
+    "write_figures": true,
+    "write_json": true,
+    "write_config": true,
+    "write_detailed_data": true,
+    "overwrite": true
+  }
+}

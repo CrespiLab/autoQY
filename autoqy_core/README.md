@@ -5,8 +5,8 @@ processing choice, fit setting, plot setting, and output instruction required
 for a reproducible quantum-yield run. Relative paths are resolved from the JSON
 file location.
 
-Power-monitor processing is intentionally separate and uses
-`Power/power_analysis.json`.
+Power-monitor processing is intentionally separate; see
+`ExampleData/Example-Power/generic_inputs/power_analysis.json`.
 
 ## Minimal files for one analysis
 
@@ -38,21 +38,14 @@ scientific core.
 
 ## Fitting methods
 
-`"method": "concentrations"` is the legacy-compatible concentration route. It
-recovers every time point independently by non-negative spectral decomposition,
-then fits the photochemical ODE to the resulting traces. It is fast and
-transparent, but a mismatch between experimental and reference spectra can pin
-several consecutive points to exactly 100% reactant or product. It has no
-temporal information during spectral decomposition.
-
-`"method": "regularized_concentrations"` fits all spectra together with a
-single conserved total concentration. Each timestamp retains an independent
-reactant fraction, but those fractions have a soft exponential envelope with a
-free starting fraction and free plateau. The exponential is only a
-regularizer, not the quantum-yield model; the quantum yields are still obtained
-from the full photochemical ODE. `regularization_strength` controls the soft
-constraint. Larger values follow the envelope more closely; the default is
-`1.0`.
+`"method": "regularized_concentrations"` is the recommended concentration
+route. It fits all spectra together with a single conserved total concentration.
+Each timestamp retains an independent reactant fraction, but those fractions
+have a soft exponential envelope with a free starting fraction and free plateau.
+The exponential is only a regularizer, not the quantum-yield model; the quantum
+yields are still obtained from the full photochemical ODE.
+`regularization_strength` controls the soft constraint. Larger values follow
+the envelope more closely; the default is `1.0`.
 
 `"method": "ode_absorbance"` jointly fits the quantum yields, total
 concentration, and initial composition directly to the full measured spectral
@@ -62,6 +55,13 @@ robust loss reduces the influence of isolated bad wavelengths. This method is
 slower but avoids deriving the result from independently clipped concentration
 points. `absorbance_baseline_order` accepts `-1` (off), `0` (offset), or `1`
 (offset and slope); the default is `1`. `robust_loss_scale` defaults to `0.02`.
+
+`"method": "concentrations"` is the legacy pure-NNLS concentration route. It
+recovers every time point independently by non-negative spectral decomposition,
+then fits the photochemical ODE to the resulting traces. It is fast and
+transparent, but a mismatch between experimental and reference spectra can pin
+several consecutive points to exactly 100% reactant or product. It has no
+temporal information during spectral decomposition.
 
 `"method": "emission"` is retained to reproduce the older direct-absorbance
 calculation. It fits only wavelengths inside the active LED-emission band and
@@ -73,8 +73,12 @@ that disagree with the full-spectrum methods. `emission_threshold_fraction`
 defines the active band as a fraction of the processed LED maximum.
 
 All four methods use the same rate equations, path length, power uncertainty,
-thermal back-reaction, bounds, outputs, and plotting pipeline. A practical
-configuration containing every method-specific control is:
+two thermal directions, bounds, outputs, and plotting pipeline. The thermal
+part of the reactant derivative is
+`d[R]/dt = … + k_P→R[P] - k_R→P[R]`; the product derivative is its negative.
+`thermal_forward_reaction_s_1` is optional and defaults to zero, so existing
+configurations retain their prior behavior. A practical configuration
+containing every method-specific control is:
 
 ```json
 "fit": {
@@ -115,7 +119,17 @@ why agreement should be checked rather than assumed.
 Each input has its own entry under `inputs.formats`, allowing mixed formats in
 one experiment.
 
-### Spectragryph
+### Generic CSV (recommended)
+
+Use `generic_delimited` with a comma delimiter and a header row. Measurement
+CSV files place wavelength in the first column and one spectrum in every
+remaining column; single-spectrum files use one value column.
+
+```json
+{"type": "generic_delimited", "delimiter": ",", "header": true}
+```
+
+### SpectraGryph / Crespi group
 
 ```json
 {"type": "spectragryph_tsv"}
@@ -124,7 +138,7 @@ one experiment.
 This reads a tab-separated header, uses the first column as wavelength in nm,
 and ignores a column named `Wavenumbers [1/cm]`.
 
-### Generic spectra
+### Other generic delimiters
 
 ```json
 {
@@ -170,6 +184,7 @@ one value per measured spectrum.
 | `volume_ul` | microlitres |
 | `power_mw`, `power_error_mw` | mW |
 | `thermal_back_reaction_s_1` | s^-1 |
+| `thermal_forward_reaction_s_1` | s^-1 |
 | `irradiation_wavelength_nm` | nm |
 | `path_length_cm` | cm |
 | `wavelength_range_nm` | nm |
@@ -181,7 +196,7 @@ Volume is converted internally from microlitres to millilitres.
 The established error-less calculation remains the default. To propagate the
 wavelength-resolved errors exported by Spectral Treatment, point
 `inputs.reactant_absorptivity` and `inputs.product_absorptivity` to their AutoQY
-epsilon TSV files and add:
+epsilon CSV files (legacy TSV remains supported) and add:
 
 ```json
 "uncertainty": {
@@ -193,23 +208,23 @@ epsilon TSV files and add:
 ```
 
 `sd` is the default for independently prepared samples; `sem` is also
-available. The product input may instead be an NMR-derived product epsilon TSV,
+available. The product input may instead be an NMR-derived product epsilon CSV,
 whose asymmetric non-negative bounds are used directly. The core evaluates the
 distinct low/mean/high reactant-product epsilon-bound combinations through the
 complete selected fit and reports optimizer-plus-power, epsilon-only, and
 combined conservative error envelopes separately. Omitting this section, or
 setting `method` to `none`, preserves the original calculation and input formats.
 
-Future import parsers can target the same TSV contract with normalization and
+Future import parsers can target the same CSV contract with normalization and
 concentration metadata left empty or zero and wavelength error set to zero; the
 uncertainty loader only requires the wavelength, nominal epsilon, and selected
 error columns.
 
 ## Detailed outputs
 
-When `outputs.write_detailed_data` is true, the traces TSV contains measured
+When `outputs.write_detailed_data` is true, the traces CSV contains measured
 and fitted concentrations, fractions, and separate reactant/product residuals.
-The spectra TSV contains original absorbance, concentration reconstruction,
+The spectra CSV contains original absorbance, concentration reconstruction,
 kinetic reconstruction, and both residual matrices in long form.
 
 The TXT and results JSON distinguish two endpoint values:
@@ -218,7 +233,7 @@ The TXT and results JSON distinguish two endpoint values:
   experimental measurement time.
 - **Extrapolated PSS** is the composition predicted by the fitted model when
   constant irradiation is continued until `dC/dt = 0`. It includes the
-  configured thermal back-reaction.
+  configured thermal rates in both directions.
 
 ## Power-treatment GUI
 
@@ -228,6 +243,10 @@ trace, drag twelve boundaries around the six background/signal regions, inspect
 the open-beam and cuvette baseline corrections, and calculate the power. Up to
 three traces can be processed and averaged. Exported JSON includes the selected
 regions so the calibration can be repeated from the terminal.
+
+For portable scripted input, set `"format": "generic_csv"` in
+`power_analysis.json` and provide one `power_mw` column. The legacy
+`thorlabs_opm_csv` format remains available for original instrument exports.
 
 A future full analysis GUI should edit JSON-compatible values, call
 `validate_config`, and then call `run_analysis`. Power processing remains a

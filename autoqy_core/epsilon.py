@@ -80,8 +80,17 @@ def calculate_epsilon_statistics(wavelengths, absorbance, concentrations_m,
     )
 
 
+def export_epsilon_csv(result, labels):
+    """Export processed absorbance, epsilon replicates, and errors as CSV."""
+    return _export_epsilon(result, labels, ",")
+
+
 def export_epsilon_tsv(result, labels):
-    """Export processed absorbance, epsilon replicates, and wavelength errors."""
+    """Backward-compatible tab-separated epsilon export."""
+    return _export_epsilon(result, labels, "\t")
+
+
+def _export_epsilon(result, labels, separator):
     labels = _unique_labels(labels)
     if len(labels) != result.individual.shape[1]:
         raise ValueError("Spectrum labels do not match the epsilon matrix")
@@ -102,23 +111,27 @@ def export_epsilon_tsv(result, labels):
     columns["Epsilon_lower_nonnegative_M-1_cm-1"] = lower
     columns["Epsilon_upper_nonnegative_M-1_cm-1"] = upper
     stream = StringIO()
-    pd.DataFrame(columns).to_csv(stream, sep="\t", index=False, float_format="%.8e")
+    pd.DataFrame(columns).to_csv(
+        stream, sep=separator, index=False, float_format="%.8e"
+    )
     return stream.getvalue()
 
 
-def load_epsilon_tsv(text):
-    """Reload an AutoQY epsilon TSV, including its processed absorbance metadata."""
-    frame = pd.read_csv(StringIO(text), sep="\t")
+def load_epsilon_table(text):
+    """Reload an AutoQY epsilon CSV or legacy TSV, including its metadata."""
+    first_line = text.splitlines()[0] if text.splitlines() else ""
+    separator = "\t" if first_line.count("\t") > first_line.count(",") else ","
+    frame = pd.read_csv(StringIO(text), sep=separator, float_precision="round_trip")
     required = {"Wavelength_nm", "Epsilon_mean_M-1_cm-1",
                 "Epsilon_SD_M-1_cm-1", "Epsilon_SEM_M-1_cm-1"}
     if not required.issubset(frame.columns):
-        raise ValueError("This is not an AutoQY epsilon TSV export")
+        raise ValueError("This is not an AutoQY epsilon CSV/TSV export")
     prefixes = ("Absorbance__", "Concentration_M__", "Path_length_cm__",
                 "Epsilon_M-1_cm-1__")
     labels = [column[len(prefixes[0]):] for column in frame.columns
               if column.startswith(prefixes[0])]
     if not labels:
-        raise ValueError("AutoQY epsilon TSV contains no replicate absorbance columns")
+        raise ValueError("AutoQY epsilon table contains no replicate absorbance columns")
     absorbance, concentrations, paths, individual = [], [], [], []
     for label in labels:
         names = [prefix + label for prefix in prefixes]
@@ -145,8 +158,13 @@ def load_epsilon_tsv(text):
     arrays = (result.wavelengths, result.absorbance, result.concentrations_m,
               result.path_lengths_cm, result.individual, result.mean)
     if not all(np.isfinite(array).all() for array in arrays):
-        raise ValueError("AutoQY epsilon TSV contains non-finite required values")
+        raise ValueError("AutoQY epsilon table contains non-finite required values")
     return result, labels
+
+
+def load_epsilon_tsv(text):
+    """Backward-compatible alias that also accepts the preferred CSV format."""
+    return load_epsilon_table(text)
 
 
 def nonnegative_error_bounds(mean, error):
@@ -233,8 +251,17 @@ def reconstruct_product_from_nmr(wavelengths, reactant_absorbance, pss_absorbanc
     )
 
 
+def export_nmr_subtraction_csv(result, preserve_negative=False):
+    """Export NMR-derived epsilon as CSV, retaining a raw audit column."""
+    return _export_nmr_subtraction(result, preserve_negative, ",")
+
+
 def export_nmr_subtraction_tsv(result, preserve_negative=False):
-    """Export the NMR-derived epsilon, always retaining a raw audit column."""
+    """Backward-compatible tab-separated NMR-derived epsilon export."""
+    return _export_nmr_subtraction(result, preserve_negative, "\t")
+
+
+def _export_nmr_subtraction(result, preserve_negative, separator):
     exported_product = (result.product if preserve_negative
                         else np.maximum(result.product, 0.0))
     frame = pd.DataFrame({
@@ -252,7 +279,7 @@ def export_nmr_subtraction_tsv(result, preserve_negative=False):
         "Product_error_lower_M-1_cm-1": result.product_error_lower,
         "Product_error_upper_M-1_cm-1": result.product_error_upper,
     })
-    return frame.to_csv(sep="\t", index=False, float_format="%.8e")
+    return frame.to_csv(sep=separator, index=False, float_format="%.8e")
 
 
 def _unique_labels(labels):
