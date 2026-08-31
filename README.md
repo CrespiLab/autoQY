@@ -13,16 +13,6 @@ The core scientific method is described in A. Volker, J. D. Steen and S. Crespi,
 *Beilstein J. Org. Chem.* **2024**, 20, 1684–1692,
 [doi:10.3762/bjoc.20.150](https://doi.org/10.3762/bjoc.20.150).
 
-## Version 2.2.1
-
-AutoQY 2.2.1 improves the Spectral Treatment GUI:
-
-- processed absorbance can be exported as CSV without entering concentrations;
-- output filenames are editable, including separate reactant and product names
-  for NMR-guided PSS subtraction;
-- an Output toggle can convert negative absorbance and ε values to zero, while
-  the NMR export retains its separate option to keep negative product ε values;
-- only **1 · Data** is expanded when the GUI opens; all other panels start closed.
 
 ## Install on Windows
 
