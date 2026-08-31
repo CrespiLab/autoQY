@@ -15,7 +15,8 @@ from ..epsilon import (EpsilonResult, NMRSubtractionResult,
                        export_nmr_subtraction_csv, load_epsilon_table,
                        nonnegative_error_bounds, reconstruct_product_from_nmr)
 from ..smoother import (SpectralDataset, analyze_svd, baseline_spectra,
-                        load_spectral_bytes, savgol_window_points, select_wavelengths,
+                        export_smoothed_text, load_spectral_bytes,
+                        savgol_window_points, select_wavelengths,
                         smooth_reconstruction)
 
 
@@ -102,7 +103,7 @@ def create_app():
                                 className="button button-secondary", disabled=True),
                     html.Div(id="load-message", className="message"),
                 ]),
-                html.Details(open=True, className="panel tool-details", children=[
+                html.Details(open=False, className="panel tool-details", children=[
                     html.Summary([html.Span("2 · Range", className="step-label"),
                                   "Wavelengths", info_popup(
                                       "The selected range is used for the preview, molar-absorptivity "
@@ -162,7 +163,7 @@ def create_app():
                         html.Div(id="smoothing-message", className="message"),
                     ]),
                 ]),
-                html.Details(open=True, className="panel tool-details", children=[
+                html.Details(open=False, className="panel tool-details", children=[
                     html.Summary([html.Span("3 · Beer–Lambert", className="step-label"),
                                   "Concentrations", info_popup(
                                       "Enter each measured solution concentration directly in mol/L "
@@ -171,15 +172,13 @@ def create_app():
                     html.Div(id="concentration-parameters"),
                     html.Div(id="concentration-message", className="message"),
                 ]),
-                html.Section(className="panel export-panel", children=[
-                    html.P("4 · Output", className="step-label"),
-                    html.Div(className="section-title-row", children=[
-                        html.H2("Export absorptivity dataset"),
-                        info_popup(
-                            "The CSV stores processed absorbance, each individual ε spectrum, "
-                            "their mean, SD and SEM, and non-negative lower and upper bounds."
-                        ),
-                    ]),
+                html.Details(open=False, className="panel tool-details export-panel", children=[
+                    html.Summary([html.Span("4 · Output", className="step-label"),
+                                  "Export processed dataset", info_popup(
+                                      "Processed absorbance can be saved without concentrations. "
+                                      "When every concentration and path length is provided, the CSV "
+                                      "also contains individual ε spectra and their statistics."
+                                  )]),
                     html.Label("Save folder"),
                     html.Div(className="input-row", children=[
                         dcc.Input(id="save-folder", type="text",
@@ -187,7 +186,23 @@ def create_app():
                         html.Button("Choose folder", id="choose-save-folder",
                                     className="button button-secondary"),
                     ]),
-                    html.Button("Save reactant ε CSV", id="export-epsilon",
+                    html.Label("CSV file name (optional)"),
+                    dcc.Input(id="save-filename", type="text",
+                              placeholder="Automatic name based on export type"),
+                    html.Small("Leave blank to use processed-absorbance.csv or "
+                               "epsilon-spectra-reactant.csv."),
+                    html.Div(className="export-mode-control", children=[
+                        dcc.Checklist(
+                            id="export-nonnegative", value=[], className="toggle-control",
+                            options=[{
+                                "label": "Convert negative absorbance and ε values to 0",
+                                "value": "on",
+                            }],
+                        ),
+                        html.Small("Default: negative values are preserved. Enable this "
+                                   "option to clamp them to zero in the saved CSV."),
+                    ]),
+                    html.Button("Save processed CSV", id="export-epsilon",
                                 className="button button-primary", disabled=True),
                     html.Div(id="epsilon-save-message", className="message"),
                     dcc.ConfirmDialog(id="confirm-epsilon-overwrite"),
@@ -206,7 +221,7 @@ def create_app():
                             html.Small("First spectrum = reactant · last spectrum = PSS"),
                         ]),
                     ),
-                    html.Details(open=True, className="nested-tool", children=[
+                    html.Details(open=False, className="nested-tool", children=[
                         html.Summary(["Preprocess reactant and PSS", info_popup(
                             "Apply the same baseline interval and Savitzky–Golay settings to the "
                             "reactant and PSS spectra before their normalized subtraction."
@@ -263,6 +278,14 @@ def create_app():
                         html.Small("Default: the primary product ε column is clipped at zero. "
                                    "The raw audit column is always preserved."),
                     ]),
+                    html.Label("CSV file names (optional)"),
+                    html.Div(className="input-row", children=[
+                        dcc.Input(id="nmr-reactant-filename", type="text",
+                                  placeholder="Reactant file name"),
+                        dcc.Input(id="nmr-product-filename", type="text",
+                                  placeholder="Product file name"),
+                    ]),
+                    html.Small("Leave blank to use the standard reactant and product names."),
                     html.Button("Save reactant + NMR-derived ε CSVs", id="export-nmr",
                                 className="button button-accent", disabled=True),
                     html.Div(id="nmr-save-message", className="message"),
@@ -297,6 +320,7 @@ def create_app():
         ]),
         dcc.Store(id="dataset-store"),
         dcc.Store(id="epsilon-store"),
+        dcc.Store(id="processed-store"),
         dcc.Store(id="nmr-spectra-store"),
         dcc.Store(id="nmr-result-store"),
         dcc.Store(id="source-folder-store"),
@@ -427,8 +451,8 @@ def create_app():
     @app.callback(
         Output("epsilon-plot", "figure"), Output("result-message", "children"),
         Output("concentration-message", "children"), Output("smoothing-message", "children"),
-        Output("epsilon-store", "data"), Output("export-epsilon", "disabled"),
-        Output("preview-error", "children"),
+        Output("epsilon-store", "data"), Output("processed-store", "data"),
+        Output("export-epsilon", "disabled"), Output("preview-error", "children"),
         Input("dataset-store", "data"), Input("wavelength-low", "value"),
         Input("wavelength-high", "value"), Input("baseline-enabled", "value"),
         Input("baseline-low", "value"), Input("baseline-high", "value"),
@@ -443,7 +467,7 @@ def create_app():
                 svd_enabled, svd_rank, concentrations, path_lengths):
         if not data:
             return (_empty(go, "Load spectral data to begin"),
-                    "No result yet.", "", "Smoothing is off.", None, True, "")
+                    "No result yet.", "", "Smoothing is off.", None, None, True, "")
         try:
             dataset, original, processed, smoothing_message = _prepare_processing(
                 data, wavelength_low, wavelength_high, baseline_enabled,
@@ -453,13 +477,21 @@ def create_app():
             concentration_data = _read_concentrations(
                 len(data["labels"]), concentrations, path_lengths
             )
+            processed_data = _pack(
+                SpectralDataset(
+                    dataset.wavelengths, dataset.coordinates, processed,
+                    dataset.source_format, dataset.interpolated_values,
+                ),
+                data["labels"], data.get("filenames", []),
+            )
             if concentration_data is None:
                 message = ("Enter the concentration and path length for every "
                            "spectrum to calculate molar absorptivity.")
                 return (_absorbance_figure(go, dataset, original, processed, data["labels"],
                                            method, svd_enabled, svd_rank),
-                        "Absorbance preview; ε is waiting for concentration inputs.",
-                        message, smoothing_message, None, True, "")
+                        "Processed absorbance is ready to export; ε is waiting for "
+                        "concentration inputs.",
+                        message, smoothing_message, None, processed_data, False, "")
             concentrations, paths = concentration_data
             result = calculate_epsilon_statistics(
                 dataset.wavelengths, processed, concentrations, paths
@@ -490,11 +522,11 @@ def create_app():
                 _epsilon_figure(go, make_subplots, dataset, original, result,
                                 data["labels"], method, svd_enabled, svd_rank),
                 result_message, concentration_message, smoothing_message,
-                _pack_epsilon(result, data["labels"]), False, "",
+                _pack_epsilon(result, data["labels"]), processed_data, False, "",
             )
         except Exception as error:
             return (_empty(go, "Preview unavailable; open Python errors below."),
-                    "No valid result.", "", "", None, True,
+                    "No valid result.", "", "", None, None, True,
                     f"Preview error: {type(error).__name__}: {error}")
 
     @app.callback(
@@ -504,19 +536,24 @@ def create_app():
         Output("export-error", "children"),
         Input("export-epsilon", "n_clicks"),
         Input("confirm-epsilon-overwrite", "submit_n_clicks"),
-        State("epsilon-store", "data"), State("save-folder", "value"),
+        State("epsilon-store", "data"), State("processed-store", "data"),
+        State("save-folder", "value"), State("save-filename", "value"),
+        State("export-nonnegative", "value"),
         prevent_initial_call=True,
     )
-    def save_epsilon(_, __, data, folder):
+    def save_epsilon(_, __, epsilon_data, processed_data, folder, requested_filename,
+                     nonnegative):
         try:
-            if not data:
-                raise ValueError("Calculate ε before exporting")
-            destination = _save_path(folder, "epsilon-spectra-reactant.csv")
-            result, labels = _unpack_epsilon(data)
+            filename, csv_text = _export_csv_payload(
+                epsilon_data, processed_data, "on" in (nonnegative or [])
+            )
+            destination = _save_path(
+                folder, _csv_filename(requested_filename, filename)
+            )
             if ctx.triggered_id == "export-epsilon" and destination.exists():
                 return (f"Existing file: {destination}", True,
                         f"Overwrite {destination.name}?", "")
-            destination.write_text(export_epsilon_csv(result, labels), encoding="utf-8")
+            destination.write_text(csv_text, encoding="utf-8")
             return f"Saved {destination}", False, "", ""
         except Exception as error:
             return ("Save failed.", False, "",
@@ -658,14 +695,23 @@ def create_app():
         Input("confirm-nmr-overwrite", "submit_n_clicks"),
         State("nmr-result-store", "data"), State("epsilon-store", "data"),
         State("nmr-export-raw", "value"), State("save-folder", "value"),
+        State("nmr-reactant-filename", "value"),
+        State("nmr-product-filename", "value"),
         prevent_initial_call=True,
     )
-    def save_nmr(_, __, nmr_data, epsilon_data, preserve_negative, folder):
+    def save_nmr(_, __, nmr_data, epsilon_data, preserve_negative, folder,
+                 requested_reactant_filename, requested_product_filename):
         try:
             if not nmr_data or not epsilon_data:
                 raise ValueError("Calculate reactant and NMR-derived ε before saving")
-            reactant_path = _save_path(folder, "epsilon-spectra-reactant.csv")
-            product_path = _save_path(folder, "epsilon-spectra-product.csv")
+            reactant_path = _save_path(folder, _csv_filename(
+                requested_reactant_filename, "epsilon-spectra-reactant.csv"
+            ))
+            product_path = _save_path(folder, _csv_filename(
+                requested_product_filename, "epsilon-spectra-product.csv"
+            ))
+            if reactant_path == product_path:
+                raise ValueError("Reactant and product file names must be different")
             existing = [path.name for path in (reactant_path, product_path) if path.exists()]
             if ctx.triggered_id == "export-nmr" and existing:
                 return ("Existing file(s): " + ", ".join(existing), True,
@@ -832,6 +878,46 @@ def _save_path(folder, filename):
     if not directory.is_dir():
         raise ValueError(f"Save folder does not exist: {directory}")
     return directory / filename
+
+
+def _csv_filename(value, default):
+    value = str(value or "").strip()
+    if not value:
+        return default
+    candidate = Path(value)
+    if candidate.name != value or candidate.parent != Path("."):
+        raise ValueError("Enter a file name only, without a folder path")
+    if not candidate.suffix:
+        return value + ".csv"
+    if candidate.suffix.lower() != ".csv":
+        raise ValueError("The export file name must use the .csv extension")
+    return value
+
+
+def _export_csv_payload(epsilon_data, processed_data, nonnegative=False):
+    if epsilon_data:
+        result, labels = _unpack_epsilon(epsilon_data)
+        if nonnegative:
+            result = EpsilonResult(
+                result.wavelengths,
+                np.maximum(result.absorbance, 0.0),
+                result.concentrations_m,
+                result.path_lengths_cm,
+                np.maximum(result.individual, 0.0),
+                np.maximum(result.mean, 0.0),
+                result.standard_deviation,
+                result.standard_error,
+            )
+        return "epsilon-spectra-reactant.csv", export_epsilon_csv(result, labels)
+    if processed_data:
+        dataset = _unpack(processed_data)
+        absorbance = (np.maximum(dataset.absorbance, 0.0)
+                      if nonnegative else dataset.absorbance)
+        return (
+            "processed-absorbance.csv",
+            export_smoothed_text(dataset, absorbance, "csv"),
+        )
+    raise ValueError("Process spectral data before exporting")
 
 
 def _read_concentrations(count, concentrations, path_lengths):

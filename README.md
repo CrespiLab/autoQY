@@ -13,19 +13,30 @@ The core scientific method is described in A. Volker, J. D. Steen and S. Crespi,
 *Beilstein J. Org. Chem.* **2024**, 20, 1684–1692,
 [doi:10.3762/bjoc.20.150](https://doi.org/10.3762/bjoc.20.150).
 
+## Version 2.2.1
+
+AutoQY 2.2.1 improves the Spectral Treatment GUI:
+
+- processed absorbance can be exported as CSV without entering concentrations;
+- output filenames are editable, including separate reactant and product names
+  for NMR-guided PSS subtraction;
+- an Output toggle can convert negative absorbance and ε values to zero, while
+  the NMR export retains its separate option to keep negative product ε values;
+- only **1 · Data** is expanded when the GUI opens; all other panels start closed.
+
 ## Install on Windows
 
 The guided installer creates a dedicated Conda environment, installs AutoQY,
 and places five shortcuts inside **Desktop → AutoQY**.
 
-1. **[Download Install-AutoQY.bat](https://github.com/CrespiLab/autoQY/releases/download/v2.2.0/Install-AutoQY.bat)**.
+1. **[Download Install-AutoQY.bat](https://github.com/CrespiLab/autoQY/releases/download/v2.2.1/Install-AutoQY.bat)**.
 2. Double-click the downloaded file and follow the instructions (you may need
    to give Windows permission to run it).
 
 The installer detects an existing `autoqy-core` environment and reuses it by
 default; clean recreation remains optional.
 The installation will produce a series of useful links in a folder on the Desktop.
-The `v2.2.0` installer installs the stable release from `main`.
+The `v2.2.1` installer installs the stable release from `main`.
 
 The Desktop `AutoQY` folder contains:
 
@@ -111,9 +122,18 @@ errors, and perform NMR-guided PSS subtraction. The terminal functions remain
 available for reproducible or automated processing.
 
 Use **Open files from folder** to retain the source directory as the default
-save location. The final NMR save writes the reactant ε dataset as
-`epsilon-spectra-reactant.csv` and the NMR-derived dataset as
-`epsilon-spectra-product.csv`, and asks before replacing either existing file.
+save location. Processed absorbance can be saved without Beer–Lambert
+concentrations; when concentrations and path lengths are complete, the same
+action exports the reactant ε dataset. Output filenames are editable, and a
+missing `.csv` extension is added automatically. If filename fields are left
+blank, the standard names are `processed-absorbance.csv`,
+`epsilon-spectra-reactant.csv`, and `epsilon-spectra-product.csv`. The GUI asks
+before replacing existing files.
+
+The **Convert negative absorbance and ε values to 0** option in **4 · Output**
+applies only to the saved CSV and is off by default. NMR-guided PSS subtraction
+has a separate **Keep negative values in product ε** option. This preserves the
+distinction between ordinary processed/ε exports and the product-ε audit data.
 Closing the GUI browser window also closes its local terminal process.
 
 Open **Desktop → AutoQY → AutoQY Spectral Treatment**, or run:
@@ -130,7 +150,8 @@ are written as CSV. Its workflow is independently configurable:
 2. optionally baseline each spectrum over a selected interval;
 3. apply Savitzky–Golay or no wavelength smoothing;
 4. optionally apply SVD rank reduction to ordered time-series data;
-5. calculate and export wavelength-resolved molar absorptivity and uncertainty;
+5. optionally enter concentrations to calculate and export wavelength-resolved
+   molar absorptivity and uncertainty, or export processed absorbance directly;
 6. optionally reconstruct a product spectrum using a PSS composition measured by NMR.
 
 Savitzky–Golay and SVD are off by default. When SVD is enabled, its proposed
