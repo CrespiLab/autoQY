@@ -17,27 +17,31 @@ The core scientific method is described in A. Volker, J. D. Steen and S. Crespi,
 ## Install on Windows
 
 The guided installer creates a dedicated Conda environment, installs AutoQY,
-and places five shortcuts inside **Desktop → AutoQY**.
+and places six shortcuts inside **Desktop → AutoQY**.
 
-1. **[Download Install-AutoQY.bat](https://github.com/CrespiLab/autoQY/releases/download/v2.2.1/Install-AutoQY.bat)**.
+1. **[Download Install-AutoQY.bat](https://github.com/CrespiLab/autoQY/releases/download/v2.3.0/Install-AutoQY.bat)**.
 2. Double-click the downloaded file and follow the instructions (you may need
    to give Windows permission to run it).
 
 The installer detects an existing `autoqy-core` environment and reuses it by
 default; clean recreation remains optional.
 The installation will produce a series of useful links in a folder on the Desktop.
-The `v2.2.1` installer installs the stable release from `main`.
+The `v2.3.0` installer installs the stable release from `main`.
 
 The Desktop `AutoQY` folder contains:
 
-- **AutoQY Analysis GUI** — builds, validates, runs, and interactively plots an analysis;
+- **AutoQY Analysis GUI** — builds, saves, runs, and interactively plots an analysis;
 - **AutoQY Power GUI** — treats Thorlabs optical-power traces;
 - **AutoQY Spectral Treatment** — preprocesses spectra and calculates molar absorptivity;
 - **AutoQY Analyze JSON** — retains the lightweight drag-and-drop JSON runner;
-- **AutoQY Terminal** — opens a shell with the AutoQY environment activated.
+- **AutoQY Terminal** — opens a shell with the AutoQY environment activated;
+- **Uninstall AutoQY** — confirms removal of the installation folder, then optionally
+  removes the Conda environment (the default is to keep it).
 
-All GUIs run only on the local computer. Uploaded data is held by the browser
-session and local Python process.
+All GUIs run only on the local computer. On Windows they open in dedicated
+Edge or Chrome app windows, separate from the user's normal browser tabs; the
+default browser is used as a fallback when app mode is unavailable. Uploaded
+data is held by the local GUI window and Python process.
 
 While the following instruction is not mandatory, it is possible to check the installer non-destructively:
 
@@ -57,7 +61,8 @@ building the current versioned `analysis.json` format. Use it to:
 - select the measurement, ε, LED, and timestamp files and their formats;
 - enter experiment, processing, fitting, uncertainty, and output settings;
 - load an existing JSON or save a portable JSON with relative paths;
-- validate every referenced file and setting before calculation;
+- validate every referenced file and setting automatically when saving JSON or
+  running a calculation;
 - run the analysis and explore concentrations, fraction residuals, measured
   spectra, and wavelength-resolved absorbance residuals interactively;
 - open the **Spectral Treatment** GUI when inputs need baseline correction, smoothing,
@@ -68,6 +73,11 @@ Open **Desktop → AutoQY → AutoQY Analysis GUI**, or run:
 ```powershell
 autoqy-core analysis-gui
 ```
+
+**Run analysis** does not save the editable `analysis.json`; use **Save JSON**
+for that. When **Write configuration snapshot** is enabled, the run writes a
+separate snapshot beside the result files.
+
 The Analysis GUI creates the same reproducible JSON used by the terminal:
 
 ```powershell

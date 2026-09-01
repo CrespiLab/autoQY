@@ -7,21 +7,35 @@ import numpy as np
 import pandas as pd
 
 from autoqy_core.epsilon import EpsilonResult
+from autoqy_core.plot_style import ANALYSIS_TRACE_PALETTE
 from autoqy_core.smoother import SpectralDataset
 from autoqy_core.tools.smoother_gui import (
+    _colors,
     _csv_filename,
     _export_csv_payload,
+    _legend_labels,
     _pack,
     _pack_epsilon,
     create_app,
 )
 
 try:
-    from dash import html
+    from dash import dcc, html
     from dash._callback_context import context_value
     from dash._utils import AttributeDict
 except ImportError:
-    html = None
+    dcc = html = None
+
+
+def _components(root):
+    if isinstance(root, (list, tuple)):
+        for child in root:
+            yield from _components(child)
+        return
+    yield root
+    children = getattr(root, "children", None)
+    if children is not None:
+        yield from _components(children)
 
 
 class ProcessedAbsorbanceExportTests(unittest.TestCase):
@@ -98,9 +112,35 @@ class SpectralGuiTests(unittest.TestCase):
                 visit(children)
 
         visit(self.app.layout)
-        opened = [component for component in details if component.open is True]
+        opened = [
+            component for component in details
+            if getattr(component, "open", False) is True
+        ]
         self.assertEqual(len(opened), 1)
         self.assertIn("1 · Data", str(opened[0].to_plotly_json()))
+
+    def test_plot_controls_offer_editable_legend_and_png_svg_downloads(self):
+        components = list(_components(self.app.layout))
+        by_id = {
+            component.id: component for component in components
+            if getattr(component, "id", None)
+        }
+        self.assertIsInstance(by_id["spectrum-legend-labels"], dcc.Textarea)
+        self.assertEqual(by_id["show-spectrum-legend"].value, ["on"])
+        for component_id in (
+            "save-epsilon-png", "save-epsilon-svg", "save-nmr-png", "save-nmr-svg"
+        ):
+            self.assertIn(component_id, by_id)
+        self.assertIn("epsilon-image-message.children", self.app.callback_map)
+        self.assertIn("nmr-image-message.children", self.app.callback_map)
+
+    def test_legend_edits_are_plot_only_and_use_the_analysis_palette(self):
+        self.assertEqual(_colors(), list(ANALYSIS_TRACE_PALETTE))
+        self.assertEqual(
+            _legend_labels(["first.csv", "second.csv", "third.csv"],
+                           "Reference\nProduct"),
+            ["Reference", "Product", "third.csv"],
+        )
 
     def test_preview_and_save_work_without_concentrations(self):
         callbacks = self.app.callback_map
@@ -123,11 +163,14 @@ class SpectralGuiTests(unittest.TestCase):
         packed = _pack(dataset, ["irradiation"], ["irradiation.csv"])
         preview_result = preview(
             packed, 400, 402, [], None, None, "off", 5, 3,
-            [], 1, [None], [1.0],
+            [], 1, [None], [1.0], [], "Reference spectrum",
         )
         self.assertIsNone(preview_result[4])
         self.assertIsNotNone(preview_result[5])
         self.assertFalse(preview_result[6])
+        self.assertFalse(preview_result[0].layout.showlegend)
+        self.assertEqual(preview_result[0].data[0].name, "Reference spectrum")
+        self.assertEqual(preview_result[5]["labels"], ["irradiation"])
 
         with TemporaryDirectory() as temporary:
             token = context_value.set(AttributeDict(

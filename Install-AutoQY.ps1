@@ -234,7 +234,8 @@ function Write-LauncherFiles {
     param(
         [string]$ProjectRoot,
         [string]$EnvironmentPath,
-        [string]$CondaCommand
+        [string]$CondaCommand,
+        [string]$EnvironmentName
     )
     $launcherDirectory = Join-Path $ProjectRoot ".autoqy-launchers"
     New-Item -ItemType Directory -Path $launcherDirectory -Force | Out-Null
@@ -338,12 +339,33 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$analysisScript
     $analysisShortcut.TargetPath = $coreCommand
     $analysisShortcut.Arguments = "analysis-gui"
     $analysisShortcut.WorkingDirectory = $ProjectRoot
-    $analysisShortcut.Description = "Build, validate, run, and inspect AutoQY analyses"
+    $analysisShortcut.Description = "Build, save, run, and inspect AutoQY analyses"
     $analysisShortcut.IconLocation = "$analysisIcon,0"
     $analysisShortcut.Save()
 
+    $uninstallScript = Join-Path $ProjectRoot "Uninstall-AutoQY.ps1"
+    if (-not (Test-Path -LiteralPath $uninstallScript)) {
+        throw "Uninstaller not found: $uninstallScript"
+    }
+
+    $uninstallShortcutPath = Join-Path $shortcutDirectory "Uninstall AutoQY.lnk"
+    $uninstallShortcut = $shell.CreateShortcut($uninstallShortcutPath)
+    $uninstallShortcut.TargetPath = "powershell.exe"
+    $uninstallShortcut.Arguments = (
+        "-NoLogo -NoProfile -ExecutionPolicy Bypass " +
+        "-File `"$uninstallScript`" " +
+        "-ProjectRoot `"$ProjectRoot`" " +
+        "-EnvironmentName `"$EnvironmentName`" " +
+        "-CondaCommand `"$CondaCommand`" " +
+        "-ShortcutDirectory `"$shortcutDirectory`""
+    )
+    $uninstallShortcut.WorkingDirectory = $desktop
+    $uninstallShortcut.Description = "Remove AutoQY and optionally its Conda environment"
+    $uninstallShortcut.IconLocation = "$terminalIcon,0"
+    $uninstallShortcut.Save()
+
     return @($analysisShortcutPath, $guiShortcutPath, $smootherShortcutPath,
-             $terminalShortcutPath, $jsonShortcutPath)
+             $terminalShortcutPath, $jsonShortcutPath, $uninstallShortcutPath)
 }
 
 try {
@@ -380,7 +402,7 @@ try {
         Write-Host "Environment: $(if ($environmentPath) { "reuse $environmentPath by default; offer clean recreation" } else { "create $EnvironmentName; retry from local cache if online access fails" })"
         Write-Host "Source: $(if ($projectInInstallFolder) { "use existing checkout $projectRoot" } else { "clone branch '$Branch' from $RepositoryUrl into $projectRoot" })"
         Write-Host "Package: editable install with all three browser GUIs"
-        Write-Host "Desktop folder AutoQY: Analysis GUI, Power GUI, Spectral Treatment, activated terminal, and JSON runner"
+        Write-Host "Desktop folder AutoQY: Analysis GUI, Power GUI, Spectral Treatment, activated terminal, JSON runner, and uninstaller"
         Write-Host "No files or environments were changed." -ForegroundColor Green
         exit 0
     }
@@ -485,7 +507,8 @@ try {
 
     Write-Step "Creating desktop launchers"
     $desktopFiles = Write-LauncherFiles -ProjectRoot $projectRoot `
-        -EnvironmentPath $environmentPath -CondaCommand $condaCommand
+        -EnvironmentPath $environmentPath -CondaCommand $condaCommand `
+        -EnvironmentName $EnvironmentName
     $desktopFiles | ForEach-Object { Write-Host "   $_" -ForegroundColor Green }
 
     Write-Step "Installation complete"

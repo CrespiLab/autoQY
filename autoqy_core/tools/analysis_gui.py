@@ -7,20 +7,23 @@ from pathlib import Path
 import socket
 import subprocess
 import sys
-from threading import Lock, Thread, Timer
+from threading import Lock
 from tempfile import TemporaryDirectory
 import time
 import warnings
-import webbrowser
 
 import numpy as np
 
 from ..config import AnalysisConfig, input_format, load_config, validate_config
 from ..epsilon_uncertainty import load_epsilon_nominal
+from ..gui_window import serve_gui
 from ..io import load_spectra, load_spectrum, load_timestamps
 from ..output import result_summary
+from ..plot_style import (PLOT_BLUE, PLOT_BROWN, PLOT_NEUTRAL,
+                          PLOT_ORANGE, PLOT_PURPLE)
 from ..runner import run_analysis
 from ..spectra import process_led
+from ..version import get_project_version
 
 
 SPECTRAL_INPUTS = (
@@ -43,9 +46,10 @@ def create_app():
         ) from error
 
     assets = Path(__file__).parents[1] / "assets"
+    project_version = get_project_version()
     app = Dash(__name__, assets_folder=str(assets), suppress_callback_exceptions=True)
-    app.title = "AutoQY Analysis"
-    window_state = {"close_requested_at": None}
+    app.title = f"AutoQY Analysis · {project_version}"
+    window_state = {"close_requested_at": None, "last_heartbeat_at": None}
     window_lock = Lock()
     app.server.config["AUTOQY_WINDOW_STATE"] = (window_state, window_lock)
 
@@ -53,6 +57,7 @@ def create_app():
     def autoqy_heartbeat():
         with window_lock:
             window_state["close_requested_at"] = None
+            window_state["last_heartbeat_at"] = time.monotonic()
         return "", 204
 
     @app.server.post("/_autoqy_analysis_window_closed")
@@ -66,10 +71,34 @@ def create_app():
 <body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer>
 <script>
 (() => {
-  const heartbeat = () => fetch('/_autoqy_analysis_heartbeat', {method: 'POST', keepalive: true});
+  let heartbeatFailures = 0;
+  let closingForStoppedServer = false;
+  const heartbeat = async () => {
+    try {
+      const response = await fetch('/_autoqy_analysis_heartbeat', {
+        method: 'POST', keepalive: true, cache: 'no-store'
+      });
+      if (!response.ok) throw new Error('heartbeat failed');
+      heartbeatFailures = 0;
+    } catch (_) {
+      heartbeatFailures += 1;
+      if (heartbeatFailures >= 3 && !closingForStoppedServer) {
+        closingForStoppedServer = true;
+        window.close();
+        window.setTimeout(() => {
+          document.body.innerHTML = '<main style="font-family:Segoe UI,sans-serif;padding:2rem">'
+            + '<h1>AutoQY GUI stopped</h1><p>The terminal has been closed. Close this webpage and restart the AutoQY GUI to continue.</p></main>';
+        }, 150);
+      }
+    }
+  };
   heartbeat();
+  const heartbeatTimer = window.setInterval(heartbeat, 1000);
   window.addEventListener('pageshow', heartbeat);
-  window.addEventListener('pagehide', () => navigator.sendBeacon('/_autoqy_analysis_window_closed'));
+  window.addEventListener('pagehide', () => {
+    window.clearInterval(heartbeatTimer);
+    navigator.sendBeacon('/_autoqy_analysis_window_closed');
+  });
   document.addEventListener('click', (event) => {
     const popup = event.target.closest('.info-popup');
     if (popup) {
@@ -144,7 +173,7 @@ def create_app():
         ])
 
     default_folder = str(Path.cwd())
-    empty = _empty_figure(go, "Run a validated analysis to display this plot")
+    empty = _empty_figure(go, "Run analysis to display this plot")
 
     def analysis_graph(name):
         return dcc.Graph(
@@ -158,7 +187,7 @@ def create_app():
                          className="analysis-header-logo"),
                 html.H1("Quantum-yield analysis"),
             ]),
-            html.Div("Local session", className="local-badge"),
+            html.Div(f"Version {project_version}", className="local-badge"),
         ]),
         html.Main(className="workspace analysis-workspace", children=[
             html.Aside(className="control-column analysis-controls", children=[
@@ -341,14 +370,16 @@ def create_app():
                             "and absorbance residuals."
                         ),
                     ]),
-                    html.Div(className="action-grid", children=[
-                        html.Button("Save JSON", id="save-analysis-json", n_clicks=0,
-                                    className="button button-secondary"),
-                        html.Button("Validate", id="validate-analysis", n_clicks=0,
-                                    className="button button-secondary"),
-                    ]),
+                    html.Button("Save JSON", id="save-analysis-json", n_clicks=0,
+                                className="button button-secondary"),
                     html.Button("Run analysis", id="run-analysis", n_clicks=0,
                                 className="button button-primary run-button"),
+                    html.Small(
+                        "Run analysis validates the settings but does not save analysis.json. "
+                        "Use Save JSON separately; the configuration-snapshot option controls "
+                        "the copy written with results.",
+                        className="helper-text analysis-save-note",
+                    ),
                     html.Button("Compare fit methods", id="compare-fit-methods", n_clicks=0,
                                 className="button button-secondary"),
                     dcc.Loading(html.Div(id="analysis-action-message", className="message"),
@@ -380,7 +411,7 @@ def create_app():
                         "25%; expected PSS amber beyond 5 percentage points."
                         ),
                     ]),
-                    html.Div("Validate or run to inspect the inputs.", id="diagnostic-checks",
+                    html.Div("Save JSON or run analysis to inspect the inputs.", id="diagnostic-checks",
                              className="diagnostic-list"),
                 ]),
                 html.Section(className="panel comparison-panel", children=[
@@ -431,13 +462,10 @@ def create_app():
 
     @app.callback(
         Output("analysis-plot-tabs", "value"),
-        Input("validate-analysis", "n_clicks"),
         Input("run-analysis", "n_clicks"),
         prevent_initial_call=True,
     )
-    def select_analysis_plot(_, __):
-        if ctx.triggered_id == "validate-analysis":
-            return "spectra"
+    def select_analysis_plot(_):
         if ctx.triggered_id == "run-analysis":
             return "concentrations"
         return no_update
@@ -510,11 +538,11 @@ def create_app():
         try:
             started = _start_spectral_treatment()
             address = "http://127.0.0.1:8051/"
-            webbrowser.open(address)
-            state = "started and is ready" if started else "was already running"
+            state = ("started in a dedicated window and is ready"
+                     if started else "was already running")
             return html.Span([
                 f"Spectral Treatment {state}. ",
-                html.A("Open it", href=address, target="_blank"),
+                html.A("Open it in a browser tab", href=address, target="_blank"),
                 ".",
             ])
         except Exception as error:
@@ -537,19 +565,18 @@ def create_app():
         Output("analysis-output-files", "children"),
         Output("analysis-python-error", "children"),
         Input("save-analysis-json", "n_clicks"),
-        Input("validate-analysis", "n_clicks"),
         Input("run-analysis", "n_clicks"),
         Input("compare-fit-methods", "n_clicks"),
         State({"type": "analysis-field", "name": ALL}, "value"),
         State({"type": "analysis-field", "name": ALL}, "id"),
         prevent_initial_call=True,
     )
-    def analyze(_, __, ___, ____, current_values, field_ids):
+    def analyze(_, __, ___, current_values, field_ids):
         values = dict(zip((item["name"] for item in field_ids), current_values))
         blank_card = [html.Span("R → P"), html.Strong("—"), html.Small("Quantum yield")]
         blank_back = [html.Span("P → R"), html.Strong("—"), html.Small("Quantum yield")]
         blank_fit = [html.Span("Fit"), html.Strong("—"), html.Small("Not run")]
-        blank_figures = [_empty_figure(go, "Run a validated analysis to display this plot")] * 5
+        blank_figures = [_empty_figure(go, "Run analysis to display this plot")] * 5
         blank_comparison = ""
         try:
             document = _configuration(values)
@@ -559,9 +586,6 @@ def create_app():
             with warnings.catch_warnings(record=True) as input_warnings:
                 warnings.simplefilter("always")
                 input_checks = _input_checks(config)
-                preprocessing_figure = _preprocessing_figure(
-                    go, make_subplots, config
-                )
             input_checks.extend({
                 "level": "warning",
                 "title": "Input processing warning",
@@ -585,28 +609,6 @@ def create_app():
                 return (f"Saved and validated {target}", "message status-message status-ok",
                         blank_card, blank_back, blank_fit, *blank_figures,
                         diagnostics, diagnostics_open, blank_comparison, html.Code(str(target)), "")
-            if action == "validate-analysis":
-                has_stop = any(item["level"] == "stop" for item in input_checks)
-                has_warning = any(item["level"] == "warning" for item in input_checks)
-                if has_stop:
-                    validation_message = "Configuration loaded, but preprocessing found blocking concerns."
-                    validation_class = "message status-message status-stop"
-                elif has_warning:
-                    validation_message = "Configuration valid with preprocessing warnings."
-                    validation_class = "message status-message status-warning"
-                else:
-                    validation_message = "Configuration valid. All referenced files and settings passed validation."
-                    validation_class = "message status-message status-ok"
-                warning_text = "\n".join(
-                    f"{item.category.__name__}: {item.message}" for item in input_warnings
-                )
-                validation_figures = list(blank_figures)
-                validation_figures[2] = preprocessing_figure
-                return (validation_message, validation_class, blank_card, blank_back, blank_fit,
-                        *validation_figures, diagnostics,
-                        True if has_stop else no_update, blank_comparison,
-                        "No analysis was run.", warning_text)
-
             if action == "compare-fit-methods":
                 with warnings.catch_warnings(record=True) as caught_warnings:
                     warnings.simplefilter("always")
@@ -667,7 +669,7 @@ def create_app():
                     files, warning_text)
         except Exception as error:
             message = f"{type(error).__name__}: {error}"
-            return ("Validation or analysis stopped. See Python errors.",
+            return ("Analysis stopped. See Python errors.",
                     "message status-message status-stop", blank_card, blank_back, blank_fit,
                     *blank_figures,
                     _render_checks(html, [{"level": "stop", "title": "Stopped", "body": message}]),
@@ -902,12 +904,12 @@ def _spectra_led_figure(go, make_subplots, wavelengths, absorbance,
         ), secondary_y=False)
     figure.add_trace(go.Scatter(
         x=display_wavelengths, y=display_absorbance[:, 0], mode="lines",
-        name="Initial spectrum", line={"color": "#2d6f8e", "width": 2.4},
+        name="Initial spectrum", line={"color": PLOT_BLUE, "width": 2.4},
     ), secondary_y=False)
     if count > 1:
         figure.add_trace(go.Scatter(
             x=display_wavelengths, y=display_absorbance[:, -1], mode="lines",
-            name="Final spectrum", line={"color": "#d67b36", "width": 2.4},
+            name="Final spectrum", line={"color": PLOT_ORANGE, "width": 2.4},
         ), secondary_y=False)
 
     led_wavelengths = np.asarray(led_wavelengths, float)
@@ -916,12 +918,12 @@ def _spectra_led_figure(go, make_subplots, wavelengths, absorbance,
     figure.add_trace(go.Scatter(
         x=led_wavelengths, y=led_values / led_scale, mode="lines",
         name="Processed LED (normalized)",
-        line={"color": "#8a5a9b", "width": 2},
+        line={"color": PLOT_PURPLE, "width": 2},
     ), secondary_y=True)
     irradiation_wavelength = float(irradiation_wavelength)
     if display_wavelengths[0] <= irradiation_wavelength <= display_wavelengths[-1]:
         figure.add_vline(
-            x=irradiation_wavelength, line={"color": "#725c42", "dash": "dot"},
+            x=irradiation_wavelength, line={"color": PLOT_BROWN, "dash": "dot"},
             annotation_text=f"Nominal {irradiation_wavelength:g} nm",
             annotation_position="top left",
         )
@@ -1303,7 +1305,7 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
                                 where=fitted_total != 0)
     fraction_residual = measured_fraction - fitted_fraction
     uncertainty = result.epsilon_uncertainty
-    blue, orange = "#2d6f8e", "#d67b36"
+    blue, orange = PLOT_BLUE, PLOT_ORANGE
 
     concentration = go.Figure()
     if uncertainty is not None:
@@ -1378,7 +1380,7 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
     led_scale = max(float(np.max(led_aligned)), np.finfo(float).eps)
     input_diagnostic.add_trace(go.Scatter(
         x=result.wavelengths, y=led_aligned / led_scale, mode="lines",
-        name="Processed LED (normalized)", line={"color": "#8a5a9b", "width": 1.8},
+        name="Processed LED (normalized)", line={"color": PLOT_PURPLE, "width": 1.8},
     ), row=1, col=1, secondary_y=True)
     for index, label, colour in ((0, "Initial", blue), (-1, "Final", orange)):
         input_diagnostic.add_trace(go.Scatter(
@@ -1441,7 +1443,7 @@ def _style_figure(figure, title, x_title, y_title):
 
 def _empty_figure(go, message):
     figure = go.Figure()
-    figure.add_annotation(text=message, showarrow=False, font={"color": "#6c7280"})
+    figure.add_annotation(text=message, showarrow=False, font={"color": PLOT_NEUTRAL})
     return _style_figure(figure, "Analysis result", "", "")
 
 
@@ -1567,7 +1569,7 @@ def _start_spectral_treatment(host="127.0.0.1", port=8051, timeout=15):
         "import sys; "
         f"sys.path[:0] = {inherited_paths!r}; "
         "from autoqy_core.tools.smoother_gui import run_server; "
-        f"run_server({host!r}, {int(port)}, False)"
+        f"run_server({host!r}, {int(port)}, True)"
     )
     process = subprocess.Popen(
         [sys.executable, "-c", code], cwd=str(Path(__file__).parents[2]),
@@ -1588,25 +1590,7 @@ def _start_spectral_treatment(host="127.0.0.1", port=8051, timeout=15):
 
 
 def run_server(host="127.0.0.1", port=8052, open_browser=True):
-    from werkzeug.serving import make_server
-
-    app = create_app()
-    server = make_server(host, port, app.server, threaded=True)
-    window_state, window_lock = app.server.config["AUTOQY_WINDOW_STATE"]
-
-    def close_after_browser():
-        while True:
-            time.sleep(0.5)
-            with window_lock:
-                requested = window_state["close_requested_at"]
-            if requested is not None and time.monotonic() - requested >= 3:
-                server.shutdown()
-                return
-
-    Thread(target=close_after_browser, daemon=True).start()
-    if open_browser:
-        Timer(1, lambda: webbrowser.open(f"http://{host}:{port}")).start()
-    server.serve_forever()
+    serve_gui(create_app, host, port, open_browser, "AutoQY Analysis")
 
 
 def main(argv=None):

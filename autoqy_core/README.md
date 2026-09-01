@@ -31,10 +31,12 @@ python -m autoqy_core power-gui
 python -m autoqy_core analysis-gui
 ```
 
-The Analysis GUI can load or construct this complete schema, validate it, run
-the calculation, and display interactive versions of the four result panels.
-It can also open Spectral Treatment without coupling either GUI to the
-scientific core.
+The Analysis GUI can load or construct this complete schema, validates it when
+saving JSON or running the calculation, and displays interactive result panels.
+Running does not save the editable `analysis.json`; **Save JSON** does that
+separately. It can also open Spectral Treatment without coupling either GUI to
+the scientific core. On Windows, the GUIs use dedicated Edge or Chrome app
+windows instead of joining the user's normal browser tabs.
 
 ## Fitting methods
 

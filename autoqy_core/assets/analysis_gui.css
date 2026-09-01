@@ -65,6 +65,7 @@
 .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .action-grid .button { margin-top: 4px; }
 .run-button { margin-top: 8px; }
+.analysis-save-note { display: block; margin-top: 8px; line-height: 1.4; }
 .action-title-row, .section-title-row {
   display: flex;
   align-items: center;

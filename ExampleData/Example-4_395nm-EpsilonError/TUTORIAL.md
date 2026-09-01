@@ -167,19 +167,18 @@ optimizer/power, ε, and combined quantum-yield uncertainty contributions.
 The JSON retains `deterministic_extremes` as the backward-compatible internal
 method identifier.
 
-### Output and validation
+### Output and analysis
 
 Set the output directory to `results`, use stem
 `Results_395nm_EpsilonError`, enable text, figures, JSON, configuration, and
 detailed-data exports, and enable overwrite only when replacing previous runs
 is intentional.
 
-1. Select **Validate** and inspect the preprocessing plot: initial spectrum in
-   blue, final spectrum in orange, intermediate spectra in translucent grey,
-   and the LED emission overlaid.
+1. Select **Run analysis**. This validates the configuration but does not save
+   `analysis.json`; use **Save JSON** separately when you want that file.
 2. Review amber or red diagnostics through their information popovers. A red
    diagnostic opens the panel automatically.
-3. Select **Run analysis** and inspect concentrations, fraction residuals,
+3. Inspect concentrations, fraction residuals, preprocessing,
    reference/reconstruction plots, and the wavelength-resolved residual map.
 
 For the bundled files, the expected result is approximately:

@@ -8,7 +8,7 @@ authors:
   given-names: "Alfredo"
   orcid: "https://orcid.org/0000-0001-5155-4431"
 title: "autoQY"
-version: 2.2.1
+version: 2.3.0
 doi: 10.5281/zenodo.17841885
-date-released: 2026-08-31
+date-released: 2026-09-01
 url: "https://github.com/CrespiLab/autoQY"

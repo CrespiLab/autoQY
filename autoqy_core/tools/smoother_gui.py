@@ -4,9 +4,8 @@ from argparse import ArgumentParser
 import base64
 from pathlib import Path
 import subprocess
-from threading import Lock, Thread, Timer
+from threading import Lock
 import time
-import webbrowser
 
 import numpy as np
 
@@ -14,10 +13,14 @@ from ..epsilon import (EpsilonResult, NMRSubtractionResult,
                        calculate_epsilon_statistics, export_epsilon_csv,
                        export_nmr_subtraction_csv, load_epsilon_table,
                        nonnegative_error_bounds, reconstruct_product_from_nmr)
+from ..gui_window import serve_gui
+from ..plot_style import (ANALYSIS_TRACE_PALETTE, PLOT_BLUE, PLOT_ORANGE,
+                          PLOT_PURPLE)
 from ..smoother import (SpectralDataset, analyze_svd, baseline_spectra,
                         export_smoothed_text, load_spectral_bytes,
                         savgol_window_points, select_wavelengths,
                         smooth_reconstruction)
+from ..version import get_project_version
 
 
 def create_app():
@@ -29,9 +32,10 @@ def create_app():
         raise RuntimeError("The spectral treatment GUI requires the 'power-gui' optional dependencies") from error
 
     assets = Path(__file__).parents[1] / "assets"
+    project_version = get_project_version()
     app = Dash(__name__, assets_folder=str(assets), suppress_callback_exceptions=True)
-    app.title = "AutoQY Spectral treatment"
-    window_state = {"close_requested_at": None}
+    app.title = f"AutoQY Spectral treatment · {project_version}"
+    window_state = {"close_requested_at": None, "last_heartbeat_at": None}
     window_lock = Lock()
     app.server.config["AUTOQY_WINDOW_STATE"] = (window_state, window_lock)
 
@@ -39,6 +43,7 @@ def create_app():
     def autoqy_heartbeat():
         with window_lock:
             window_state["close_requested_at"] = None
+            window_state["last_heartbeat_at"] = time.monotonic()
         return "", 204
 
     @app.server.post("/_autoqy_window_closed")
@@ -52,10 +57,34 @@ def create_app():
 <body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer>
 <script>
 (() => {
-  const heartbeat = () => fetch('/_autoqy_heartbeat', {method: 'POST', keepalive: true});
+  let heartbeatFailures = 0;
+  let closingForStoppedServer = false;
+  const heartbeat = async () => {
+    try {
+      const response = await fetch('/_autoqy_heartbeat', {
+        method: 'POST', keepalive: true, cache: 'no-store'
+      });
+      if (!response.ok) throw new Error('heartbeat failed');
+      heartbeatFailures = 0;
+    } catch (_) {
+      heartbeatFailures += 1;
+      if (heartbeatFailures >= 3 && !closingForStoppedServer) {
+        closingForStoppedServer = true;
+        window.close();
+        window.setTimeout(() => {
+          document.body.innerHTML = '<main style="font-family:Segoe UI,sans-serif;padding:2rem">'
+            + '<h1>AutoQY GUI stopped</h1><p>The terminal has been closed. Close this webpage and restart the AutoQY GUI to continue.</p></main>';
+        }, 150);
+      }
+    }
+  };
   heartbeat();
+  const heartbeatTimer = window.setInterval(heartbeat, 1000);
   window.addEventListener('pageshow', heartbeat);
-  window.addEventListener('pagehide', () => navigator.sendBeacon('/_autoqy_window_closed'));
+  window.addEventListener('pagehide', () => {
+    window.clearInterval(heartbeatTimer);
+    navigator.sendBeacon('/_autoqy_window_closed');
+  });
   document.addEventListener('click', (event) => {
     const popup = event.target.closest('.info-popup');
     if (popup) {
@@ -67,6 +96,26 @@ def create_app():
     }
   }, true);
 })();
+window.autoqyDownloadPlot = (graphId, figure, format) => {
+  const graph = document.querySelector(`#${graphId} .js-plotly-plot`);
+  if (!graph || !window.Plotly) return 'Plot export is unavailable.';
+  const title = typeof figure?.layout?.title === 'string'
+    ? figure.layout.title : figure?.layout?.title?.text;
+  const filename = String(title || 'autoqy-spectral-treatment')
+    .replace(/<[^>]+>/g, '')
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase() || 'autoqy-spectral-treatment';
+  const width = Math.max(900, Math.round(graph._fullLayout?.width || 1200));
+  const height = Math.max(600, Math.round(graph._fullLayout?.height || 800));
+  return window.Plotly.downloadImage(graph, {
+    format, filename, width, height, scale: format === 'png' ? 2 : 1
+  }).then(
+    () => `${format.toUpperCase()} download started.`,
+    () => `Could not create the ${format.toUpperCase()} image.`
+  );
+};
 </script></body></html>"""
 
     def info_popup(text):
@@ -77,11 +126,11 @@ def create_app():
 
     app.layout = html.Div(className="app-shell", children=[
         html.Header(className="app-header", children=[html.Div([
-            html.P("AUTOQY CORE", className="eyebrow"),
+            html.P("AUTOQY", className="eyebrow"),
             html.H1("Spectral treatment"),
             html.P("Prepare wavelength-resolved data and calculate molar absorptivity.",
                    className="subtitle"),
-        ]), html.Div("Local session", className="local-badge")]),
+        ]), html.Div(f"Version {project_version}", className="local-badge")]),
         html.Main(className="workspace epsilon-workspace", children=[
             html.Aside(className="control-column smoother-controls", children=[
                 html.Details(open=True, className="panel tool-details", children=[
@@ -101,7 +150,10 @@ def create_app():
                                 className="button button-secondary"),
                     html.Button("Clear all spectra", id="clear-dataset",
                                 className="button button-secondary", disabled=True),
-                    html.Div(id="load-message", className="message"),
+                    dcc.Loading(
+                        html.Div(id="load-message", className="message"),
+                        type="circle",
+                    ),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
                     html.Summary([html.Span("2 · Range", className="step-label"),
@@ -188,7 +240,7 @@ def create_app():
                     ]),
                     html.Label("CSV file name (optional)"),
                     dcc.Input(id="save-filename", type="text",
-                              placeholder="Automatic name based on export type"),
+                              placeholder="Default name"),
                     html.Small("Leave blank to use processed-absorbance.csv or "
                                "epsilon-spectra-reactant.csv."),
                     html.Div(className="export-mode-control", children=[
@@ -294,10 +346,55 @@ def create_app():
             ]),
             html.Div(className="plot-column", children=[
                 html.Section(className="plot-panel", children=[
-                    dcc.Graph(id="epsilon-plot", figure=_empty(go, "Load spectral data to begin")),
+                    html.Div(className="plot-toolbar", children=[
+                        html.Details(className="plot-options", children=[
+                            html.Summary("Legend options"),
+                            dcc.Checklist(
+                                id="show-spectrum-legend", value=["on"],
+                                className="toggle-control plot-legend-toggle",
+                                options=[{"label": "Show legend", "value": "on"}],
+                            ),
+                            html.Label("Legend labels (one per spectrum)"),
+                            dcc.Textarea(
+                                id="spectrum-legend-labels", value="",
+                                className="legend-editor",
+                                placeholder="Load spectra to edit their legend labels",
+                            ),
+                            html.Small(
+                                "Use one line per spectrum. These names affect only the plot; "
+                                "CSV labels and source filenames stay unchanged."
+                            ),
+                        ]),
+                        html.Div(className="plot-download-actions", children=[
+                            html.Button("Save PNG", id="save-epsilon-png",
+                                        className="button button-secondary compact-button"),
+                            html.Button("Save SVG", id="save-epsilon-svg",
+                                        className="button button-secondary compact-button"),
+                        ]),
+                    ]),
+                    html.Div(id="epsilon-image-message", className="image-export-message"),
+                    dcc.Graph(
+                        id="epsilon-plot", figure=_empty(go, "Load spectral data to begin"),
+                        config=_graph_config(),
+                    ),
                 ]),
                 html.Section(id="nmr-plot-panel", className="plot-panel", style={"display": "none"},
-                             children=[dcc.Graph(id="nmr-plot", figure=_empty(go, "Load NMR spectra"))]),
+                             children=[
+                                 html.Div(className="plot-toolbar nmr-plot-toolbar", children=[
+                                     html.Strong("NMR-guided PSS subtraction"),
+                                     html.Div(className="plot-download-actions", children=[
+                                         html.Button("Save PNG", id="save-nmr-png",
+                                                     className="button button-secondary compact-button"),
+                                         html.Button("Save SVG", id="save-nmr-svg",
+                                                     className="button button-secondary compact-button"),
+                                     ]),
+                                 ]),
+                                 html.Div(id="nmr-image-message", className="image-export-message"),
+                                 dcc.Graph(
+                                     id="nmr-plot", figure=_empty(go, "Load NMR spectra"),
+                                     config=_graph_config(),
+                                 ),
+                             ]),
                 html.Section(className="panel result-summary", children=[
                     html.Div(className="section-title-row", children=[
                         html.H2("Result"), info_popup(
@@ -325,6 +422,34 @@ def create_app():
         dcc.Store(id="nmr-result-store"),
         dcc.Store(id="source-folder-store"),
     ])
+
+    def register_image_download(graph_id, png_button, svg_button, message_id):
+        app.clientside_callback(
+            """
+            function(pngClicks, svgClicks, figure) {
+              const context = window.dash_clientside.callback_context;
+              if (!context.triggered || !context.triggered.length) {
+                return window.dash_clientside.no_update;
+              }
+              const trigger = context.triggered[0].prop_id.split('.')[0];
+              const format = trigger.endsWith('svg') ? 'svg' : 'png';
+              return window.autoqyDownloadPlot(GRAPH_ID, figure, format);
+            }
+            """.replace("GRAPH_ID", repr(graph_id)),
+            Output(message_id, "children"),
+            Input(png_button, "n_clicks"),
+            Input(svg_button, "n_clicks"),
+            State(graph_id, "figure"),
+            prevent_initial_call=True,
+        )
+
+    register_image_download(
+        "epsilon-plot", "save-epsilon-png", "save-epsilon-svg",
+        "epsilon-image-message",
+    )
+    register_image_download(
+        "nmr-plot", "save-nmr-png", "save-nmr-svg", "nmr-image-message",
+    )
 
     @app.callback(
         Output("dataset-store", "data"), Output("load-message", "children"),
@@ -414,6 +539,13 @@ def create_app():
                                  data.get("concentrations"), data.get("path_lengths")))
 
     @app.callback(
+        Output("spectrum-legend-labels", "value"),
+        Input("dataset-store", "data"),
+    )
+    def populate_legend_labels(data):
+        return "\n".join(data["labels"]) if data else ""
+
+    @app.callback(
         Output("svd-rank", "options"), Output("svd-rank", "value"),
         Output("svd-rank", "disabled"), Output("svd-message", "children"),
         Output("svd-error", "children"),
@@ -461,10 +593,13 @@ def create_app():
         Input("svd-rank", "value"),
         Input({"type": "direct-concentration", "index": ALL}, "value"),
         Input({"type": "path-length", "index": ALL}, "value"),
+        Input("show-spectrum-legend", "value"),
+        Input("spectrum-legend-labels", "value"),
     )
     def preview(data, wavelength_low, wavelength_high, baseline_enabled,
                 baseline_low, baseline_high, method, sg_width, sg_order,
-                svd_enabled, svd_rank, concentrations, path_lengths):
+                svd_enabled, svd_rank, concentrations, path_lengths,
+                show_legend, legend_text):
         if not data:
             return (_empty(go, "Load spectral data to begin"),
                     "No result yet.", "", "Smoothing is off.", None, None, True, "")
@@ -484,11 +619,15 @@ def create_app():
                 ),
                 data["labels"], data.get("filenames", []),
             )
+            plot_labels = _legend_labels(data["labels"], legend_text)
+            legend_visible = "on" in (show_legend or [])
             if concentration_data is None:
                 message = ("Enter the concentration and path length for every "
                            "spectrum to calculate molar absorptivity.")
-                return (_absorbance_figure(go, dataset, original, processed, data["labels"],
-                                           method, svd_enabled, svd_rank),
+                return (_absorbance_figure(
+                            go, dataset, original, processed, plot_labels,
+                            method, svd_enabled, svd_rank, legend_visible,
+                        ),
                         "Processed absorbance is ready to export; ε is waiting for "
                         "concentration inputs.",
                         message, smoothing_message, None, processed_data, False, "")
@@ -519,8 +658,10 @@ def create_app():
                 f"{value:.6g} M" for value in concentrations
             )
             return (
-                _epsilon_figure(go, make_subplots, dataset, original, result,
-                                data["labels"], method, svd_enabled, svd_rank),
+                _epsilon_figure(
+                    go, make_subplots, dataset, original, result,
+                    plot_labels, method, svd_enabled, svd_rank, legend_visible,
+                ),
                 result_message, concentration_message, smoothing_message,
                 _pack_epsilon(result, data["labels"]), processed_data, False, "",
             )
@@ -1124,8 +1265,20 @@ def _display_unique(labels):
     return result
 
 
+def _legend_labels(labels, text):
+    """Return plot-only labels edited one-per-line, retaining missing defaults."""
+    defaults = list(labels)
+    if not text or not str(text).strip():
+        return defaults
+    edited = str(text).splitlines()
+    return [
+        edited[index].strip() if index < len(edited) and edited[index].strip() else label
+        for index, label in enumerate(defaults)
+    ]
+
+
 def _absorbance_figure(go, dataset, original, processed, labels, method,
-                       svd_enabled=None, svd_rank=None):
+                       svd_enabled=None, svd_rank=None, show_legend=True):
     figure = go.Figure()
     colors = _colors()
     changed = not np.allclose(original, processed)
@@ -1145,11 +1298,11 @@ def _absorbance_figure(go, dataset, original, processed, labels, method,
     figure.update_xaxes(title_text="Wavelength (nm)")
     figure.update_layout(title={"text": _processing_title(
         method, svd_enabled, svd_rank), "x": 0.02})
-    return _style(figure, 520)
+    return _style(figure, 520, show_legend)
 
 
 def _epsilon_figure(go, make_subplots, dataset, original, result, labels, method,
-                    svd_enabled=None, svd_rank=None):
+                    svd_enabled=None, svd_rank=None, show_legend=True):
     figure = make_subplots(
         rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
         row_heights=[0.34, 0.66],
@@ -1182,14 +1335,14 @@ def _epsilon_figure(go, make_subplots, dataset, original, result, labels, method
         ), row=2, col=1)
     figure.add_trace(go.Scatter(
         x=dataset.wavelengths, y=result.mean, mode="lines",
-        line={"color": "#173b4c", "width": 2.4}, name="Mean ε",
+        line={"color": PLOT_PURPLE, "width": 2.4}, name="Mean ε",
     ), row=2, col=1)
     figure.update_yaxes(title_text="Absorbance", row=1, col=1)
     figure.update_yaxes(title_text="ε (M⁻¹ cm⁻¹)", row=2, col=1)
     figure.update_xaxes(title_text="Wavelength (nm)", row=2, col=1)
     figure.update_layout(title={"text": _processing_title(
         method, svd_enabled, svd_rank), "x": 0.02})
-    return _style(figure, 690)
+    return _style(figure, 690, show_legend)
 
 
 def _nmr_figure(go, make_subplots, result, raw_reactant=None, raw_pss=None,
@@ -1212,10 +1365,10 @@ def _nmr_figure(go, make_subplots, result, raw_reactant=None, raw_pss=None,
                 line={"color": "rgba(214,123,54,.25)", "width": 1}), row=1, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.normalized_reactant, mode="lines",
-        name="Reactant processed", line={"color": "#2d6f8e"}), row=1, col=1)
+        name="Reactant processed", line={"color": PLOT_BLUE}), row=1, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.normalized_pss, mode="lines",
-        name="PSS processed", line={"color": "#d67b36"}), row=1, col=1)
+        name="PSS processed", line={"color": PLOT_ORANGE}), row=1, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.reactant_lower, mode="lines",
         line={"width": 0}, hoverinfo="skip", showlegend=False,
@@ -1230,17 +1383,17 @@ def _nmr_figure(go, make_subplots, result, raw_reactant=None, raw_pss=None,
         legendgroup="product-error"), row=2, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.product_upper, mode="lines", fill="tonexty",
-        fillcolor="rgba(42,157,143,.24)", line={"width": 0},
+        fillcolor="rgba(138,90,155,.24)", line={"width": 0},
         name="Product propagation envelope", legendgroup="product-error"), row=2, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.reconstructed_reactant, mode="lines",
-        name="Reactant ε", line={"color": "#2d6f8e", "dash": "dot"}), row=2, col=1)
+        name="Reactant ε", line={"color": PLOT_BLUE, "dash": "dot"}), row=2, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.reconstructed_pss, mode="lines",
-        name="PSS reconstructed ε", line={"color": "#d67b36", "dash": "dash"}), row=2, col=1)
+        name="PSS reconstructed ε", line={"color": PLOT_ORANGE, "dash": "dash"}), row=2, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.product, mode="lines",
-        name="Product ε", line={"color": "#173b4c", "width": 2.4}), row=2, col=1)
+        name="Product ε", line={"color": PLOT_PURPLE, "width": 2.4}), row=2, col=1)
     figure.add_hline(y=0, line={"color": "#b85c4a", "dash": "dash", "width": 1}, row=2, col=1)
     figure.update_yaxes(title_text="Normalized absorbance", row=1, col=1)
     figure.update_yaxes(title_text="ε (M⁻¹ cm⁻¹)", row=2, col=1)
@@ -1257,8 +1410,15 @@ def _processing_title(method, svd_enabled=None, svd_rank=None):
 
 
 def _colors():
-    return ["#2d6f8e", "#d67b36", "#2a9d8f", "#8a5a9b", "#b85c4a",
-            "#527a4f", "#725c42", "#467aa8"]
+    return list(ANALYSIS_TRACE_PALETTE)
+
+
+def _graph_config():
+    return {
+        "displaylogo": False,
+        "responsive": True,
+        "modeBarButtonsToRemove": ["toImage"],
+    }
 
 
 def _empty(go, message):
@@ -1267,37 +1427,20 @@ def _empty(go, message):
     return _style(figure, 430)
 
 
-def _style(figure, height):
+def _style(figure, height, show_legend=True):
     figure.update_layout(
         template="plotly_white", height=height + 113,
         title={"x": 0.02, "y": 0.98, "yanchor": "top", "yref": "container"},
         margin=dict(l=68, r=24, t=185, b=52), hovermode="closest",
         legend={"orientation": "h", "y": 1.06, "yanchor": "bottom",
                 "x": 0, "xanchor": "left", "bgcolor": "rgba(255,255,255,.92)"},
+        showlegend=show_legend,
     )
     return figure
 
 
 def run_server(host="127.0.0.1", port=8051, open_browser=True):
-    from werkzeug.serving import make_server
-
-    app = create_app()
-    server = make_server(host, port, app.server, threaded=True)
-    window_state, window_lock = app.server.config["AUTOQY_WINDOW_STATE"]
-
-    def close_after_browser():
-        while True:
-            time.sleep(0.5)
-            with window_lock:
-                requested = window_state["close_requested_at"]
-            if requested is not None and time.monotonic() - requested >= 3:
-                server.shutdown()
-                return
-
-    Thread(target=close_after_browser, daemon=True).start()
-    if open_browser:
-        Timer(1, lambda: webbrowser.open(f"http://{host}:{port}")).start()
-    server.serve_forever()
+    serve_gui(create_app, host, port, open_browser, "AutoQY Spectral Treatment")
 
 
 def main(argv=None):
