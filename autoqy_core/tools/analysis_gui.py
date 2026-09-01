@@ -42,7 +42,7 @@ def create_app():
         from plotly.subplots import make_subplots
     except ImportError as error:
         raise RuntimeError(
-            "The analysis GUI requires the 'power-gui' optional dependencies"
+            "The analysis GUI requires the 'gui' optional dependencies"
         ) from error
 
     assets = Path(__file__).parents[1] / "assets"

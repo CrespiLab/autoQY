@@ -29,7 +29,7 @@ def create_app():
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
     except ImportError as error:
-        raise RuntimeError("The spectral treatment GUI requires the 'power-gui' optional dependencies") from error
+        raise RuntimeError("The spectral treatment GUI requires the 'gui' optional dependencies") from error
 
     assets = Path(__file__).parents[1] / "assets"
     project_version = get_project_version()

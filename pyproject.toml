@@ -29,7 +29,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-power-gui = [
+gui = [
   "dash>=2.18,<4",
   "plotly>=5.24,<7"
 ]

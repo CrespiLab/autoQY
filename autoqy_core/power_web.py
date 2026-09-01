@@ -38,7 +38,7 @@ def create_app():
     except ImportError as error:
         raise RuntimeError(
             "The power GUI requires the optional web dependencies. "
-            "Install them with: pip install -e .[power-gui]"
+            "Install them with: pip install -e .[gui]"
         ) from error
 
     assets = Path(__file__).with_name("assets")

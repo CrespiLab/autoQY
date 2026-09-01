@@ -50,8 +50,6 @@ The Desktop folder also contains:
 
 - **AutoQY Spectral Treatment** — prepares spectra and calculates molar absorptivity.
 - **AutoQY Power GUI** — treats Thorlabs optical-power traces.
-- **AutoQY Analyze JSON** — runs an existing analysis file.
-- **AutoQY Terminal** — opens a command line with AutoQY ready.
 - **Uninstall AutoQY** — removes AutoQY and can optionally remove its Conda environment.
 
 The GUI window and its terminal belong together. Closing either one closes the other.
@@ -76,10 +74,12 @@ All GUIs run locally on your computer. Your uploaded data is not sent to an Auto
 
 Command-line usage, file formats, fitting methods, configuration details, and the Python API are documented in **[autoqy_core/README.md](autoqy_core/README.md)**.
 
-To see the available commands, open **AutoQY Terminal** and run:
+The terminal and direct JSON runner remain available for legacy or automated
+workflows, but they are not added to the Desktop. To see the available commands,
+open Anaconda Prompt, Miniconda Prompt, PowerShell, or another terminal and run:
 
 ```powershell
-autoqy-core --help
+conda run --name autoqy-core autoqy-core --help
 ```
 
 ## Citation
