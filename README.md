@@ -12,7 +12,7 @@ If you just want to use the program on Windows, follow the quickstart below. You
 
 ### 1. Install Conda first
 
-You need **Miniconda or Anaconda**. Install one of them before installing AutoQY.
+You need **[Miniconda](https://www.anaconda.com/download/success)** or **[Anaconda](https://www.anaconda.com/download)**. Install one of them before installing AutoQY.
 
 You also need an internet connection during installation. AutoQY installs its own Python environment, so you do not need to install Python separately.
 
