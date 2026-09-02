@@ -132,7 +132,7 @@ window.autoqyDownloadPlot = (graphId, figure, format, includeHeader, originStyle
     exportLayout.margin = Object.assign({}, exportLayout.margin || {}, {
       l: 120, r: 45, t: keepHeader ? 145 : 60, b: 100
     });
-    Object.keys(exportLayout).filter((key) => /^xaxis\d*$|^yaxis\d*$/.test(key))
+    Object.keys(exportLayout).filter((key) => /^xaxis\\d*$|^yaxis\\d*$/.test(key))
       .forEach((key) => {
         exportLayout[key] = Object.assign({}, exportLayout[key] || {}, {
           showline: true, mirror: true, linewidth: 2, linecolor: '#000000',
@@ -492,16 +492,25 @@ window.autoqySaveText = (filename, text, mimeType) => {
                             html.Details(className="plot-options axis-name-options", children=[
                                 html.Summary("Axis names"),
                                 html.Div(className="axis-name-grid", children=[
-                                    dcc.Input(id="main-x-axis-label", type="text",
-                                              value="Wavelength (nm)"),
-                                    dcc.Input(id="main-absorbance-axis-label", type="text",
-                                              value="Absorbance"),
-                                    dcc.Input(id="main-epsilon-axis-label", type="text",
-                                              value="ε (M⁻¹ cm⁻¹)"),
-                                    dcc.Input(id="slice-x-axis-label", type="text",
-                                              value="Time"),
-                                    dcc.Input(id="slice-y-axis-label", type="text",
-                                              value="Absorbance"),
+                                    html.Label(["Main X axis", dcc.Input(
+                                        id="main-x-axis-label", type="text",
+                                        value="Wavelength (nm)"
+                                    )]),
+                                    html.Label(["Main absorbance axis", dcc.Input(
+                                        id="main-absorbance-axis-label", type="text",
+                                        value="Absorbance"
+                                    )]),
+                                    html.Label(["Main ε axis", dcc.Input(
+                                        id="main-epsilon-axis-label", type="text",
+                                        value="ε (M⁻¹ cm⁻¹)"
+                                    )]),
+                                    html.Label(["Slice X axis", dcc.Input(
+                                        id="slice-x-axis-label", type="text", value="Time"
+                                    )]),
+                                    html.Label(["Slice Y axis", dcc.Input(
+                                        id="slice-y-axis-label", type="text",
+                                        value="Absorbance"
+                                    )]),
                                 ]),
                             ]),
                         ]),
@@ -600,33 +609,67 @@ window.autoqySaveText = (filename, text, mimeType) => {
         dcc.Store(id="source-folder-store"),
     ])
 
-    def register_image_download(graph_id, png_button, svg_button, message_id):
+    def register_image_download(graph_id, png_button, svg_button, message_id,
+                                header_option, origin_option):
         app.clientside_callback(
             """
-            function(pngClicks, svgClicks, figure, includeHeader) {
+            function(pngClicks, svgClicks, figure, includeHeader, originStyle) {
               const context = window.dash_clientside.callback_context;
               if (!context.triggered || !context.triggered.length) {
                 return window.dash_clientside.no_update;
               }
               const trigger = context.triggered[0].prop_id.split('.')[0];
               const format = trigger.endsWith('svg') ? 'svg' : 'png';
-              return window.autoqyDownloadPlot(GRAPH_ID, figure, format, includeHeader);
+              return window.autoqyDownloadPlot(
+                GRAPH_ID, figure, format, includeHeader, originStyle
+              );
             }
             """.replace("GRAPH_ID", repr(graph_id)),
             Output(message_id, "children"),
             Input(png_button, "n_clicks"),
             Input(svg_button, "n_clicks"),
             State(graph_id, "figure"),
-            State("include-plot-header", "value"),
+            State(header_option, "value"),
+            State(origin_option, "value"),
             prevent_initial_call=True,
         )
 
     register_image_download(
         "epsilon-plot", "save-epsilon-png", "save-epsilon-svg",
-        "epsilon-image-message",
+        "epsilon-image-message", "include-plot-header", "origin-epsilon-export",
+    )
+    register_image_download(
+        "wavelength-slice-plot", "save-slice-png", "save-slice-svg",
+        "slice-image-message", "include-slice-header", "origin-slice-export",
     )
     register_image_download(
         "nmr-plot", "save-nmr-png", "save-nmr-svg", "nmr-image-message",
+        "include-plot-header", "origin-epsilon-export",
+    )
+
+    app.clientside_callback(
+        """
+        function(clicks, data) {
+          if (!clicks) return window.dash_clientside.no_update;
+          if (!data || !data.coordinates || !data.values) {
+            return 'Choose a wavelength before saving CSV.';
+          }
+          const quote = (value) => `"${String(value).replace(/"/g, '""')}"`;
+          const rows = [[data.x_label, data.y_label]];
+          data.coordinates.forEach((coordinate, index) => {
+            rows.push([coordinate, data.values[index]]);
+          });
+          const csv = rows.map((row) => row.map(quote).join(',')).join('\\n') + '\\n';
+          const wavelength = String(data.wavelength).replace(/[^0-9.-]+/g, '-');
+          return window.autoqySaveText(
+            `wavelength-slice-${wavelength}-nm.csv`, csv, 'text/csv'
+          );
+        }
+        """,
+        Output("slice-csv-message", "children"),
+        Input("save-slice-csv", "n_clicks"),
+        State("wavelength-slice-store", "data"),
+        prevent_initial_call=True,
     )
 
     @app.callback(
@@ -706,22 +749,19 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Output("wavelength-low", "value"), Output("wavelength-high", "value"),
         Output("wavelength-low", "disabled"), Output("wavelength-high", "disabled"),
         Output("clear-dataset", "disabled"), Output("concentration-parameters", "children"),
+        Output("slice-wavelength", "min"), Output("slice-wavelength", "max"),
+        Output("slice-wavelength", "value"),
         Input("dataset-store", "data"),
     )
     def dataset_controls(data):
         if not data:
-            return None, None, True, True, True, []
+            return None, None, True, True, True, [], None, None, None
         wavelengths = np.asarray(data["wavelengths"], float)
         return (float(wavelengths.min()), float(wavelengths.max()), False, False, False,
                 _parameter_cards(html, dcc, data["labels"],
-                                 data.get("concentrations"), data.get("path_lengths")))
-
-    @app.callback(
-        Output("spectrum-legend-labels", "value"),
-        Input("dataset-store", "data"),
-    )
-    def populate_legend_labels(data):
-        return "\n".join(data["labels"]) if data else ""
+                                 data.get("concentrations"), data.get("path_lengths")),
+                float(wavelengths.min()), float(wavelengths.max()),
+                float(wavelengths[len(wavelengths) // 2]))
 
     @app.callback(
         Output("svd-rank", "options"), Output("svd-rank", "value"),
@@ -772,13 +812,16 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Input({"type": "direct-concentration", "index": ALL}, "value"),
         Input({"type": "path-length", "index": ALL}, "value"),
         Input("show-spectrum-legend", "value"),
-        Input("spectrum-legend-labels", "value"),
         Input("minimal-spectrum-colors", "value"),
+        Input("main-x-axis-label", "value"),
+        Input("main-absorbance-axis-label", "value"),
+        Input("main-epsilon-axis-label", "value"),
     )
     def preview(data, wavelength_low, wavelength_high, baseline_enabled,
                 baseline_low, baseline_high, method, sg_width, sg_order,
                 svd_enabled, svd_rank, concentrations, path_lengths,
-                show_legend, legend_text, minimal_colors):
+                show_legend, minimal_colors, x_axis_label,
+                absorbance_axis_label, epsilon_axis_label):
         if not data:
             return (_empty(go, "Load spectral data to begin"),
                     "No result yet.", "", "Smoothing is off.", None, None, True, "")
@@ -798,7 +841,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 ),
                 data["labels"], data.get("filenames", []),
             )
-            plot_labels = _legend_labels(data["labels"], legend_text)
+            plot_labels = data["labels"]
             legend_visible = "on" in (show_legend or [])
             use_minimal_colors = "on" in (minimal_colors or [])
             if concentration_data is None:
@@ -808,6 +851,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
                             go, dataset, original, processed, plot_labels,
                             method, svd_enabled, svd_rank, legend_visible,
                             use_minimal_colors,
+                            _axis_label(x_axis_label, "Wavelength (nm)"),
+                            _axis_label(absorbance_axis_label, "Absorbance"),
                         ),
                         "Processed absorbance is ready to export; ε is waiting for "
                         "concentration inputs.",
@@ -843,6 +888,9 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     go, make_subplots, dataset, original, result,
                     plot_labels, method, svd_enabled, svd_rank, legend_visible,
                     use_minimal_colors,
+                    _axis_label(x_axis_label, "Wavelength (nm)"),
+                    _axis_label(absorbance_axis_label, "Absorbance"),
+                    _axis_label(epsilon_axis_label, "ε (M⁻¹ cm⁻¹)"),
                 ),
                 result_message, concentration_message, smoothing_message,
                 _pack_epsilon(result, data["labels"]), processed_data, False, "",
@@ -851,6 +899,38 @@ window.autoqySaveText = (filename, text, mimeType) => {
             return (_empty(go, "Preview unavailable; open Python errors below."),
                     "No valid result.", "", "", None, None, True,
                     f"Preview error: {type(error).__name__}: {error}")
+
+    @app.callback(
+        Output("wavelength-slice-plot", "figure"),
+        Output("wavelength-slice-store", "data"),
+        Output("slice-message", "children"),
+        Input("processed-store", "data"), Input("slice-wavelength", "value"),
+        Input("slice-x-axis-label", "value"), Input("slice-y-axis-label", "value"),
+    )
+    def wavelength_slice(processed_data, wavelength, x_axis_label, y_axis_label):
+        if not processed_data:
+            return _empty(go, "Load spectra and type a wavelength"), None, ""
+        if wavelength is None:
+            return _empty(go, "Type a wavelength to display its time slice"), None, ""
+        try:
+            dataset = _unpack(processed_data)
+            selected, coordinates, values = _wavelength_slice(dataset, wavelength)
+            x_label = _axis_label(x_axis_label, "Time")
+            y_label = _axis_label(y_axis_label, "Absorbance")
+            data = {
+                "wavelength": selected,
+                "coordinates": coordinates.tolist(),
+                "values": values.tolist(),
+                "x_label": x_label,
+                "y_label": f"{y_label} at {selected:g} nm",
+            }
+            figure = _wavelength_slice_figure(
+                go, coordinates, values, selected, x_label, y_label
+            )
+            return figure, data, f"Showing the interpolated slice at {selected:g} nm."
+        except Exception as error:
+            return (_empty(go, "Wavelength slice unavailable"), None,
+                    f"Slice error: {type(error).__name__}: {error}")
 
     @app.callback(
         Output("epsilon-save-message", "children"),
@@ -1087,7 +1167,7 @@ def _combine_loaded(loaded):
     target = first[(first >= low) & (first <= high)]
     if len(target) < 2:
         raise ValueError("The files share fewer than two wavelength values")
-    columns, labels = [], []
+    columns, labels, coordinates = [], [], []
     resampled = 0
     for dataset, filename in loaded:
         order = np.argsort(dataset.wavelengths)
@@ -1102,9 +1182,12 @@ def _combine_loaded(loaded):
                 target, wavelengths, values[:, index]
             ))
             coordinate = dataset.coordinates[index]
+            coordinates.append(float(coordinate))
             labels.append(stem if values.shape[1] == 1 else f"{stem} [{coordinate:g}]")
             resampled += int(not exact)
-    combined = SpectralDataset(target, np.arange(len(columns), dtype=float),
+    combined_coordinates = (np.asarray(coordinates, dtype=float) if len(loaded) == 1
+                            else np.arange(len(columns), dtype=float))
+    combined = SpectralDataset(target, combined_coordinates,
                                np.column_stack(columns), "combined", 0)
     return combined, _display_unique(labels), resampled
 
@@ -1447,21 +1530,52 @@ def _display_unique(labels):
     return result
 
 
-def _legend_labels(labels, text):
-    """Return plot-only labels edited one-per-line, retaining missing defaults."""
-    defaults = list(labels)
-    if not text or not str(text).strip():
-        return defaults
-    edited = str(text).splitlines()
-    return [
-        edited[index].strip() if index < len(edited) and edited[index].strip() else label
-        for index, label in enumerate(defaults)
-    ]
+def _axis_label(value, default):
+    value = str(value or "").strip()
+    return value or default
+
+
+def _wavelength_slice(dataset, wavelength):
+    """Interpolate all spectra at one wavelength and retain their coordinates."""
+    selected = float(wavelength)
+    if not np.isfinite(selected):
+        raise ValueError("Wavelength must be finite")
+    order = np.argsort(dataset.wavelengths)
+    wavelengths = np.asarray(dataset.wavelengths, float)[order]
+    absorbance = np.asarray(dataset.absorbance, float)[order]
+    if selected < wavelengths[0] or selected > wavelengths[-1]:
+        raise ValueError(
+            f"Wavelength must be between {wavelengths[0]:g} and {wavelengths[-1]:g} nm"
+        )
+    values = np.asarray([
+        np.interp(selected, wavelengths, absorbance[:, index])
+        for index in range(absorbance.shape[1])
+    ])
+    return selected, np.asarray(dataset.coordinates, float), values
+
+
+def _wavelength_slice_figure(go, coordinates, values, wavelength,
+                             x_axis_label="Time", y_axis_label="Absorbance"):
+    figure = go.Figure()
+    figure.add_trace(go.Scatter(
+        x=coordinates, y=values, mode="lines+markers", name=f"{wavelength:g} nm",
+        line={"color": PLOT_BLUE, "width": 2},
+        marker={"color": PLOT_ORANGE, "size": 6}, showlegend=False,
+    ))
+    figure.update_xaxes(title_text=x_axis_label)
+    figure.update_yaxes(title_text=y_axis_label)
+    figure.update_layout(
+        template="plotly_white", height=500,
+        title={"text": f"Wavelength slice · {wavelength:g} nm", "x": 0.02},
+        margin=dict(l=68, r=24, t=90, b=58), hovermode="closest",
+    )
+    return figure
 
 
 def _absorbance_figure(go, dataset, original, processed, labels, method,
                        svd_enabled=None, svd_rank=None, show_legend=True,
-                       minimal_colors=False):
+                       minimal_colors=False, x_axis_label="Wavelength (nm)",
+                       y_axis_label="Absorbance"):
     figure = go.Figure()
     colors = _spectrum_colors(len(labels), minimal_colors)
     changed = not np.allclose(original, processed)
@@ -1477,8 +1591,8 @@ def _absorbance_figure(go, dataset, original, processed, labels, method,
             x=dataset.wavelengths, y=processed[:, index], mode="lines",
             line={"color": color, "width": 1.5}, name=label,
         ))
-    figure.update_yaxes(title_text="Absorbance")
-    figure.update_xaxes(title_text="Wavelength (nm)")
+    figure.update_yaxes(title_text=y_axis_label)
+    figure.update_xaxes(title_text=x_axis_label)
     figure.update_layout(title={"text": _processing_title(
         method, svd_enabled, svd_rank), "x": 0.02})
     return _style(figure, 520, show_legend)
@@ -1486,7 +1600,9 @@ def _absorbance_figure(go, dataset, original, processed, labels, method,
 
 def _epsilon_figure(go, make_subplots, dataset, original, result, labels, method,
                     svd_enabled=None, svd_rank=None, show_legend=True,
-                    minimal_colors=False):
+                    minimal_colors=False, x_axis_label="Wavelength (nm)",
+                    absorbance_axis_label="Absorbance",
+                    epsilon_axis_label="ε (M⁻¹ cm⁻¹)"):
     figure = make_subplots(
         rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
         row_heights=[0.34, 0.66],
@@ -1521,9 +1637,9 @@ def _epsilon_figure(go, make_subplots, dataset, original, result, labels, method
         x=dataset.wavelengths, y=result.mean, mode="lines",
         line={"color": PLOT_PURPLE, "width": 2.4}, name="Mean ε",
     ), row=2, col=1)
-    figure.update_yaxes(title_text="Absorbance", row=1, col=1)
-    figure.update_yaxes(title_text="ε (M⁻¹ cm⁻¹)", row=2, col=1)
-    figure.update_xaxes(title_text="Wavelength (nm)", row=2, col=1)
+    figure.update_yaxes(title_text=absorbance_axis_label, row=1, col=1)
+    figure.update_yaxes(title_text=epsilon_axis_label, row=2, col=1)
+    figure.update_xaxes(title_text=x_axis_label, row=2, col=1)
     figure.update_layout(title={"text": _processing_title(
         method, svd_enabled, svd_rank), "x": 0.02})
     return _style(figure, 690, show_legend)

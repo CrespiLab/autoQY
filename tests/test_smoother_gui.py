@@ -11,12 +11,13 @@ from autoqy_core.plot_style import ANALYSIS_TRACE_PALETTE
 from autoqy_core.smoother import SpectralDataset
 from autoqy_core.tools.smoother_gui import (
     _colors,
+    _combine_loaded,
     _csv_filename,
     _export_csv_payload,
-    _legend_labels,
     _pack,
     _pack_epsilon,
     _spectrum_colors,
+    _wavelength_slice,
     create_app,
 )
 
@@ -120,19 +121,23 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertEqual(len(opened), 1)
         self.assertIn("1 · Data", str(opened[0].to_plotly_json()))
 
-    def test_plot_controls_offer_editable_legend_and_png_svg_downloads(self):
+    def test_plot_controls_offer_legend_toggle_slice_and_exports(self):
         components = list(_components(self.app.layout))
         by_id = {
             component.id: component for component in components
             if getattr(component, "id", None)
         }
-        self.assertIsInstance(by_id["spectrum-legend-labels"], dcc.Textarea)
+        self.assertNotIn("spectrum-legend-labels", by_id)
         self.assertEqual(by_id["show-spectrum-legend"].value, ["on"])
         self.assertEqual(by_id["minimal-spectrum-colors"].value, [])
         self.assertEqual(by_id["include-plot-header"].value, [])
+        self.assertEqual(by_id["origin-epsilon-export"].value, [])
+        self.assertEqual(by_id["origin-slice-export"].value, [])
+        self.assertFalse(by_id["wavelength-slice-panel"].open)
         self.assertNotIn("responsive", by_id["epsilon-plot"].config)
         for component_id in (
-            "save-epsilon-png", "save-epsilon-svg", "save-nmr-png", "save-nmr-svg"
+            "save-epsilon-png", "save-epsilon-svg", "save-slice-png",
+            "save-slice-svg", "save-slice-csv", "save-nmr-png", "save-nmr-svg",
         ):
             self.assertIn(component_id, by_id)
         self.assertIn("epsilon-image-message.children", self.app.callback_map)
@@ -140,14 +145,11 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertIn("window.showSaveFilePicker", self.app.index_string)
         self.assertIn("exportLayout.showlegend = false", self.app.index_string)
         self.assertIn("exportLayout.title = null", self.app.index_string)
+        self.assertIn("width = 1200", self.app.index_string)
+        self.assertIn("height = 900", self.app.index_string)
 
-    def test_legend_edits_are_plot_only_and_use_the_analysis_palette(self):
+    def test_main_plot_uses_the_analysis_palette(self):
         self.assertEqual(_colors(), list(ANALYSIS_TRACE_PALETTE))
-        self.assertEqual(
-            _legend_labels(["first.csv", "second.csv", "third.csv"],
-                           "Reference\nProduct"),
-            ["Reference", "Product", "third.csv"],
-        )
 
     def test_minimal_palette_marks_initial_intermediate_and_final_spectra(self):
         self.assertEqual(_spectrum_colors(1, True), ["#2d6f8e"])
@@ -164,6 +166,51 @@ class SpectralGuiTests(unittest.TestCase):
             ANALYSIS_TRACE_PALETTE[index % len(ANALYSIS_TRACE_PALETTE)]
             for index in range(7)
         ])
+
+    def test_single_time_series_keeps_coordinates_and_interpolates_a_slice(self):
+        dataset = SpectralDataset(
+            np.array([400.0, 410.0]),
+            np.array([0.0, 2.5, 5.0]),
+            np.array([[0.0, 1.0, 2.0], [10.0, 11.0, 12.0]]),
+            source_format="spectragryph",
+        )
+        combined, _, _ = _combine_loaded([(dataset, "series.dat")])
+        np.testing.assert_array_equal(combined.coordinates, dataset.coordinates)
+        selected, coordinates, values = _wavelength_slice(combined, 405.0)
+        self.assertEqual(selected, 405.0)
+        np.testing.assert_array_equal(coordinates, dataset.coordinates)
+        np.testing.assert_allclose(values, [5.0, 6.0, 7.0])
+
+    def test_wavelength_slice_rejects_values_outside_the_processed_range(self):
+        dataset = SpectralDataset(
+            np.array([400.0, 410.0]), np.array([0.0]),
+            np.array([[0.0], [1.0]]), source_format="csv",
+        )
+        with self.assertRaisesRegex(ValueError, "between 400 and 410"):
+            _wavelength_slice(dataset, 420.0)
+
+    def test_slice_callback_builds_plot_export_data_and_custom_axes(self):
+        callback = next(
+            value["callback"].__wrapped__
+            for key, value in self.app.callback_map.items()
+            if "wavelength-slice-store.data" in key
+        )
+        dataset = SpectralDataset(
+            np.array([400.0, 410.0]),
+            np.array([0.0, 5.0]),
+            np.array([[0.0, 2.0], [10.0, 12.0]]),
+            source_format="spectragryph",
+        )
+        figure, data, message = callback(
+            _pack(dataset, ["start", "end"], ["series.dat"]),
+            405.0, "Elapsed time (s)", "Optical density",
+        )
+        self.assertEqual(data["values"], [5.0, 7.0])
+        self.assertEqual(data["x_label"], "Elapsed time (s)")
+        self.assertEqual(data["y_label"], "Optical density at 405 nm")
+        self.assertEqual(figure.layout.xaxis.title.text, "Elapsed time (s)")
+        self.assertEqual(figure.layout.yaxis.title.text, "Optical density")
+        self.assertIn("405 nm", message)
 
     def test_preview_and_save_work_without_concentrations(self):
         callbacks = self.app.callback_map
@@ -186,13 +233,16 @@ class SpectralGuiTests(unittest.TestCase):
         packed = _pack(dataset, ["irradiation"], ["irradiation.csv"])
         preview_result = preview(
             packed, 400, 402, [], None, None, "off", 5, 3,
-            [], 1, [None], [1.0], [], "Reference spectrum", [],
+            [], 1, [None], [1.0], [], [], "Custom wavelength", "Custom OD",
+            "Custom epsilon",
         )
         self.assertIsNone(preview_result[4])
         self.assertIsNotNone(preview_result[5])
         self.assertFalse(preview_result[6])
         self.assertFalse(preview_result[0].layout.showlegend)
-        self.assertEqual(preview_result[0].data[0].name, "Reference spectrum")
+        self.assertEqual(preview_result[0].data[0].name, "irradiation")
+        self.assertEqual(preview_result[0].layout.xaxis.title.text, "Custom wavelength")
+        self.assertEqual(preview_result[0].layout.yaxis.title.text, "Custom OD")
         self.assertEqual(preview_result[5]["labels"], ["irradiation"])
 
         with TemporaryDirectory() as temporary:

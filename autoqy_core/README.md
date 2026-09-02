@@ -296,13 +296,19 @@ and existing files require confirmation before replacement. Negative values are
 preserved by default; the output option can clamp saved absorbance and epsilon
 values to zero without changing the preview or source data.
 
-The plot legend can be hidden when many spectra are loaded. Its labels can also
-be edited one per line; these edits affect only the plot and never change CSV
-labels or source filenames. **Minimal colors** highlights the initial spectrum
-in blue and the final spectrum in orange, with intermediate spectra in grey as
-in the Analysis GUI. PNG and SVG save buttons open a Save As dialog. Saved
-images contain only the plots by default; enable **Save title + legend** when
-those should be included.
+The plot legend can be switched on or off when many spectra are loaded.
+**Minimal colors** highlights the initial spectrum in blue and the final
+spectrum in orange, with intermediate spectra in grey as in the Analysis GUI.
+PNG and SVG save buttons open a Save As dialog. Saved images contain only the
+plots by default; enable **Save title + legend** when those should be included.
+**Origin-style export** produces a 4:3 white figure with boxed axes and inward
+ticks.
+
+Open **Wavelength slice over time** below the main plot and type a wavelength
+to graph the interpolated absorbance across the spectrum coordinates. For a
+single time-series file, the original time coordinates are retained. The slice
+can be saved as PNG, SVG, or CSV. The collapsed **Axis names** controls rename
+the main wavelength, absorbance, and epsilon axes and both slice axes.
 
 The optional NMR-guided PSS workflow loads a dataset whose first spectrum is
 reactant and last spectrum is the final PSS. It supports its own baseline and
