@@ -105,9 +105,6 @@ The Desktop folder also contains:
 - **AutoQY Power GUI** — treats Thorlabs optical-power traces.
 - **Uninstall AutoQY** — removes AutoQY and can optionally remove its Conda environment.
 
-The terminal minimizes automatically after the GUI starts. The GUI window and
-its terminal belong together: closing either one closes the other.
-
 ## Follow the tutorial
 
 Start with the **[395 nm step-by-step tutorial](ExampleData/Example-4_395nm-EpsilonError/TUTORIAL.md)**. It shows how to prepare spectra, build an analysis, run it, and inspect the results.
