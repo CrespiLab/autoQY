@@ -96,7 +96,7 @@ def create_app():
     }
   }, true);
 })();
-window.autoqyDownloadPlot = (graphId, figure, format, includeHeader) => {
+window.autoqyDownloadPlot = (graphId, figure, format, includeHeader, originStyle) => {
   const graph = document.querySelector(`#${graphId} .js-plotly-plot`);
   if (!graph || !window.Plotly) return 'Plot export is unavailable.';
   const title = typeof figure?.layout?.title === 'string'
@@ -107,9 +107,10 @@ window.autoqyDownloadPlot = (graphId, figure, format, includeHeader) => {
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .toLowerCase() || 'autoqy-spectral-treatment';
-  const width = Math.max(900, Math.round(graph._fullLayout?.width || 1200));
+  let width = Math.max(900, Math.round(graph._fullLayout?.width || 1200));
   let height = Math.max(600, Math.round(graph._fullLayout?.height || 800));
   const keepHeader = Array.isArray(includeHeader) && includeHeader.includes('on');
+  const useOriginStyle = Array.isArray(originStyle) && originStyle.includes('on');
   const exportData = JSON.parse(JSON.stringify(figure?.data || []));
   const exportLayout = JSON.parse(JSON.stringify(figure?.layout || {}));
   if (keepHeader) {
@@ -119,6 +120,26 @@ window.autoqyDownloadPlot = (graphId, figure, format, includeHeader) => {
     exportLayout.showlegend = false;
     exportLayout.margin = Object.assign({}, exportLayout.margin || {}, {t: 58});
     height = Math.max(480, height - 127);
+  }
+  if (useOriginStyle) {
+    width = 1200;
+    height = 900;
+    exportLayout.paper_bgcolor = '#ffffff';
+    exportLayout.plot_bgcolor = '#ffffff';
+    exportLayout.font = Object.assign({}, exportLayout.font || {}, {
+      family: 'Arial, Helvetica, sans-serif', color: '#000000', size: 20
+    });
+    exportLayout.margin = Object.assign({}, exportLayout.margin || {}, {
+      l: 120, r: 45, t: keepHeader ? 145 : 60, b: 100
+    });
+    Object.keys(exportLayout).filter((key) => /^xaxis\d*$|^yaxis\d*$/.test(key))
+      .forEach((key) => {
+        exportLayout[key] = Object.assign({}, exportLayout[key] || {}, {
+          showline: true, mirror: true, linewidth: 2, linecolor: '#000000',
+          ticks: 'inside', tickwidth: 1.5, ticklen: 8, tickcolor: '#000000',
+          zeroline: false
+        });
+      });
   }
   exportLayout.width = width;
   exportLayout.height = height;
@@ -173,6 +194,37 @@ window.autoqyDownloadPlot = (graphId, figure, format, includeHeader) => {
     .catch((error) => error?.name === 'AbortError'
       ? 'Save cancelled.'
       : `Could not create the ${format.toUpperCase()} image.`);
+};
+
+window.autoqySaveText = (filename, text, mimeType) => {
+  const extension = filename.includes('.') ? `.${filename.split('.').pop()}` : '.csv';
+  let fileHandlePromise = null;
+  if (window.showSaveFilePicker) {
+    try {
+      fileHandlePromise = window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{description: 'CSV data', accept: {[mimeType]: [extension]}}]
+      });
+    } catch (_) {
+      return 'Could not open the CSV save dialog.';
+    }
+  }
+  const blob = new Blob([text], {type: mimeType});
+  const save = (fileHandle) => {
+    if (!fileHandle) {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      return 'CSV download started.';
+    }
+    return fileHandle.createWritable()
+      .then((writer) => writer.write(blob).then(() => writer.close()))
+      .then(() => 'CSV saved.');
+  };
+  return (fileHandlePromise || Promise.resolve(null)).then(save)
+    .catch((error) => error?.name === 'AbortError' ? 'Save cancelled.' : 'Could not save CSV.');
 };
 </script></body></html>"""
 
@@ -423,6 +475,11 @@ window.autoqyDownloadPlot = (graphId, figure, format, includeHeader) => {
                                     className="toggle-control plot-option-toggle",
                                     options=[{"label": "Save title + legend", "value": "on"}],
                                 ),
+                                dcc.Checklist(
+                                    id="origin-epsilon-export", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Origin-style export", "value": "on"}],
+                                ),
                             ]),
                             html.Details(className="plot-options", children=[
                                 html.Summary("Legend options"),
@@ -431,16 +488,21 @@ window.autoqyDownloadPlot = (graphId, figure, format, includeHeader) => {
                                     className="toggle-control plot-legend-toggle",
                                     options=[{"label": "Show legend", "value": "on"}],
                                 ),
-                                html.Label("Legend labels (one per spectrum)"),
-                                dcc.Textarea(
-                                    id="spectrum-legend-labels", value="",
-                                    className="legend-editor",
-                                    placeholder="Load spectra to edit their legend labels",
-                                ),
-                                html.Small(
-                                    "Use one line per spectrum. These names affect only the plot; "
-                                    "CSV labels and source filenames stay unchanged."
-                                ),
+                            ]),
+                            html.Details(className="plot-options axis-name-options", children=[
+                                html.Summary("Axis names"),
+                                html.Div(className="axis-name-grid", children=[
+                                    dcc.Input(id="main-x-axis-label", type="text",
+                                              value="Wavelength (nm)"),
+                                    dcc.Input(id="main-absorbance-axis-label", type="text",
+                                              value="Absorbance"),
+                                    dcc.Input(id="main-epsilon-axis-label", type="text",
+                                              value="ε (M⁻¹ cm⁻¹)"),
+                                    dcc.Input(id="slice-x-axis-label", type="text",
+                                              value="Time"),
+                                    dcc.Input(id="slice-y-axis-label", type="text",
+                                              value="Absorbance"),
+                                ]),
                             ]),
                         ]),
                     ]),
@@ -450,6 +512,48 @@ window.autoqyDownloadPlot = (graphId, figure, format, includeHeader) => {
                         config=_graph_config(),
                     ),
                 ]),
+                html.Details(
+                    id="wavelength-slice-panel", open=False,
+                    className="plot-panel wavelength-slice-panel",
+                    children=[
+                        html.Summary("Wavelength slice over time"),
+                        html.Div(className="slice-toolbar", children=[
+                            html.Div(className="slice-wavelength-control", children=[
+                                html.Label("Wavelength (nm)"),
+                                dcc.Input(id="slice-wavelength", type="number", step="any",
+                                          placeholder="Type a wavelength"),
+                            ]),
+                            html.Div(className="plot-download-actions", children=[
+                                html.Button("Save PNG", id="save-slice-png",
+                                            className="button button-secondary compact-button"),
+                                html.Button("Save SVG", id="save-slice-svg",
+                                            className="button button-secondary compact-button"),
+                                html.Button("Save CSV", id="save-slice-csv",
+                                            className="button button-secondary compact-button"),
+                            ]),
+                            html.Div(className="plot-quick-options", children=[
+                                dcc.Checklist(
+                                    id="include-slice-header", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Save title + legend", "value": "on"}],
+                                ),
+                                dcc.Checklist(
+                                    id="origin-slice-export", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Origin-style export", "value": "on"}],
+                                ),
+                            ]),
+                        ]),
+                        html.Div(id="slice-message", className="message"),
+                        html.Div(id="slice-image-message", className="image-export-message"),
+                        html.Div(id="slice-csv-message", className="image-export-message"),
+                        dcc.Graph(
+                            id="wavelength-slice-plot",
+                            figure=_empty(go, "Load spectra and type a wavelength"),
+                            config=_graph_config(),
+                        ),
+                    ],
+                ),
                 html.Section(id="nmr-plot-panel", className="plot-panel", style={"display": "none"},
                              children=[
                                  html.Div(className="plot-toolbar nmr-plot-toolbar", children=[
@@ -490,6 +594,7 @@ window.autoqyDownloadPlot = (graphId, figure, format, includeHeader) => {
         dcc.Store(id="dataset-store"),
         dcc.Store(id="epsilon-store"),
         dcc.Store(id="processed-store"),
+        dcc.Store(id="wavelength-slice-store"),
         dcc.Store(id="nmr-spectra-store"),
         dcc.Store(id="nmr-result-store"),
         dcc.Store(id="source-folder-store"),
