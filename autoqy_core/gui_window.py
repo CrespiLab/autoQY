@@ -80,6 +80,24 @@ def _local_gui_url(host, port):
     return f"http://{browser_host}:{int(port)}"
 
 
+def _minimize_console_window():
+    """Minimize the GUI's Windows console while leaving the server running."""
+    if sys.platform != "win32":
+        return False
+    try:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        kernel32.GetConsoleWindow.restype = wintypes.HWND
+        user32.ShowWindow.argtypes = (wintypes.HWND, ctypes.c_int)
+        console = kernel32.GetConsoleWindow()
+        if not console:
+            return False
+        user32.ShowWindow(console, 6)  # SW_MINIMIZE
+        return True
+    except (AttributeError, OSError):
+        return False
+
+
 class _WindowsJob:
     """Keep the isolated browser process tree attached to the GUI terminal."""
 
@@ -284,6 +302,7 @@ def serve_gui(create_app, host, port, open_window, window_name):
     window = GuiWindowSession(_local_gui_url(host, port), window_name)
     if open_window:
         window.open_after()
+        _minimize_console_window()
     try:
         server.serve_forever()
     finally:

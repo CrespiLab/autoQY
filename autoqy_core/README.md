@@ -298,9 +298,11 @@ values to zero without changing the preview or source data.
 
 The plot legend can be hidden when many spectra are loaded. Its labels can also
 be edited one per line; these edits affect only the plot and never change CSV
-labels or source filenames. Both the main spectral plot and the optional NMR
-plot can be downloaded directly as PNG or SVG. Spectral Treatment uses the same
-trace-color palette as the Analysis GUI.
+labels or source filenames. **Minimal colors** highlights the initial spectrum
+in blue and the final spectrum in orange, with intermediate spectra in grey as
+in the Analysis GUI. PNG and SVG save buttons open a Save As dialog. Saved
+images contain only the plots by default; enable **Save title + legend** when
+those should be included.
 
 The optional NMR-guided PSS workflow loads a dataset whose first spectrum is
 reactant and last spectrum is the final PSS. It supports its own baseline and

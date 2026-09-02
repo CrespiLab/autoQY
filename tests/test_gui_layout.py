@@ -83,6 +83,21 @@ class GuiLayoutTests(unittest.TestCase):
         app = create_spectral_app()
         self.assertEqual(_by_id(app.layout, "save-filename").placeholder, "Default name")
 
+    def test_spectral_export_buttons_precede_the_plot_options(self):
+        app = create_spectral_app()
+        toolbar = next(
+            component for component in _components(app.layout)
+            if getattr(component, "className", None) == "plot-toolbar"
+            and any(getattr(child, "id", None) == "save-epsilon-png"
+                    for child in _components(component))
+        )
+        first_ids = [
+            getattr(component, "id", None)
+            for component in _components(toolbar.children[0])
+        ]
+        self.assertIn("save-epsilon-png", first_ids)
+        self.assertIn("save-epsilon-svg", first_ids)
+
     def test_analysis_has_no_validate_button_and_explains_json_saving(self):
         app = create_analysis_app()
         component_ids = [getattr(component, "id", None) for component in _components(app.layout)]

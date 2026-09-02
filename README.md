@@ -40,6 +40,59 @@ Accept the Windows prompt if one appears, answer the questions, and wait for the
 
 When installation is complete, open the new **AutoQY** folder on your **Desktop**.
 
+<details>
+<summary><strong>Advanced: manual installation on Windows, Linux, or macOS</strong></summary>
+
+Use this method if you prefer to install and start AutoQY from a terminal. You
+need Conda and an internet connection. Manual installation does not create the
+Windows Desktop shortcuts described above.
+
+### Windows (Anaconda Prompt or Miniconda Prompt)
+
+```powershell
+conda create --name autoqy-core python=3.12 pip git
+conda activate autoqy-core
+git clone --branch 2.3.0 --single-branch https://github.com/CrespiLab/autoQY.git AutoQY-Core
+cd AutoQY-Core
+python -m pip install --upgrade pip
+python -m pip install -e ".[gui]"
+```
+
+### Linux
+
+```bash
+conda create --name autoqy-core python=3.12 pip git
+conda activate autoqy-core
+git clone --branch 2.3.0 --single-branch https://github.com/CrespiLab/autoQY.git AutoQY-Core
+cd AutoQY-Core
+python -m pip install --upgrade pip
+python -m pip install -e '.[gui]'
+```
+
+### macOS
+
+```bash
+conda create --name autoqy-core python=3.12 pip git
+conda activate autoqy-core
+git clone --branch 2.3.0 --single-branch https://github.com/CrespiLab/autoQY.git AutoQY-Core
+cd AutoQY-Core
+python -m pip install --upgrade pip
+python -m pip install -e '.[gui]'
+```
+
+After installation, start one GUI at a time:
+
+```text
+autoqy-analysis-gui
+autoqy-smoother-gui
+autoqy-power-gui
+```
+
+To use AutoQY again later, open a terminal and run `conda activate autoqy-core`
+before starting a GUI.
+
+</details>
+
 ## Start here after installation
 
 For most work, double-click:
@@ -52,7 +105,8 @@ The Desktop folder also contains:
 - **AutoQY Power GUI** — treats Thorlabs optical-power traces.
 - **Uninstall AutoQY** — removes AutoQY and can optionally remove its Conda environment.
 
-The GUI window and its terminal belong together. Closing either one closes the other.
+The terminal minimizes automatically after the GUI starts. The GUI window and
+its terminal belong together: closing either one closes the other.
 
 ## Follow the tutorial
 

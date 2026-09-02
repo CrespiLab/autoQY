@@ -96,7 +96,7 @@ def create_app():
     }
   }, true);
 })();
-window.autoqyDownloadPlot = (graphId, figure, format) => {
+window.autoqyDownloadPlot = (graphId, figure, format, includeHeader) => {
   const graph = document.querySelector(`#${graphId} .js-plotly-plot`);
   if (!graph || !window.Plotly) return 'Plot export is unavailable.';
   const title = typeof figure?.layout?.title === 'string'
@@ -108,13 +108,71 @@ window.autoqyDownloadPlot = (graphId, figure, format) => {
     .replace(/^-+|-+$/g, '')
     .toLowerCase() || 'autoqy-spectral-treatment';
   const width = Math.max(900, Math.round(graph._fullLayout?.width || 1200));
-  const height = Math.max(600, Math.round(graph._fullLayout?.height || 800));
-  return window.Plotly.downloadImage(graph, {
-    format, filename, width, height, scale: format === 'png' ? 2 : 1
-  }).then(
-    () => `${format.toUpperCase()} download started.`,
-    () => `Could not create the ${format.toUpperCase()} image.`
-  );
+  let height = Math.max(600, Math.round(graph._fullLayout?.height || 800));
+  const keepHeader = Array.isArray(includeHeader) && includeHeader.includes('on');
+  const exportData = JSON.parse(JSON.stringify(figure?.data || []));
+  const exportLayout = JSON.parse(JSON.stringify(figure?.layout || {}));
+  if (keepHeader) {
+    exportLayout.showlegend = true;
+  } else {
+    exportLayout.title = null;
+    exportLayout.showlegend = false;
+    exportLayout.margin = Object.assign({}, exportLayout.margin || {}, {t: 58});
+    height = Math.max(480, height - 127);
+  }
+  exportLayout.width = width;
+  exportLayout.height = height;
+
+  const extension = `.${format}`;
+  const suggestedName = `${filename}${extension}`;
+  const mimeType = format === 'svg' ? 'image/svg+xml' : 'image/png';
+  let fileHandlePromise = null;
+  if (window.showSaveFilePicker) {
+    try {
+      fileHandlePromise = window.showSaveFilePicker({
+        suggestedName,
+        types: [{
+          description: `${format.toUpperCase()} image`,
+          accept: {[mimeType]: [extension]}
+        }]
+      });
+    } catch (_) {
+      return `Could not open the ${format.toUpperCase()} save dialog.`;
+    }
+  }
+
+  const holder = document.createElement('div');
+  holder.style.cssText = `position:fixed;left:-100000px;top:0;width:${width}px;height:${height}px`;
+  document.body.appendChild(holder);
+  const renderImage = () => window.Plotly.newPlot(
+    holder, exportData, exportLayout, {staticPlot: true, displayModeBar: false}
+  ).then(() => window.Plotly.toImage(holder, {
+    format, width, height, scale: format === 'png' ? 2 : 1
+  })).finally(() => {
+    window.Plotly.purge(holder);
+    holder.remove();
+  });
+
+  const saveImage = (fileHandle) => renderImage().then((dataUrl) => {
+    if (!fileHandle) {
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = suggestedName;
+      link.click();
+      return `${format.toUpperCase()} download started.`;
+    }
+    return window.fetch(dataUrl)
+      .then((response) => response.blob())
+      .then((blob) => fileHandle.createWritable()
+        .then((writer) => writer.write(blob).then(() => writer.close())))
+      .then(() => `${format.toUpperCase()} saved.`);
+  });
+
+  return (fileHandlePromise || Promise.resolve(null))
+    .then(saveImage)
+    .catch((error) => error?.name === 'AbortError'
+      ? 'Save cancelled.'
+      : `Could not create the ${format.toUpperCase()} image.`);
 };
 </script></body></html>"""
 
@@ -347,29 +405,43 @@ window.autoqyDownloadPlot = (graphId, figure, format) => {
             html.Div(className="plot-column", children=[
                 html.Section(className="plot-panel", children=[
                     html.Div(className="plot-toolbar", children=[
-                        html.Details(className="plot-options", children=[
-                            html.Summary("Legend options"),
-                            dcc.Checklist(
-                                id="show-spectrum-legend", value=["on"],
-                                className="toggle-control plot-legend-toggle",
-                                options=[{"label": "Show legend", "value": "on"}],
-                            ),
-                            html.Label("Legend labels (one per spectrum)"),
-                            dcc.Textarea(
-                                id="spectrum-legend-labels", value="",
-                                className="legend-editor",
-                                placeholder="Load spectra to edit their legend labels",
-                            ),
-                            html.Small(
-                                "Use one line per spectrum. These names affect only the plot; "
-                                "CSV labels and source filenames stay unchanged."
-                            ),
-                        ]),
                         html.Div(className="plot-download-actions", children=[
                             html.Button("Save PNG", id="save-epsilon-png",
                                         className="button button-secondary compact-button"),
                             html.Button("Save SVG", id="save-epsilon-svg",
                                         className="button button-secondary compact-button"),
+                        ]),
+                        html.Div(className="plot-toolbar-controls", children=[
+                            html.Div(className="plot-quick-options", children=[
+                                dcc.Checklist(
+                                    id="minimal-spectrum-colors", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Minimal colors", "value": "on"}],
+                                ),
+                                dcc.Checklist(
+                                    id="include-plot-header", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Save title + legend", "value": "on"}],
+                                ),
+                            ]),
+                            html.Details(className="plot-options", children=[
+                                html.Summary("Legend options"),
+                                dcc.Checklist(
+                                    id="show-spectrum-legend", value=["on"],
+                                    className="toggle-control plot-legend-toggle",
+                                    options=[{"label": "Show legend", "value": "on"}],
+                                ),
+                                html.Label("Legend labels (one per spectrum)"),
+                                dcc.Textarea(
+                                    id="spectrum-legend-labels", value="",
+                                    className="legend-editor",
+                                    placeholder="Load spectra to edit their legend labels",
+                                ),
+                                html.Small(
+                                    "Use one line per spectrum. These names affect only the plot; "
+                                    "CSV labels and source filenames stay unchanged."
+                                ),
+                            ]),
                         ]),
                     ]),
                     html.Div(id="epsilon-image-message", className="image-export-message"),
@@ -426,20 +498,21 @@ window.autoqyDownloadPlot = (graphId, figure, format) => {
     def register_image_download(graph_id, png_button, svg_button, message_id):
         app.clientside_callback(
             """
-            function(pngClicks, svgClicks, figure) {
+            function(pngClicks, svgClicks, figure, includeHeader) {
               const context = window.dash_clientside.callback_context;
               if (!context.triggered || !context.triggered.length) {
                 return window.dash_clientside.no_update;
               }
               const trigger = context.triggered[0].prop_id.split('.')[0];
               const format = trigger.endsWith('svg') ? 'svg' : 'png';
-              return window.autoqyDownloadPlot(GRAPH_ID, figure, format);
+              return window.autoqyDownloadPlot(GRAPH_ID, figure, format, includeHeader);
             }
             """.replace("GRAPH_ID", repr(graph_id)),
             Output(message_id, "children"),
             Input(png_button, "n_clicks"),
             Input(svg_button, "n_clicks"),
             State(graph_id, "figure"),
+            State("include-plot-header", "value"),
             prevent_initial_call=True,
         )
 
@@ -595,11 +668,12 @@ window.autoqyDownloadPlot = (graphId, figure, format) => {
         Input({"type": "path-length", "index": ALL}, "value"),
         Input("show-spectrum-legend", "value"),
         Input("spectrum-legend-labels", "value"),
+        Input("minimal-spectrum-colors", "value"),
     )
     def preview(data, wavelength_low, wavelength_high, baseline_enabled,
                 baseline_low, baseline_high, method, sg_width, sg_order,
                 svd_enabled, svd_rank, concentrations, path_lengths,
-                show_legend, legend_text):
+                show_legend, legend_text, minimal_colors):
         if not data:
             return (_empty(go, "Load spectral data to begin"),
                     "No result yet.", "", "Smoothing is off.", None, None, True, "")
@@ -621,12 +695,14 @@ window.autoqyDownloadPlot = (graphId, figure, format) => {
             )
             plot_labels = _legend_labels(data["labels"], legend_text)
             legend_visible = "on" in (show_legend or [])
+            use_minimal_colors = "on" in (minimal_colors or [])
             if concentration_data is None:
                 message = ("Enter the concentration and path length for every "
                            "spectrum to calculate molar absorptivity.")
                 return (_absorbance_figure(
                             go, dataset, original, processed, plot_labels,
                             method, svd_enabled, svd_rank, legend_visible,
+                            use_minimal_colors,
                         ),
                         "Processed absorbance is ready to export; ε is waiting for "
                         "concentration inputs.",
@@ -661,6 +737,7 @@ window.autoqyDownloadPlot = (graphId, figure, format) => {
                 _epsilon_figure(
                     go, make_subplots, dataset, original, result,
                     plot_labels, method, svd_enabled, svd_rank, legend_visible,
+                    use_minimal_colors,
                 ),
                 result_message, concentration_message, smoothing_message,
                 _pack_epsilon(result, data["labels"]), processed_data, False, "",
@@ -1278,12 +1355,13 @@ def _legend_labels(labels, text):
 
 
 def _absorbance_figure(go, dataset, original, processed, labels, method,
-                       svd_enabled=None, svd_rank=None, show_legend=True):
+                       svd_enabled=None, svd_rank=None, show_legend=True,
+                       minimal_colors=False):
     figure = go.Figure()
-    colors = _colors()
+    colors = _spectrum_colors(len(labels), minimal_colors)
     changed = not np.allclose(original, processed)
     for index, label in enumerate(labels):
-        color = colors[index % len(colors)]
+        color = colors[index]
         if changed:
             figure.add_trace(go.Scatter(
                 x=dataset.wavelengths, y=original[:, index], mode="lines",
@@ -1302,15 +1380,16 @@ def _absorbance_figure(go, dataset, original, processed, labels, method,
 
 
 def _epsilon_figure(go, make_subplots, dataset, original, result, labels, method,
-                    svd_enabled=None, svd_rank=None, show_legend=True):
+                    svd_enabled=None, svd_rank=None, show_legend=True,
+                    minimal_colors=False):
     figure = make_subplots(
         rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
         row_heights=[0.34, 0.66],
         subplot_titles=("Processed absorbance spectra", "Molar absorptivity"),
     )
-    colors = _colors()
+    colors = _spectrum_colors(len(labels), minimal_colors)
     for index, label in enumerate(labels):
-        color = colors[index % len(colors)]
+        color = colors[index]
         figure.add_trace(go.Scatter(
             x=dataset.wavelengths, y=result.absorbance[:, index], mode="lines",
             line={"color": color, "width": 1.3}, name=label,
@@ -1411,6 +1490,19 @@ def _processing_title(method, svd_enabled=None, svd_rank=None):
 
 def _colors():
     return list(ANALYSIS_TRACE_PALETTE)
+
+
+def _spectrum_colors(count, minimal=False):
+    """Return full or initial/intermediate/final spectrum colors."""
+    count = max(0, int(count))
+    if not minimal:
+        palette = _colors()
+        return [palette[index % len(palette)] for index in range(count)]
+    if count == 0:
+        return []
+    if count == 1:
+        return [PLOT_BLUE]
+    return [PLOT_BLUE] + ["rgba(108,114,128,0.38)"] * (count - 2) + [PLOT_ORANGE]
 
 
 def _graph_config():

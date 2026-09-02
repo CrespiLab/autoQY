@@ -163,11 +163,15 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
 .plot-toolbar {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: 16px;
   padding: 15px 18px 0;
 }
-.plot-options { min-width: min(460px, 70%); color: #31404a; }
+.plot-toolbar-controls { display: flex; flex: 1 1 460px; flex-wrap: wrap; gap: 10px 16px; min-width: 0; }
+.plot-quick-options { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 8px; }
+.plot-option-toggle { min-width: 132px; }
+.plot-options { flex: 1 1 300px; min-width: min(300px, 100%); color: #31404a; }
 .plot-options > summary { cursor: pointer; font-size: .82rem; font-weight: 700; }
 .plot-options .plot-legend-toggle { max-width: 170px; margin-top: 10px; }
 .plot-options label { margin-top: 11px; }
@@ -188,7 +192,7 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
   resize: vertical;
   font: .78rem/1.45 Consolas, monospace;
 }
-.plot-download-actions { display: flex; flex: 0 0 auto; gap: 8px; }
+.plot-download-actions { display: flex; flex: 0 0 auto; gap: 8px; order: -1; }
 .plot-download-actions .button { width: auto; min-width: 92px; margin-top: 0; }
 .nmr-plot-toolbar { align-items: center; }
 .nmr-plot-toolbar strong { color: #31404a; font-size: .84rem; }
@@ -223,6 +227,9 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
   .app-header { align-items: flex-start; flex-direction: column; }
   .result-strip { grid-template-columns: 1fr; }
   .plot-toolbar { align-items: stretch; flex-direction: column; }
+  .plot-toolbar-controls { flex-basis: auto; }
+  .plot-quick-options { width: 100%; }
+  .plot-option-toggle { flex: 1 1 150px; }
   .plot-options { min-width: 0; }
   .plot-download-actions { width: 100%; }
   .plot-download-actions .button { flex: 1 1 0; }

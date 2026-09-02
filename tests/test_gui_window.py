@@ -9,12 +9,29 @@ from autoqy_core.gui_window import (
     GuiWindowSession,
     _app_window_command,
     _local_gui_url,
+    _minimize_console_window,
     _remove_profile_directory,
     open_gui_window,
 )
 
 
 class GuiWindowTests(unittest.TestCase):
+    def test_console_minimization_is_a_noop_outside_windows(self):
+        with patch("autoqy_core.gui_window.sys.platform", "linux"):
+            self.assertFalse(_minimize_console_window())
+
+    def test_windows_console_is_minimized(self):
+        kernel32 = Mock()
+        kernel32.GetConsoleWindow.return_value = 123
+        user32 = Mock()
+        with (
+            patch("autoqy_core.gui_window.sys.platform", "win32"),
+            patch("autoqy_core.gui_window.ctypes.WinDLL",
+                  side_effect=[kernel32, user32]),
+        ):
+            self.assertTrue(_minimize_console_window())
+        user32.ShowWindow.assert_called_once_with(123, 6)
+
     def test_profile_cleanup_accepts_an_already_removed_directory(self):
         with TemporaryDirectory() as temporary:
             missing = Path(temporary) / "missing"

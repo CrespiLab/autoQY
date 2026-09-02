@@ -16,6 +16,7 @@ from autoqy_core.tools.smoother_gui import (
     _legend_labels,
     _pack,
     _pack_epsilon,
+    _spectrum_colors,
     create_app,
 )
 
@@ -127,6 +128,8 @@ class SpectralGuiTests(unittest.TestCase):
         }
         self.assertIsInstance(by_id["spectrum-legend-labels"], dcc.Textarea)
         self.assertEqual(by_id["show-spectrum-legend"].value, ["on"])
+        self.assertEqual(by_id["minimal-spectrum-colors"].value, [])
+        self.assertEqual(by_id["include-plot-header"].value, [])
         self.assertNotIn("responsive", by_id["epsilon-plot"].config)
         for component_id in (
             "save-epsilon-png", "save-epsilon-svg", "save-nmr-png", "save-nmr-svg"
@@ -134,6 +137,9 @@ class SpectralGuiTests(unittest.TestCase):
             self.assertIn(component_id, by_id)
         self.assertIn("epsilon-image-message.children", self.app.callback_map)
         self.assertIn("nmr-image-message.children", self.app.callback_map)
+        self.assertIn("window.showSaveFilePicker", self.app.index_string)
+        self.assertIn("exportLayout.showlegend = false", self.app.index_string)
+        self.assertIn("exportLayout.title = null", self.app.index_string)
 
     def test_legend_edits_are_plot_only_and_use_the_analysis_palette(self):
         self.assertEqual(_colors(), list(ANALYSIS_TRACE_PALETTE))
@@ -142,6 +148,22 @@ class SpectralGuiTests(unittest.TestCase):
                            "Reference\nProduct"),
             ["Reference", "Product", "third.csv"],
         )
+
+    def test_minimal_palette_marks_initial_intermediate_and_final_spectra(self):
+        self.assertEqual(_spectrum_colors(1, True), ["#2d6f8e"])
+        self.assertEqual(
+            _spectrum_colors(4, True),
+            [
+                "#2d6f8e",
+                "rgba(108,114,128,0.38)",
+                "rgba(108,114,128,0.38)",
+                "#d67b36",
+            ],
+        )
+        self.assertEqual(_spectrum_colors(7), [
+            ANALYSIS_TRACE_PALETTE[index % len(ANALYSIS_TRACE_PALETTE)]
+            for index in range(7)
+        ])
 
     def test_preview_and_save_work_without_concentrations(self):
         callbacks = self.app.callback_map
@@ -164,7 +186,7 @@ class SpectralGuiTests(unittest.TestCase):
         packed = _pack(dataset, ["irradiation"], ["irradiation.csv"])
         preview_result = preview(
             packed, 400, 402, [], None, None, "off", 5, 3,
-            [], 1, [None], [1.0], [], "Reference spectrum",
+            [], 1, [None], [1.0], [], "Reference spectrum", [],
         )
         self.assertIsNone(preview_result[4])
         self.assertIsNotNone(preview_result[5])
