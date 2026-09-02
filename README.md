@@ -71,7 +71,7 @@ You also need an internet connection during installation. AutoQY installs its ow
 
 ### 2. Download the installer
 
-**[Download Install-AutoQY.bat](https://github.com/CrespiLab/autoQY/releases/tag/v.2.3.0/Install-AutoQY.bat)**
+**[Download Install-AutoQY.bat](https://github.com/CrespiLab/autoQY/releases/download/v.2.3.0/Install-AutoQY.bat)**
 
 ### 3. Choose where AutoQY will be installed
 
