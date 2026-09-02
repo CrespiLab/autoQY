@@ -7,16 +7,18 @@ from dataclasses import asdict
 import json
 from pathlib import Path
 import re
-from threading import Timer
+from threading import Lock
+import time
 from uuid import uuid4
-import webbrowser
 
 import numpy as np
 
+from .gui_window import serve_gui
 from .output import format_value_uncertainty
 from .power import (REGION_NAMES, PowerTraceResult, baseline_power_trace,
                     combine_power_traces, load_thorlabs_opm_text,
                     process_power_trace)
+from .version import get_project_version
 
 
 REGION_LABELS = (
@@ -36,22 +38,77 @@ def create_app():
     except ImportError as error:
         raise RuntimeError(
             "The power GUI requires the optional web dependencies. "
-            "Install them with: pip install -e .[power-gui]"
+            "Install them with: pip install -e .[gui]"
         ) from error
 
     assets = Path(__file__).with_name("assets")
-    app = Dash(__name__, title="AutoQY Power", assets_folder=str(assets))
+    project_version = get_project_version()
+    app = Dash(
+        __name__, title=f"AutoQY Power · {project_version}", assets_folder=str(assets)
+    )
+    window_state = {"close_requested_at": None, "last_heartbeat_at": None}
+    window_lock = Lock()
+    app.server.config["AUTOQY_WINDOW_STATE"] = (window_state, window_lock)
+
+    @app.server.post("/_autoqy_power_heartbeat")
+    def autoqy_heartbeat():
+        with window_lock:
+            window_state["close_requested_at"] = None
+            window_state["last_heartbeat_at"] = time.monotonic()
+        return "", 204
+
+    @app.server.post("/_autoqy_power_window_closed")
+    def autoqy_window_closed():
+        with window_lock:
+            window_state["close_requested_at"] = time.monotonic()
+        return "", 204
+
+    app.index_string = """<!DOCTYPE html>
+<html><head>{%metas%}<title>{%title%}</title>{%favicon%}{%css%}</head>
+<body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer>
+<script>
+(() => {
+  let heartbeatFailures = 0;
+  let closingForStoppedServer = false;
+  const heartbeat = async () => {
+    try {
+      const response = await fetch('/_autoqy_power_heartbeat', {
+        method: 'POST', keepalive: true, cache: 'no-store'
+      });
+      if (!response.ok) throw new Error('heartbeat failed');
+      heartbeatFailures = 0;
+    } catch (_) {
+      heartbeatFailures += 1;
+      if (heartbeatFailures >= 3 && !closingForStoppedServer) {
+        closingForStoppedServer = true;
+        window.close();
+        window.setTimeout(() => {
+          document.body.innerHTML = '<main style="font-family:Segoe UI,sans-serif;padding:2rem">'
+            + '<h1>AutoQY GUI stopped</h1><p>The terminal has been closed. Close this webpage and restart the AutoQY GUI to continue.</p></main>';
+        }, 150);
+      }
+    }
+  };
+  heartbeat();
+  const heartbeatTimer = window.setInterval(heartbeat, 1000);
+  window.addEventListener('pageshow', heartbeat);
+  window.addEventListener('pagehide', () => {
+    window.clearInterval(heartbeatTimer);
+    navigator.sendBeacon('/_autoqy_power_window_closed');
+  });
+})();
+</script></body></html>"""
     app.layout = html.Div(className="app-shell", children=[
         dcc.Store(id="power-store", data={"datasets": []}),
         dcc.Download(id="download-results"),
         html.Header(className="app-header", children=[
             html.Div([
-                html.P("AUTOQY CORE", className="eyebrow"),
+                html.P("AUTOQY", className="eyebrow"),
                 html.H1("Power treatment"),
                 html.P("Baseline optical-power traces and calculate the power at the cuvette.",
                        className="subtitle"),
             ]),
-            html.Div("Local session", className="local-badge"),
+            html.Div(f"Version {project_version}", className="local-badge"),
         ]),
         html.Main(className="workspace", children=[
             html.Aside(className="control-column", children=[
@@ -480,11 +537,8 @@ def _repeat_row(html, dataset, uncertainty_output):
 
 
 def run_server(host="127.0.0.1", port=8050, open_browser=True):
-    """Run the local application and optionally open it in the default browser."""
-    app = create_app()
-    if open_browser:
-        Timer(1, lambda: webbrowser.open(f"http://{host}:{port}")).start()
-    app.run(host=host, port=port, debug=False)
+    """Run the local application and optionally open its dedicated window."""
+    serve_gui(create_app, host, port, open_browser, "AutoQY Power")
 
 
 def main(argv=None):

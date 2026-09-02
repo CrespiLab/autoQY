@@ -4,9 +4,8 @@ from argparse import ArgumentParser
 import base64
 from pathlib import Path
 import subprocess
-from threading import Lock, Thread, Timer
+from threading import Lock
 import time
-import webbrowser
 
 import numpy as np
 
@@ -14,10 +13,14 @@ from ..epsilon import (EpsilonResult, NMRSubtractionResult,
                        calculate_epsilon_statistics, export_epsilon_csv,
                        export_nmr_subtraction_csv, load_epsilon_table,
                        nonnegative_error_bounds, reconstruct_product_from_nmr)
+from ..gui_window import serve_gui
+from ..plot_style import (ANALYSIS_TRACE_PALETTE, PLOT_BLUE, PLOT_ORANGE,
+                          PLOT_PURPLE)
 from ..smoother import (SpectralDataset, analyze_svd, baseline_spectra,
                         export_smoothed_text, load_spectral_bytes,
                         savgol_window_points, select_wavelengths,
                         smooth_reconstruction)
+from ..version import get_project_version
 
 
 def create_app():
@@ -26,12 +29,13 @@ def create_app():
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
     except ImportError as error:
-        raise RuntimeError("The spectral treatment GUI requires the 'power-gui' optional dependencies") from error
+        raise RuntimeError("The spectral treatment GUI requires the 'gui' optional dependencies") from error
 
     assets = Path(__file__).parents[1] / "assets"
+    project_version = get_project_version()
     app = Dash(__name__, assets_folder=str(assets), suppress_callback_exceptions=True)
-    app.title = "AutoQY Spectral treatment"
-    window_state = {"close_requested_at": None}
+    app.title = f"AutoQY Spectral treatment · {project_version}"
+    window_state = {"close_requested_at": None, "last_heartbeat_at": None}
     window_lock = Lock()
     app.server.config["AUTOQY_WINDOW_STATE"] = (window_state, window_lock)
 
@@ -39,6 +43,7 @@ def create_app():
     def autoqy_heartbeat():
         with window_lock:
             window_state["close_requested_at"] = None
+            window_state["last_heartbeat_at"] = time.monotonic()
         return "", 204
 
     @app.server.post("/_autoqy_window_closed")
@@ -52,10 +57,34 @@ def create_app():
 <body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer>
 <script>
 (() => {
-  const heartbeat = () => fetch('/_autoqy_heartbeat', {method: 'POST', keepalive: true});
+  let heartbeatFailures = 0;
+  let closingForStoppedServer = false;
+  const heartbeat = async () => {
+    try {
+      const response = await fetch('/_autoqy_heartbeat', {
+        method: 'POST', keepalive: true, cache: 'no-store'
+      });
+      if (!response.ok) throw new Error('heartbeat failed');
+      heartbeatFailures = 0;
+    } catch (_) {
+      heartbeatFailures += 1;
+      if (heartbeatFailures >= 3 && !closingForStoppedServer) {
+        closingForStoppedServer = true;
+        window.close();
+        window.setTimeout(() => {
+          document.body.innerHTML = '<main style="font-family:Segoe UI,sans-serif;padding:2rem">'
+            + '<h1>AutoQY GUI stopped</h1><p>The terminal has been closed. Close this webpage and restart the AutoQY GUI to continue.</p></main>';
+        }, 150);
+      }
+    }
+  };
   heartbeat();
+  const heartbeatTimer = window.setInterval(heartbeat, 1000);
   window.addEventListener('pageshow', heartbeat);
-  window.addEventListener('pagehide', () => navigator.sendBeacon('/_autoqy_window_closed'));
+  window.addEventListener('pagehide', () => {
+    window.clearInterval(heartbeatTimer);
+    navigator.sendBeacon('/_autoqy_window_closed');
+  });
   document.addEventListener('click', (event) => {
     const popup = event.target.closest('.info-popup');
     if (popup) {
@@ -67,6 +96,168 @@ def create_app():
     }
   }, true);
 })();
+window.autoqyDownloadPlot = (
+  graphId, figure, format, includeHeader, originStyle, exportGrid
+) => {
+  const graph = document.querySelector(`#${graphId} .js-plotly-plot`);
+  if (!graph || !window.Plotly) return 'Plot export is unavailable.';
+  const title = typeof figure?.layout?.title === 'string'
+    ? figure.layout.title : figure?.layout?.title?.text;
+  const filename = String(title || 'autoqy-spectral-treatment')
+    .replace(/<[^>]+>/g, '')
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase() || 'autoqy-spectral-treatment';
+  let width = Math.max(900, Math.round(graph._fullLayout?.width || 1200));
+  let height = Math.max(600, Math.round(graph._fullLayout?.height || 800));
+  const keepHeader = Array.isArray(includeHeader) && includeHeader.includes('on');
+  const useOriginStyle = Array.isArray(originStyle) && originStyle.includes('on');
+  const includeGrid = Array.isArray(exportGrid) && exportGrid.includes('on');
+  const exportData = JSON.parse(JSON.stringify(figure?.data || []));
+  const exportLayout = JSON.parse(JSON.stringify(figure?.layout || {}));
+  if (keepHeader) {
+    exportLayout.showlegend = true;
+  } else {
+    exportLayout.title = null;
+    exportLayout.showlegend = false;
+    exportLayout.margin = Object.assign({}, exportLayout.margin || {}, {t: 58});
+    height = Math.max(480, height - 127);
+  }
+  const axisKeys = Object.keys(exportLayout)
+    .filter((key) => /^xaxis\\d*$|^yaxis\\d*$/.test(key));
+  if (useOriginStyle) {
+    width = 1300;
+    height = 1000;
+    exportLayout.paper_bgcolor = '#ffffff';
+    exportLayout.plot_bgcolor = '#ffffff';
+    exportLayout.font = Object.assign({}, exportLayout.font || {}, {
+      family: 'Arial, Helvetica, sans-serif', color: '#000000', size: 18
+    });
+    exportLayout.margin = Object.assign({}, exportLayout.margin || {}, {
+      l: 180, r: 40, t: keepHeader ? 130 : 40, b: 140
+    });
+    exportLayout.legend = Object.assign({}, exportLayout.legend || {}, {
+      bgcolor: 'rgba(0,0,0,0)', borderwidth: 0,
+      font: {family: 'Arial, Helvetica, sans-serif', size: 18, color: '#000000'}
+    });
+    axisKeys.forEach((key) => {
+      const axis = Object.assign({}, exportLayout[key] || {});
+      axis.showline = true;
+      axis.mirror = true;
+      axis.linewidth = 2;
+      axis.linecolor = '#000000';
+      axis.ticks = 'outside';
+      axis.tickwidth = 2;
+      axis.ticklen = 10;
+      axis.tickcolor = '#000000';
+      axis.tickfont = Object.assign({}, axis.tickfont || {}, {
+        family: 'Arial, Helvetica, sans-serif', size: 18, color: '#000000'
+      });
+      axis.title = Object.assign({}, axis.title || {}, {
+        font: Object.assign({}, axis.title?.font || {}, {
+          family: 'Arial, Helvetica, sans-serif', size: 24, color: '#000000'
+        })
+      });
+      axis.minor = Object.assign({}, axis.minor || {}, {
+        ticks: 'outside', ticklen: 5, tickwidth: 1, tickcolor: '#000000'
+      });
+      axis.zeroline = false;
+      exportLayout[key] = axis;
+    });
+  }
+  axisKeys.forEach((key) => {
+    exportLayout[key] = Object.assign({}, exportLayout[key] || {}, {
+      showgrid: includeGrid,
+      gridcolor: 'rgba(0,0,0,0.13)',
+      gridwidth: 1
+    });
+  });
+  exportLayout.width = width;
+  exportLayout.height = height;
+
+  const extension = `.${format}`;
+  const suggestedName = `${filename}${extension}`;
+  const mimeType = format === 'svg' ? 'image/svg+xml' : 'image/png';
+  let fileHandlePromise = null;
+  if (window.showSaveFilePicker) {
+    try {
+      fileHandlePromise = window.showSaveFilePicker({
+        suggestedName,
+        types: [{
+          description: `${format.toUpperCase()} image`,
+          accept: {[mimeType]: [extension]}
+        }]
+      });
+    } catch (_) {
+      return `Could not open the ${format.toUpperCase()} save dialog.`;
+    }
+  }
+
+  const holder = document.createElement('div');
+  holder.style.cssText = `position:fixed;left:-100000px;top:0;width:${width}px;height:${height}px`;
+  document.body.appendChild(holder);
+  const renderImage = () => window.Plotly.newPlot(
+    holder, exportData, exportLayout, {staticPlot: true, displayModeBar: false}
+  ).then(() => window.Plotly.toImage(holder, {
+    format, width, height, scale: format === 'png' ? 2 : 1
+  })).finally(() => {
+    window.Plotly.purge(holder);
+    holder.remove();
+  });
+
+  const saveImage = (fileHandle) => renderImage().then((dataUrl) => {
+    if (!fileHandle) {
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = suggestedName;
+      link.click();
+      return `${format.toUpperCase()} download started.`;
+    }
+    return window.fetch(dataUrl)
+      .then((response) => response.blob())
+      .then((blob) => fileHandle.createWritable()
+        .then((writer) => writer.write(blob).then(() => writer.close())))
+      .then(() => `${format.toUpperCase()} saved.`);
+  });
+
+  return (fileHandlePromise || Promise.resolve(null))
+    .then(saveImage)
+    .catch((error) => error?.name === 'AbortError'
+      ? 'Save cancelled.'
+      : `Could not create the ${format.toUpperCase()} image.`);
+};
+
+window.autoqySaveText = (filename, text, mimeType) => {
+  const extension = filename.includes('.') ? `.${filename.split('.').pop()}` : '.csv';
+  let fileHandlePromise = null;
+  if (window.showSaveFilePicker) {
+    try {
+      fileHandlePromise = window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{description: 'CSV data', accept: {[mimeType]: [extension]}}]
+      });
+    } catch (_) {
+      return 'Could not open the CSV save dialog.';
+    }
+  }
+  const blob = new Blob([text], {type: mimeType});
+  const save = (fileHandle) => {
+    if (!fileHandle) {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      return 'CSV download started.';
+    }
+    return fileHandle.createWritable()
+      .then((writer) => writer.write(blob).then(() => writer.close()))
+      .then(() => 'CSV saved.');
+  };
+  return (fileHandlePromise || Promise.resolve(null)).then(save)
+    .catch((error) => error?.name === 'AbortError' ? 'Save cancelled.' : 'Could not save CSV.');
+};
 </script></body></html>"""
 
     def info_popup(text):
@@ -77,11 +268,11 @@ def create_app():
 
     app.layout = html.Div(className="app-shell", children=[
         html.Header(className="app-header", children=[html.Div([
-            html.P("AUTOQY CORE", className="eyebrow"),
+            html.P("AUTOQY", className="eyebrow"),
             html.H1("Spectral treatment"),
             html.P("Prepare wavelength-resolved data and calculate molar absorptivity.",
                    className="subtitle"),
-        ]), html.Div("Local session", className="local-badge")]),
+        ]), html.Div(f"Version {project_version}", className="local-badge")]),
         html.Main(className="workspace epsilon-workspace", children=[
             html.Aside(className="control-column smoother-controls", children=[
                 html.Details(open=True, className="panel tool-details", children=[
@@ -95,13 +286,27 @@ def create_app():
                         children=html.Div([
                             html.Span("Drop or choose one or more spectral files"),
                             html.Small("SpectraGryph .dat, Avantes .Abs8, TSV, or CSV"),
+                            html.Small("Each new drop is added until Clear all spectra."),
                         ]),
                     ),
                     html.Button("Open files from folder", id="open-local-spectra",
                                 className="button button-secondary"),
                     html.Button("Clear all spectra", id="clear-dataset",
                                 className="button button-secondary", disabled=True),
-                    html.Div(id="load-message", className="message"),
+                    html.Div(className="remove-spectra-controls", children=[
+                        dcc.Dropdown(
+                            id="remove-spectrum-selection", options=[], value=[],
+                            multi=True, placeholder="Select spectra to remove",
+                        ),
+                        html.Button(
+                            "Remove selected", id="remove-spectra",
+                            className="button button-secondary", disabled=True,
+                        ),
+                    ]),
+                    dcc.Loading(
+                        html.Div(id="load-message", className="message"),
+                        type="circle",
+                    ),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
                     html.Summary([html.Span("2 · Range", className="step-label"),
@@ -188,7 +393,7 @@ def create_app():
                     ]),
                     html.Label("CSV file name (optional)"),
                     dcc.Input(id="save-filename", type="text",
-                              placeholder="Automatic name based on export type"),
+                              placeholder="Default name"),
                     html.Small("Leave blank to use processed-absorbance.csv or "
                                "epsilon-spectra-reactant.csv."),
                     html.Div(className="export-mode-control", children=[
@@ -294,10 +499,140 @@ def create_app():
             ]),
             html.Div(className="plot-column", children=[
                 html.Section(className="plot-panel", children=[
-                    dcc.Graph(id="epsilon-plot", figure=_empty(go, "Load spectral data to begin")),
+                    html.Div(className="plot-toolbar", children=[
+                        html.Div(className="plot-download-actions", children=[
+                            html.Button("Save PNG", id="save-epsilon-png",
+                                        className="button button-secondary compact-button"),
+                            html.Button("Save SVG", id="save-epsilon-svg",
+                                        className="button button-secondary compact-button"),
+                        ]),
+                        html.Div(className="plot-toolbar-controls", children=[
+                            html.Div(className="plot-quick-options", children=[
+                                dcc.Checklist(
+                                    id="minimal-spectrum-colors", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Minimal colors", "value": "on"}],
+                                ),
+                                dcc.Checklist(
+                                    id="include-plot-header", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Save title + legend", "value": "on"}],
+                                ),
+                                dcc.Checklist(
+                                    id="origin-epsilon-export", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Origin-style export", "value": "on"}],
+                                ),
+                                dcc.Checklist(
+                                    id="show-epsilon-export-grid", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Grid in saved image", "value": "on"}],
+                                ),
+                            ]),
+                            html.Details(className="plot-options", children=[
+                                html.Summary("Legend options"),
+                                dcc.Checklist(
+                                    id="show-spectrum-legend", value=["on"],
+                                    className="toggle-control plot-legend-toggle",
+                                    options=[{"label": "Show legend", "value": "on"}],
+                                ),
+                            ]),
+                            html.Details(className="plot-options axis-name-options", children=[
+                                html.Summary("Axis names"),
+                                html.Div(className="axis-name-grid", children=[
+                                    html.Label(["Main X axis", dcc.Input(
+                                        id="main-x-axis-label", type="text",
+                                        value="Wavelength (nm)"
+                                    )]),
+                                    html.Label(["Main absorbance axis", dcc.Input(
+                                        id="main-absorbance-axis-label", type="text",
+                                        value="Absorbance"
+                                    )]),
+                                    html.Label(["Main ε axis", dcc.Input(
+                                        id="main-epsilon-axis-label", type="text",
+                                        value="ε (M⁻¹ cm⁻¹)"
+                                    )]),
+                                    html.Label(["Slice X axis", dcc.Input(
+                                        id="slice-x-axis-label", type="text", value="Time"
+                                    )]),
+                                    html.Label(["Slice Y axis", dcc.Input(
+                                        id="slice-y-axis-label", type="text",
+                                        value="Absorbance"
+                                    )]),
+                                ]),
+                            ]),
+                        ]),
+                    ]),
+                    html.Div(id="epsilon-image-message", className="image-export-message"),
+                    dcc.Graph(
+                        id="epsilon-plot", figure=_empty(go, "Load spectral data to begin"),
+                        config=_graph_config(),
+                    ),
                 ]),
+                html.Details(
+                    id="wavelength-slice-panel", open=False,
+                    className="plot-panel wavelength-slice-panel",
+                    children=[
+                        html.Summary("Wavelength slice over time"),
+                        html.Div(className="slice-toolbar", children=[
+                            html.Div(className="slice-wavelength-control", children=[
+                                html.Label("Wavelength (nm)"),
+                                dcc.Input(id="slice-wavelength", type="number", step="any",
+                                          placeholder="Type a wavelength"),
+                            ]),
+                            html.Div(className="plot-download-actions", children=[
+                                html.Button("Save PNG", id="save-slice-png",
+                                            className="button button-secondary compact-button"),
+                                html.Button("Save SVG", id="save-slice-svg",
+                                            className="button button-secondary compact-button"),
+                                html.Button("Save CSV", id="save-slice-csv",
+                                            className="button button-secondary compact-button"),
+                            ]),
+                            html.Div(className="plot-quick-options", children=[
+                                dcc.Checklist(
+                                    id="include-slice-header", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Save title + legend", "value": "on"}],
+                                ),
+                                dcc.Checklist(
+                                    id="origin-slice-export", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Origin-style export", "value": "on"}],
+                                ),
+                                dcc.Checklist(
+                                    id="show-slice-export-grid", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Grid in saved image", "value": "on"}],
+                                ),
+                            ]),
+                        ]),
+                        html.Div(id="slice-message", className="message"),
+                        html.Div(id="slice-image-message", className="image-export-message"),
+                        html.Div(id="slice-csv-message", className="image-export-message"),
+                        dcc.Graph(
+                            id="wavelength-slice-plot",
+                            figure=_empty(go, "Load spectra and type a wavelength"),
+                            config=_graph_config(),
+                        ),
+                    ],
+                ),
                 html.Section(id="nmr-plot-panel", className="plot-panel", style={"display": "none"},
-                             children=[dcc.Graph(id="nmr-plot", figure=_empty(go, "Load NMR spectra"))]),
+                             children=[
+                                 html.Div(className="plot-toolbar nmr-plot-toolbar", children=[
+                                     html.Strong("NMR-guided PSS subtraction"),
+                                     html.Div(className="plot-download-actions", children=[
+                                         html.Button("Save PNG", id="save-nmr-png",
+                                                     className="button button-secondary compact-button"),
+                                         html.Button("Save SVG", id="save-nmr-svg",
+                                                     className="button button-secondary compact-button"),
+                                     ]),
+                                 ]),
+                                 html.Div(id="nmr-image-message", className="image-export-message"),
+                                 dcc.Graph(
+                                     id="nmr-plot", figure=_empty(go, "Load NMR spectra"),
+                                     config=_graph_config(),
+                                 ),
+                             ]),
                 html.Section(className="panel result-summary", children=[
                     html.Div(className="section-title-row", children=[
                         html.H2("Result"), info_popup(
@@ -319,35 +654,142 @@ def create_app():
             ]),
         ]),
         dcc.Store(id="dataset-store"),
+        dcc.Store(id="kinetics-start-store"),
         dcc.Store(id="epsilon-store"),
         dcc.Store(id="processed-store"),
+        dcc.Store(id="wavelength-slice-store"),
         dcc.Store(id="nmr-spectra-store"),
         dcc.Store(id="nmr-result-store"),
         dcc.Store(id="source-folder-store"),
     ])
 
+    def register_image_download(graph_id, png_button, svg_button, message_id,
+                                header_option, origin_option, grid_option):
+        app.clientside_callback(
+            """
+            function(pngClicks, svgClicks, figure, includeHeader, originStyle, exportGrid) {
+              const context = window.dash_clientside.callback_context;
+              if (!context.triggered || !context.triggered.length) {
+                return window.dash_clientside.no_update;
+              }
+              const trigger = context.triggered[0].prop_id.split('.')[0];
+              const format = trigger.endsWith('svg') ? 'svg' : 'png';
+              return window.autoqyDownloadPlot(
+                GRAPH_ID, figure, format, includeHeader, originStyle, exportGrid
+              );
+            }
+            """.replace("GRAPH_ID", repr(graph_id)),
+            Output(message_id, "children"),
+            Input(png_button, "n_clicks"),
+            Input(svg_button, "n_clicks"),
+            State(graph_id, "figure"),
+            State(header_option, "value"),
+            State(origin_option, "value"),
+            State(grid_option, "value"),
+            prevent_initial_call=True,
+        )
+
+    register_image_download(
+        "epsilon-plot", "save-epsilon-png", "save-epsilon-svg",
+        "epsilon-image-message", "include-plot-header", "origin-epsilon-export",
+        "show-epsilon-export-grid",
+    )
+    register_image_download(
+        "wavelength-slice-plot", "save-slice-png", "save-slice-svg",
+        "slice-image-message", "include-slice-header", "origin-slice-export",
+        "show-slice-export-grid",
+    )
+    register_image_download(
+        "nmr-plot", "save-nmr-png", "save-nmr-svg", "nmr-image-message",
+        "include-plot-header", "origin-epsilon-export",
+        "show-epsilon-export-grid",
+    )
+
+    app.clientside_callback(
+        """
+        function(clicks, data) {
+          if (!clicks) return window.dash_clientside.no_update;
+          if (!data || !data.coordinates || !data.values) {
+            return 'Choose a wavelength before saving CSV.';
+          }
+          const quote = (value) => `"${String(value).replace(/"/g, '""')}"`;
+          const rows = [[data.x_label, data.y_label]];
+          data.coordinates.forEach((coordinate, index) => {
+            rows.push([coordinate, data.values[index]]);
+          });
+          const csv = rows.map((row) => row.map(quote).join(',')).join('\\n') + '\\n';
+          const wavelength = String(data.wavelength).replace(/[^0-9.-]+/g, '-');
+          return window.autoqySaveText(
+            `wavelength-slice-${wavelength}-nm.csv`, csv, 'text/csv'
+          );
+        }
+        """,
+        Output("slice-csv-message", "children"),
+        Input("save-slice-csv", "n_clicks"),
+        State("wavelength-slice-store", "data"),
+        prevent_initial_call=True,
+    )
+
     @app.callback(
         Output("dataset-store", "data"), Output("load-message", "children"),
         Output("upload-spectra", "contents"), Output("upload-spectra", "filename"),
         Output("load-error", "children"), Output("source-folder-store", "data"),
+        Output("kinetics-start-store", "data"),
         Input("upload-spectra", "contents"), Input("clear-dataset", "n_clicks"),
         Input("open-local-spectra", "n_clicks"),
+        Input("remove-spectra", "n_clicks"),
         State("upload-spectra", "filename"),
+        State("dataset-store", "data"), State("kinetics-start-store", "data"),
+        State("remove-spectrum-selection", "value"),
+        State({"type": "direct-concentration", "index": ALL}, "value"),
+        State({"type": "path-length", "index": ALL}, "value"),
         prevent_initial_call=True,
     )
-    def load(contents, _, __, filenames):
+    def load(contents, _, __, ___, filenames, existing_data, kinetics_start,
+             remove_indices, concentrations, path_lengths):
         if ctx.triggered_id == "clear-dataset":
-            return None, "All spectra cleared.", None, None, "", None
+            return None, "All spectra cleared.", None, None, "", None, None
+
+        if ctx.triggered_id == "remove-spectra":
+            updated = _remove_packed(
+                existing_data, remove_indices, concentrations, path_lengths
+            )
+            removed = len(set(remove_indices or []))
+            if updated is None:
+                return (None, "All selected spectra removed.", no_update,
+                        no_update, "", None, None)
+            return (
+                updated,
+                f"Removed {_count_text(removed, 'spectrum', 'spectra')}; "
+                f"{_count_text(len(updated['labels']), 'spectrum', 'spectra')} remain.",
+                no_update, no_update, "", no_update, kinetics_start,
+            )
+
+        def finish_add(incoming, initial_message, source_folder=no_update):
+            now = time.monotonic()
+            start = float(kinetics_start) if kinetics_start is not None else now
+            merged = _append_packed(existing_data, incoming, now - start)
+            if existing_data:
+                added = len(incoming["labels"])
+                message = (f"Added {_count_text(added, 'spectrum', 'spectra')}; "
+                           f"{_count_text(len(merged['labels']), 'spectrum', 'spectra')} "
+                           "now loaded.")
+            else:
+                message = initial_message
+            return merged, message, None, None, "", source_folder, start
+
         try:
             if ctx.triggered_id == "open-local-spectra":
                 paths = _choose_files()
                 if not paths:
-                    return no_update, "File selection cancelled.", no_update, no_update, "", no_update
-                packed, message = _load_local_paths(paths)
+                    return (existing_data, "File selection cancelled.", no_update,
+                            no_update, "", no_update, kinetics_start)
+                incoming, message = _load_local_paths(paths)
                 source_folder = str(Path(paths[0]).resolve().parent)
-                return packed, message, None, None, "", source_folder
+                return finish_add(incoming, message, source_folder)
             if not contents:
-                return None, "Choose one or more files to begin.", no_update, no_update, "", None
+                return (existing_data, "Drop or choose spectra to add.", no_update,
+                        no_update, "", no_update, kinetics_start)
             contents = contents if isinstance(contents, list) else [contents]
             filenames = filenames if isinstance(filenames, list) else [filenames]
             restored = _try_load_autoqy_export(contents, filenames)
@@ -357,12 +799,18 @@ def create_app():
                     result.wavelengths, np.arange(len(labels), dtype=float),
                     result.absorbance, "autoqy_epsilon", 0,
                 )
-                return (
-                    _pack(dataset, labels, filenames, result.concentrations_m,
-                          result.path_lengths_cm),
-                    f"Restored {len(labels)} processed absorbance spectrum/spectra, "
+                incoming = _pack(
+                    dataset, labels, filenames, result.concentrations_m,
+                    result.path_lengths_cm,
+                )
+                restored_count = _count_text(
+                    len(labels), "processed absorbance spectrum",
+                    "processed absorbance spectra",
+                )
+                return finish_add(
+                    incoming,
+                    f"Restored {restored_count}, "
                     "concentrations, and path lengths from an AutoQY ε CSV or legacy TSV.",
-                    no_update, no_update, "", None,
                 )
             loaded = []
             for content, filename in zip(contents, filenames):
@@ -376,17 +824,21 @@ def create_app():
             if missing:
                 notes.append(f"interpolated {missing} non-finite detector value(s)")
             if resampled:
-                notes.append(f"resampled {resampled} spectrum/spectra to the first common grid")
+                notes.append(
+                    f"resampled {_count_text(resampled, 'spectrum', 'spectra')} "
+                    "to the first common grid"
+                )
             note = f" ({'; '.join(notes)})" if notes else ""
-            return (
+            return finish_add(
                 _pack(dataset, labels, filenames),
-                f"Loaded {len(filenames)} file(s), {len(labels)} spectrum/spectra, "
+                f"Loaded {_count_text(len(filenames), 'file')}, "
+                f"{_count_text(len(labels), 'spectrum', 'spectra')}, "
                 f"and {len(dataset.wavelengths)} common wavelengths{note}.",
-                no_update, no_update, "", None,
             )
         except Exception as error:
-            return (None, "Could not load the selected files.", no_update, no_update,
-                    f"Load error: {type(error).__name__}: {error}", no_update)
+            return (existing_data, "Could not add the selected files.", None, None,
+                    f"Load error: {type(error).__name__}: {error}", no_update,
+                    kinetics_start)
 
     @app.callback(
         Output("save-folder", "value"),
@@ -403,15 +855,39 @@ def create_app():
         Output("wavelength-low", "value"), Output("wavelength-high", "value"),
         Output("wavelength-low", "disabled"), Output("wavelength-high", "disabled"),
         Output("clear-dataset", "disabled"), Output("concentration-parameters", "children"),
+        Output("slice-wavelength", "min"), Output("slice-wavelength", "max"),
+        Output("slice-wavelength", "value"),
         Input("dataset-store", "data"),
     )
     def dataset_controls(data):
         if not data:
-            return None, None, True, True, True, []
+            return None, None, True, True, True, [], None, None, None
         wavelengths = np.asarray(data["wavelengths"], float)
         return (float(wavelengths.min()), float(wavelengths.max()), False, False, False,
                 _parameter_cards(html, dcc, data["labels"],
-                                 data.get("concentrations"), data.get("path_lengths")))
+                                 data.get("concentrations"), data.get("path_lengths")),
+                float(wavelengths.min()), float(wavelengths.max()),
+                float(wavelengths[len(wavelengths) // 2]))
+
+    @app.callback(
+        Output("remove-spectrum-selection", "options"),
+        Output("remove-spectrum-selection", "value"),
+        Input("dataset-store", "data"),
+    )
+    def removal_options(data):
+        if not data:
+            return [], []
+        return [
+            {"label": label, "value": index}
+            for index, label in enumerate(data["labels"])
+        ], []
+
+    @app.callback(
+        Output("remove-spectra", "disabled"),
+        Input("remove-spectrum-selection", "value"),
+    )
+    def removal_button_disabled(selected):
+        return not bool(selected)
 
     @app.callback(
         Output("svd-rank", "options"), Output("svd-rank", "value"),
@@ -461,10 +937,17 @@ def create_app():
         Input("svd-rank", "value"),
         Input({"type": "direct-concentration", "index": ALL}, "value"),
         Input({"type": "path-length", "index": ALL}, "value"),
+        Input("show-spectrum-legend", "value"),
+        Input("minimal-spectrum-colors", "value"),
+        Input("main-x-axis-label", "value"),
+        Input("main-absorbance-axis-label", "value"),
+        Input("main-epsilon-axis-label", "value"),
     )
     def preview(data, wavelength_low, wavelength_high, baseline_enabled,
                 baseline_low, baseline_high, method, sg_width, sg_order,
-                svd_enabled, svd_rank, concentrations, path_lengths):
+                svd_enabled, svd_rank, concentrations, path_lengths,
+                show_legend, minimal_colors, x_axis_label,
+                absorbance_axis_label, epsilon_axis_label):
         if not data:
             return (_empty(go, "Load spectral data to begin"),
                     "No result yet.", "", "Smoothing is off.", None, None, True, "")
@@ -484,11 +967,19 @@ def create_app():
                 ),
                 data["labels"], data.get("filenames", []),
             )
+            plot_labels = data["labels"]
+            legend_visible = "on" in (show_legend or [])
+            use_minimal_colors = "on" in (minimal_colors or [])
             if concentration_data is None:
                 message = ("Enter the concentration and path length for every "
                            "spectrum to calculate molar absorptivity.")
-                return (_absorbance_figure(go, dataset, original, processed, data["labels"],
-                                           method, svd_enabled, svd_rank),
+                return (_absorbance_figure(
+                            go, dataset, original, processed, plot_labels,
+                            method, svd_enabled, svd_rank, legend_visible,
+                            use_minimal_colors,
+                            _axis_label(x_axis_label, "Wavelength (nm)"),
+                            _axis_label(absorbance_axis_label, "Absorbance"),
+                        ),
                         "Processed absorbance is ready to export; ε is waiting for "
                         "concentration inputs.",
                         message, smoothing_message, None, processed_data, False, "")
@@ -519,8 +1010,14 @@ def create_app():
                 f"{value:.6g} M" for value in concentrations
             )
             return (
-                _epsilon_figure(go, make_subplots, dataset, original, result,
-                                data["labels"], method, svd_enabled, svd_rank),
+                _epsilon_figure(
+                    go, make_subplots, dataset, original, result,
+                    plot_labels, method, svd_enabled, svd_rank, legend_visible,
+                    use_minimal_colors,
+                    _axis_label(x_axis_label, "Wavelength (nm)"),
+                    _axis_label(absorbance_axis_label, "Absorbance"),
+                    _axis_label(epsilon_axis_label, "ε (M⁻¹ cm⁻¹)"),
+                ),
                 result_message, concentration_message, smoothing_message,
                 _pack_epsilon(result, data["labels"]), processed_data, False, "",
             )
@@ -528,6 +1025,38 @@ def create_app():
             return (_empty(go, "Preview unavailable; open Python errors below."),
                     "No valid result.", "", "", None, None, True,
                     f"Preview error: {type(error).__name__}: {error}")
+
+    @app.callback(
+        Output("wavelength-slice-plot", "figure"),
+        Output("wavelength-slice-store", "data"),
+        Output("slice-message", "children"),
+        Input("processed-store", "data"), Input("slice-wavelength", "value"),
+        Input("slice-x-axis-label", "value"), Input("slice-y-axis-label", "value"),
+    )
+    def wavelength_slice(processed_data, wavelength, x_axis_label, y_axis_label):
+        if not processed_data:
+            return _empty(go, "Load spectra and type a wavelength"), None, ""
+        if wavelength is None:
+            return _empty(go, "Type a wavelength to display its time slice"), None, ""
+        try:
+            dataset = _unpack(processed_data)
+            selected, coordinates, values = _wavelength_slice(dataset, wavelength)
+            x_label = _axis_label(x_axis_label, "Time")
+            y_label = _axis_label(y_axis_label, "Absorbance")
+            data = {
+                "wavelength": selected,
+                "coordinates": coordinates.tolist(),
+                "values": values.tolist(),
+                "x_label": x_label,
+                "y_label": f"{y_label} at {selected:g} nm",
+            }
+            figure = _wavelength_slice_figure(
+                go, coordinates, values, selected, x_label, y_label
+            )
+            return figure, data, f"Showing the interpolated slice at {selected:g} nm."
+        except Exception as error:
+            return (_empty(go, "Wavelength slice unavailable"), None,
+                    f"Slice error: {type(error).__name__}: {error}")
 
     @app.callback(
         Output("epsilon-save-message", "children"),
@@ -764,7 +1293,7 @@ def _combine_loaded(loaded):
     target = first[(first >= low) & (first <= high)]
     if len(target) < 2:
         raise ValueError("The files share fewer than two wavelength values")
-    columns, labels = [], []
+    columns, labels, coordinates = [], [], []
     resampled = 0
     for dataset, filename in loaded:
         order = np.argsort(dataset.wavelengths)
@@ -779,11 +1308,128 @@ def _combine_loaded(loaded):
                 target, wavelengths, values[:, index]
             ))
             coordinate = dataset.coordinates[index]
+            coordinates.append(float(coordinate))
             labels.append(stem if values.shape[1] == 1 else f"{stem} [{coordinate:g}]")
             resampled += int(not exact)
-    combined = SpectralDataset(target, np.arange(len(columns), dtype=float),
+    combined_coordinates = (np.asarray(coordinates, dtype=float) if len(loaded) == 1
+                            else np.arange(len(columns), dtype=float))
+    combined = SpectralDataset(target, combined_coordinates,
                                np.column_stack(columns), "combined", 0)
     return combined, _display_unique(labels), resampled
+
+
+def _append_packed(existing_data, incoming_data, elapsed_seconds=None):
+    """Append newly loaded spectra while retaining the existing plot history."""
+    if not existing_data:
+        return incoming_data
+
+    existing = _unpack(existing_data)
+    incoming = _unpack(incoming_data)
+    low = max(float(np.min(existing.wavelengths)), float(np.min(incoming.wavelengths)))
+    high = min(float(np.max(existing.wavelengths)), float(np.max(incoming.wavelengths)))
+    target = np.sort(np.unique(np.asarray(existing.wavelengths, float)))
+    target = target[(target >= low) & (target <= high)]
+    if len(target) < 2:
+        raise ValueError("The added spectra do not share at least two wavelengths")
+
+    def resample(dataset):
+        order = np.argsort(dataset.wavelengths)
+        wavelengths, unique = np.unique(
+            np.asarray(dataset.wavelengths, float)[order], return_index=True
+        )
+        absorbance = np.asarray(dataset.absorbance, float)[order][unique]
+        return np.column_stack([
+            np.interp(target, wavelengths, absorbance[:, index])
+            for index in range(absorbance.shape[1])
+        ])
+
+    existing_values = resample(existing)
+    incoming_values = resample(incoming)
+    existing_coordinates = np.asarray(existing.coordinates, float)
+    incoming_coordinates = np.asarray(incoming.coordinates, float)
+    last_coordinate = float(np.max(existing_coordinates))
+    elapsed = float(elapsed_seconds) if elapsed_seconds is not None else None
+    if len(incoming_coordinates) == 1 and elapsed is not None and elapsed > last_coordinate:
+        appended_coordinates = np.array([elapsed])
+    elif (len(incoming_coordinates) > 1 and np.all(np.diff(incoming_coordinates) > 0)
+          and incoming_coordinates[0] > last_coordinate):
+        appended_coordinates = incoming_coordinates
+    else:
+        differences = np.abs(np.diff(existing_coordinates))
+        positive = differences[differences > 0]
+        step = float(np.median(positive)) if len(positive) else 1.0
+        appended_coordinates = last_coordinate + step * np.arange(
+            1, len(incoming_coordinates) + 1, dtype=float
+        )
+
+    labels = _extend_unique_labels(existing_data["labels"], incoming_data["labels"])
+    filenames = list(existing_data.get("filenames", [])) + list(
+        incoming_data.get("filenames", [])
+    )
+    combined = SpectralDataset(
+        target,
+        np.concatenate([existing_coordinates, appended_coordinates]),
+        np.column_stack([existing_values, incoming_values]),
+        "combined",
+        existing.interpolated_values + incoming.interpolated_values,
+    )
+    return _pack(combined, labels, filenames)
+
+
+def _remove_packed(data, remove_indices, concentrations=None, path_lengths=None):
+    """Remove selected spectrum columns without changing the remaining coordinates."""
+    if not data:
+        return None
+    count = len(data["labels"])
+    removed = {
+        int(index) for index in (remove_indices or [])
+        if 0 <= int(index) < count
+    }
+    keep = [index for index in range(count) if index not in removed]
+    if not keep:
+        return None
+    if len(keep) == count:
+        return data
+
+    dataset = _unpack(data)
+    reduced = SpectralDataset(
+        dataset.wavelengths,
+        np.asarray(dataset.coordinates, float)[keep],
+        np.asarray(dataset.absorbance, float)[:, keep],
+        dataset.source_format,
+        dataset.interpolated_values,
+    )
+    packed = _pack(
+        reduced,
+        [data["labels"][index] for index in keep],
+        data.get("filenames", []),
+    )
+
+    def retain_values(current_values, stored_name):
+        values = current_values
+        if values is None or len(values) != count:
+            values = data.get(stored_name)
+        if values is not None and len(values) == count:
+            packed[stored_name] = [values[index] for index in keep]
+
+    retain_values(concentrations, "concentrations")
+    retain_values(path_lengths, "path_lengths")
+    return packed
+
+
+def _extend_unique_labels(existing_labels, incoming_labels):
+    result = list(existing_labels)
+    used = set(result)
+    for label in incoming_labels:
+        base = str(label)
+        candidate = base
+        copy_number = 2
+        while candidate in used:
+            candidate = f"{base} ({copy_number})"
+            copy_number += 1
+        result.append(candidate)
+        used.add(candidate)
+    return result
 
 
 def _load_local_paths(paths):
@@ -795,9 +1441,12 @@ def _load_local_paths(paths):
                 result.wavelengths, np.arange(len(labels), dtype=float),
                 result.absorbance, "autoqy_epsilon", 0,
             )
+            restored_count = _count_text(
+                len(labels), "processed spectrum", "processed spectra"
+            )
             return (_pack(dataset, labels, [paths[0].name], result.concentrations_m,
                           result.path_lengths_cm),
-                    f"Restored {len(labels)} processed spectrum/spectra from {paths[0].name}.")
+                    f"Restored {restored_count} from {paths[0].name}.")
         except (UnicodeDecodeError, ValueError):
             pass
     loaded = []
@@ -810,10 +1459,14 @@ def _load_local_paths(paths):
     if missing:
         notes.append(f"interpolated {missing} non-finite detector value(s)")
     if resampled:
-        notes.append(f"resampled {resampled} spectrum/spectra to the first common grid")
+        notes.append(
+            f"resampled {_count_text(resampled, 'spectrum', 'spectra')} "
+            "to the first common grid"
+        )
     note = f" ({'; '.join(notes)})" if notes else ""
     return (_pack(dataset, labels, [path.name for path in paths]),
-            f"Loaded {len(paths)} file(s), {len(labels)} spectrum/spectra, "
+            f"Loaded {_count_text(len(paths), 'file')}, "
+            f"{_count_text(len(labels), 'spectrum', 'spectra')}, "
             f"and {len(dataset.wavelengths)} common wavelengths{note}.")
 
 
@@ -1115,6 +1768,10 @@ def _unpack_nmr(data):
     )
 
 
+def _count_text(count, singular, plural=None):
+    return f"{count} {singular if count == 1 else (plural or singular + 's')}"
+
+
 def _display_unique(labels):
     totals = {}
     result = []
@@ -1124,13 +1781,57 @@ def _display_unique(labels):
     return result
 
 
-def _absorbance_figure(go, dataset, original, processed, labels, method,
-                       svd_enabled=None, svd_rank=None):
+def _axis_label(value, default):
+    value = str(value or "").strip()
+    return value or default
+
+
+def _wavelength_slice(dataset, wavelength):
+    """Interpolate all spectra at one wavelength and retain their coordinates."""
+    selected = float(wavelength)
+    if not np.isfinite(selected):
+        raise ValueError("Wavelength must be finite")
+    order = np.argsort(dataset.wavelengths)
+    wavelengths = np.asarray(dataset.wavelengths, float)[order]
+    absorbance = np.asarray(dataset.absorbance, float)[order]
+    if selected < wavelengths[0] or selected > wavelengths[-1]:
+        raise ValueError(
+            f"Wavelength must be between {wavelengths[0]:g} and {wavelengths[-1]:g} nm"
+        )
+    values = np.asarray([
+        np.interp(selected, wavelengths, absorbance[:, index])
+        for index in range(absorbance.shape[1])
+    ])
+    return selected, np.asarray(dataset.coordinates, float), values
+
+
+def _wavelength_slice_figure(go, coordinates, values, wavelength,
+                             x_axis_label="Time", y_axis_label="Absorbance"):
     figure = go.Figure()
-    colors = _colors()
+    figure.add_trace(go.Scatter(
+        x=coordinates, y=values, mode="lines+markers", name=f"{wavelength:g} nm",
+        line={"color": PLOT_BLUE, "width": 2},
+        marker={"color": PLOT_ORANGE, "size": 6}, showlegend=False,
+    ))
+    figure.update_xaxes(title_text=x_axis_label)
+    figure.update_yaxes(title_text=y_axis_label)
+    figure.update_layout(
+        template="plotly_white", height=500,
+        title={"text": f"Wavelength slice · {wavelength:g} nm", "x": 0.02},
+        margin=dict(l=68, r=24, t=90, b=58), hovermode="closest",
+    )
+    return figure
+
+
+def _absorbance_figure(go, dataset, original, processed, labels, method,
+                       svd_enabled=None, svd_rank=None, show_legend=True,
+                       minimal_colors=False, x_axis_label="Wavelength (nm)",
+                       y_axis_label="Absorbance"):
+    figure = go.Figure()
+    colors = _spectrum_colors(len(labels), minimal_colors)
     changed = not np.allclose(original, processed)
     for index, label in enumerate(labels):
-        color = colors[index % len(colors)]
+        color = colors[index]
         if changed:
             figure.add_trace(go.Scatter(
                 x=dataset.wavelengths, y=original[:, index], mode="lines",
@@ -1141,23 +1842,26 @@ def _absorbance_figure(go, dataset, original, processed, labels, method,
             x=dataset.wavelengths, y=processed[:, index], mode="lines",
             line={"color": color, "width": 1.5}, name=label,
         ))
-    figure.update_yaxes(title_text="Absorbance")
-    figure.update_xaxes(title_text="Wavelength (nm)")
+    figure.update_yaxes(title_text=y_axis_label)
+    figure.update_xaxes(title_text=x_axis_label)
     figure.update_layout(title={"text": _processing_title(
         method, svd_enabled, svd_rank), "x": 0.02})
-    return _style(figure, 520)
+    return _style(figure, 520, show_legend)
 
 
 def _epsilon_figure(go, make_subplots, dataset, original, result, labels, method,
-                    svd_enabled=None, svd_rank=None):
+                    svd_enabled=None, svd_rank=None, show_legend=True,
+                    minimal_colors=False, x_axis_label="Wavelength (nm)",
+                    absorbance_axis_label="Absorbance",
+                    epsilon_axis_label="ε (M⁻¹ cm⁻¹)"):
     figure = make_subplots(
         rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
         row_heights=[0.34, 0.66],
         subplot_titles=("Processed absorbance spectra", "Molar absorptivity"),
     )
-    colors = _colors()
+    colors = _spectrum_colors(len(labels), minimal_colors)
     for index, label in enumerate(labels):
-        color = colors[index % len(colors)]
+        color = colors[index]
         figure.add_trace(go.Scatter(
             x=dataset.wavelengths, y=result.absorbance[:, index], mode="lines",
             line={"color": color, "width": 1.3}, name=label,
@@ -1182,14 +1886,14 @@ def _epsilon_figure(go, make_subplots, dataset, original, result, labels, method
         ), row=2, col=1)
     figure.add_trace(go.Scatter(
         x=dataset.wavelengths, y=result.mean, mode="lines",
-        line={"color": "#173b4c", "width": 2.4}, name="Mean ε",
+        line={"color": PLOT_PURPLE, "width": 2.4}, name="Mean ε",
     ), row=2, col=1)
-    figure.update_yaxes(title_text="Absorbance", row=1, col=1)
-    figure.update_yaxes(title_text="ε (M⁻¹ cm⁻¹)", row=2, col=1)
-    figure.update_xaxes(title_text="Wavelength (nm)", row=2, col=1)
+    figure.update_yaxes(title_text=absorbance_axis_label, row=1, col=1)
+    figure.update_yaxes(title_text=epsilon_axis_label, row=2, col=1)
+    figure.update_xaxes(title_text=x_axis_label, row=2, col=1)
     figure.update_layout(title={"text": _processing_title(
         method, svd_enabled, svd_rank), "x": 0.02})
-    return _style(figure, 690)
+    return _style(figure, 690, show_legend)
 
 
 def _nmr_figure(go, make_subplots, result, raw_reactant=None, raw_pss=None,
@@ -1212,10 +1916,10 @@ def _nmr_figure(go, make_subplots, result, raw_reactant=None, raw_pss=None,
                 line={"color": "rgba(214,123,54,.25)", "width": 1}), row=1, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.normalized_reactant, mode="lines",
-        name="Reactant processed", line={"color": "#2d6f8e"}), row=1, col=1)
+        name="Reactant processed", line={"color": PLOT_BLUE}), row=1, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.normalized_pss, mode="lines",
-        name="PSS processed", line={"color": "#d67b36"}), row=1, col=1)
+        name="PSS processed", line={"color": PLOT_ORANGE}), row=1, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.reactant_lower, mode="lines",
         line={"width": 0}, hoverinfo="skip", showlegend=False,
@@ -1230,17 +1934,17 @@ def _nmr_figure(go, make_subplots, result, raw_reactant=None, raw_pss=None,
         legendgroup="product-error"), row=2, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.product_upper, mode="lines", fill="tonexty",
-        fillcolor="rgba(42,157,143,.24)", line={"width": 0},
+        fillcolor="rgba(138,90,155,.24)", line={"width": 0},
         name="Product propagation envelope", legendgroup="product-error"), row=2, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.reconstructed_reactant, mode="lines",
-        name="Reactant ε", line={"color": "#2d6f8e", "dash": "dot"}), row=2, col=1)
+        name="Reactant ε", line={"color": PLOT_BLUE, "dash": "dot"}), row=2, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.reconstructed_pss, mode="lines",
-        name="PSS reconstructed ε", line={"color": "#d67b36", "dash": "dash"}), row=2, col=1)
+        name="PSS reconstructed ε", line={"color": PLOT_ORANGE, "dash": "dash"}), row=2, col=1)
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.product, mode="lines",
-        name="Product ε", line={"color": "#173b4c", "width": 2.4}), row=2, col=1)
+        name="Product ε", line={"color": PLOT_PURPLE, "width": 2.4}), row=2, col=1)
     figure.add_hline(y=0, line={"color": "#b85c4a", "dash": "dash", "width": 1}, row=2, col=1)
     figure.update_yaxes(title_text="Normalized absorbance", row=1, col=1)
     figure.update_yaxes(title_text="ε (M⁻¹ cm⁻¹)", row=2, col=1)
@@ -1257,8 +1961,27 @@ def _processing_title(method, svd_enabled=None, svd_rank=None):
 
 
 def _colors():
-    return ["#2d6f8e", "#d67b36", "#2a9d8f", "#8a5a9b", "#b85c4a",
-            "#527a4f", "#725c42", "#467aa8"]
+    return list(ANALYSIS_TRACE_PALETTE)
+
+
+def _spectrum_colors(count, minimal=False):
+    """Return full or initial/intermediate/final spectrum colors."""
+    count = max(0, int(count))
+    if not minimal:
+        palette = _colors()
+        return [palette[index % len(palette)] for index in range(count)]
+    if count == 0:
+        return []
+    if count == 1:
+        return [PLOT_BLUE]
+    return [PLOT_BLUE] + ["rgba(108,114,128,0.38)"] * (count - 2) + [PLOT_ORANGE]
+
+
+def _graph_config():
+    return {
+        "displaylogo": False,
+        "modeBarButtonsToRemove": ["toImage"],
+    }
 
 
 def _empty(go, message):
@@ -1267,37 +1990,20 @@ def _empty(go, message):
     return _style(figure, 430)
 
 
-def _style(figure, height):
+def _style(figure, height, show_legend=True):
     figure.update_layout(
         template="plotly_white", height=height + 113,
         title={"x": 0.02, "y": 0.98, "yanchor": "top", "yref": "container"},
         margin=dict(l=68, r=24, t=185, b=52), hovermode="closest",
         legend={"orientation": "h", "y": 1.06, "yanchor": "bottom",
                 "x": 0, "xanchor": "left", "bgcolor": "rgba(255,255,255,.92)"},
+        showlegend=show_legend,
     )
     return figure
 
 
 def run_server(host="127.0.0.1", port=8051, open_browser=True):
-    from werkzeug.serving import make_server
-
-    app = create_app()
-    server = make_server(host, port, app.server, threaded=True)
-    window_state, window_lock = app.server.config["AUTOQY_WINDOW_STATE"]
-
-    def close_after_browser():
-        while True:
-            time.sleep(0.5)
-            with window_lock:
-                requested = window_state["close_requested_at"]
-            if requested is not None and time.monotonic() - requested >= 3:
-                server.shutdown()
-                return
-
-    Thread(target=close_after_browser, daemon=True).start()
-    if open_browser:
-        Timer(1, lambda: webbrowser.open(f"http://{host}:{port}")).start()
-    server.serve_forever()
+    serve_gui(create_app, host, port, open_browser, "AutoQY Spectral Treatment")
 
 
 def main(argv=None):

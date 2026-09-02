@@ -13,7 +13,7 @@ indices, making the processing reproducible from `power_analysis.json`.
 From the repository root, install the optional GUI and start it with:
 
 ```bash
-pip install -e ".[power-gui]"
+pip install -e ".[gui]"
 autoqy-core power-gui
 ```
 

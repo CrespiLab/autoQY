@@ -234,48 +234,24 @@ function Write-LauncherFiles {
     param(
         [string]$ProjectRoot,
         [string]$EnvironmentPath,
-        [string]$CondaCommand
+        [string]$CondaCommand,
+        [string]$EnvironmentName
     )
-    $launcherDirectory = Join-Path $ProjectRoot ".autoqy-launchers"
-    New-Item -ItemType Directory -Path $launcherDirectory -Force | Out-Null
-
-    $condaHook = Get-CondaHookPath -CondaCommand $CondaCommand
-
-    $terminalScript = Join-Path $launcherDirectory "Open-AutoQY-Terminal.ps1"
-    $terminalContent = @"
-. '$($condaHook.Replace("'", "''"))'
-conda activate '$($EnvironmentName.Replace("'", "''"))'
-Set-Location -LiteralPath '$($ProjectRoot.Replace("'", "''"))'
-Write-Host 'AutoQY environment activated. Try: autoqy-core --help' -ForegroundColor Green
-"@
-    Set-Content -LiteralPath $terminalScript -Value $terminalContent -Encoding UTF8
-
-    $analysisScript = Join-Path $launcherDirectory "Analyze-AutoQY-JSON.ps1"
-    $pythonCommand = Join-Path $EnvironmentPath "python.exe"
-    $analysisContent = @"
-param([string]`$ConfigPath)
-`$ErrorActionPreference = 'Stop'
-if (-not `$ConfigPath) { `$ConfigPath = Read-Host 'Enter or paste the path to analysis.json' }
-try {
-    `$absoluteConfig = (Resolve-Path -LiteralPath `$ConfigPath).Path
-    if ([IO.Path]::GetExtension(`$absoluteConfig) -ne '.json') { throw 'The input must be a JSON file.' }
-    Write-Host "Configuration: `$absoluteConfig" -ForegroundColor Cyan
-    & '$($pythonCommand.Replace("'", "''"))' -m autoqy_core validate `$absoluteConfig
-    if (`$LASTEXITCODE -ne 0) { throw 'Configuration validation failed.' }
-    `$answer = (Read-Host 'Validation succeeded. Run the analysis now? [Y/n]').Trim()
-    if (-not `$answer -or `$answer -match '^(?i:y|yes)$') {
-        & '$($pythonCommand.Replace("'", "''"))' -m autoqy_core run `$absoluteConfig
-        if (`$LASTEXITCODE -ne 0) { throw 'AutoQY analysis failed.' }
-    }
-}
-catch { Write-Host "Error: `$(`$_.Exception.Message)" -ForegroundColor Red }
-Read-Host 'Press Enter to close'
-"@
-    Set-Content -LiteralPath $analysisScript -Value $analysisContent -Encoding UTF8
-
     $desktop = [Environment]::GetFolderPath("Desktop")
     $shortcutDirectory = Join-Path $desktop "AutoQY"
     New-Item -ItemType Directory -Path $shortcutDirectory -Force | Out-Null
+
+    foreach ($legacyShortcutName in @(
+        "AutoQY Terminal.lnk",
+        "AutoQY Analyze JSON.lnk",
+        "AutoQY Spectral Smoother.lnk"
+    )) {
+        $legacyShortcut = Join-Path $shortcutDirectory $legacyShortcutName
+        if (Test-Path -LiteralPath $legacyShortcut) {
+            Remove-Item -LiteralPath $legacyShortcut -Force
+        }
+    }
+
     $shell = New-Object -ComObject WScript.Shell
     $coreCommand = Join-Path $EnvironmentPath "Scripts\autoqy-core.exe"
     $iconDirectory = Join-Path $ProjectRoot "autoqy_core\assets\icons"
@@ -296,10 +272,6 @@ Read-Host 'Press Enter to close'
     $guiShortcut.IconLocation = "$guiIcon,0"
     $guiShortcut.Save()
 
-    $legacySmootherShortcut = Join-Path $shortcutDirectory "AutoQY Spectral Smoother.lnk"
-    if (Test-Path -LiteralPath $legacySmootherShortcut) {
-        Remove-Item -LiteralPath $legacySmootherShortcut -Force
-    }
     $smootherShortcutPath = Join-Path $shortcutDirectory "AutoQY Spectral Treatment.lnk"
     $smootherShortcut = $shell.CreateShortcut($smootherShortcutPath)
     $smootherShortcut.TargetPath = $coreCommand
@@ -309,41 +281,38 @@ Read-Host 'Press Enter to close'
     $smootherShortcut.IconLocation = "$smootherIcon,0"
     $smootherShortcut.Save()
 
-    $terminalShortcutPath = Join-Path $shortcutDirectory "AutoQY Terminal.lnk"
-    $terminalShortcut = $shell.CreateShortcut($terminalShortcutPath)
-    $terminalShortcut.TargetPath = "powershell.exe"
-    $terminalShortcut.Arguments = "-NoExit -ExecutionPolicy Bypass -File `"$terminalScript`""
-    $terminalShortcut.WorkingDirectory = $ProjectRoot
-    $terminalShortcut.Description = "Open PowerShell with the AutoQY Conda environment"
-    $terminalShortcut.IconLocation = "$terminalIcon,0"
-    $terminalShortcut.Save()
-
-    $dropCommand = Join-Path $launcherDirectory "Analyze-AutoQY-JSON.cmd"
-    $dropContent = @"
-@echo off
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$analysisScript" "%~1"
-"@
-    Set-Content -LiteralPath $dropCommand -Value $dropContent -Encoding Ascii
-
-    $jsonShortcutPath = Join-Path $shortcutDirectory "AutoQY Analyze JSON.lnk"
-    $jsonShortcut = $shell.CreateShortcut($jsonShortcutPath)
-    $jsonShortcut.TargetPath = $dropCommand
-    $jsonShortcut.WorkingDirectory = $ProjectRoot
-    $jsonShortcut.Description = "Drag and drop an AutoQY analysis JSON file"
-    $jsonShortcut.IconLocation = "$analysisIcon,0"
-    $jsonShortcut.Save()
-
     $analysisShortcutPath = Join-Path $shortcutDirectory "AutoQY Analysis GUI.lnk"
     $analysisShortcut = $shell.CreateShortcut($analysisShortcutPath)
     $analysisShortcut.TargetPath = $coreCommand
     $analysisShortcut.Arguments = "analysis-gui"
     $analysisShortcut.WorkingDirectory = $ProjectRoot
-    $analysisShortcut.Description = "Build, validate, run, and inspect AutoQY analyses"
+    $analysisShortcut.Description = "Build, save, run, and inspect AutoQY analyses"
     $analysisShortcut.IconLocation = "$analysisIcon,0"
     $analysisShortcut.Save()
 
-    return @($analysisShortcutPath, $guiShortcutPath, $smootherShortcutPath,
-             $terminalShortcutPath, $jsonShortcutPath)
+    $uninstallScript = Join-Path $ProjectRoot "Uninstall-AutoQY.ps1"
+    if (-not (Test-Path -LiteralPath $uninstallScript)) {
+        throw "Uninstaller not found: $uninstallScript"
+    }
+
+    $uninstallShortcutPath = Join-Path $shortcutDirectory "Uninstall AutoQY.lnk"
+    $uninstallShortcut = $shell.CreateShortcut($uninstallShortcutPath)
+    $uninstallShortcut.TargetPath = "powershell.exe"
+    $uninstallShortcut.Arguments = (
+        "-NoLogo -NoProfile -ExecutionPolicy Bypass " +
+        "-File `"$uninstallScript`" " +
+        "-ProjectRoot `"$ProjectRoot`" " +
+        "-EnvironmentName `"$EnvironmentName`" " +
+        "-CondaCommand `"$CondaCommand`" " +
+        "-ShortcutDirectory `"$shortcutDirectory`""
+    )
+    $uninstallShortcut.WorkingDirectory = $desktop
+    $uninstallShortcut.Description = "Remove AutoQY and optionally its Conda environment"
+    $uninstallShortcut.IconLocation = "$terminalIcon,0"
+    $uninstallShortcut.Save()
+
+    return @($analysisShortcutPath, $smootherShortcutPath, $guiShortcutPath,
+             $uninstallShortcutPath)
 }
 
 try {
@@ -380,7 +349,7 @@ try {
         Write-Host "Environment: $(if ($environmentPath) { "reuse $environmentPath by default; offer clean recreation" } else { "create $EnvironmentName; retry from local cache if online access fails" })"
         Write-Host "Source: $(if ($projectInInstallFolder) { "use existing checkout $projectRoot" } else { "clone branch '$Branch' from $RepositoryUrl into $projectRoot" })"
         Write-Host "Package: editable install with all three browser GUIs"
-        Write-Host "Desktop folder AutoQY: Analysis GUI, Power GUI, Spectral Treatment, activated terminal, and JSON runner"
+        Write-Host "Desktop folder AutoQY: Analysis GUI, Spectral Treatment, Power GUI, and uninstaller"
         Write-Host "No files or environments were changed." -ForegroundColor Green
         exit 0
     }
@@ -470,8 +439,8 @@ try {
     try {
         Invoke-Checked -Command $environmentPython -Arguments @(
             "-m", "pip", "install", "--disable-pip-version-check", "--progress-bar", "off",
-            "--editable", ".[power-gui]"
-        ) -Activity "Running: python -m pip install -e `".[power-gui]`""
+            "--editable", ".[gui]"
+        ) -Activity "Running: python -m pip install -e `".[gui]`""
     }
     finally {
         Pop-Location
@@ -485,14 +454,15 @@ try {
 
     Write-Step "Creating desktop launchers"
     $desktopFiles = Write-LauncherFiles -ProjectRoot $projectRoot `
-        -EnvironmentPath $environmentPath -CondaCommand $condaCommand
+        -EnvironmentPath $environmentPath -CondaCommand $condaCommand `
+        -EnvironmentName $EnvironmentName
     $desktopFiles | ForEach-Object { Write-Host "   $_" -ForegroundColor Green }
 
     Write-Step "Installation complete"
     Write-Host "Repository: $projectRoot" -ForegroundColor Green
     Write-Host "Environment: $environmentPath"
     Write-Host "Elapsed time: $(Get-ElapsedText)"
-    Write-Host "Run in any terminal: conda run --name $EnvironmentName autoqy-core --help"
+    Write-Host "Open the AutoQY folder on the Desktop to start."
 }
 catch {
     Write-Host ""

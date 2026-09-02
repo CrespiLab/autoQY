@@ -69,12 +69,12 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
 .smoother-controls label { margin-top: 11px; }
 .smoother-controls summary .info-popup { margin-left: 7px; vertical-align: middle; }
 .export-panel .section-title-row, .result-summary .section-title-row { margin-bottom: 11px; }
-.tool-details summary { position: relative; padding-right: 24px; cursor: pointer; list-style: none; font-size: 1.02rem; font-weight: 650; }
-.tool-details summary::-webkit-details-marker { display: none; }
-.tool-details summary::after { position: absolute; top: 4px; right: 0; content: "+"; color: var(--blue); font-size: 1.2rem; }
-.tool-details[open] summary { margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #ece9e3; }
-.tool-details[open] summary::after { content: "−"; }
-.tool-details summary .step-label { display: block; margin-bottom: 3px; }
+.tool-details > summary { position: relative; padding-right: 24px; cursor: pointer; list-style: none; font-size: 1.02rem; font-weight: 650; }
+.tool-details > summary::-webkit-details-marker { display: none; }
+.tool-details > summary::after { position: absolute; top: 4px; right: 0; content: "+"; color: var(--blue); font-size: 1.2rem; }
+.tool-details[open] > summary { margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #ece9e3; }
+.tool-details[open] > summary::after { content: "−"; }
+.tool-details > summary .step-label { display: block; margin-bottom: 3px; }
 
 .upload-box {
   display: block;
@@ -90,7 +90,31 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
 .upload-box small { display: block; margin-top: 5px; color: var(--muted); }
 .compact-upload { padding: 15px 12px; }
 .nested-tool { margin: 12px 0; padding: 11px; border: 1px solid #e3dfd7; border-radius: 10px; background: #fcfbf8; }
-.nested-tool > summary, .parameter-details > summary { cursor: pointer; color: #31404a; font-size: .82rem; font-weight: 700; }
+.nested-tool > summary, .parameter-details > summary, .format-options > summary {
+  position: relative;
+  padding-right: 22px;
+  cursor: pointer;
+  list-style: none;
+  color: #31404a;
+  font-size: .82rem;
+  font-weight: 700;
+}
+.nested-tool > summary::-webkit-details-marker,
+.parameter-details > summary::-webkit-details-marker,
+.format-options > summary::-webkit-details-marker { display: none; }
+.nested-tool > summary::after,
+.parameter-details > summary::after,
+.format-options > summary::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  content: "+";
+  color: var(--blue);
+  font-size: 1rem;
+}
+.nested-tool[open] > summary::after,
+.parameter-details[open] > summary::after,
+.format-options[open] > summary::after { content: "−"; }
 .interaction-bar { display: grid; grid-template-columns: minmax(90px,.7fr) minmax(180px,1.5fr); gap: 8px; margin-top: 12px; }
 .toggle-control label, .segmented-control label { margin: 0; font-size: .76rem; font-weight: 650; cursor: pointer; }
 .toggle-control label { display: flex; align-items: center; justify-content: center; min-height: 38px; padding: 8px; border: 1px solid #b8c9d1; border-radius: 8px; background: #f3f8fa; color: var(--blue); }
@@ -136,6 +160,76 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
 .result-card span, .result-card small { color: var(--muted); font-size: 0.78rem; }
 .result-card strong { font-size: 1.45rem; font-weight: 650; }
 .plot-panel { overflow: hidden; }
+.plot-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 15px 18px 0;
+}
+.plot-toolbar-controls { display: flex; flex: 1 1 460px; flex-wrap: wrap; gap: 10px 16px; min-width: 0; }
+.plot-quick-options { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 8px; }
+.plot-option-toggle { min-width: 132px; }
+.plot-options { flex: 1 1 300px; min-width: min(300px, 100%); color: #31404a; }
+.plot-options > summary { cursor: pointer; font-size: .82rem; font-weight: 700; }
+.plot-options .plot-legend-toggle { max-width: 170px; margin-top: 10px; }
+.plot-options label { margin-top: 11px; }
+.axis-name-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+  margin-top: 9px;
+}
+.axis-name-grid label { margin: 0; font-size: .72rem; }
+.axis-name-grid input {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 9px;
+  border: 1px solid #cfd1d4;
+  border-radius: 8px;
+  font: inherit;
+}
+.plot-download-actions { display: flex; flex: 0 0 auto; gap: 8px; order: -1; }
+.plot-download-actions .button { width: auto; min-width: 92px; margin-top: 0; }
+.wavelength-slice-panel > summary {
+  position: relative;
+  padding: 16px 44px 16px 18px;
+  cursor: pointer;
+  list-style: none;
+  color: #31404a;
+  font-size: .9rem;
+  font-weight: 700;
+}
+.wavelength-slice-panel > summary::-webkit-details-marker { display: none; }
+.wavelength-slice-panel > summary::after {
+  position: absolute;
+  top: 13px;
+  right: 18px;
+  content: "+";
+  color: var(--blue);
+  font-size: 1.2rem;
+}
+.wavelength-slice-panel[open] > summary { border-bottom: 1px solid #ece9e3; }
+.wavelength-slice-panel[open] > summary::after { content: "−"; }
+.slice-toolbar {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 15px 18px 0;
+}
+.slice-wavelength-control { flex: 0 1 190px; }
+.slice-wavelength-control label { margin: 0 0 5px; }
+.nmr-plot-toolbar { align-items: center; }
+.nmr-plot-toolbar strong { color: #31404a; font-size: .84rem; }
+.image-export-message {
+  min-height: 18px;
+  padding: 5px 18px 0;
+  color: var(--muted);
+  font-size: .72rem;
+  text-align: right;
+}
 .repeat-panel { padding-bottom: 8px; }
 .repeat-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 12px 0; border-top: 1px solid #ece9e3; }
 .repeat-row div { min-width: 0; }
@@ -159,4 +253,11 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
 @media (max-width: 600px) {
   .app-header { align-items: flex-start; flex-direction: column; }
   .result-strip { grid-template-columns: 1fr; }
+  .plot-toolbar { align-items: stretch; flex-direction: column; }
+  .plot-toolbar-controls { flex-basis: auto; }
+  .plot-quick-options { width: 100%; }
+  .plot-option-toggle { flex: 1 1 150px; }
+  .plot-options { min-width: 0; }
+  .plot-download-actions { width: 100%; }
+  .plot-download-actions .button { flex: 1 1 0; }
 }

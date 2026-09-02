@@ -27,14 +27,52 @@ No `ExpParams.txt`, terminal prompts, or Python source edits are required.
 python -m autoqy_core validate analysis.json
 python -m autoqy_core run analysis.json
 python -m autoqy_core power power_analysis.json
-python -m autoqy_core power-gui
 python -m autoqy_core analysis-gui
+python -m autoqy_core smoother-gui
+python -m autoqy_core power-gui
 ```
 
-The Analysis GUI can load or construct this complete schema, validate it, run
-the calculation, and display interactive versions of the four result panels.
-It can also open Spectral Treatment without coupling either GUI to the
-scientific core.
+The equivalent installed commands are `autoqy-core`, `autoqy-analysis-gui`,
+`autoqy-smoother-gui`, and `autoqy-power-gui`.
+
+## Local GUI behavior
+
+Analysis, Spectral Treatment, and Power display the version read from
+`pyproject.toml`. On Windows, each GUI opens in a dedicated Edge or Chrome app
+window with a temporary isolated browser profile, rather than becoming another
+tab in the user's main browser. The default browser is used when app-window
+mode is unavailable. All pages and uploaded data remain on the local computer.
+
+The GUI window and Python server monitor each other. Closing the app window
+stops its server, and closing the terminal or Python process closes the browser
+process tree. A normal browser tab that cannot close itself instead displays a
+message telling the user to close the page and restart the GUI. Pass
+`--no-open` to run a GUI server without opening a window.
+
+### Analysis GUI
+
+Run `autoqy-core analysis-gui` to build a complete `analysis.json`, load an
+existing configuration, or run an analysis. Its six control panels cover the
+project location and files, experiment, fit, uncertainty, and output settings.
+Native file and folder selectors are available for local paths, and the live
+JSON preview shows the configuration being constructed.
+
+Both **Save JSON** and **Run analysis** validate every referenced file and
+setting. There is no separate validation button. **Run analysis** does not save
+the editable `analysis.json`; **Save JSON** does. The
+`outputs.write_config` option independently controls the configuration snapshot
+written beside analysis results. Portable JSON can store input paths relative
+to the saved JSON file.
+
+After a run, the GUI reports the two quantum yields and fit status, lists the
+generated files, and provides interactive tabs for concentrations, fraction
+residuals, preprocessing, reference/reconstruction compatibility, and
+wavelength-resolved absorbance residuals. Automatic diagnostics are grouped as
+green, amber, or red checks. **Compare fit methods** runs regularized
+concentrations, full-spectrum ODE, and legacy concentration fitting with the
+same nominal inputs; it writes no result files and disables epsilon uncertainty
+for the comparison. **Open Spectral Treatment** starts that GUI in its own
+dedicated window.
 
 ## Fitting methods
 
@@ -235,36 +273,76 @@ The TXT and results JSON distinguish two endpoint values:
   constant irradiation is continued until `dC/dt = 0`. It includes the
   configured thermal rates in both directions.
 
+## Spectral Treatment GUI
+
+Run `autoqy-core smoother-gui` (or `autoqy-smoother-gui`) to load a
+SpectraGryph `.dat`, Avantes `.Abs8`, wavelength-by-row TSV, or CSV data. File
+types are detected automatically. **Open files from folder** also makes the
+source directory the default export location, and a loading indicator remains
+visible while large groups of spectra are parsed.
+
+The main workflow selects a wavelength range and optionally applies a baseline
+interval, Savitzky–Golay smoothing, and SVD rank reduction. Baseline and
+Savitzky–Golay operate on each spectrum independently. SVD mixes columns and is
+therefore intended for ordered time-series spectra, not independent replicate
+solutions. The suggested rank retains at least 99.5% of squared singular-value
+weight, but it remains an operator decision. Uploaded data is never modified.
+
+Processed absorbance can be exported without concentration values. When every
+solution concentration and path length is supplied, the same workflow exports
+individual molar-absorptivity spectra and their wavelength-resolved statistics.
+The save folder and CSV name are editable, missing `.csv` extensions are added,
+and existing files require confirmation before replacement. Negative values are
+preserved by default; the output option can clamp saved absorbance and epsilon
+values to zero without changing the preview or source data.
+
+The plot legend can be switched on or off when many spectra are loaded.
+**Minimal colors** highlights the initial spectrum in blue and the final
+spectrum in orange, with intermediate spectra in grey as in the Analysis GUI.
+PNG and SVG save buttons open a Save As dialog. Saved images contain only the
+plots by default; enable **Save title + legend** when those should be included.
+**Origin-style export** follows the supplied Origin-like Python example: a
+6.5:5 white figure with Arial text, boxed axes, outward major and minor
+ticks, and no grid by default. **Grid in saved image** can be switched on
+independently for the main and wavelength-slice exports.
+
+Open **Wavelength slice over time** below the main plot and type a wavelength
+to graph the interpolated absorbance across the spectrum coordinates. For a
+single time-series file, the original time coordinates are retained. The slice
+can be saved as PNG, SVG, or CSV. The collapsed **Axis names** controls rename
+the main wavelength, absorbance, and epsilon axes and both slice axes.
+
+Newly dropped or selected spectra are appended to the current dataset, so the
+main plot and wavelength slice can monitor a growing kinetics series. Repeated
+single-spectrum drops use elapsed seconds from the first drop. The uploader is
+reset after every addition, allowing the same filename to be reused. Select one
+or more loaded spectra and use **Remove selected** to update both plots without
+changing the remaining time coordinates. **Clear all spectra** resets the whole
+accumulated series and timer.
+
+The optional NMR-guided PSS workflow loads a dataset whose first spectrum is
+reactant and last spectrum is the final PSS. It supports its own baseline and
+Savitzky–Golay settings, propagates the entered PSS composition uncertainty,
+and exports reactant and reconstructed product epsilon CSV files. The primary
+product epsilon is clipped at zero by default, while a raw audit column is
+always retained; **Keep negative values in product epsilon** changes the primary
+export behavior.
+
 ## Power-treatment GUI
 
-Install `.[power-gui]`, then run `autoqy-core power-gui`. The local browser
-interface retains the historical power-processing sequence: load a Thorlabs
-trace, drag twelve boundaries around the six background/signal regions, inspect
-the open-beam and cuvette baseline corrections, and calculate the power. Up to
-three traces can be processed and averaged. Exported JSON includes the selected
-regions so the calibration can be repeated from the terminal.
+Install `.[gui]`, then run `autoqy-core power-gui`. Load up to three
+Thorlabs OPM CSV traces and select the active measurement from the dropdown.
+Drag the twelve vertical boundaries around the six background/signal regions,
+choose the baseline polynomial degree, apply the correction, and inspect the
+raw and corrected plots before calculating power at the cuvette.
+
+The result can report repeatability standard deviation or standard error. The
+GUI shows both the active-measurement result and the combined result, and its
+JSON export includes the selected regions so processing can be repeated from
+the terminal. Power treatment remains separate from quantum-yield analysis;
+transfer `power_mw` and `power_error_mw` into `analysis.json` or the Analysis
+GUI when needed.
 
 For portable scripted input, set `"format": "generic_csv"` in
 `power_analysis.json` and provide one `power_mw` column. The legacy
 `thorlabs_opm_csv` format remains available for original instrument exports.
-
-A future full analysis GUI should edit JSON-compatible values, call
-`validate_config`, and then call `run_analysis`. Power processing remains a
-separate workflow and should only offer its returned `power_mw` and
-`power_error_mw` for transfer into the analysis configuration.
-
-## Spectral smoother GUI
-
-Run `autoqy-core smoother-gui` (or `autoqy-smoother-gui`) to load a
-SpectraGryph matrix, TSV, or CSV dataset and inspect its singular values,
-spectral components, and measurement weights. The proposed rank is the minimum
-that retains 99.5% of squared singular-value weight and is only a starting
-point; the operator must check that weak chemistry or baseline drift has not
-been discarded. Optional baselining subtracts each spectrum's mean over a
-selected wavelength interval before decomposition. The exported file contains
-the chosen low-rank reconstruction and leaves the original file unchanged.
-Primary wavelength smoothing precedes optional SVD reduction. Savitzky–Golay
-is initially selected with a physical window in nm; Whittaker–Eilers and no
-spectral smoothing are alternatives. SVD can be disabled independently. The
-preview distinguishes the input, spectrally smoothed data, final SVD result,
-and total removed residual.
