@@ -10,6 +10,7 @@ from autoqy_core.epsilon import EpsilonResult
 from autoqy_core.plot_style import ANALYSIS_TRACE_PALETTE
 from autoqy_core.smoother import SpectralDataset
 from autoqy_core.tools.smoother_gui import (
+    _append_packed,
     _colors,
     _combine_loaded,
     _csv_filename,
@@ -180,6 +181,27 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertEqual(selected, 405.0)
         np.testing.assert_array_equal(coordinates, dataset.coordinates)
         np.testing.assert_allclose(values, [5.0, 6.0, 7.0])
+
+    def test_repeated_single_spectrum_drops_append_in_elapsed_time(self):
+        first = SpectralDataset(
+            np.array([400.0, 410.0]), np.array([0.0]),
+            np.array([[1.0], [2.0]]), source_format="csv",
+        )
+        second = SpectralDataset(
+            np.array([400.0, 410.0]), np.array([0.0]),
+            np.array([[3.0], [4.0]]), source_format="csv",
+        )
+        combined = _append_packed(
+            _pack(first, ["spectrum"], ["spectrum.csv"]),
+            _pack(second, ["spectrum"], ["spectrum.csv"]),
+            elapsed_seconds=2.5,
+        )
+        self.assertEqual(combined["labels"], ["spectrum", "spectrum (2)"])
+        self.assertEqual(combined["coordinates"], [0.0, 2.5])
+        np.testing.assert_array_equal(
+            np.asarray(combined["absorbance"]),
+            np.array([[1.0, 3.0], [2.0, 4.0]]),
+        )
 
     def test_wavelength_slice_rejects_values_outside_the_processed_range(self):
         dataset = SpectralDataset(

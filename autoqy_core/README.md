@@ -310,6 +310,12 @@ single time-series file, the original time coordinates are retained. The slice
 can be saved as PNG, SVG, or CSV. The collapsed **Axis names** controls rename
 the main wavelength, absorbance, and epsilon axes and both slice axes.
 
+Newly dropped or selected spectra are appended to the current dataset, so the
+main plot and wavelength slice can monitor a growing kinetics series. Repeated
+single-spectrum drops use elapsed seconds from the first drop. The uploader is
+reset after every addition, allowing the same filename to be reused; **Clear
+all spectra** is the only control that resets the accumulated series and timer.
+
 The optional NMR-guided PSS workflow loads a dataset whose first spectrum is
 reactant and last spectrum is the final PSS. It supports its own baseline and
 Savitzky–Golay settings, propagates the entered PSS composition uncertainty,

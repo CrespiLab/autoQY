@@ -254,6 +254,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                         children=html.Div([
                             html.Span("Drop or choose one or more spectral files"),
                             html.Small("SpectraGryph .dat, Avantes .Abs8, TSV, or CSV"),
+                            html.Small("Each new drop is added until Clear all spectra."),
                         ]),
                     ),
                     html.Button("Open files from folder", id="open-local-spectra",
@@ -601,6 +602,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
             ]),
         ]),
         dcc.Store(id="dataset-store"),
+        dcc.Store(id="kinetics-start-store"),
         dcc.Store(id="epsilon-store"),
         dcc.Store(id="processed-store"),
         dcc.Store(id="wavelength-slice-store"),
@@ -676,24 +678,42 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Output("dataset-store", "data"), Output("load-message", "children"),
         Output("upload-spectra", "contents"), Output("upload-spectra", "filename"),
         Output("load-error", "children"), Output("source-folder-store", "data"),
+        Output("kinetics-start-store", "data"),
         Input("upload-spectra", "contents"), Input("clear-dataset", "n_clicks"),
         Input("open-local-spectra", "n_clicks"),
         State("upload-spectra", "filename"),
+        State("dataset-store", "data"), State("kinetics-start-store", "data"),
         prevent_initial_call=True,
     )
-    def load(contents, _, __, filenames):
+    def load(contents, _, __, filenames, existing_data, kinetics_start):
         if ctx.triggered_id == "clear-dataset":
-            return None, "All spectra cleared.", None, None, "", None
+            return None, "All spectra cleared.", None, None, "", None, None
+
+        def finish_add(incoming, initial_message, source_folder=no_update):
+            now = time.monotonic()
+            start = float(kinetics_start) if kinetics_start is not None else now
+            merged = _append_packed(existing_data, incoming, now - start)
+            if existing_data:
+                added = len(incoming["labels"])
+                message = (f"Added {_count_text(added, 'spectrum', 'spectra')}; "
+                           f"{_count_text(len(merged['labels']), 'spectrum', 'spectra')} "
+                           "now loaded.")
+            else:
+                message = initial_message
+            return merged, message, None, None, "", source_folder, start
+
         try:
             if ctx.triggered_id == "open-local-spectra":
                 paths = _choose_files()
                 if not paths:
-                    return no_update, "File selection cancelled.", no_update, no_update, "", no_update
-                packed, message = _load_local_paths(paths)
+                    return (existing_data, "File selection cancelled.", no_update,
+                            no_update, "", no_update, kinetics_start)
+                incoming, message = _load_local_paths(paths)
                 source_folder = str(Path(paths[0]).resolve().parent)
-                return packed, message, None, None, "", source_folder
+                return finish_add(incoming, message, source_folder)
             if not contents:
-                return None, "Choose one or more files to begin.", no_update, no_update, "", None
+                return (existing_data, "Drop or choose spectra to add.", no_update,
+                        no_update, "", no_update, kinetics_start)
             contents = contents if isinstance(contents, list) else [contents]
             filenames = filenames if isinstance(filenames, list) else [filenames]
             restored = _try_load_autoqy_export(contents, filenames)
@@ -703,12 +723,18 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     result.wavelengths, np.arange(len(labels), dtype=float),
                     result.absorbance, "autoqy_epsilon", 0,
                 )
-                return (
-                    _pack(dataset, labels, filenames, result.concentrations_m,
-                          result.path_lengths_cm),
-                    f"Restored {len(labels)} processed absorbance spectrum/spectra, "
+                incoming = _pack(
+                    dataset, labels, filenames, result.concentrations_m,
+                    result.path_lengths_cm,
+                )
+                restored_count = _count_text(
+                    len(labels), "processed absorbance spectrum",
+                    "processed absorbance spectra",
+                )
+                return finish_add(
+                    incoming,
+                    f"Restored {restored_count}, "
                     "concentrations, and path lengths from an AutoQY ε CSV or legacy TSV.",
-                    no_update, no_update, "", None,
                 )
             loaded = []
             for content, filename in zip(contents, filenames):
@@ -722,17 +748,21 @@ window.autoqySaveText = (filename, text, mimeType) => {
             if missing:
                 notes.append(f"interpolated {missing} non-finite detector value(s)")
             if resampled:
-                notes.append(f"resampled {resampled} spectrum/spectra to the first common grid")
+                notes.append(
+                    f"resampled {_count_text(resampled, 'spectrum', 'spectra')} "
+                    "to the first common grid"
+                )
             note = f" ({'; '.join(notes)})" if notes else ""
-            return (
+            return finish_add(
                 _pack(dataset, labels, filenames),
-                f"Loaded {len(filenames)} file(s), {len(labels)} spectrum/spectra, "
+                f"Loaded {_count_text(len(filenames), 'file')}, "
+                f"{_count_text(len(labels), 'spectrum', 'spectra')}, "
                 f"and {len(dataset.wavelengths)} common wavelengths{note}.",
-                no_update, no_update, "", None,
             )
         except Exception as error:
-            return (None, "Could not load the selected files.", no_update, no_update,
-                    f"Load error: {type(error).__name__}: {error}", no_update)
+            return (existing_data, "Could not add the selected files.", None, None,
+                    f"Load error: {type(error).__name__}: {error}", no_update,
+                    kinetics_start)
 
     @app.callback(
         Output("save-folder", "value"),
@@ -1192,6 +1222,79 @@ def _combine_loaded(loaded):
     return combined, _display_unique(labels), resampled
 
 
+def _append_packed(existing_data, incoming_data, elapsed_seconds=None):
+    """Append newly loaded spectra while retaining the existing plot history."""
+    if not existing_data:
+        return incoming_data
+
+    existing = _unpack(existing_data)
+    incoming = _unpack(incoming_data)
+    low = max(float(np.min(existing.wavelengths)), float(np.min(incoming.wavelengths)))
+    high = min(float(np.max(existing.wavelengths)), float(np.max(incoming.wavelengths)))
+    target = np.sort(np.unique(np.asarray(existing.wavelengths, float)))
+    target = target[(target >= low) & (target <= high)]
+    if len(target) < 2:
+        raise ValueError("The added spectra do not share at least two wavelengths")
+
+    def resample(dataset):
+        order = np.argsort(dataset.wavelengths)
+        wavelengths, unique = np.unique(
+            np.asarray(dataset.wavelengths, float)[order], return_index=True
+        )
+        absorbance = np.asarray(dataset.absorbance, float)[order][unique]
+        return np.column_stack([
+            np.interp(target, wavelengths, absorbance[:, index])
+            for index in range(absorbance.shape[1])
+        ])
+
+    existing_values = resample(existing)
+    incoming_values = resample(incoming)
+    existing_coordinates = np.asarray(existing.coordinates, float)
+    incoming_coordinates = np.asarray(incoming.coordinates, float)
+    last_coordinate = float(np.max(existing_coordinates))
+    elapsed = float(elapsed_seconds) if elapsed_seconds is not None else None
+    if len(incoming_coordinates) == 1 and elapsed is not None and elapsed > last_coordinate:
+        appended_coordinates = np.array([elapsed])
+    elif (len(incoming_coordinates) > 1 and np.all(np.diff(incoming_coordinates) > 0)
+          and incoming_coordinates[0] > last_coordinate):
+        appended_coordinates = incoming_coordinates
+    else:
+        differences = np.abs(np.diff(existing_coordinates))
+        positive = differences[differences > 0]
+        step = float(np.median(positive)) if len(positive) else 1.0
+        appended_coordinates = last_coordinate + step * np.arange(
+            1, len(incoming_coordinates) + 1, dtype=float
+        )
+
+    labels = _extend_unique_labels(existing_data["labels"], incoming_data["labels"])
+    filenames = list(existing_data.get("filenames", [])) + list(
+        incoming_data.get("filenames", [])
+    )
+    combined = SpectralDataset(
+        target,
+        np.concatenate([existing_coordinates, appended_coordinates]),
+        np.column_stack([existing_values, incoming_values]),
+        "combined",
+        existing.interpolated_values + incoming.interpolated_values,
+    )
+    return _pack(combined, labels, filenames)
+
+
+def _extend_unique_labels(existing_labels, incoming_labels):
+    result = list(existing_labels)
+    used = set(result)
+    for label in incoming_labels:
+        base = str(label)
+        candidate = base
+        copy_number = 2
+        while candidate in used:
+            candidate = f"{base} ({copy_number})"
+            copy_number += 1
+        result.append(candidate)
+        used.add(candidate)
+    return result
+
+
 def _load_local_paths(paths):
     paths = [Path(path) for path in paths]
     if len(paths) == 1 and paths[0].suffix.lower() in {".csv", ".tsv"}:
@@ -1201,9 +1304,12 @@ def _load_local_paths(paths):
                 result.wavelengths, np.arange(len(labels), dtype=float),
                 result.absorbance, "autoqy_epsilon", 0,
             )
+            restored_count = _count_text(
+                len(labels), "processed spectrum", "processed spectra"
+            )
             return (_pack(dataset, labels, [paths[0].name], result.concentrations_m,
                           result.path_lengths_cm),
-                    f"Restored {len(labels)} processed spectrum/spectra from {paths[0].name}.")
+                    f"Restored {restored_count} from {paths[0].name}.")
         except (UnicodeDecodeError, ValueError):
             pass
     loaded = []
@@ -1216,10 +1322,14 @@ def _load_local_paths(paths):
     if missing:
         notes.append(f"interpolated {missing} non-finite detector value(s)")
     if resampled:
-        notes.append(f"resampled {resampled} spectrum/spectra to the first common grid")
+        notes.append(
+            f"resampled {_count_text(resampled, 'spectrum', 'spectra')} "
+            "to the first common grid"
+        )
     note = f" ({'; '.join(notes)})" if notes else ""
     return (_pack(dataset, labels, [path.name for path in paths]),
-            f"Loaded {len(paths)} file(s), {len(labels)} spectrum/spectra, "
+            f"Loaded {_count_text(len(paths), 'file')}, "
+            f"{_count_text(len(labels), 'spectrum', 'spectra')}, "
             f"and {len(dataset.wavelengths)} common wavelengths{note}.")
 
 
@@ -1519,6 +1629,10 @@ def _unpack_nmr(data):
            "product_error_upper")),
         int(data["negative_product_points"]), int(data["negative_bound_points"]),
     )
+
+
+def _count_text(count, singular, plural=None):
+    return f"{count} {singular if count == 1 else (plural or singular + 's')}"
 
 
 def _display_unique(labels):
