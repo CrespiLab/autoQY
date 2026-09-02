@@ -111,16 +111,6 @@ Start with the **[395 nm step-by-step tutorial](ExampleData/Example-4_395nm-Epsi
 
 More ready-to-run datasets are listed in **[ExampleData](ExampleData/README.md)**.
 
-## The three GUIs
-
-- **Analysis GUI:** creates or loads an analysis, runs the quantum-yield calculation, and shows the results.
-- **Spectral Treatment:** corrects, smooths, and exports spectra. It can also calculate reactant and product molar absorptivity.
-- **Power GUI:** processes optical-power measurements and reports the power and uncertainty to enter in an analysis.
-
-Important: **Run analysis** does not save the editable `analysis.json`. Use **Save JSON** when you want to keep or reuse the setup.
-
-All GUIs run locally on your computer. Your uploaded data is not sent to an AutoQY server.
-
 ## Advanced use
 
 Command-line usage, file formats, fitting methods, configuration details, and the Python API are documented in **[autoqy_core/README.md](autoqy_core/README.md)**.
