@@ -134,6 +134,8 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertEqual(by_id["include-plot-header"].value, [])
         self.assertEqual(by_id["origin-epsilon-export"].value, [])
         self.assertEqual(by_id["origin-slice-export"].value, [])
+        self.assertEqual(by_id["show-epsilon-export-grid"].value, [])
+        self.assertEqual(by_id["show-slice-export-grid"].value, [])
         self.assertFalse(by_id["wavelength-slice-panel"].open)
         self.assertNotIn("responsive", by_id["epsilon-plot"].config)
         for component_id in (
@@ -146,8 +148,11 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertIn("window.showSaveFilePicker", self.app.index_string)
         self.assertIn("exportLayout.showlegend = false", self.app.index_string)
         self.assertIn("exportLayout.title = null", self.app.index_string)
-        self.assertIn("width = 1200", self.app.index_string)
-        self.assertIn("height = 900", self.app.index_string)
+        self.assertIn("width = 1300", self.app.index_string)
+        self.assertIn("height = 1000", self.app.index_string)
+        self.assertIn("axis.ticks = 'outside'", self.app.index_string)
+        self.assertIn("axis.mirror = true", self.app.index_string)
+        self.assertIn("showgrid: includeGrid", self.app.index_string)
 
     def test_main_plot_uses_the_analysis_palette(self):
         self.assertEqual(_colors(), list(ANALYSIS_TRACE_PALETTE))

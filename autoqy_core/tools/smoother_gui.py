@@ -96,7 +96,9 @@ def create_app():
     }
   }, true);
 })();
-window.autoqyDownloadPlot = (graphId, figure, format, includeHeader, originStyle) => {
+window.autoqyDownloadPlot = (
+  graphId, figure, format, includeHeader, originStyle, exportGrid
+) => {
   const graph = document.querySelector(`#${graphId} .js-plotly-plot`);
   if (!graph || !window.Plotly) return 'Plot export is unavailable.';
   const title = typeof figure?.layout?.title === 'string'
@@ -111,6 +113,7 @@ window.autoqyDownloadPlot = (graphId, figure, format, includeHeader, originStyle
   let height = Math.max(600, Math.round(graph._fullLayout?.height || 800));
   const keepHeader = Array.isArray(includeHeader) && includeHeader.includes('on');
   const useOriginStyle = Array.isArray(originStyle) && originStyle.includes('on');
+  const includeGrid = Array.isArray(exportGrid) && exportGrid.includes('on');
   const exportData = JSON.parse(JSON.stringify(figure?.data || []));
   const exportLayout = JSON.parse(JSON.stringify(figure?.layout || {}));
   if (keepHeader) {
@@ -121,26 +124,55 @@ window.autoqyDownloadPlot = (graphId, figure, format, includeHeader, originStyle
     exportLayout.margin = Object.assign({}, exportLayout.margin || {}, {t: 58});
     height = Math.max(480, height - 127);
   }
+  const axisKeys = Object.keys(exportLayout)
+    .filter((key) => /^xaxis\\d*$|^yaxis\\d*$/.test(key));
   if (useOriginStyle) {
-    width = 1200;
-    height = 900;
+    width = 1300;
+    height = 1000;
     exportLayout.paper_bgcolor = '#ffffff';
     exportLayout.plot_bgcolor = '#ffffff';
     exportLayout.font = Object.assign({}, exportLayout.font || {}, {
-      family: 'Arial, Helvetica, sans-serif', color: '#000000', size: 20
+      family: 'Arial, Helvetica, sans-serif', color: '#000000', size: 18
     });
     exportLayout.margin = Object.assign({}, exportLayout.margin || {}, {
-      l: 120, r: 45, t: keepHeader ? 145 : 60, b: 100
+      l: 180, r: 40, t: keepHeader ? 130 : 40, b: 140
     });
-    Object.keys(exportLayout).filter((key) => /^xaxis\\d*$|^yaxis\\d*$/.test(key))
-      .forEach((key) => {
-        exportLayout[key] = Object.assign({}, exportLayout[key] || {}, {
-          showline: true, mirror: true, linewidth: 2, linecolor: '#000000',
-          ticks: 'inside', tickwidth: 1.5, ticklen: 8, tickcolor: '#000000',
-          zeroline: false
-        });
+    exportLayout.legend = Object.assign({}, exportLayout.legend || {}, {
+      bgcolor: 'rgba(0,0,0,0)', borderwidth: 0,
+      font: {family: 'Arial, Helvetica, sans-serif', size: 18, color: '#000000'}
+    });
+    axisKeys.forEach((key) => {
+      const axis = Object.assign({}, exportLayout[key] || {});
+      axis.showline = true;
+      axis.mirror = true;
+      axis.linewidth = 2;
+      axis.linecolor = '#000000';
+      axis.ticks = 'outside';
+      axis.tickwidth = 2;
+      axis.ticklen = 10;
+      axis.tickcolor = '#000000';
+      axis.tickfont = Object.assign({}, axis.tickfont || {}, {
+        family: 'Arial, Helvetica, sans-serif', size: 18, color: '#000000'
       });
+      axis.title = Object.assign({}, axis.title || {}, {
+        font: Object.assign({}, axis.title?.font || {}, {
+          family: 'Arial, Helvetica, sans-serif', size: 24, color: '#000000'
+        })
+      });
+      axis.minor = Object.assign({}, axis.minor || {}, {
+        ticks: 'outside', ticklen: 5, tickwidth: 1, tickcolor: '#000000'
+      });
+      axis.zeroline = false;
+      exportLayout[key] = axis;
+    });
   }
+  axisKeys.forEach((key) => {
+    exportLayout[key] = Object.assign({}, exportLayout[key] || {}, {
+      showgrid: includeGrid,
+      gridcolor: 'rgba(0,0,0,0.13)',
+      gridwidth: 1
+    });
+  });
   exportLayout.width = width;
   exportLayout.height = height;
 
@@ -481,6 +513,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                     className="toggle-control plot-option-toggle",
                                     options=[{"label": "Origin-style export", "value": "on"}],
                                 ),
+                                dcc.Checklist(
+                                    id="show-epsilon-export-grid", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Grid in saved image", "value": "on"}],
+                                ),
                             ]),
                             html.Details(className="plot-options", children=[
                                 html.Summary("Legend options"),
@@ -552,6 +589,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                     className="toggle-control plot-option-toggle",
                                     options=[{"label": "Origin-style export", "value": "on"}],
                                 ),
+                                dcc.Checklist(
+                                    id="show-slice-export-grid", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Grid in saved image", "value": "on"}],
+                                ),
                             ]),
                         ]),
                         html.Div(id="slice-message", className="message"),
@@ -612,10 +654,10 @@ window.autoqySaveText = (filename, text, mimeType) => {
     ])
 
     def register_image_download(graph_id, png_button, svg_button, message_id,
-                                header_option, origin_option):
+                                header_option, origin_option, grid_option):
         app.clientside_callback(
             """
-            function(pngClicks, svgClicks, figure, includeHeader, originStyle) {
+            function(pngClicks, svgClicks, figure, includeHeader, originStyle, exportGrid) {
               const context = window.dash_clientside.callback_context;
               if (!context.triggered || !context.triggered.length) {
                 return window.dash_clientside.no_update;
@@ -623,7 +665,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
               const trigger = context.triggered[0].prop_id.split('.')[0];
               const format = trigger.endsWith('svg') ? 'svg' : 'png';
               return window.autoqyDownloadPlot(
-                GRAPH_ID, figure, format, includeHeader, originStyle
+                GRAPH_ID, figure, format, includeHeader, originStyle, exportGrid
               );
             }
             """.replace("GRAPH_ID", repr(graph_id)),
@@ -633,20 +675,24 @@ window.autoqySaveText = (filename, text, mimeType) => {
             State(graph_id, "figure"),
             State(header_option, "value"),
             State(origin_option, "value"),
+            State(grid_option, "value"),
             prevent_initial_call=True,
         )
 
     register_image_download(
         "epsilon-plot", "save-epsilon-png", "save-epsilon-svg",
         "epsilon-image-message", "include-plot-header", "origin-epsilon-export",
+        "show-epsilon-export-grid",
     )
     register_image_download(
         "wavelength-slice-plot", "save-slice-png", "save-slice-svg",
         "slice-image-message", "include-slice-header", "origin-slice-export",
+        "show-slice-export-grid",
     )
     register_image_download(
         "nmr-plot", "save-nmr-png", "save-nmr-svg", "nmr-image-message",
         "include-plot-header", "origin-epsilon-export",
+        "show-epsilon-export-grid",
     )
 
     app.clientside_callback(

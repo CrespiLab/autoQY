@@ -301,8 +301,10 @@ The plot legend can be switched on or off when many spectra are loaded.
 spectrum in orange, with intermediate spectra in grey as in the Analysis GUI.
 PNG and SVG save buttons open a Save As dialog. Saved images contain only the
 plots by default; enable **Save title + legend** when those should be included.
-**Origin-style export** produces a 4:3 white figure with boxed axes and inward
-ticks.
+**Origin-style export** follows the supplied Origin-like Python example: a
+6.5:5 white figure with Arial text, boxed axes, outward major and minor
+ticks, and no grid by default. **Grid in saved image** can be switched on
+independently for the main and wavelength-slice exports.
 
 Open **Wavelength slice over time** below the main plot and type a wavelength
 to graph the interpolated absorbance across the spectrum coordinates. For a
