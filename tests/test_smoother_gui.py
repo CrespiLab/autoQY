@@ -127,6 +127,7 @@ class SpectralGuiTests(unittest.TestCase):
         }
         self.assertIsInstance(by_id["spectrum-legend-labels"], dcc.Textarea)
         self.assertEqual(by_id["show-spectrum-legend"].value, ["on"])
+        self.assertNotIn("responsive", by_id["epsilon-plot"].config)
         for component_id in (
             "save-epsilon-png", "save-epsilon-svg", "save-nmr-png", "save-nmr-svg"
         ):

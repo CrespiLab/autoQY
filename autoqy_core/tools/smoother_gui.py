@@ -1416,7 +1416,6 @@ def _colors():
 def _graph_config():
     return {
         "displaylogo": False,
-        "responsive": True,
         "modeBarButtonsToRemove": ["toImage"],
     }
 
