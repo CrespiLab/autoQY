@@ -17,6 +17,7 @@ from autoqy_core.tools.smoother_gui import (
     _export_csv_payload,
     _pack,
     _pack_epsilon,
+    _remove_packed,
     _spectrum_colors,
     _wavelength_slice,
     create_app,
@@ -136,6 +137,8 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertEqual(by_id["origin-slice-export"].value, [])
         self.assertEqual(by_id["show-epsilon-export-grid"].value, [])
         self.assertEqual(by_id["show-slice-export-grid"].value, [])
+        self.assertEqual(by_id["remove-spectrum-selection"].value, [])
+        self.assertTrue(by_id["remove-spectra"].disabled)
         self.assertFalse(by_id["wavelength-slice-panel"].open)
         self.assertNotIn("responsive", by_id["epsilon-plot"].config)
         for component_id in (
@@ -207,6 +210,30 @@ class SpectralGuiTests(unittest.TestCase):
             np.asarray(combined["absorbance"]),
             np.array([[1.0, 3.0], [2.0, 4.0]]),
         )
+
+    def test_selected_spectra_can_be_removed_without_retiming_the_rest(self):
+        dataset = SpectralDataset(
+            np.array([400.0, 410.0]), np.array([0.0, 2.5, 8.0]),
+            np.array([[1.0, 3.0, 5.0], [2.0, 4.0, 6.0]]),
+            source_format="csv",
+        )
+        packed = _pack(
+            dataset, ["first", "middle", "last"], ["series.csv"],
+            concentrations=[1.0, 2.0, 3.0], path_lengths=[1.0, 1.0, 2.0],
+        )
+        reduced = _remove_packed(
+            packed, [1], concentrations=[10.0, 20.0, 30.0],
+            path_lengths=[0.5, 1.0, 1.5],
+        )
+        self.assertEqual(reduced["labels"], ["first", "last"])
+        self.assertEqual(reduced["coordinates"], [0.0, 8.0])
+        self.assertEqual(reduced["concentrations"], [10.0, 30.0])
+        self.assertEqual(reduced["path_lengths"], [0.5, 1.5])
+        np.testing.assert_array_equal(
+            np.asarray(reduced["absorbance"]),
+            np.array([[1.0, 5.0], [2.0, 6.0]]),
+        )
+        self.assertIsNone(_remove_packed(packed, [0, 1, 2]))
 
     def test_wavelength_slice_rejects_values_outside_the_processed_range(self):
         dataset = SpectralDataset(

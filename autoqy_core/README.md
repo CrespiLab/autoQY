@@ -315,8 +315,10 @@ the main wavelength, absorbance, and epsilon axes and both slice axes.
 Newly dropped or selected spectra are appended to the current dataset, so the
 main plot and wavelength slice can monitor a growing kinetics series. Repeated
 single-spectrum drops use elapsed seconds from the first drop. The uploader is
-reset after every addition, allowing the same filename to be reused; **Clear
-all spectra** is the only control that resets the accumulated series and timer.
+reset after every addition, allowing the same filename to be reused. Select one
+or more loaded spectra and use **Remove selected** to update both plots without
+changing the remaining time coordinates. **Clear all spectra** resets the whole
+accumulated series and timer.
 
 The optional NMR-guided PSS workflow loads a dataset whose first spectrum is
 reactant and last spectrum is the final PSS. It supports its own baseline and

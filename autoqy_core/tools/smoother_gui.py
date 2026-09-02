@@ -293,6 +293,16 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                 className="button button-secondary"),
                     html.Button("Clear all spectra", id="clear-dataset",
                                 className="button button-secondary", disabled=True),
+                    html.Div(className="remove-spectra-controls", children=[
+                        dcc.Dropdown(
+                            id="remove-spectrum-selection", options=[], value=[],
+                            multi=True, placeholder="Select spectra to remove",
+                        ),
+                        html.Button(
+                            "Remove selected", id="remove-spectra",
+                            className="button button-secondary", disabled=True,
+                        ),
+                    ]),
                     dcc.Loading(
                         html.Div(id="load-message", className="message"),
                         type="circle",
@@ -727,13 +737,33 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Output("kinetics-start-store", "data"),
         Input("upload-spectra", "contents"), Input("clear-dataset", "n_clicks"),
         Input("open-local-spectra", "n_clicks"),
+        Input("remove-spectra", "n_clicks"),
         State("upload-spectra", "filename"),
         State("dataset-store", "data"), State("kinetics-start-store", "data"),
+        State("remove-spectrum-selection", "value"),
+        State({"type": "direct-concentration", "index": ALL}, "value"),
+        State({"type": "path-length", "index": ALL}, "value"),
         prevent_initial_call=True,
     )
-    def load(contents, _, __, filenames, existing_data, kinetics_start):
+    def load(contents, _, __, ___, filenames, existing_data, kinetics_start,
+             remove_indices, concentrations, path_lengths):
         if ctx.triggered_id == "clear-dataset":
             return None, "All spectra cleared.", None, None, "", None, None
+
+        if ctx.triggered_id == "remove-spectra":
+            updated = _remove_packed(
+                existing_data, remove_indices, concentrations, path_lengths
+            )
+            removed = len(set(remove_indices or []))
+            if updated is None:
+                return (None, "All selected spectra removed.", no_update,
+                        no_update, "", None, None)
+            return (
+                updated,
+                f"Removed {_count_text(removed, 'spectrum', 'spectra')}; "
+                f"{_count_text(len(updated['labels']), 'spectrum', 'spectra')} remain.",
+                no_update, no_update, "", no_update, kinetics_start,
+            )
 
         def finish_add(incoming, initial_message, source_folder=no_update):
             now = time.monotonic()
@@ -838,6 +868,26 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                  data.get("concentrations"), data.get("path_lengths")),
                 float(wavelengths.min()), float(wavelengths.max()),
                 float(wavelengths[len(wavelengths) // 2]))
+
+    @app.callback(
+        Output("remove-spectrum-selection", "options"),
+        Output("remove-spectrum-selection", "value"),
+        Input("dataset-store", "data"),
+    )
+    def removal_options(data):
+        if not data:
+            return [], []
+        return [
+            {"label": label, "value": index}
+            for index, label in enumerate(data["labels"])
+        ], []
+
+    @app.callback(
+        Output("remove-spectra", "disabled"),
+        Input("remove-spectrum-selection", "value"),
+    )
+    def removal_button_disabled(selected):
+        return not bool(selected)
 
     @app.callback(
         Output("svd-rank", "options"), Output("svd-rank", "value"),
@@ -1324,6 +1374,47 @@ def _append_packed(existing_data, incoming_data, elapsed_seconds=None):
         existing.interpolated_values + incoming.interpolated_values,
     )
     return _pack(combined, labels, filenames)
+
+
+def _remove_packed(data, remove_indices, concentrations=None, path_lengths=None):
+    """Remove selected spectrum columns without changing the remaining coordinates."""
+    if not data:
+        return None
+    count = len(data["labels"])
+    removed = {
+        int(index) for index in (remove_indices or [])
+        if 0 <= int(index) < count
+    }
+    keep = [index for index in range(count) if index not in removed]
+    if not keep:
+        return None
+    if len(keep) == count:
+        return data
+
+    dataset = _unpack(data)
+    reduced = SpectralDataset(
+        dataset.wavelengths,
+        np.asarray(dataset.coordinates, float)[keep],
+        np.asarray(dataset.absorbance, float)[:, keep],
+        dataset.source_format,
+        dataset.interpolated_values,
+    )
+    packed = _pack(
+        reduced,
+        [data["labels"][index] for index in keep],
+        data.get("filenames", []),
+    )
+
+    def retain_values(current_values, stored_name):
+        values = current_values
+        if values is None or len(values) != count:
+            values = data.get(stored_name)
+        if values is not None and len(values) == count:
+            packed[stored_name] = [values[index] for index in keep]
+
+    retain_values(concentrations, "concentrations")
+    retain_values(path_lengths, "path_lengths")
+    return packed
 
 
 def _extend_unique_labels(existing_labels, incoming_labels):
