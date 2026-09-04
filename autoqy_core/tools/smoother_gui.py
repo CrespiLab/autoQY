@@ -565,47 +565,52 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                     options=[{"label": "Minimal colors", "value": "on"}],
                                 ),
                             ]),
-                            image_export_options(
-                                "include-plot-title", "include-plot-legend",
-                                "origin-epsilon-export", "show-epsilon-export-grid",
-                            ),
-                            html.Details(className="plot-options", children=[
-                                html.Summary("Legend options"),
-                                html.Small("Choose Legend beside each loaded spectrum."),
-                                html.Div(className="legend-action-buttons", children=[
-                                    html.Button(
-                                        "Show all", id="show-all-legends",
-                                        className="button button-secondary compact-button",
-                                    ),
-                                    html.Button(
-                                        "Hide all", id="hide-all-legends",
-                                        className="button button-secondary compact-button",
-                                    ),
+                            html.Div(className="plot-option-menus", children=[
+                                image_export_options(
+                                    "include-plot-title", "include-plot-legend",
+                                    "origin-epsilon-export", "show-epsilon-export-grid",
+                                ),
+                                html.Details(className="plot-options", children=[
+                                    html.Summary("Legend options"),
+                                    html.Small("Choose Legend beside each loaded spectrum."),
+                                    html.Div(className="legend-action-buttons", children=[
+                                        html.Button(
+                                            "Show all", id="show-all-legends",
+                                            className="button button-secondary compact-button",
+                                        ),
+                                        html.Button(
+                                            "Hide all", id="hide-all-legends",
+                                            className="button button-secondary compact-button",
+                                        ),
+                                    ]),
                                 ]),
-                            ]),
-                            html.Details(className="plot-options axis-name-options", children=[
-                                html.Summary("Axis names"),
-                                html.Div(className="axis-name-grid", children=[
-                                    html.Label(["Main X axis", dcc.Input(
-                                        id="main-x-axis-label", type="text",
-                                        value="Wavelength (nm)"
-                                    )]),
-                                    html.Label(["Main absorbance axis", dcc.Input(
-                                        id="main-absorbance-axis-label", type="text",
-                                        value="Absorbance"
-                                    )]),
-                                    html.Label(["Main ε axis", dcc.Input(
-                                        id="main-epsilon-axis-label", type="text",
-                                        value="ε (M⁻¹ cm⁻¹)"
-                                    )]),
-                                    html.Label(["Slice X axis", dcc.Input(
-                                        id="slice-x-axis-label", type="text", value="Time"
-                                    )]),
-                                    html.Label(["Slice Y axis", dcc.Input(
-                                        id="slice-y-axis-label", type="text",
-                                        value="Absorbance"
-                                    )]),
-                                ]),
+                                html.Details(
+                                    className="plot-options axis-name-options", children=[
+                                        html.Summary("Axis names"),
+                                        html.Div(className="axis-name-grid", children=[
+                                            html.Label(["Main X axis", dcc.Input(
+                                                id="main-x-axis-label", type="text",
+                                                value="Wavelength (nm)"
+                                            )]),
+                                            html.Label(["Main absorbance axis", dcc.Input(
+                                                id="main-absorbance-axis-label", type="text",
+                                                value="Absorbance"
+                                            )]),
+                                            html.Label(["Main ε axis", dcc.Input(
+                                                id="main-epsilon-axis-label", type="text",
+                                                value="ε (M⁻¹ cm⁻¹)"
+                                            )]),
+                                            html.Label(["Slice X axis", dcc.Input(
+                                                id="slice-x-axis-label", type="text",
+                                                value="Time"
+                                            )]),
+                                            html.Label(["Slice Y axis", dcc.Input(
+                                                id="slice-y-axis-label", type="text",
+                                                value="Absorbance"
+                                            )]),
+                                        ]),
+                                    ],
+                                ),
                             ]),
                         ]),
                     ]),

@@ -172,6 +172,14 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
 .plot-quick-options { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 8px; }
 .plot-option-toggle { min-width: 132px; }
 .plot-options { flex: 1 1 300px; min-width: min(300px, 100%); color: #31404a; }
+.plot-option-menus {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  flex: 1 0 100%;
+  gap: 16px;
+  width: 100%;
+}
+.plot-option-menus .plot-options { min-width: 0; }
 .plot-options > summary { cursor: pointer; font-size: .82rem; font-weight: 700; }
 .plot-options .plot-legend-toggle { max-width: 170px; margin-top: 10px; }
 .plot-options label { margin-top: 11px; }
@@ -301,6 +309,7 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
   .plot-quick-options { width: 100%; }
   .plot-option-toggle { flex: 1 1 150px; }
   .plot-options { min-width: 0; }
+  .plot-option-menus { grid-template-columns: 1fr; gap: 10px; }
   .plot-download-actions { width: 100%; }
   .plot-download-actions .button { flex: 1 1 0; }
 }

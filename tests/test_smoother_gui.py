@@ -177,6 +177,20 @@ class SpectralGuiTests(unittest.TestCase):
             for ids in menu_ids
         ))
         self.assertTrue(all(not getattr(menu, "open", False) for menu in image_export_menus))
+        menu_rows = [
+            component for component in components
+            if getattr(component, "className", None) == "plot-option-menus"
+        ]
+        self.assertEqual(len(menu_rows), 1)
+        aligned_menu_labels = [
+            str(component.children)
+            for component in _components(menu_rows[0])
+            if isinstance(component, html.Summary)
+        ]
+        self.assertEqual(
+            aligned_menu_labels,
+            ["Image export options", "Legend options", "Axis names"],
+        )
         self.assertTrue(any(
             getattr(component, "className", None) == "info-popup"
             and "Existing timestamps are multiplied by this number" in str(
