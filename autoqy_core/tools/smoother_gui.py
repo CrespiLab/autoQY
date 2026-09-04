@@ -621,7 +621,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                             ]),
                             html.Div(className="slice-wavelength-control", children=[
                                 html.Label([
-                                    "Seconds per timestamp unit",
+                                    "Seconds per timestamp",
                                     info_popup(
                                         "Existing timestamps are multiplied by this number. "
                                         "For spectra recorded every 30 seconds at timestamps "

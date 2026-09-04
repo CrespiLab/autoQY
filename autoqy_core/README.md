@@ -320,7 +320,7 @@ wavelength-slice exports.
 Open **Wavelength slice over time** below the main plot and type a wavelength
 to graph the interpolated absorbance across the spectrum coordinates. For a
 single time-series file, the original numerical coordinates are retained.
-**Seconds per timestamp unit** is a numeric multiplier applied to those
+**Seconds per timestamp** is a numeric multiplier applied to those
 coordinates: leave it at `1` when they are already seconds, or enter `30` for
 spectra recorded every 30 seconds with default coordinates `0, 1, 2, ...`.
 Enable **Fit exponential decay** to fit an offset exponential, show the fitted
