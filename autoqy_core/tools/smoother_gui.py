@@ -620,7 +620,14 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                           placeholder="Type a wavelength"),
                             ]),
                             html.Div(className="slice-wavelength-control", children=[
-                                html.Label("Seconds per timestamp unit"),
+                                html.Label([
+                                    "Seconds per timestamp unit",
+                                    info_popup(
+                                        "Existing timestamps are multiplied by this number. "
+                                        "For spectra recorded every 30 seconds at timestamps "
+                                        "0, 1, 2… enter 30."
+                                    ),
+                                ]),
                                 dcc.Input(
                                     id="slice-time-multiplier", type="number", value=1,
                                     min=np.finfo(float).eps, step="any",
@@ -663,11 +670,6 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                 ),
                             ]),
                         ]),
-                        html.Small(
-                            "Existing timestamps are multiplied by this number. "
-                            "For spectra recorded every 30 seconds at timestamps 0, 1, 2… enter 30.",
-                            className="slice-time-help",
-                        ),
                         html.Div(id="slice-message", className="message"),
                         html.Div(id="slice-fit-result", className="slice-fit-result"),
                         html.Div(id="slice-image-message", className="image-export-message"),
@@ -1205,8 +1207,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
             figure = _wavelength_slice_figure(
                 go, scaled_coordinates, values, selected, x_label, y_label, fit
             )
-            return (figure, data, f"Showing the interpolated slice at {selected:g} nm.",
-                    fit_message, fit_class)
+            return figure, data, "", fit_message, fit_class
         except Exception as error:
             return (_empty(go, "Wavelength slice unavailable"), None,
                     f"Slice error: {type(error).__name__}: {error}", "",

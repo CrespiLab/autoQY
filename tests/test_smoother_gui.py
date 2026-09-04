@@ -151,6 +151,13 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertEqual(by_id["slice-time-multiplier"].value, 1)
         self.assertEqual(by_id["slice-time-multiplier"].type, "number")
         self.assertEqual(by_id["fit-slice-exponential"].value, [])
+        self.assertTrue(any(
+            getattr(component, "className", None) == "info-popup"
+            and "Existing timestamps are multiplied by this number" in str(
+                component.to_plotly_json()
+            )
+            for component in components
+        ))
         self.assertFalse(by_id["wavelength-slice-panel"].open)
         self.assertNotIn("responsive", by_id["epsilon-plot"].config)
         for component_id in (
@@ -415,7 +422,7 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertEqual(data["y_label"], "Optical density at 405 nm")
         self.assertEqual(figure.layout.xaxis.title.text, "Elapsed time (s)")
         self.assertEqual(figure.layout.yaxis.title.text, "Optical density")
-        self.assertIn("405 nm", message)
+        self.assertEqual(message, "")
         self.assertEqual(fit_message, "")
         self.assertEqual(fit_class, "slice-fit-result")
 
