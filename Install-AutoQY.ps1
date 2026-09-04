@@ -8,7 +8,6 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$InstallerDirectory = Split-Path -Parent $PSCommandPath
 $CurrentDirectory = (Get-Location).Path
 $InstallTimer = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -19,7 +18,7 @@ function Get-ElapsedText {
 function Write-Step {
     param([string]$Message)
     Write-Host ""
-    Write-Host "[$(Get-ElapsedText)] ==> $Message" -ForegroundColor Cyan
+    Write-Host "[$(Get-ElapsedText)] $Message" -ForegroundColor Cyan
 }
 
 function Read-Confirmation {
@@ -96,6 +95,51 @@ function Get-CondaCommand {
     return $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
 }
 
+function Invoke-CapturedCommand {
+    param(
+        [string]$Command,
+        [string[]]$Arguments
+    )
+    $previousErrorPreference = $ErrorActionPreference
+    $output = @()
+    $exitCode = 1
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = @(& $Command @Arguments 2>&1)
+        $commandSucceeded = $?
+        $exitCode = if ($commandSucceeded) {
+            0
+        }
+        elseif ($LASTEXITCODE) {
+            $LASTEXITCODE
+        }
+        else {
+            1
+        }
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorPreference
+    }
+    return [PSCustomObject]@{
+        Output = $output
+        ExitCode = $exitCode
+    }
+}
+
+function Write-CommandFailure {
+    param(
+        [string]$Command,
+        [string[]]$Arguments,
+        [object[]]$Output
+    )
+    Write-Host ""
+    Write-Host "Technical details from the failed step:" -ForegroundColor Yellow
+    Write-Host "> $Command $($Arguments -join ' ')" -ForegroundColor DarkGray
+    foreach ($line in $Output) {
+        Write-Host "  $line" -ForegroundColor DarkGray
+    }
+}
+
 function Invoke-Checked {
     param(
         [string]$Command,
@@ -104,12 +148,12 @@ function Invoke-Checked {
     )
     $commandTimer = [System.Diagnostics.Stopwatch]::StartNew()
     Write-Host "   $Activity"
-    Write-Host "> $Command $($Arguments -join ' ')" -ForegroundColor DarkGray
-    & $Command @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "Command failed with exit code $LASTEXITCODE`: $Command"
+    $result = Invoke-CapturedCommand -Command $Command -Arguments $Arguments
+    if ($result.ExitCode -ne 0) {
+        Write-CommandFailure -Command $Command -Arguments $Arguments -Output $result.Output
+        throw "$Activity failed (exit code $($result.ExitCode))."
     }
-    Write-Host "   Completed in $($commandTimer.Elapsed.ToString('hh\:mm\:ss'))." -ForegroundColor Green
+    Write-Host "   Done in $($commandTimer.Elapsed.ToString('hh\:mm\:ss'))." -ForegroundColor Green
 }
 
 function Invoke-CondaWithOfflineFallback {
@@ -120,18 +164,21 @@ function Invoke-CondaWithOfflineFallback {
     )
     $commandTimer = [System.Diagnostics.Stopwatch]::StartNew()
     Write-Host "   $Activity"
-    Write-Host "> $CondaCommand $($Arguments -join ' ')" -ForegroundColor DarkGray
-    & $CondaCommand @Arguments
-    if ($LASTEXITCODE -ne 0) {
+    $onlineResult = Invoke-CapturedCommand -Command $CondaCommand -Arguments $Arguments
+    if ($onlineResult.ExitCode -ne 0) {
         $offlineArguments = @($Arguments) + "--offline"
-        Write-Host "   Online Conda operation failed; retrying from the local package cache." -ForegroundColor Yellow
-        Write-Host "> $CondaCommand $($offlineArguments -join ' ')" -ForegroundColor DarkGray
-        & $CondaCommand @offlineArguments
-        if ($LASTEXITCODE -ne 0) {
-            throw "Conda failed online and from its local package cache: $CondaCommand"
+        Write-Host "   Internet download did not work. Trying the local package cache..." -ForegroundColor Yellow
+        $offlineResult = Invoke-CapturedCommand `
+            -Command $CondaCommand -Arguments $offlineArguments
+        if ($offlineResult.ExitCode -ne 0) {
+            Write-CommandFailure -Command $CondaCommand -Arguments $Arguments `
+                -Output $onlineResult.Output
+            Write-CommandFailure -Command $CondaCommand -Arguments $offlineArguments `
+                -Output $offlineResult.Output
+            throw "Conda could not complete this step online or from its local cache."
         }
     }
-    Write-Host "   Completed in $($commandTimer.Elapsed.ToString('hh\:mm\:ss'))." -ForegroundColor Green
+    Write-Host "   Done in $($commandTimer.Elapsed.ToString('hh\:mm\:ss'))." -ForegroundColor Green
 }
 
 function Get-CondaEnvironmentPath {
@@ -177,7 +224,7 @@ function Update-AutoQYCheckout {
     Invoke-Checked -Command $GitCommand -Arguments @(
         "-C", $ProjectRoot, "fetch", "origin",
         "$Branch`:refs/remotes/origin/$Branch"
-    ) -Activity "Fetching branch '$Branch'."
+    ) -Activity "Checking GitHub for AutoQY updates..."
     $currentBranch = (& $GitCommand -C $ProjectRoot branch --show-current).Trim()
     if ($LASTEXITCODE -ne 0) { throw "Git could not determine the current branch." }
     if ($currentBranch -ne $Branch) {
@@ -185,18 +232,18 @@ function Update-AutoQYCheckout {
         if ($localBranch) {
             Invoke-Checked -Command $GitCommand -Arguments @(
                 "-C", $ProjectRoot, "switch", $Branch
-            ) -Activity "Switching the existing checkout to '$Branch'."
+            ) -Activity "Selecting AutoQY version '$Branch'..."
         }
         else {
             Invoke-Checked -Command $GitCommand -Arguments @(
                 "-C", $ProjectRoot, "switch", "--track", "-c", $Branch,
                 "origin/$Branch"
-            ) -Activity "Creating the local '$Branch' branch."
+            ) -Activity "Preparing AutoQY version '$Branch'..."
         }
     }
     Invoke-Checked -Command $GitCommand -Arguments @(
         "-C", $ProjectRoot, "merge", "--ff-only", "origin/$Branch"
-    ) -Activity "Fast-forwarding the checkout to the published branch."
+    ) -Activity "Applying the downloaded update..."
 }
 
 function Get-CondaHookPath {
@@ -316,8 +363,8 @@ function Write-LauncherFiles {
 }
 
 try {
-    Write-Host "AutoQY Conda bootstrap installer" -ForegroundColor Blue
-    Write-Host "Installer file folder: $InstallerDirectory"
+    Write-Host "AutoQY installer" -ForegroundColor Blue
+    Write-Host "This window may stay quiet while a step is working. Please leave it open."
 
     $InstallDirectory = if ($CheckOnly) {
         [System.IO.Path]::GetFullPath($CurrentDirectory)
@@ -327,9 +374,7 @@ try {
     }
     $ClonePath = Join-Path $InstallDirectory "AutoQY-Core"
 
-    Write-Host "Installation folder: $InstallDirectory"
-    Write-Host "Clone destination: $ClonePath"
-    Write-Host "Conda environment: $EnvironmentName"
+    Write-Host "AutoQY will be installed in: $InstallDirectory"
 
     if ($EnvironmentName -notmatch "^[A-Za-z0-9_-]+$") {
         throw "The Conda environment name may contain only letters, numbers, underscores, and hyphens."
@@ -378,20 +423,19 @@ try {
             }
             Invoke-Checked -Command $condaCommand -Arguments @(
                 "env", "remove", "--name", $EnvironmentName, "--yes", "--offline"
-            ) -Activity "Removing the existing AutoQY Conda environment without network access."
+            ) -Activity "Removing the old AutoQY environment..."
             $environmentPath = Get-CondaEnvironmentPath -CondaCommand $condaCommand -Name $EnvironmentName
             if ($environmentPath) {
                 throw "Conda still reports the environment after removal: $environmentPath"
             }
-            Write-Host "   Existing environment removed cleanly." -ForegroundColor Green
         }
     }
 
     if (-not $reuseEnvironment) {
-        Write-Step "Creating Conda environment '$EnvironmentName'"
+        Write-Step "Preparing a clean Python environment"
         Invoke-CondaWithOfflineFallback -CondaCommand $condaCommand -Arguments @(
             "create", "--name", $EnvironmentName, "python=3.12", "pip", "--yes"
-        ) -Activity "Installing Python 3.12 and pip. This may take several minutes."
+        ) -Activity "Installing Python. This can take several minutes..."
     }
     $environmentPath = Get-CondaEnvironmentPath -CondaCommand $condaCommand -Name $EnvironmentName
     if (-not $environmentPath) { throw "The AutoQY Conda environment could not be located." }
@@ -403,15 +447,13 @@ try {
     if (-not $gitCommand) {
         Invoke-CondaWithOfflineFallback -CondaCommand $condaCommand -Arguments @(
             "install", "--name", $EnvironmentName, "git", "--yes"
-        ) -Activity "Installing Git into the AutoQY environment."
+        ) -Activity "Adding the tools needed to download AutoQY..."
         $gitCommand = Get-EnvironmentGit -EnvironmentPath $environmentPath
         if (-not $gitCommand) { throw "Git was installed but git.exe could not be located in the environment." }
     }
 
-    Write-Step "Activating Conda environment '$EnvironmentName'"
     Activate-AutoQYEnvironment -CondaCommand $condaCommand `
         -Name $EnvironmentName -ExpectedPath $environmentPath
-    Write-Host "   Activated: $env:CONDA_PREFIX" -ForegroundColor Green
 
     if (-not $projectInInstallFolder) {
         if (Test-Path -LiteralPath $ClonePath) {
@@ -422,47 +464,48 @@ try {
                 Write-Host "Installation cancelled."
                 exit 0
             }
-            Write-Step "Updating the existing AutoQY checkout"
+            Write-Step "Updating the existing AutoQY files"
             Update-AutoQYCheckout -GitCommand $gitCommand -ProjectRoot $ClonePath -Branch $Branch
         }
         else {
-            Write-Step "Cloning AutoQY into the selected installation folder"
+            Write-Step "Downloading AutoQY"
             Invoke-Checked -Command $gitCommand -Arguments @(
                 "clone", "--branch", $Branch, "--single-branch", $RepositoryUrl, $ClonePath
-            ) -Activity "Downloading branch '$Branch' from GitHub."
+            ) -Activity "Downloading AutoQY from GitHub..."
         }
     }
 
     $projectRoot = if ($projectInInstallFolder) { $InstallDirectory } else { $ClonePath }
-    Write-Step "Installing AutoQY and its browser GUIs"
+    Write-Step "Installing AutoQY"
     Push-Location $projectRoot
     try {
         Invoke-Checked -Command $environmentPython -Arguments @(
             "-m", "pip", "install", "--disable-pip-version-check", "--progress-bar", "off",
             "--editable", ".[gui]"
-        ) -Activity "Running: python -m pip install -e `".[gui]`""
+        ) -Activity "Installing AutoQY and its three GUIs. This can take several minutes..."
     }
     finally {
         Pop-Location
     }
 
-    Write-Step "Validating the installation"
+    Write-Step "Checking the installation"
     $analysisConfig = Join-Path $projectRoot "ExampleData\Example-2_AB_455nm-100mA\generic_inputs\analysis.json"
     Invoke-Checked -Command $environmentPython -Arguments @(
         "-m", "autoqy_core", "validate", $analysisConfig
-    ) -Activity "Validating the bundled 455 nm configuration."
+    ) -Activity "Checking that AutoQY works..."
 
-    Write-Step "Creating desktop launchers"
-    $desktopFiles = Write-LauncherFiles -ProjectRoot $projectRoot `
+    Write-Step "Creating Desktop shortcuts"
+    $shortcutTimer = [System.Diagnostics.Stopwatch]::StartNew()
+    $null = Write-LauncherFiles -ProjectRoot $projectRoot `
         -EnvironmentPath $environmentPath -CondaCommand $condaCommand `
         -EnvironmentName $EnvironmentName
-    $desktopFiles | ForEach-Object { Write-Host "   $_" -ForegroundColor Green }
+    Write-Host "   Done in $($shortcutTimer.Elapsed.ToString('hh\:mm\:ss'))." -ForegroundColor Green
 
     Write-Step "Installation complete"
-    Write-Host "Repository: $projectRoot" -ForegroundColor Green
-    Write-Host "Environment: $environmentPath"
-    Write-Host "Elapsed time: $(Get-ElapsedText)"
-    Write-Host "Open the AutoQY folder on the Desktop to start."
+    Write-Host "AutoQY is ready." -ForegroundColor Green
+    Write-Host "Open the AutoQY folder on your Desktop to start."
+    Write-Host "Installed in: $projectRoot"
+    Write-Host "Total time: $(Get-ElapsedText)"
 }
 catch {
     Write-Host ""
