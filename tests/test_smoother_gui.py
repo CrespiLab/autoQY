@@ -151,6 +151,32 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertEqual(by_id["slice-time-multiplier"].value, 1)
         self.assertEqual(by_id["slice-time-multiplier"].type, "number")
         self.assertEqual(by_id["fit-slice-exponential"].value, [])
+        image_export_menus = [
+            component for component in components
+            if isinstance(component, html.Details)
+            and "image-export-options" in (getattr(component, "className", "") or "")
+        ]
+        self.assertEqual(len(image_export_menus), 2)
+        menu_ids = [
+            {
+                component.id for component in _components(menu)
+                if getattr(component, "id", None)
+            }
+            for menu in image_export_menus
+        ]
+        self.assertIn({
+            "include-plot-title", "include-plot-legend",
+            "origin-epsilon-export", "show-epsilon-export-grid",
+        }, menu_ids)
+        self.assertIn({
+            "include-slice-title", "include-slice-legend",
+            "origin-slice-export", "show-slice-export-grid",
+        }, menu_ids)
+        self.assertFalse(any(
+            {"minimal-spectrum-colors", "fit-slice-exponential"} & ids
+            for ids in menu_ids
+        ))
+        self.assertTrue(all(not getattr(menu, "open", False) for menu in image_export_menus))
         self.assertTrue(any(
             getattr(component, "className", None) == "info-popup"
             and "Existing timestamps are multiplied by this number" in str(

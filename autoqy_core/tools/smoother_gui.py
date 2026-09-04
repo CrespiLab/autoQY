@@ -293,6 +293,29 @@ window.autoqySaveText = (filename, text, mimeType) => {
             html.Span(text, className="info-popup-content"),
         ])
 
+    def image_export_options(title_id, legend_id, origin_id, grid_id):
+        return html.Details(className="plot-options image-export-options", children=[
+            html.Summary("Image export options"),
+            html.Div(className="image-export-option-list", children=[
+                dcc.Checklist(
+                    id=title_id, value=[], className="toggle-control plot-option-toggle",
+                    options=[{"label": "Title in saved image", "value": "on"}],
+                ),
+                dcc.Checklist(
+                    id=legend_id, value=[], className="toggle-control plot-option-toggle",
+                    options=[{"label": "Legend in saved image", "value": "on"}],
+                ),
+                dcc.Checklist(
+                    id=origin_id, value=[], className="toggle-control plot-option-toggle",
+                    options=[{"label": "Origin-style export", "value": "on"}],
+                ),
+                dcc.Checklist(
+                    id=grid_id, value=[], className="toggle-control plot-option-toggle",
+                    options=[{"label": "Grid in saved image", "value": "on"}],
+                ),
+            ]),
+        ])
+
     app.layout = html.Div(className="app-shell", children=[
         html.Header(className="app-header", children=[html.Div([
             html.P("AUTOQY", className="eyebrow"),
@@ -541,27 +564,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                     className="toggle-control plot-option-toggle",
                                     options=[{"label": "Minimal colors", "value": "on"}],
                                 ),
-                                dcc.Checklist(
-                                    id="include-plot-title", value=[],
-                                    className="toggle-control plot-option-toggle",
-                                    options=[{"label": "Title in saved image", "value": "on"}],
-                                ),
-                                dcc.Checklist(
-                                    id="include-plot-legend", value=[],
-                                    className="toggle-control plot-option-toggle",
-                                    options=[{"label": "Legend in saved image", "value": "on"}],
-                                ),
-                                dcc.Checklist(
-                                    id="origin-epsilon-export", value=[],
-                                    className="toggle-control plot-option-toggle",
-                                    options=[{"label": "Origin-style export", "value": "on"}],
-                                ),
-                                dcc.Checklist(
-                                    id="show-epsilon-export-grid", value=[],
-                                    className="toggle-control plot-option-toggle",
-                                    options=[{"label": "Grid in saved image", "value": "on"}],
-                                ),
                             ]),
+                            image_export_options(
+                                "include-plot-title", "include-plot-legend",
+                                "origin-epsilon-export", "show-epsilon-export-grid",
+                            ),
                             html.Details(className="plot-options", children=[
                                 html.Summary("Legend options"),
                                 html.Small("Choose Legend beside each loaded spectrum."),
@@ -644,31 +651,15 @@ window.autoqySaveText = (filename, text, mimeType) => {
                             ]),
                             html.Div(className="plot-quick-options", children=[
                                 dcc.Checklist(
-                                    id="include-slice-title", value=[],
-                                    className="toggle-control plot-option-toggle",
-                                    options=[{"label": "Title in saved image", "value": "on"}],
-                                ),
-                                dcc.Checklist(
-                                    id="include-slice-legend", value=[],
-                                    className="toggle-control plot-option-toggle",
-                                    options=[{"label": "Legend in saved image", "value": "on"}],
-                                ),
-                                dcc.Checklist(
-                                    id="origin-slice-export", value=[],
-                                    className="toggle-control plot-option-toggle",
-                                    options=[{"label": "Origin-style export", "value": "on"}],
-                                ),
-                                dcc.Checklist(
-                                    id="show-slice-export-grid", value=[],
-                                    className="toggle-control plot-option-toggle",
-                                    options=[{"label": "Grid in saved image", "value": "on"}],
-                                ),
-                                dcc.Checklist(
                                     id="fit-slice-exponential", value=[],
                                     className="toggle-control plot-option-toggle",
                                     options=[{"label": "Fit exponential decay", "value": "on"}],
                                 ),
                             ]),
+                            image_export_options(
+                                "include-slice-title", "include-slice-legend",
+                                "origin-slice-export", "show-slice-export-grid",
+                            ),
                         ]),
                         html.Div(id="slice-message", className="message"),
                         html.Div(id="slice-fit-result", className="slice-fit-result"),

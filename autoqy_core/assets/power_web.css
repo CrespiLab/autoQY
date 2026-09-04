@@ -175,6 +175,15 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
 .plot-options > summary { cursor: pointer; font-size: .82rem; font-weight: 700; }
 .plot-options .plot-legend-toggle { max-width: 170px; margin-top: 10px; }
 .plot-options label { margin-top: 11px; }
+.image-export-options { flex: 0 1 340px; }
+.image-export-option-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 8px;
+  margin-top: 9px;
+}
+.image-export-option-list .plot-option-toggle { min-width: 0; }
+.image-export-option-list label { margin-top: 0; }
 .legend-action-buttons { display: flex; gap: 8px; margin-top: 8px; }
 .legend-action-buttons .button { width: auto; margin-top: 0; }
 .axis-name-grid {
