@@ -16,6 +16,7 @@ from autoqy_core.tools.smoother_gui import (
     _combine_loaded,
     _csv_filename,
     _export_csv_payload,
+    _fit_exponential_decay,
     _loaded_spectrum_rows,
     _pack,
     _pack_epsilon,
@@ -146,6 +147,8 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertEqual(by_id["origin-slice-export"].value, [])
         self.assertEqual(by_id["show-epsilon-export-grid"].value, [])
         self.assertEqual(by_id["show-slice-export-grid"].value, [])
+        self.assertEqual(by_id["slice-time-unit"].value, "")
+        self.assertEqual(by_id["fit-slice-exponential"].value, [])
         self.assertFalse(by_id["wavelength-slice-panel"].open)
         self.assertNotIn("responsive", by_id["epsilon-plot"].config)
         for component_id in (
@@ -355,9 +358,9 @@ class SpectralGuiTests(unittest.TestCase):
             np.array([[0.0, 2.0], [10.0, 12.0]]),
             source_format="spectragryph",
         )
-        figure, data, message = callback(
+        figure, data, message, fit_message, fit_class = callback(
             _pack(dataset, ["start", "end"], ["series.dat"]),
-            405.0, "Elapsed time (s)", "Optical density",
+            405.0, "Elapsed time", "Optical density", "s", [],
         )
         self.assertEqual(data["values"], [5.0, 7.0])
         self.assertEqual(data["x_label"], "Elapsed time (s)")
@@ -365,6 +368,45 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertEqual(figure.layout.xaxis.title.text, "Elapsed time (s)")
         self.assertEqual(figure.layout.yaxis.title.text, "Optical density")
         self.assertIn("405 nm", message)
+        self.assertEqual(fit_message, "")
+        self.assertEqual(fit_class, "slice-fit-result")
+
+    def test_exponential_slice_fit_reports_lifetime_error_and_duration_flag(self):
+        coordinates = np.linspace(0.0, 20.0, 21)
+        values = 0.2 + 1.5 * np.exp(-coordinates / 4.0)
+        values += np.array([0.002, -0.001, 0.001, 0.0, -0.002, 0.001, 0.0,
+                            0.001, -0.001, 0.0, 0.001, 0.0, -0.001, 0.001,
+                            0.0, -0.001, 0.0, 0.001, 0.0, -0.001, 0.0])
+        fit = _fit_exponential_decay(coordinates, values)
+        self.assertAlmostEqual(fit["lifetime"], 4.0, delta=0.1)
+        self.assertGreaterEqual(fit["lifetime_error"], 0.0)
+        self.assertLess(fit["lifetime_error"], 0.1)
+        self.assertGreater(fit["duration"], fit["lifetime"])
+
+    def test_slice_callback_adds_exponential_fit_and_manual_time_unit(self):
+        callback = next(
+            value["callback"].__wrapped__
+            for key, value in self.app.callback_map.items()
+            if "wavelength-slice-store.data" in key
+        )
+        coordinates = np.linspace(0.0, 20.0, 21)
+        decay = 0.1 + 0.9 * np.exp(-coordinates / 5.0)
+        dataset = SpectralDataset(
+            np.array([400.0, 410.0]), coordinates,
+            np.vstack((decay, decay)), source_format="spectragryph",
+        )
+        figure, data, _, fit_message, fit_class = callback(
+            _pack(dataset, [f"point {index}" for index in range(len(coordinates))],
+                  ["series.dat"]),
+            405.0, "Time", "Absorbance", "min", ["on"],
+        )
+        self.assertEqual(len(figure.data), 2)
+        self.assertEqual(data["time_unit"], "min")
+        self.assertEqual(data["x_label"], "Time (min)")
+        self.assertIn("fit_values", data)
+        self.assertIn("Lifetime τ", fit_message)
+        self.assertIn("extends beyond one fitted lifetime", fit_message)
+        self.assertIn("status-ok", fit_class)
 
     def test_preview_and_save_work_without_concentrations(self):
         callbacks = self.app.callback_map

@@ -319,9 +319,14 @@ wavelength-slice exports.
 
 Open **Wavelength slice over time** below the main plot and type a wavelength
 to graph the interpolated absorbance across the spectrum coordinates. For a
-single time-series file, the original time coordinates are retained. The slice
-can be saved as PNG, SVG, or CSV. The collapsed **Axis names** controls rename
-the main wavelength, absorbance, and epsilon axes and both slice axes.
+single time-series file, the original numerical coordinates are retained, but
+the time unit is always entered manually and is never inferred from a file.
+Enable **Fit exponential decay** to fit an offset exponential, show the fitted
+curve, and report the lifetime with its one-standard-error uncertainty. The
+result also flags when the measured time span extends beyond one lifetime. Fit
+values and lifetime information are included in the slice CSV. The slice can be
+saved as PNG, SVG, or CSV. The collapsed **Axis names** controls rename the main
+wavelength, absorbance, and epsilon axes and both slice axes.
 
 Newly dropped or selected spectra are appended to the current dataset, so the
 main plot and wavelength slice can monitor a growing kinetics series. Repeated

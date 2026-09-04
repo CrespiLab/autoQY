@@ -223,6 +223,14 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
 }
 .slice-wavelength-control { flex: 0 1 190px; }
 .slice-wavelength-control label { margin: 0 0 5px; }
+.slice-wavelength-control input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cfd1d4;
+  border-radius: 8px;
+  font: inherit;
+}
+.slice-fit-result { margin: 10px 18px 0; }
 .nmr-plot-toolbar { align-items: center; }
 .nmr-plot-toolbar strong { color: #31404a; font-size: .84rem; }
 .image-export-message {

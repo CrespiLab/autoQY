@@ -9,6 +9,7 @@ from threading import Lock
 import time
 
 import numpy as np
+from scipy.optimize import curve_fit
 
 from ..epsilon import (EpsilonResult, NMRSubtractionResult,
                        calculate_epsilon_statistics, export_epsilon_csv,
@@ -618,6 +619,13 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                 dcc.Input(id="slice-wavelength", type="number", step="any",
                                           placeholder="Type a wavelength"),
                             ]),
+                            html.Div(className="slice-wavelength-control", children=[
+                                html.Label("Time unit"),
+                                dcc.Input(
+                                    id="slice-time-unit", type="text", value="",
+                                    debounce=True, placeholder="e.g. s, min, h",
+                                ),
+                            ]),
                             html.Div(className="plot-download-actions", children=[
                                 html.Button("Save PNG", id="save-slice-png",
                                             className="button button-secondary compact-button"),
@@ -647,9 +655,15 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                     className="toggle-control plot-option-toggle",
                                     options=[{"label": "Grid in saved image", "value": "on"}],
                                 ),
+                                dcc.Checklist(
+                                    id="fit-slice-exponential", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Fit exponential decay", "value": "on"}],
+                                ),
                             ]),
                         ]),
                         html.Div(id="slice-message", className="message"),
+                        html.Div(id="slice-fit-result", className="slice-fit-result"),
                         html.Div(id="slice-image-message", className="image-export-message"),
                         html.Div(id="slice-csv-message", className="image-export-message"),
                         dcc.Graph(
@@ -759,10 +773,21 @@ window.autoqySaveText = (filename, text, mimeType) => {
             return 'Choose a wavelength before saving CSV.';
           }
           const quote = (value) => `"${String(value).replace(/"/g, '""')}"`;
-          const rows = [[data.x_label, data.y_label]];
+          const hasFit = Array.isArray(data.fit_values)
+            && data.fit_values.length === data.values.length;
+          const header = [data.x_label, data.y_label];
+          if (hasFit) header.push('Exponential fit');
+          const rows = [header];
           data.coordinates.forEach((coordinate, index) => {
-            rows.push([coordinate, data.values[index]]);
+            const row = [coordinate, data.values[index]];
+            if (hasFit) row.push(data.fit_values[index]);
+            rows.push(row);
           });
+          if (hasFit) {
+            rows.push([]);
+            rows.push(['Lifetime', data.lifetime, data.time_unit]);
+            rows.push(['Lifetime standard error', data.lifetime_error, data.time_unit]);
+          }
           const csv = rows.map((row) => row.map(quote).join(',')).join('\\n') + '\\n';
           const wavelength = String(data.wavelength).replace(/[^0-9.-]+/g, '-');
           return window.autoqySaveText(
@@ -1105,33 +1130,64 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Output("wavelength-slice-plot", "figure"),
         Output("wavelength-slice-store", "data"),
         Output("slice-message", "children"),
+        Output("slice-fit-result", "children"),
+        Output("slice-fit-result", "className"),
         Input("processed-store", "data"), Input("slice-wavelength", "value"),
         Input("slice-x-axis-label", "value"), Input("slice-y-axis-label", "value"),
+        Input("slice-time-unit", "value"), Input("fit-slice-exponential", "value"),
     )
-    def wavelength_slice(processed_data, wavelength, x_axis_label, y_axis_label):
+    def wavelength_slice(processed_data, wavelength, x_axis_label, y_axis_label,
+                         time_unit, fit_exponential):
         if not processed_data:
-            return _empty(go, "Load spectra and type a wavelength"), None, ""
+            return (_empty(go, "Load spectra and type a wavelength"), None, "", "",
+                    "slice-fit-result")
         if wavelength is None:
-            return _empty(go, "Type a wavelength to display its time slice"), None, ""
+            return (_empty(go, "Type a wavelength to display its time slice"), None, "", "",
+                    "slice-fit-result")
         try:
             dataset = _unpack(processed_data)
             selected, coordinates, values = _wavelength_slice(dataset, wavelength)
-            x_label = _axis_label(x_axis_label, "Time")
+            unit = str(time_unit or "").strip()
+            x_label = _time_axis_label(x_axis_label, unit)
             y_label = _axis_label(y_axis_label, "Absorbance")
+            fit = None
+            fit_message = ""
+            fit_class = "slice-fit-result"
+            if "on" in (fit_exponential or []):
+                if not unit:
+                    fit_message = "Enter the time unit to calculate a lifetime."
+                    fit_class += " status-message status-warning"
+                else:
+                    try:
+                        fit = _fit_exponential_decay(coordinates, values)
+                        fit_message = _decay_fit_message(fit, unit)
+                        fit_class += " status-message status-ok"
+                    except (RuntimeError, TypeError, ValueError) as error:
+                        fit_message = f"Exponential fit unavailable: {error}"
+                        fit_class += " status-message status-warning"
             data = {
                 "wavelength": selected,
                 "coordinates": coordinates.tolist(),
                 "values": values.tolist(),
                 "x_label": x_label,
                 "y_label": f"{y_label} at {selected:g} nm",
+                "time_unit": unit,
             }
+            if fit is not None:
+                data.update({
+                    "fit_values": fit["fitted_at_data"].tolist(),
+                    "lifetime": fit["lifetime"],
+                    "lifetime_error": fit["lifetime_error"],
+                })
             figure = _wavelength_slice_figure(
-                go, coordinates, values, selected, x_label, y_label
+                go, coordinates, values, selected, x_label, y_label, fit, unit
             )
-            return figure, data, f"Showing the interpolated slice at {selected:g} nm."
+            return (figure, data, f"Showing the interpolated slice at {selected:g} nm.",
+                    fit_message, fit_class)
         except Exception as error:
             return (_empty(go, "Wavelength slice unavailable"), None,
-                    f"Slice error: {type(error).__name__}: {error}")
+                    f"Slice error: {type(error).__name__}: {error}", "",
+                    "slice-fit-result")
 
     @app.callback(
         Output("epsilon-save-message", "children"),
@@ -2026,20 +2082,118 @@ def _wavelength_slice(dataset, wavelength):
     return selected, np.asarray(dataset.coordinates, float), values
 
 
+def _fit_exponential_decay(coordinates, values):
+    """Fit offset + amplitude * exp(-time / lifetime) to a slice."""
+    coordinates = np.asarray(coordinates, dtype=float)
+    values = np.asarray(values, dtype=float)
+    finite = np.isfinite(coordinates) & np.isfinite(values)
+    if not np.all(finite):
+        raise ValueError("time and absorbance values must all be finite")
+    original_coordinates = coordinates.copy()
+    if len(coordinates) < 4 or len(np.unique(coordinates)) < 4:
+        raise ValueError("at least four distinct time points are required")
+
+    order = np.argsort(coordinates)
+    coordinates, values = coordinates[order], values[order]
+    elapsed = coordinates - coordinates[0]
+    duration = float(elapsed[-1])
+    if duration <= 0:
+        raise ValueError("time coordinates must span a positive interval")
+    value_range = float(np.ptp(values))
+    scale = max(float(np.max(np.abs(values))), 1.0)
+    if value_range <= np.finfo(float).eps * scale * 100:
+        raise ValueError("the slice is effectively constant")
+
+    tail_count = max(1, len(values) // 5)
+    offset_guess = float(np.median(values[-tail_count:]))
+    amplitude_guess = float(values[0] - offset_guess)
+    if abs(amplitude_guess) < value_range * 0.05:
+        amplitude_guess = float(values[0] - values[-1])
+    lifetime_guess = max(duration / 3.0, np.finfo(float).eps)
+    lower_lifetime = max(duration * 1e-9, np.finfo(float).eps)
+    upper_lifetime = max(duration * 1e6, lower_lifetime * 10)
+
+    def exponential(time_values, offset, amplitude, lifetime):
+        return offset + amplitude * np.exp(-time_values / lifetime)
+
+    parameters, covariance = curve_fit(
+        exponential, elapsed, values,
+        p0=(offset_guess, amplitude_guess, lifetime_guess),
+        bounds=((-np.inf, -np.inf, lower_lifetime),
+                (np.inf, np.inf, upper_lifetime)),
+        maxfev=30000,
+    )
+    lifetime = float(parameters[2])
+    lifetime_variance = float(covariance[2, 2])
+    lifetime_error = (float(np.sqrt(lifetime_variance))
+                      if lifetime_variance >= 0 else np.nan)
+    if not np.isfinite(lifetime) or not np.isfinite(lifetime_error):
+        raise ValueError("the lifetime uncertainty could not be estimated reliably")
+
+    fitted_at_data = exponential(original_coordinates - coordinates[0], *parameters)
+    fitted_sorted = exponential(elapsed, *parameters)
+    fit_coordinates = np.linspace(coordinates[0], coordinates[-1], 300)
+    fit_values = exponential(fit_coordinates - coordinates[0], *parameters)
+    residual_sum = float(np.sum((values - fitted_sorted) ** 2))
+    total_sum = float(np.sum((values - np.mean(values)) ** 2))
+    r_squared = 1.0 - residual_sum / total_sum if total_sum > 0 else np.nan
+    return {
+        "lifetime": lifetime,
+        "lifetime_error": lifetime_error,
+        "duration": duration,
+        "r_squared": r_squared,
+        "fit_coordinates": fit_coordinates,
+        "fit_values": fit_values,
+        "fitted_at_data": fitted_at_data,
+    }
+
+
+def _time_axis_label(axis_label, time_unit):
+    label = _axis_label(axis_label, "Time")
+    unit = str(time_unit or "").strip()
+    if unit and label.rstrip().endswith(f"({unit})"):
+        return label
+    return f"{label} ({unit})" if unit else label
+
+
+def _decay_fit_message(fit, time_unit):
+    lifetime = fit["lifetime"]
+    error = fit["lifetime_error"]
+    duration = fit["duration"]
+    message = (
+        f"Lifetime τ = {lifetime:.4g} ± {error:.2g} {time_unit} "
+        f"(1σ fit error; R² = {fit['r_squared']:.4f})."
+    )
+    if duration > lifetime:
+        message += (
+            f" Recorded time span: {duration:.4g} {time_unit}; "
+            "the measurement extends beyond one fitted lifetime."
+        )
+    return message
+
+
 def _wavelength_slice_figure(go, coordinates, values, wavelength,
-                             x_axis_label="Time", y_axis_label="Absorbance"):
+                             x_axis_label="Time", y_axis_label="Absorbance",
+                             fit=None, time_unit=""):
     figure = go.Figure()
     figure.add_trace(go.Scatter(
         x=coordinates, y=values, mode="lines+markers", name=f"{wavelength:g} nm",
         line={"color": PLOT_BLUE, "width": 2},
-        marker={"color": PLOT_ORANGE, "size": 6}, showlegend=False,
+        marker={"color": PLOT_ORANGE, "size": 6}, showlegend=fit is not None,
     ))
+    if fit is not None:
+        figure.add_trace(go.Scatter(
+            x=fit["fit_coordinates"], y=fit["fit_values"], mode="lines",
+            name=f"Exponential fit · τ={fit['lifetime']:.4g} {time_unit}",
+            line={"color": PLOT_PURPLE, "width": 2.5, "dash": "dash"},
+        ))
     figure.update_xaxes(title_text=x_axis_label)
     figure.update_yaxes(title_text=y_axis_label)
     figure.update_layout(
         template="plotly_white", height=500,
         title={"text": f"Wavelength slice · {wavelength:g} nm", "x": 0.02},
         margin=dict(l=68, r=24, t=90, b=58), hovermode="closest",
+        legend={"orientation": "h", "x": 0, "y": 1.04, "yanchor": "bottom"},
     )
     return figure
 
