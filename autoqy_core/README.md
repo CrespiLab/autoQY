@@ -299,16 +299,18 @@ values to zero without changing the preview or source data.
 Files dropped together are naturally ordered by name, so `sample1` precedes
 `sample2` and `sample10`. Open **Loaded spectra: order, legend, removal** to
 move individual spectra up or down, remove them, or choose exactly which trace
-names appear in the legend. **Show all** and **Hide all** provide quick legend
-shortcuts.
+names appear in the legend. The name field beside each trace changes its legend
+text without changing the source filename. **Show all** and **Hide all** provide
+quick legend shortcuts.
 **Minimal colors** highlights the initial spectrum in blue and the final
 spectrum in orange, with intermediate spectra in grey as in the Analysis GUI.
 PNG and SVG save buttons open a Save As dialog. Saved images contain only the
 plots by default; enable **Save title + legend** when those should be included.
 **Origin-style export** follows the supplied Origin-like Python example: a
 6.5:5 white figure with Arial text, boxed axes, outward major and minor
-ticks, and no grid by default. **Grid in saved image** can be switched on
-independently for the main and wavelength-slice exports.
+ticks, thick high-contrast curves, enlarged text, and no grid by default.
+**Grid in saved image** can be switched on independently for the main and
+wavelength-slice exports.
 
 Open **Wavelength slice over time** below the main plot and type a wavelength
 to graph the interpolated absorbance across the spectrum coordinates. For a

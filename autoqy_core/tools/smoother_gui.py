@@ -133,35 +133,56 @@ window.autoqyDownloadPlot = (
     exportLayout.paper_bgcolor = '#ffffff';
     exportLayout.plot_bgcolor = '#ffffff';
     exportLayout.font = Object.assign({}, exportLayout.font || {}, {
-      family: 'Arial, Helvetica, sans-serif', color: '#000000', size: 18
+      family: 'Arial, Helvetica, sans-serif', color: '#000000', size: 24
     });
     exportLayout.margin = Object.assign({}, exportLayout.margin || {}, {
-      l: 180, r: 40, t: keepHeader ? 130 : 40, b: 140
+      l: 220, r: 50, t: keepHeader ? 170 : 50, b: 180
     });
     exportLayout.legend = Object.assign({}, exportLayout.legend || {}, {
       bgcolor: 'rgba(0,0,0,0)', borderwidth: 0,
-      font: {family: 'Arial, Helvetica, sans-serif', size: 18, color: '#000000'}
+      font: {family: 'Arial, Helvetica, sans-serif', size: 24, color: '#000000'}
+    });
+    if (exportLayout.title) {
+      exportLayout.title = Object.assign({}, exportLayout.title, {
+        font: Object.assign({}, exportLayout.title.font || {}, {
+          family: 'Arial, Helvetica, sans-serif', size: 32, color: '#000000'
+        })
+      });
+    }
+    exportLayout.annotations = (exportLayout.annotations || []).map((annotation) =>
+      Object.assign({}, annotation, {
+        font: Object.assign({}, annotation.font || {}, {
+          family: 'Arial, Helvetica, sans-serif', size: 24, color: '#000000'
+        })
+      })
+    );
+    exportData.forEach((trace) => {
+      if (!trace.line) return;
+      const lineWidth = Number(trace.line.width ?? 1.5);
+      if (lineWidth > 0) {
+        trace.line.width = Math.max(3.5, lineWidth * 1.8);
+      }
     });
     axisKeys.forEach((key) => {
       const axis = Object.assign({}, exportLayout[key] || {});
       axis.showline = true;
       axis.mirror = true;
-      axis.linewidth = 2;
+      axis.linewidth = 3;
       axis.linecolor = '#000000';
       axis.ticks = 'outside';
-      axis.tickwidth = 2;
-      axis.ticklen = 10;
+      axis.tickwidth = 2.5;
+      axis.ticklen = 12;
       axis.tickcolor = '#000000';
       axis.tickfont = Object.assign({}, axis.tickfont || {}, {
-        family: 'Arial, Helvetica, sans-serif', size: 18, color: '#000000'
+        family: 'Arial, Helvetica, sans-serif', size: 24, color: '#000000'
       });
       axis.title = Object.assign({}, axis.title || {}, {
         font: Object.assign({}, axis.title?.font || {}, {
-          family: 'Arial, Helvetica, sans-serif', size: 24, color: '#000000'
+          family: 'Arial, Helvetica, sans-serif', size: 32, color: '#000000'
         })
       });
       axis.minor = Object.assign({}, axis.minor || {}, {
-        ticks: 'outside', ticklen: 5, tickwidth: 1, tickcolor: '#000000'
+        ticks: 'outside', ticklen: 6, tickwidth: 1.8, tickcolor: '#000000'
       });
       axis.zeroline = false;
       exportLayout[key] = axis;
@@ -171,7 +192,7 @@ window.autoqyDownloadPlot = (
     exportLayout[key] = Object.assign({}, exportLayout[key] || {}, {
       showgrid: includeGrid,
       gridcolor: 'rgba(0,0,0,0.13)',
-      gridwidth: 1
+      gridwidth: useOriginStyle ? 1.5 : 1
     });
   });
   exportLayout.width = width;
@@ -753,10 +774,12 @@ window.autoqySaveText = (filename, text, mimeType) => {
         State({"type": "direct-concentration", "index": ALL}, "value"),
         State({"type": "path-length", "index": ALL}, "value"),
         State({"type": "legend-spectrum", "index": ALL}, "value"),
+        State({"type": "legend-name", "index": ALL}, "value"),
         prevent_initial_call=True,
     )
     def load(contents, _, __, ___, ____, _____, filenames, existing_data,
-             kinetics_start, concentrations, path_lengths, legend_values):
+             kinetics_start, concentrations, path_lengths, legend_values,
+             legend_names):
         if ctx.triggered_id == "clear-dataset":
             return None, "All spectra cleared.", None, None, "", None, None
 
@@ -768,7 +791,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
             index = int(ctx.triggered_id.get("index", -1))
             if action == "remove-spectrum":
                 updated = _remove_packed(
-                    existing_data, [index], concentrations, path_lengths, legend_values
+                    existing_data, [index], concentrations, path_lengths,
+                    legend_values, legend_names,
                 )
                 if updated is None:
                     return (None, "All spectra removed.", no_update,
@@ -788,7 +812,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 order = list(range(count))
                 order[index], order[target] = order[target], order[index]
                 updated = _reorder_packed(
-                    existing_data, order, concentrations, path_lengths, legend_values
+                    existing_data, order, concentrations, path_lengths,
+                    legend_values, legend_names,
                 )
                 return (
                     updated, f"Moved {updated['labels'][target]} to position {target + 1}.",
@@ -799,7 +824,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
             now = time.monotonic()
             start = float(kinetics_start) if kinetics_start is not None else now
             current = _with_spectrum_state(
-                existing_data, concentrations, path_lengths, legend_values
+                existing_data, concentrations, path_lengths, legend_values,
+                legend_names,
             )
             merged = _append_packed(current, incoming, now - start)
             if existing_data:
@@ -969,6 +995,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Input({"type": "direct-concentration", "index": ALL}, "value"),
         Input({"type": "path-length", "index": ALL}, "value"),
         Input({"type": "legend-spectrum", "index": ALL}, "value"),
+        Input({"type": "legend-name", "index": ALL}, "value"),
         Input("minimal-spectrum-colors", "value"),
         Input("main-x-axis-label", "value"),
         Input("main-absorbance-axis-label", "value"),
@@ -977,7 +1004,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
     def preview(data, wavelength_low, wavelength_high, baseline_enabled,
                 baseline_low, baseline_high, method, sg_width, sg_order,
                 svd_enabled, svd_rank, concentrations, path_lengths,
-                legend_values, minimal_colors, x_axis_label,
+                legend_values, legend_names, minimal_colors, x_axis_label,
                 absorbance_axis_label, epsilon_axis_label):
         if not data:
             return (_empty(go, "Load spectral data to begin"),
@@ -998,7 +1025,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 ),
                 data["labels"], data.get("filenames", []),
             )
-            plot_labels = data["labels"]
+            plot_labels = _legend_names(legend_names, data["labels"])
             legend_visibility = _legend_visibility(legend_values, len(plot_labels))
             use_minimal_colors = "on" in (minimal_colors or [])
             if concentration_data is None:
@@ -1315,6 +1342,9 @@ def _parameter_cards(html, dcc, labels, concentrations=None, path_lengths=None):
 
 def _loaded_spectrum_rows(html, dcc, data):
     labels = data.get("labels", [])
+    legend_names = data.get("legend_names", labels)
+    if len(legend_names) != len(labels):
+        legend_names = labels
     legend_visibility = data.get("legend_visibility", [True] * len(labels))
     if len(legend_visibility) != len(labels):
         legend_visibility = [True] * len(labels)
@@ -1322,9 +1352,15 @@ def _loaded_spectrum_rows(html, dcc, data):
     for index, label in enumerate(labels):
         rows.append(html.Div(className="loaded-spectrum-row", children=[
             html.Span(f"{index + 1}. {label}", className="loaded-spectrum-name"),
+            dcc.Input(
+                id={"type": "legend-name", "index": index},
+                type="text", value=legend_names[index], debounce=True,
+                placeholder="Legend name",
+                className="spectrum-legend-name",
+            ),
             dcc.Checklist(
                 id={"type": "legend-spectrum", "index": index},
-                options=[{"label": "Legend", "value": "on"}],
+                options=[{"label": "Show", "value": "on"}],
                 value=["on"] if legend_visibility[index] else [],
                 className="toggle-control spectrum-legend-choice",
             ),
@@ -1458,11 +1494,15 @@ def _append_packed(existing_data, incoming_data, elapsed_seconds=None):
         list(existing_data.get("legend_visibility", [True] * existing_count))
         + list(incoming_data.get("legend_visibility", [True] * incoming_count))
     )
+    packed["legend_names"] = (
+        list(existing_data.get("legend_names", existing_data["labels"]))
+        + list(incoming_data.get("legend_names", incoming_data["labels"]))
+    )
     return packed
 
 
 def _with_spectrum_state(data, concentrations=None, path_lengths=None,
-                         legend_values=None):
+                         legend_values=None, legend_names=None):
     """Copy live per-spectrum controls into the packed dataset."""
     if not data:
         return data
@@ -1475,18 +1515,21 @@ def _with_spectrum_state(data, concentrations=None, path_lengths=None,
     updated["legend_visibility"] = _legend_visibility(
         legend_values, count, data.get("legend_visibility")
     )
+    updated["legend_names"] = _legend_names(
+        legend_names, data["labels"], data.get("legend_names")
+    )
     return updated
 
 
 def _reorder_packed(data, order, concentrations=None, path_lengths=None,
-                    legend_values=None):
+                    legend_values=None, legend_names=None):
     """Reorder spectrum columns while retaining the existing coordinate slots."""
     count = len(data["labels"])
     order = [int(index) for index in order]
     if sorted(order) != list(range(count)):
         raise ValueError("Spectrum order must contain every loaded spectrum once")
     data = _with_spectrum_state(
-        data, concentrations, path_lengths, legend_values
+        data, concentrations, path_lengths, legend_values, legend_names
     )
     dataset = _unpack(data)
     filenames = list(data.get("filenames", []))
@@ -1503,7 +1546,7 @@ def _reorder_packed(data, order, concentrations=None, path_lengths=None,
         [data["labels"][index] for index in order],
         filenames,
     )
-    for name in ("concentrations", "path_lengths", "legend_visibility"):
+    for name in ("concentrations", "path_lengths", "legend_visibility", "legend_names"):
         values = data.get(name)
         if values is not None and len(values) == count:
             packed[name] = [values[index] for index in order]
@@ -1511,7 +1554,7 @@ def _reorder_packed(data, order, concentrations=None, path_lengths=None,
 
 
 def _remove_packed(data, remove_indices, concentrations=None, path_lengths=None,
-                   legend_values=None):
+                   legend_values=None, legend_names=None):
     """Remove selected spectrum columns without changing the remaining coordinates."""
     if not data:
         return None
@@ -1527,7 +1570,7 @@ def _remove_packed(data, remove_indices, concentrations=None, path_lengths=None,
         return data
 
     data = _with_spectrum_state(
-        data, concentrations, path_lengths, legend_values
+        data, concentrations, path_lengths, legend_values, legend_names
     )
     dataset = _unpack(data)
     reduced = SpectralDataset(
@@ -1554,6 +1597,7 @@ def _remove_packed(data, remove_indices, concentrations=None, path_lengths=None,
     retain_values("concentrations")
     retain_values("path_lengths")
     retain_values("legend_visibility")
+    retain_values("legend_names")
     return packed
 
 
@@ -1934,6 +1978,16 @@ def _legend_visibility(values, count, fallback=None):
     if fallback is not None and len(fallback) == count:
         return [bool(value) for value in fallback]
     return [True] * count
+
+
+def _legend_names(values, labels, fallback=None):
+    count = len(labels)
+    if values is None or len(values) != count:
+        values = fallback if fallback is not None and len(fallback) == count else labels
+    return [
+        str(value).strip() if str(value or "").strip() else str(labels[index])
+        for index, value in enumerate(values)
+    ]
 
 
 def _wavelength_slice(dataset, wavelength):

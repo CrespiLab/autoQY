@@ -248,7 +248,16 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
   padding: 7px 0;
   border-top: 1px solid #ece9e3;
 }
-.loaded-spectrum-name { overflow: hidden; color: #31404a; font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
+.loaded-spectrum-name { grid-column: 1 / -1; overflow: hidden; color: #31404a; font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
+.spectrum-legend-name {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid #cfd1d4;
+  border-radius: 7px;
+  font: inherit;
+  font-size: .72rem;
+}
 .spectrum-legend-choice label { margin: 0; font-size: .7rem; }
 .loaded-spectrum-row .button { width: auto; min-width: 0; margin-top: 0; padding: 7px 8px; }
 .spectrum-order-button { font-size: 1rem; line-height: 1; }

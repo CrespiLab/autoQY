@@ -16,6 +16,7 @@ from autoqy_core.tools.smoother_gui import (
     _combine_loaded,
     _csv_filename,
     _export_csv_payload,
+    _loaded_spectrum_rows,
     _pack,
     _pack_epsilon,
     _remove_packed,
@@ -158,6 +159,9 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertIn("height = 1000", self.app.index_string)
         self.assertIn("axis.ticks = 'outside'", self.app.index_string)
         self.assertIn("axis.mirror = true", self.app.index_string)
+        self.assertIn("axis.linewidth = 3", self.app.index_string)
+        self.assertIn("Math.max(3.5, lineWidth * 1.8)", self.app.index_string)
+        self.assertIn("size: 32", self.app.index_string)
         self.assertIn("showgrid: includeGrid", self.app.index_string)
 
     def test_main_plot_uses_the_analysis_palette(self):
@@ -180,6 +184,22 @@ class SpectralGuiTests(unittest.TestCase):
             [trace.showlegend for trace in figure.data], [True, False, True]
         )
         self.assertTrue(figure.layout.showlegend)
+
+    def test_loaded_spectrum_rows_include_editable_legend_names(self):
+        dataset = SpectralDataset(
+            np.array([400.0, 410.0]), np.array([0.0, 1.0]),
+            np.array([[1.0, 2.0], [1.5, 2.5]]), source_format="csv",
+        )
+        rows = _loaded_spectrum_rows(
+            html, dcc, _pack(dataset, ["one", "two"], ["one.csv", "two.csv"])
+        )
+        components = list(_components(rows))
+        legend_inputs = [
+            component for component in components
+            if isinstance(getattr(component, "id", None), dict)
+            and component.id.get("type") == "legend-name"
+        ]
+        self.assertEqual([component.value for component in legend_inputs], ["one", "two"])
 
     def test_minimal_palette_marks_initial_intermediate_and_final_spectra(self):
         self.assertEqual(_spectrum_colors(1, True), ["#2d6f8e"])
@@ -267,12 +287,14 @@ class SpectralGuiTests(unittest.TestCase):
             packed, [1], concentrations=[10.0, 20.0, 30.0],
             path_lengths=[0.5, 1.0, 1.5],
             legend_values=[["on"], [], ["on"]],
+            legend_names=["Start", "Middle", "Finish"],
         )
         self.assertEqual(reduced["labels"], ["first", "last"])
         self.assertEqual(reduced["coordinates"], [0.0, 8.0])
         self.assertEqual(reduced["concentrations"], [10.0, 30.0])
         self.assertEqual(reduced["path_lengths"], [0.5, 1.5])
         self.assertEqual(reduced["legend_visibility"], [True, True])
+        self.assertEqual(reduced["legend_names"], ["Start", "Finish"])
         np.testing.assert_array_equal(
             np.asarray(reduced["absorbance"]),
             np.array([[1.0, 5.0], [2.0, 6.0]]),
@@ -293,12 +315,16 @@ class SpectralGuiTests(unittest.TestCase):
             packed, [1, 0, 2], concentrations=[1.0, 2.0, 3.0],
             path_lengths=[0.5, 1.0, 1.5],
             legend_values=[["on"], [], ["on"]],
+            legend_names=["Initial", "Intermediate", "Final"],
         )
         self.assertEqual(reordered["labels"], ["two", "one", "three"])
         self.assertEqual(reordered["filenames"], ["two.csv", "one.csv", "three.csv"])
         self.assertEqual(reordered["coordinates"], [0.0, 4.0, 9.0])
         self.assertEqual(reordered["concentrations"], [2.0, 1.0, 3.0])
         self.assertEqual(reordered["legend_visibility"], [False, True, True])
+        self.assertEqual(
+            reordered["legend_names"], ["Intermediate", "Initial", "Final"]
+        )
         np.testing.assert_array_equal(
             np.asarray(reordered["absorbance"])[0], [2.0, 1.0, 3.0]
         )
@@ -355,14 +381,14 @@ class SpectralGuiTests(unittest.TestCase):
         packed = _pack(dataset, ["irradiation"], ["irradiation.csv"])
         preview_result = preview(
             packed, 400, 402, [], None, None, "off", 5, 3,
-            [], 1, [None], [1.0], [[]], [], "Custom wavelength", "Custom OD",
-            "Custom epsilon",
+            [], 1, [None], [1.0], [[]], ["Custom legend"], [],
+            "Custom wavelength", "Custom OD", "Custom epsilon",
         )
         self.assertIsNone(preview_result[4])
         self.assertIsNotNone(preview_result[5])
         self.assertFalse(preview_result[6])
         self.assertFalse(preview_result[0].layout.showlegend)
-        self.assertEqual(preview_result[0].data[0].name, "irradiation")
+        self.assertEqual(preview_result[0].data[0].name, "Custom legend")
         self.assertEqual(preview_result[0].layout.xaxis.title.text, "Custom wavelength")
         self.assertEqual(preview_result[0].layout.yaxis.title.text, "Custom OD")
         self.assertEqual(preview_result[5]["labels"], ["irradiation"])
