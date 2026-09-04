@@ -620,10 +620,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                           placeholder="Type a wavelength"),
                             ]),
                             html.Div(className="slice-wavelength-control", children=[
-                                html.Label("Time unit"),
+                                html.Label("Seconds per timestamp unit"),
                                 dcc.Input(
-                                    id="slice-time-unit", type="text", value="",
-                                    debounce=True, placeholder="e.g. s, min, h",
+                                    id="slice-time-multiplier", type="number", value=1,
+                                    min=np.finfo(float).eps, step="any",
+                                    placeholder="e.g. 30",
                                 ),
                             ]),
                             html.Div(className="plot-download-actions", children=[
@@ -662,6 +663,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                 ),
                             ]),
                         ]),
+                        html.Small(
+                            "Existing timestamps are multiplied by this number. "
+                            "For spectra recorded every 30 seconds at timestamps 0, 1, 2… enter 30.",
+                            className="slice-time-help",
+                        ),
                         html.Div(id="slice-message", className="message"),
                         html.Div(id="slice-fit-result", className="slice-fit-result"),
                         html.Div(id="slice-image-message", className="image-export-message"),
@@ -965,17 +971,27 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Output("slice-wavelength", "min"), Output("slice-wavelength", "max"),
         Output("slice-wavelength", "value"),
         Input("dataset-store", "data"),
+        State("wavelength-low", "value"), State("wavelength-high", "value"),
+        State("slice-wavelength", "value"),
     )
-    def dataset_controls(data):
+    def dataset_controls(data, current_low, current_high, current_slice):
         if not data:
             return None, None, True, True, True, [], [], None, None, None
         wavelengths = np.asarray(data["wavelengths"], float)
-        return (float(wavelengths.min()), float(wavelengths.max()), False, False, False,
+        available_low = float(wavelengths.min())
+        available_high = float(wavelengths.max())
+        selected_low, selected_high = _preserved_wavelength_range(
+            current_low, current_high, available_low, available_high
+        )
+        selected_slice = _bounded_value(
+            current_slice, available_low, available_high,
+            float(wavelengths[len(wavelengths) // 2]),
+        )
+        return (selected_low, selected_high, False, False, False,
                 _loaded_spectrum_rows(html, dcc, data),
                 _parameter_cards(html, dcc, data["labels"],
                                  data.get("concentrations"), data.get("path_lengths")),
-                float(wavelengths.min()), float(wavelengths.max()),
-                float(wavelengths[len(wavelengths) // 2]))
+                available_low, available_high, selected_slice)
 
     @app.callback(
         Output({"type": "legend-spectrum", "index": ALL}, "value"),
@@ -1070,6 +1086,9 @@ window.autoqySaveText = (filename, text, mimeType) => {
             plot_labels = _legend_names(legend_names, data["labels"])
             legend_visibility = _legend_visibility(legend_values, len(plot_labels))
             use_minimal_colors = "on" in (minimal_colors or [])
+            plot_wavelength_range = _wavelength_interval(
+                wavelength_low, wavelength_high
+            )
             if concentration_data is None:
                 message = ("Enter the concentration and path length for every "
                            "spectrum to calculate molar absorptivity.")
@@ -1079,6 +1098,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                             use_minimal_colors,
                             _axis_label(x_axis_label, "Wavelength (nm)"),
                             _axis_label(absorbance_axis_label, "Absorbance"),
+                            wavelength_range=plot_wavelength_range,
                         ),
                         "Processed absorbance is ready to export; ε is waiting for "
                         "concentration inputs.",
@@ -1117,6 +1137,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     _axis_label(x_axis_label, "Wavelength (nm)"),
                     _axis_label(absorbance_axis_label, "Absorbance"),
                     _axis_label(epsilon_axis_label, "ε (M⁻¹ cm⁻¹)"),
+                    wavelength_range=plot_wavelength_range,
                 ),
                 result_message, concentration_message, smoothing_message,
                 _pack_epsilon(result, data["labels"]), processed_data, False, "",
@@ -1134,10 +1155,10 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Output("slice-fit-result", "className"),
         Input("processed-store", "data"), Input("slice-wavelength", "value"),
         Input("slice-x-axis-label", "value"), Input("slice-y-axis-label", "value"),
-        Input("slice-time-unit", "value"), Input("fit-slice-exponential", "value"),
+        Input("slice-time-multiplier", "value"), Input("fit-slice-exponential", "value"),
     )
     def wavelength_slice(processed_data, wavelength, x_axis_label, y_axis_label,
-                         time_unit, fit_exponential):
+                         time_multiplier, fit_exponential):
         if not processed_data:
             return (_empty(go, "Load spectra and type a wavelength"), None, "", "",
                     "slice-fit-result")
@@ -1147,31 +1168,33 @@ window.autoqySaveText = (filename, text, mimeType) => {
         try:
             dataset = _unpack(processed_data)
             selected, coordinates, values = _wavelength_slice(dataset, wavelength)
-            unit = str(time_unit or "").strip()
-            x_label = _time_axis_label(x_axis_label, unit)
+            multiplier = _positive_time_multiplier(time_multiplier)
+            scaled_coordinates = coordinates * multiplier
+            x_label = _time_axis_label(x_axis_label)
             y_label = _axis_label(y_axis_label, "Absorbance")
             fit = None
             fit_message = ""
             fit_class = "slice-fit-result"
             if "on" in (fit_exponential or []):
-                if not unit:
-                    fit_message = "Enter the time unit to calculate a lifetime."
+                try:
+                    fit = _fit_exponential_decay(scaled_coordinates, values)
+                    fit_message = _decay_fit_message(fit)
+                    fit_class += (
+                        " status-message status-warning"
+                        if fit["duration"] < fit["lifetime"]
+                        else " status-message status-ok"
+                    )
+                except (RuntimeError, TypeError, ValueError) as error:
+                    fit_message = f"Exponential fit unavailable: {error}"
                     fit_class += " status-message status-warning"
-                else:
-                    try:
-                        fit = _fit_exponential_decay(coordinates, values)
-                        fit_message = _decay_fit_message(fit, unit)
-                        fit_class += " status-message status-ok"
-                    except (RuntimeError, TypeError, ValueError) as error:
-                        fit_message = f"Exponential fit unavailable: {error}"
-                        fit_class += " status-message status-warning"
             data = {
                 "wavelength": selected,
-                "coordinates": coordinates.tolist(),
+                "coordinates": scaled_coordinates.tolist(),
                 "values": values.tolist(),
                 "x_label": x_label,
                 "y_label": f"{y_label} at {selected:g} nm",
-                "time_unit": unit,
+                "time_multiplier": multiplier,
+                "time_unit": "s",
             }
             if fit is not None:
                 data.update({
@@ -1180,7 +1203,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     "lifetime_error": fit["lifetime_error"],
                 })
             figure = _wavelength_slice_figure(
-                go, coordinates, values, selected, x_label, y_label, fit, unit
+                go, scaled_coordinates, values, selected, x_label, y_label, fit
             )
             return (figure, data, f"Showing the interpolated slice at {selected:g} nm.",
                     fit_message, fit_class)
@@ -1900,6 +1923,25 @@ def _wavelength_interval(low, high):
     return float(low), float(high)
 
 
+def _bounded_value(value, minimum, maximum, fallback):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return float(fallback)
+    if not np.isfinite(parsed):
+        return float(fallback)
+    return float(np.clip(parsed, minimum, maximum))
+
+
+def _preserved_wavelength_range(current_low, current_high,
+                                available_low, available_high):
+    low = _bounded_value(current_low, available_low, available_high, available_low)
+    high = _bounded_value(current_high, available_low, available_high, available_high)
+    if low >= high:
+        return float(available_low), float(available_high)
+    return low, high
+
+
 def _pack(dataset, labels, filenames, concentrations=None, path_lengths=None):
     packed = {
         "filenames": list(filenames), "format": dataset.source_format,
@@ -2148,33 +2190,47 @@ def _fit_exponential_decay(coordinates, values):
     }
 
 
-def _time_axis_label(axis_label, time_unit):
+def _positive_time_multiplier(value):
+    try:
+        multiplier = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError("enter a numeric time multiplier") from error
+    if not np.isfinite(multiplier) or multiplier <= 0:
+        raise ValueError("the time multiplier must be greater than zero")
+    return multiplier
+
+
+def _time_axis_label(axis_label):
     label = _axis_label(axis_label, "Time")
-    unit = str(time_unit or "").strip()
-    if unit and label.rstrip().endswith(f"({unit})"):
+    if label.rstrip().endswith("(s)"):
         return label
-    return f"{label} ({unit})" if unit else label
+    return f"{label} (s)"
 
 
-def _decay_fit_message(fit, time_unit):
+def _decay_fit_message(fit):
     lifetime = fit["lifetime"]
     error = fit["lifetime_error"]
     duration = fit["duration"]
     message = (
-        f"Lifetime τ = {lifetime:.4g} ± {error:.2g} {time_unit} "
+        f"Lifetime τ = {lifetime:.4g} ± {error:.2g} s "
         f"(1σ fit error; R² = {fit['r_squared']:.4f})."
     )
     if duration > lifetime:
         message += (
-            f" Recorded time span: {duration:.4g} {time_unit}; "
+            f" Recorded time span: {duration:.4g} s; "
             "the measurement extends beyond one fitted lifetime."
+        )
+    elif duration < lifetime:
+        message += (
+            f" Recorded time span: {duration:.4g} s; "
+            "the measurement is shorter than one fitted lifetime."
         )
     return message
 
 
 def _wavelength_slice_figure(go, coordinates, values, wavelength,
                              x_axis_label="Time", y_axis_label="Absorbance",
-                             fit=None, time_unit=""):
+                             fit=None):
     figure = go.Figure()
     figure.add_trace(go.Scatter(
         x=coordinates, y=values, mode="lines+markers", name=f"{wavelength:g} nm",
@@ -2184,7 +2240,7 @@ def _wavelength_slice_figure(go, coordinates, values, wavelength,
     if fit is not None:
         figure.add_trace(go.Scatter(
             x=fit["fit_coordinates"], y=fit["fit_values"], mode="lines",
-            name=f"Exponential fit · τ={fit['lifetime']:.4g} {time_unit}",
+            name=f"Exponential fit · τ={fit['lifetime']:.4g} s",
             line={"color": PLOT_PURPLE, "width": 2.5, "dash": "dash"},
         ))
     figure.update_xaxes(title_text=x_axis_label)
@@ -2201,7 +2257,7 @@ def _wavelength_slice_figure(go, coordinates, values, wavelength,
 def _absorbance_figure(go, dataset, original, processed, labels, method,
                        svd_enabled=None, svd_rank=None, legend_visibility=None,
                        minimal_colors=False, x_axis_label="Wavelength (nm)",
-                       y_axis_label="Absorbance"):
+                       y_axis_label="Absorbance", wavelength_range=None):
     figure = go.Figure()
     colors = _spectrum_colors(len(labels), minimal_colors)
     legend_visibility = _legend_visibility(None, len(labels), legend_visibility)
@@ -2223,14 +2279,16 @@ def _absorbance_figure(go, dataset, original, processed, labels, method,
     figure.update_xaxes(title_text=x_axis_label)
     figure.update_layout(title={"text": _processing_title(
         method, svd_enabled, svd_rank), "x": 0.02})
-    return _style(figure, 520, any(legend_visibility))
+    return _lock_wavelength_axis(
+        _style(figure, 520, any(legend_visibility)), wavelength_range
+    )
 
 
 def _epsilon_figure(go, make_subplots, dataset, original, result, labels, method,
                     svd_enabled=None, svd_rank=None, legend_visibility=None,
                     minimal_colors=False, x_axis_label="Wavelength (nm)",
                     absorbance_axis_label="Absorbance",
-                    epsilon_axis_label="ε (M⁻¹ cm⁻¹)"):
+                    epsilon_axis_label="ε (M⁻¹ cm⁻¹)", wavelength_range=None):
     figure = make_subplots(
         rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
         row_heights=[0.34, 0.66],
@@ -2271,7 +2329,18 @@ def _epsilon_figure(go, make_subplots, dataset, original, result, labels, method
     figure.update_xaxes(title_text=x_axis_label, row=2, col=1)
     figure.update_layout(title={"text": _processing_title(
         method, svd_enabled, svd_rank), "x": 0.02})
-    return _style(figure, 690, any(legend_visibility))
+    return _lock_wavelength_axis(
+        _style(figure, 690, any(legend_visibility)), wavelength_range
+    )
+
+
+def _lock_wavelength_axis(figure, wavelength_range):
+    if wavelength_range is None:
+        return figure
+    low, high = map(float, wavelength_range)
+    figure.update_xaxes(range=[low, high], autorange=False)
+    figure.update_layout(uirevision=f"wavelength-range:{low:.12g}:{high:.12g}")
+    return figure
 
 
 def _nmr_figure(go, make_subplots, result, raw_reactant=None, raw_pss=None,
