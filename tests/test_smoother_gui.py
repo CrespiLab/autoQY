@@ -11,6 +11,7 @@ from autoqy_core.plot_style import ANALYSIS_TRACE_PALETTE
 from autoqy_core.smoother import SpectralDataset
 from autoqy_core.tools.smoother_gui import (
     _append_packed,
+    _absorbance_figure,
     _colors,
     _combine_loaded,
     _csv_filename,
@@ -18,6 +19,7 @@ from autoqy_core.tools.smoother_gui import (
     _pack,
     _pack_epsilon,
     _remove_packed,
+    _reorder_packed,
     _spectrum_colors,
     _wavelength_slice,
     create_app,
@@ -130,15 +132,16 @@ class SpectralGuiTests(unittest.TestCase):
             if getattr(component, "id", None)
         }
         self.assertNotIn("spectrum-legend-labels", by_id)
-        self.assertEqual(by_id["show-spectrum-legend"].value, ["on"])
+        self.assertNotIn("show-spectrum-legend", by_id)
+        self.assertIn("loaded-spectrum-manager", by_id)
+        self.assertIn("show-all-legends", by_id)
+        self.assertIn("hide-all-legends", by_id)
         self.assertEqual(by_id["minimal-spectrum-colors"].value, [])
         self.assertEqual(by_id["include-plot-header"].value, [])
         self.assertEqual(by_id["origin-epsilon-export"].value, [])
         self.assertEqual(by_id["origin-slice-export"].value, [])
         self.assertEqual(by_id["show-epsilon-export-grid"].value, [])
         self.assertEqual(by_id["show-slice-export-grid"].value, [])
-        self.assertEqual(by_id["remove-spectrum-selection"].value, [])
-        self.assertTrue(by_id["remove-spectra"].disabled)
         self.assertFalse(by_id["wavelength-slice-panel"].open)
         self.assertNotIn("responsive", by_id["epsilon-plot"].config)
         for component_id in (
@@ -159,6 +162,24 @@ class SpectralGuiTests(unittest.TestCase):
 
     def test_main_plot_uses_the_analysis_palette(self):
         self.assertEqual(_colors(), list(ANALYSIS_TRACE_PALETTE))
+
+    def test_legend_can_show_only_selected_spectrum_traces(self):
+        import plotly.graph_objects as go
+
+        dataset = SpectralDataset(
+            np.array([400.0, 410.0]), np.array([0.0, 1.0, 2.0]),
+            np.array([[1.0, 2.0, 3.0], [1.5, 2.5, 3.5]]),
+            source_format="csv",
+        )
+        figure = _absorbance_figure(
+            go, dataset, dataset.absorbance, dataset.absorbance,
+            ["one", "two", "three"], "off",
+            legend_visibility=[True, False, True],
+        )
+        self.assertEqual(
+            [trace.showlegend for trace in figure.data], [True, False, True]
+        )
+        self.assertTrue(figure.layout.showlegend)
 
     def test_minimal_palette_marks_initial_intermediate_and_final_spectra(self):
         self.assertEqual(_spectrum_colors(1, True), ["#2d6f8e"])
@@ -189,6 +210,27 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertEqual(selected, 405.0)
         np.testing.assert_array_equal(coordinates, dataset.coordinates)
         np.testing.assert_allclose(values, [5.0, 6.0, 7.0])
+
+    def test_multiple_files_are_naturally_sorted_by_filename(self):
+        def spectrum(value):
+            return SpectralDataset(
+                np.array([400.0, 410.0]), np.array([0.0]),
+                np.array([[value], [value + 0.5]]), source_format="csv",
+            )
+
+        combined, labels, _ = _combine_loaded([
+            (spectrum(10.0), "sample10.csv"),
+            (spectrum(2.0), "sample2.csv"),
+            (spectrum(1.0), "Sample1.csv"),
+            (spectrum(3.0), "sampleA.csv"),
+            (spectrum(4.0), "sampleB.csv"),
+        ])
+        self.assertEqual(
+            labels, ["Sample1", "sample2", "sample10", "sampleA", "sampleB"]
+        )
+        np.testing.assert_array_equal(
+            combined.absorbance[0], [1.0, 2.0, 10.0, 3.0, 4.0]
+        )
 
     def test_repeated_single_spectrum_drops_append_in_elapsed_time(self):
         first = SpectralDataset(
@@ -224,16 +266,42 @@ class SpectralGuiTests(unittest.TestCase):
         reduced = _remove_packed(
             packed, [1], concentrations=[10.0, 20.0, 30.0],
             path_lengths=[0.5, 1.0, 1.5],
+            legend_values=[["on"], [], ["on"]],
         )
         self.assertEqual(reduced["labels"], ["first", "last"])
         self.assertEqual(reduced["coordinates"], [0.0, 8.0])
         self.assertEqual(reduced["concentrations"], [10.0, 30.0])
         self.assertEqual(reduced["path_lengths"], [0.5, 1.5])
+        self.assertEqual(reduced["legend_visibility"], [True, True])
         np.testing.assert_array_equal(
             np.asarray(reduced["absorbance"]),
             np.array([[1.0, 5.0], [2.0, 6.0]]),
         )
         self.assertIsNone(_remove_packed(packed, [0, 1, 2]))
+
+    def test_loaded_spectra_can_be_reordered_with_their_settings(self):
+        dataset = SpectralDataset(
+            np.array([400.0, 410.0]), np.array([0.0, 4.0, 9.0]),
+            np.array([[1.0, 2.0, 3.0], [11.0, 12.0, 13.0]]),
+            source_format="csv",
+        )
+        packed = _pack(
+            dataset, ["one", "two", "three"],
+            ["one.csv", "two.csv", "three.csv"],
+        )
+        reordered = _reorder_packed(
+            packed, [1, 0, 2], concentrations=[1.0, 2.0, 3.0],
+            path_lengths=[0.5, 1.0, 1.5],
+            legend_values=[["on"], [], ["on"]],
+        )
+        self.assertEqual(reordered["labels"], ["two", "one", "three"])
+        self.assertEqual(reordered["filenames"], ["two.csv", "one.csv", "three.csv"])
+        self.assertEqual(reordered["coordinates"], [0.0, 4.0, 9.0])
+        self.assertEqual(reordered["concentrations"], [2.0, 1.0, 3.0])
+        self.assertEqual(reordered["legend_visibility"], [False, True, True])
+        np.testing.assert_array_equal(
+            np.asarray(reordered["absorbance"])[0], [2.0, 1.0, 3.0]
+        )
 
     def test_wavelength_slice_rejects_values_outside_the_processed_range(self):
         dataset = SpectralDataset(
@@ -287,7 +355,7 @@ class SpectralGuiTests(unittest.TestCase):
         packed = _pack(dataset, ["irradiation"], ["irradiation.csv"])
         preview_result = preview(
             packed, 400, 402, [], None, None, "off", 5, 3,
-            [], 1, [None], [1.0], [], [], "Custom wavelength", "Custom OD",
+            [], 1, [None], [1.0], [[]], [], "Custom wavelength", "Custom OD",
             "Custom epsilon",
         )
         self.assertIsNone(preview_result[4])

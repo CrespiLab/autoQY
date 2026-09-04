@@ -175,6 +175,8 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
 .plot-options > summary { cursor: pointer; font-size: .82rem; font-weight: 700; }
 .plot-options .plot-legend-toggle { max-width: 170px; margin-top: 10px; }
 .plot-options label { margin-top: 11px; }
+.legend-action-buttons { display: flex; gap: 8px; margin-top: 8px; }
+.legend-action-buttons .button { width: auto; margin-top: 0; }
 .axis-name-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -237,6 +239,20 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
 .repeat-row small { margin-top: 3px; color: var(--muted); font-size: 0.74rem; }
 
 .epsilon-workspace { grid-template-columns: minmax(320px, 390px) minmax(0, 1fr); }
+.loaded-spectra-tool > small { display: block; margin: 8px 0; }
+.loaded-spectrum-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 34px 34px auto;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 0;
+  border-top: 1px solid #ece9e3;
+}
+.loaded-spectrum-name { overflow: hidden; color: #31404a; font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
+.spectrum-legend-choice label { margin: 0; font-size: .7rem; }
+.loaded-spectrum-row .button { width: auto; min-width: 0; margin-top: 0; padding: 7px 8px; }
+.spectrum-order-button { font-size: 1rem; line-height: 1; }
+.spectrum-remove-button { font-size: .7rem; }
 .spectrum-card { margin-top: 12px; padding: 13px; border: 1px solid #e6e2da; border-radius: 11px; background: #fcfbf8; }
 .spectrum-card h3 { overflow: hidden; margin: 0 0 9px; color: #31404a; font-size: .86rem; text-overflow: ellipsis; white-space: nowrap; }
 .spectrum-card label { margin-top: 8px; }

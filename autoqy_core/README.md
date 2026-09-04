@@ -296,7 +296,11 @@ and existing files require confirmation before replacement. Negative values are
 preserved by default; the output option can clamp saved absorbance and epsilon
 values to zero without changing the preview or source data.
 
-The plot legend can be switched on or off when many spectra are loaded.
+Files dropped together are naturally ordered by name, so `sample1` precedes
+`sample2` and `sample10`. Open **Loaded spectra: order, legend, removal** to
+move individual spectra up or down, remove them, or choose exactly which trace
+names appear in the legend. **Show all** and **Hide all** provide quick legend
+shortcuts.
 **Minimal colors** highlights the initial spectrum in blue and the final
 spectrum in orange, with intermediate spectra in grey as in the Analysis GUI.
 PNG and SVG save buttons open a Save As dialog. Saved images contain only the
@@ -315,10 +319,10 @@ the main wavelength, absorbance, and epsilon axes and both slice axes.
 Newly dropped or selected spectra are appended to the current dataset, so the
 main plot and wavelength slice can monitor a growing kinetics series. Repeated
 single-spectrum drops use elapsed seconds from the first drop. The uploader is
-reset after every addition, allowing the same filename to be reused. Select one
-or more loaded spectra and use **Remove selected** to update both plots without
-changing the remaining time coordinates. **Clear all spectra** resets the whole
-accumulated series and timer.
+reset after every addition, allowing the same filename to be reused. Removing a
+loaded spectrum updates both plots without changing the remaining time
+coordinates. **Clear all spectra** resets the whole accumulated series and
+timer.
 
 The optional NMR-guided PSS workflow loads a dataset whose first spectrum is
 reactant and last spectrum is the final PSS. It supports its own baseline and
