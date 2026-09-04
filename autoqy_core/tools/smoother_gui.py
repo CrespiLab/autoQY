@@ -99,7 +99,8 @@ def create_app():
   }, true);
 })();
 window.autoqyDownloadPlot = (
-  graphId, figure, format, includeTitle, includeLegend, originStyle, exportGrid
+  graphId, figure, format, includeTitle, includeLegend, originStyle, exportGrid,
+  startYAtZero
 ) => {
   const graph = document.querySelector(`#${graphId} .js-plotly-plot`);
   if (!graph || !window.Plotly) return 'Plot export is unavailable.';
@@ -117,6 +118,7 @@ window.autoqyDownloadPlot = (
   const keepLegend = Array.isArray(includeLegend) && includeLegend.includes('on');
   const useOriginStyle = Array.isArray(originStyle) && originStyle.includes('on');
   const includeGrid = Array.isArray(exportGrid) && exportGrid.includes('on');
+  const zeroYMinimum = Array.isArray(startYAtZero) && startYAtZero.includes('on');
   const exportData = JSON.parse(JSON.stringify(figure?.data || []));
   const exportLayout = JSON.parse(JSON.stringify(figure?.layout || {}));
   if (!keepTitle) {
@@ -126,7 +128,7 @@ window.autoqyDownloadPlot = (
     exportLayout.margin = Object.assign({}, exportLayout.margin || {}, {t: 58});
     height = Math.max(480, height - 127);
   }
-  exportLayout.showlegend = keepLegend && figure?.layout?.showlegend !== false;
+  exportLayout.showlegend = keepLegend;
   const axisKeys = Object.keys(exportLayout)
     .filter((key) => /^xaxis\\d*$|^yaxis\\d*$/.test(key));
   if (useOriginStyle) {
@@ -192,11 +194,17 @@ window.autoqyDownloadPlot = (
     });
   }
   axisKeys.forEach((key) => {
-    exportLayout[key] = Object.assign({}, exportLayout[key] || {}, {
+    const axis = Object.assign({}, exportLayout[key] || {}, {
       showgrid: includeGrid,
       gridcolor: 'rgba(0,0,0,0.13)',
       gridwidth: useOriginStyle ? 1.5 : 1
     });
+    if (zeroYMinimum && /^yaxis\\d*$/.test(key)) {
+      delete axis.range;
+      axis.autorange = true;
+      axis.rangemode = 'nonnegative';
+    }
+    exportLayout[key] = axis;
   });
   exportLayout.width = width;
   exportLayout.height = height;
@@ -293,7 +301,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
             html.Span(text, className="info-popup-content"),
         ])
 
-    def image_export_options(title_id, legend_id, origin_id, grid_id):
+    def image_export_options(title_id, legend_id, origin_id, grid_id, zero_y_id):
         return html.Details(className="plot-options image-export-options", children=[
             html.Summary("Image export options"),
             html.Div(className="image-export-option-list", children=[
@@ -302,16 +310,23 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     options=[{"label": "Title in saved image", "value": "on"}],
                 ),
                 dcc.Checklist(
-                    id=legend_id, value=[], className="toggle-control plot-option-toggle",
+                    id=legend_id, value=["on"],
+                    className="toggle-control plot-option-toggle",
                     options=[{"label": "Legend in saved image", "value": "on"}],
                 ),
                 dcc.Checklist(
-                    id=origin_id, value=[], className="toggle-control plot-option-toggle",
+                    id=origin_id, value=["on"],
+                    className="toggle-control plot-option-toggle",
                     options=[{"label": "Origin-style export", "value": "on"}],
                 ),
                 dcc.Checklist(
                     id=grid_id, value=[], className="toggle-control plot-option-toggle",
                     options=[{"label": "Grid in saved image", "value": "on"}],
+                ),
+                dcc.Checklist(
+                    id=zero_y_id, value=["on"],
+                    className="toggle-control plot-option-toggle",
+                    options=[{"label": "Y axis starts at zero", "value": "on"}],
                 ),
             ]),
         ])
@@ -569,6 +584,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                 image_export_options(
                                     "include-plot-title", "include-plot-legend",
                                     "origin-epsilon-export", "show-epsilon-export-grid",
+                                    "zero-epsilon-export-y",
                                 ),
                                 html.Details(className="plot-options", children=[
                                     html.Summary("Legend options"),
@@ -664,6 +680,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                             image_export_options(
                                 "include-slice-title", "include-slice-legend",
                                 "origin-slice-export", "show-slice-export-grid",
+                                "zero-slice-export-y",
                             ),
                         ]),
                         html.Div(id="slice-message", className="message"),
@@ -725,11 +742,12 @@ window.autoqySaveText = (filename, text, mimeType) => {
     ])
 
     def register_image_download(graph_id, png_button, svg_button, message_id,
-                                title_option, legend_option, origin_option, grid_option):
+                                title_option, legend_option, origin_option, grid_option,
+                                zero_y_option):
         app.clientside_callback(
             """
             function(pngClicks, svgClicks, figure, includeTitle, includeLegend,
-                     originStyle, exportGrid) {
+                     originStyle, exportGrid, startYAtZero) {
               const context = window.dash_clientside.callback_context;
               if (!context.triggered || !context.triggered.length) {
                 return window.dash_clientside.no_update;
@@ -738,7 +756,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
               const format = trigger.endsWith('svg') ? 'svg' : 'png';
               return window.autoqyDownloadPlot(
                 GRAPH_ID, figure, format, includeTitle, includeLegend,
-                originStyle, exportGrid
+                originStyle, exportGrid, startYAtZero
               );
             }
             """.replace("GRAPH_ID", repr(graph_id)),
@@ -750,23 +768,24 @@ window.autoqySaveText = (filename, text, mimeType) => {
             State(legend_option, "value"),
             State(origin_option, "value"),
             State(grid_option, "value"),
+            State(zero_y_option, "value"),
             prevent_initial_call=True,
         )
 
     register_image_download(
         "epsilon-plot", "save-epsilon-png", "save-epsilon-svg",
         "epsilon-image-message", "include-plot-title", "include-plot-legend",
-        "origin-epsilon-export", "show-epsilon-export-grid",
+        "origin-epsilon-export", "show-epsilon-export-grid", "zero-epsilon-export-y",
     )
     register_image_download(
         "wavelength-slice-plot", "save-slice-png", "save-slice-svg",
         "slice-image-message", "include-slice-title", "include-slice-legend",
-        "origin-slice-export", "show-slice-export-grid",
+        "origin-slice-export", "show-slice-export-grid", "zero-slice-export-y",
     )
     register_image_download(
         "nmr-plot", "save-nmr-png", "save-nmr-svg", "nmr-image-message",
         "include-plot-title", "include-plot-legend", "origin-epsilon-export",
-        "show-epsilon-export-grid",
+        "show-epsilon-export-grid", "zero-epsilon-export-y",
     )
 
     app.clientside_callback(
@@ -2232,7 +2251,7 @@ def _wavelength_slice_figure(go, coordinates, values, wavelength,
     figure.add_trace(go.Scatter(
         x=coordinates, y=values, mode="lines+markers", name=f"{wavelength:g} nm",
         line={"color": PLOT_BLUE, "width": 2},
-        marker={"color": PLOT_ORANGE, "size": 6}, showlegend=fit is not None,
+        marker={"color": PLOT_ORANGE, "size": 6}, showlegend=True,
     ))
     if fit is not None:
         figure.add_trace(go.Scatter(
@@ -2247,6 +2266,7 @@ def _wavelength_slice_figure(go, coordinates, values, wavelength,
         title={"text": f"Wavelength slice · {wavelength:g} nm", "x": 0.02},
         margin=dict(l=68, r=24, t=90, b=58), hovermode="closest",
         legend={"orientation": "h", "x": 0, "y": 1.04, "yanchor": "bottom"},
+        showlegend=fit is not None,
     )
     return figure
 

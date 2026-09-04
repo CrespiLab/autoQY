@@ -25,6 +25,7 @@ from autoqy_core.tools.smoother_gui import (
     _reorder_packed,
     _spectrum_colors,
     _wavelength_slice,
+    _wavelength_slice_figure,
     create_app,
 )
 
@@ -141,13 +142,15 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertIn("hide-all-legends", by_id)
         self.assertEqual(by_id["minimal-spectrum-colors"].value, [])
         self.assertEqual(by_id["include-plot-title"].value, [])
-        self.assertEqual(by_id["include-plot-legend"].value, [])
+        self.assertEqual(by_id["include-plot-legend"].value, ["on"])
         self.assertEqual(by_id["include-slice-title"].value, [])
-        self.assertEqual(by_id["include-slice-legend"].value, [])
-        self.assertEqual(by_id["origin-epsilon-export"].value, [])
-        self.assertEqual(by_id["origin-slice-export"].value, [])
+        self.assertEqual(by_id["include-slice-legend"].value, ["on"])
+        self.assertEqual(by_id["origin-epsilon-export"].value, ["on"])
+        self.assertEqual(by_id["origin-slice-export"].value, ["on"])
         self.assertEqual(by_id["show-epsilon-export-grid"].value, [])
         self.assertEqual(by_id["show-slice-export-grid"].value, [])
+        self.assertEqual(by_id["zero-epsilon-export-y"].value, ["on"])
+        self.assertEqual(by_id["zero-slice-export-y"].value, ["on"])
         self.assertEqual(by_id["slice-time-multiplier"].value, 1)
         self.assertEqual(by_id["slice-time-multiplier"].type, "number")
         self.assertEqual(by_id["fit-slice-exponential"].value, [])
@@ -167,10 +170,12 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertIn({
             "include-plot-title", "include-plot-legend",
             "origin-epsilon-export", "show-epsilon-export-grid",
+            "zero-epsilon-export-y",
         }, menu_ids)
         self.assertIn({
             "include-slice-title", "include-slice-legend",
             "origin-slice-export", "show-slice-export-grid",
+            "zero-slice-export-y",
         }, menu_ids)
         self.assertFalse(any(
             {"minimal-spectrum-colors", "fit-slice-exponential"} & ids
@@ -221,6 +226,7 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertIn("x: 0.98", self.app.index_string)
         self.assertIn("useOriginStyle ? 1.5 : 2", self.app.index_string)
         self.assertIn("showgrid: includeGrid", self.app.index_string)
+        self.assertIn("axis.rangemode = 'nonnegative'", self.app.index_string)
 
     def test_main_plot_uses_the_analysis_palette(self):
         self.assertEqual(_colors(), list(ANALYSIS_TRACE_PALETTE))
@@ -242,6 +248,15 @@ class SpectralGuiTests(unittest.TestCase):
             [trace.showlegend for trace in figure.data], [True, False, True]
         )
         self.assertTrue(figure.layout.showlegend)
+
+    def test_slice_trace_remains_available_to_the_saved_image_legend(self):
+        import plotly.graph_objects as go
+
+        figure = _wavelength_slice_figure(
+            go, np.array([0.0, 1.0]), np.array([1.0, 0.5]), 450.0
+        )
+        self.assertFalse(figure.layout.showlegend)
+        self.assertTrue(figure.data[0].showlegend)
 
     def test_loaded_spectrum_rows_include_editable_legend_names(self):
         dataset = SpectralDataset(
