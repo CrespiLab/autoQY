@@ -98,7 +98,7 @@ def create_app():
   }, true);
 })();
 window.autoqyDownloadPlot = (
-  graphId, figure, format, includeHeader, originStyle, exportGrid
+  graphId, figure, format, includeTitle, includeLegend, originStyle, exportGrid
 ) => {
   const graph = document.querySelector(`#${graphId} .js-plotly-plot`);
   if (!graph || !window.Plotly) return 'Plot export is unavailable.';
@@ -112,19 +112,20 @@ window.autoqyDownloadPlot = (
     .toLowerCase() || 'autoqy-spectral-treatment';
   let width = Math.max(900, Math.round(graph._fullLayout?.width || 1200));
   let height = Math.max(600, Math.round(graph._fullLayout?.height || 800));
-  const keepHeader = Array.isArray(includeHeader) && includeHeader.includes('on');
+  const keepTitle = Array.isArray(includeTitle) && includeTitle.includes('on');
+  const keepLegend = Array.isArray(includeLegend) && includeLegend.includes('on');
   const useOriginStyle = Array.isArray(originStyle) && originStyle.includes('on');
   const includeGrid = Array.isArray(exportGrid) && exportGrid.includes('on');
   const exportData = JSON.parse(JSON.stringify(figure?.data || []));
   const exportLayout = JSON.parse(JSON.stringify(figure?.layout || {}));
-  if (keepHeader) {
-    exportLayout.showlegend = figure?.layout?.showlegend !== false;
-  } else {
+  if (!keepTitle) {
     exportLayout.title = null;
-    exportLayout.showlegend = false;
+  }
+  if (!keepTitle && !keepLegend) {
     exportLayout.margin = Object.assign({}, exportLayout.margin || {}, {t: 58});
     height = Math.max(480, height - 127);
   }
+  exportLayout.showlegend = keepLegend && figure?.layout?.showlegend !== false;
   const axisKeys = Object.keys(exportLayout)
     .filter((key) => /^xaxis\\d*$|^yaxis\\d*$/.test(key));
   if (useOriginStyle) {
@@ -133,26 +134,27 @@ window.autoqyDownloadPlot = (
     exportLayout.paper_bgcolor = '#ffffff';
     exportLayout.plot_bgcolor = '#ffffff';
     exportLayout.font = Object.assign({}, exportLayout.font || {}, {
-      family: 'Arial, Helvetica, sans-serif', color: '#000000', size: 24
+      family: 'Arial, Helvetica, sans-serif', color: '#000000', size: 28
     });
     exportLayout.margin = Object.assign({}, exportLayout.margin || {}, {
-      l: 220, r: 50, t: keepHeader ? 170 : 50, b: 180
+      l: 145, r: 35, t: keepTitle ? 100 : 45, b: 115
     });
     exportLayout.legend = Object.assign({}, exportLayout.legend || {}, {
-      bgcolor: 'rgba(0,0,0,0)', borderwidth: 0,
-      font: {family: 'Arial, Helvetica, sans-serif', size: 24, color: '#000000'}
+      orientation: 'v', x: 0.98, xanchor: 'right', y: 0.98, yanchor: 'top',
+      bgcolor: 'rgba(255,255,255,0.88)', bordercolor: '#000000', borderwidth: 1.5,
+      font: {family: 'Arial, Helvetica, sans-serif', size: 26, color: '#000000'}
     });
     if (exportLayout.title) {
       exportLayout.title = Object.assign({}, exportLayout.title, {
         font: Object.assign({}, exportLayout.title.font || {}, {
-          family: 'Arial, Helvetica, sans-serif', size: 32, color: '#000000'
+          family: 'Arial, Helvetica, sans-serif', size: 40, color: '#000000'
         })
       });
     }
     exportLayout.annotations = (exportLayout.annotations || []).map((annotation) =>
       Object.assign({}, annotation, {
         font: Object.assign({}, annotation.font || {}, {
-          family: 'Arial, Helvetica, sans-serif', size: 24, color: '#000000'
+          family: 'Arial, Helvetica, sans-serif', size: 28, color: '#000000'
         })
       })
     );
@@ -160,7 +162,7 @@ window.autoqyDownloadPlot = (
       if (!trace.line) return;
       const lineWidth = Number(trace.line.width ?? 1.5);
       if (lineWidth > 0) {
-        trace.line.width = Math.max(3.5, lineWidth * 1.8);
+        trace.line.width = Math.max(4.2, lineWidth * 2);
       }
     });
     axisKeys.forEach((key) => {
@@ -174,11 +176,11 @@ window.autoqyDownloadPlot = (
       axis.ticklen = 12;
       axis.tickcolor = '#000000';
       axis.tickfont = Object.assign({}, axis.tickfont || {}, {
-        family: 'Arial, Helvetica, sans-serif', size: 24, color: '#000000'
+        family: 'Arial, Helvetica, sans-serif', size: 28, color: '#000000'
       });
       axis.title = Object.assign({}, axis.title || {}, {
         font: Object.assign({}, axis.title?.font || {}, {
-          family: 'Arial, Helvetica, sans-serif', size: 32, color: '#000000'
+          family: 'Arial, Helvetica, sans-serif', size: 38, color: '#000000'
         })
       });
       axis.minor = Object.assign({}, axis.minor || {}, {
@@ -222,7 +224,9 @@ window.autoqyDownloadPlot = (
   const renderImage = () => window.Plotly.newPlot(
     holder, exportData, exportLayout, {staticPlot: true, displayModeBar: false}
   ).then(() => window.Plotly.toImage(holder, {
-    format, width, height, scale: format === 'png' ? 2 : 1
+    format, width, height,
+    // Origin PNG: 1950 × 1500 pixels, equivalent to 300 dpi at 6.5 × 5 inches.
+    scale: format === 'png' ? (useOriginStyle ? 1.5 : 2) : 1
   })).finally(() => {
     window.Plotly.purge(holder);
     holder.remove();
@@ -537,9 +541,14 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                     options=[{"label": "Minimal colors", "value": "on"}],
                                 ),
                                 dcc.Checklist(
-                                    id="include-plot-header", value=[],
+                                    id="include-plot-title", value=[],
                                     className="toggle-control plot-option-toggle",
-                                    options=[{"label": "Save title + legend", "value": "on"}],
+                                    options=[{"label": "Title in saved image", "value": "on"}],
+                                ),
+                                dcc.Checklist(
+                                    id="include-plot-legend", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Legend in saved image", "value": "on"}],
                                 ),
                                 dcc.Checklist(
                                     id="origin-epsilon-export", value=[],
@@ -619,9 +628,14 @@ window.autoqySaveText = (filename, text, mimeType) => {
                             ]),
                             html.Div(className="plot-quick-options", children=[
                                 dcc.Checklist(
-                                    id="include-slice-header", value=[],
+                                    id="include-slice-title", value=[],
                                     className="toggle-control plot-option-toggle",
-                                    options=[{"label": "Save title + legend", "value": "on"}],
+                                    options=[{"label": "Title in saved image", "value": "on"}],
+                                ),
+                                dcc.Checklist(
+                                    id="include-slice-legend", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Legend in saved image", "value": "on"}],
                                 ),
                                 dcc.Checklist(
                                     id="origin-slice-export", value=[],
@@ -693,10 +707,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
     ])
 
     def register_image_download(graph_id, png_button, svg_button, message_id,
-                                header_option, origin_option, grid_option):
+                                title_option, legend_option, origin_option, grid_option):
         app.clientside_callback(
             """
-            function(pngClicks, svgClicks, figure, includeHeader, originStyle, exportGrid) {
+            function(pngClicks, svgClicks, figure, includeTitle, includeLegend,
+                     originStyle, exportGrid) {
               const context = window.dash_clientside.callback_context;
               if (!context.triggered || !context.triggered.length) {
                 return window.dash_clientside.no_update;
@@ -704,7 +719,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
               const trigger = context.triggered[0].prop_id.split('.')[0];
               const format = trigger.endsWith('svg') ? 'svg' : 'png';
               return window.autoqyDownloadPlot(
-                GRAPH_ID, figure, format, includeHeader, originStyle, exportGrid
+                GRAPH_ID, figure, format, includeTitle, includeLegend,
+                originStyle, exportGrid
               );
             }
             """.replace("GRAPH_ID", repr(graph_id)),
@@ -712,7 +728,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
             Input(png_button, "n_clicks"),
             Input(svg_button, "n_clicks"),
             State(graph_id, "figure"),
-            State(header_option, "value"),
+            State(title_option, "value"),
+            State(legend_option, "value"),
             State(origin_option, "value"),
             State(grid_option, "value"),
             prevent_initial_call=True,
@@ -720,17 +737,17 @@ window.autoqySaveText = (filename, text, mimeType) => {
 
     register_image_download(
         "epsilon-plot", "save-epsilon-png", "save-epsilon-svg",
-        "epsilon-image-message", "include-plot-header", "origin-epsilon-export",
-        "show-epsilon-export-grid",
+        "epsilon-image-message", "include-plot-title", "include-plot-legend",
+        "origin-epsilon-export", "show-epsilon-export-grid",
     )
     register_image_download(
         "wavelength-slice-plot", "save-slice-png", "save-slice-svg",
-        "slice-image-message", "include-slice-header", "origin-slice-export",
-        "show-slice-export-grid",
+        "slice-image-message", "include-slice-title", "include-slice-legend",
+        "origin-slice-export", "show-slice-export-grid",
     )
     register_image_download(
         "nmr-plot", "save-nmr-png", "save-nmr-svg", "nmr-image-message",
-        "include-plot-header", "origin-epsilon-export",
+        "include-plot-title", "include-plot-legend", "origin-epsilon-export",
         "show-epsilon-export-grid",
     )
 

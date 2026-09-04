@@ -64,11 +64,13 @@ the editable `analysis.json`; **Save JSON** does. The
 written beside analysis results. Portable JSON can store input paths relative
 to the saved JSON file.
 
-After a run, the GUI reports the two quantum yields and fit status, lists the
-generated files, and provides interactive tabs for concentrations, fraction
-residuals, preprocessing, reference/reconstruction compatibility, and
-wavelength-resolved absorbance residuals. Automatic diagnostics are grouped as
-green, amber, or red checks. **Compare fit methods** runs regularized
+As soon as the four spectral inputs are loaded, **Preprocessing** shows the
+reactant/product epsilon spectra with the processed LED above the measured
+spectral decay; the LED is not overlaid on the decay. After a run, the GUI
+reports the two quantum yields and fit status, lists the generated files, and
+adds interactive views for concentrations, fraction residuals, endpoint
+reconstruction, and wavelength-resolved absorbance residuals. Automatic
+diagnostics are grouped as green, amber, or red checks. **Compare fit methods** runs regularized
 concentrations, full-spectrum ODE, and legacy concentration fitting with the
 same nominal inputs; it writes no result files and disables epsilon uncertainty
 for the comparison. **Open Spectral Treatment** starts that GUI in its own
@@ -305,10 +307,13 @@ quick legend shortcuts.
 **Minimal colors** highlights the initial spectrum in blue and the final
 spectrum in orange, with intermediate spectra in grey as in the Analysis GUI.
 PNG and SVG save buttons open a Save As dialog. Saved images contain only the
-plots by default; enable **Save title + legend** when those should be included.
-**Origin-style export** follows the supplied Origin-like Python example: a
-6.5:5 white figure with Arial text, boxed axes, outward major and minor
-ticks, thick high-contrast curves, enlarged text, and no grid by default.
+plots by default. **Title in saved image** and **Legend in saved image** can be
+enabled independently. **Origin-style export** follows the supplied Origin-like
+Python example: a 6.5:5 white figure with Arial text, boxed axes, outward major
+and minor ticks, thick high-contrast curves, larger text, tight margins, and no
+grid by default. Its optional legend is placed inside the plot frame, and PNGs
+are rendered at 1950 × 1500 pixels (300 dpi at 6.5 × 5 inches); SVG remains
+resolution-independent.
 **Grid in saved image** can be switched on independently for the main and
 wavelength-slice exports.
 

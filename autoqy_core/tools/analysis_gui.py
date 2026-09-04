@@ -173,12 +173,10 @@ def create_app():
         ])
 
     default_folder = str(Path.cwd())
-    empty = _empty_figure(go, "Run analysis to display this plot")
-
-    def analysis_graph(name):
+    def analysis_graph(name, message="Run analysis to display this plot", height=740):
         return dcc.Graph(
-            id=name, figure=empty, responsive=True,
-            style={"height": "740px", "minHeight": "740px"},
+            id=name, figure=_empty_figure(go, message), responsive=True,
+            style={"height": f"{height}px", "minHeight": f"{height}px"},
         )
     app.layout = html.Div(className="app-shell analysis-app", children=[
         html.Header(className="app-header", children=[
@@ -434,8 +432,12 @@ def create_app():
                         dcc.Tab(label="Fraction residual", value="fraction-residual",
                                 children=[analysis_graph("fraction-figure")]),
                         dcc.Tab(label="Preprocessing", value="spectra",
-                                children=[analysis_graph("spectra-figure")]),
-                        dcc.Tab(label="References and reconstruction", value="input-compatibility",
+                                children=[analysis_graph(
+                                    "spectra-figure",
+                                    "Load the spectra, epsilon references, and LED to preview them",
+                                    900,
+                                )]),
+                        dcc.Tab(label="Endpoint reconstruction", value="input-compatibility",
                                 children=[analysis_graph("input-diagnostic-figure")]),
                         dcc.Tab(label="Absorbance residuals", value="absorbance-residuals",
                                 children=[analysis_graph("residual-heatmap")]),
@@ -530,6 +532,25 @@ def create_app():
         return _physical_parameter_preview(values)
 
     @app.callback(
+        Output("spectra-figure", "figure", allow_duplicate=True),
+        Input({"type": "analysis-field", "name": ALL}, "value"),
+        State({"type": "analysis-field", "name": ALL}, "id"),
+        prevent_initial_call=True,
+    )
+    def preview_preprocessing(current_values, field_ids):
+        values = dict(zip((item["name"] for item in field_ids), current_values))
+        try:
+            document = _configuration(values)
+            base = Path(values.get("config_folder") or Path.cwd()).expanduser().resolve()
+            return _preprocessing_figure(
+                go, make_subplots, AnalysisConfig(document, base)
+            )
+        except Exception:
+            return _empty_figure(
+                go, "Load the spectra, epsilon references, and LED to preview them"
+            )
+
+    @app.callback(
         Output("tool-message", "children"),
         Input("launch-spectral-treatment", "n_clicks"),
         prevent_initial_call=True,
@@ -576,7 +597,13 @@ def create_app():
         blank_card = [html.Span("R → P"), html.Strong("—"), html.Small("Quantum yield")]
         blank_back = [html.Span("P → R"), html.Strong("—"), html.Small("Quantum yield")]
         blank_fit = [html.Span("Fit"), html.Strong("—"), html.Small("Not run")]
-        blank_figures = [_empty_figure(go, "Run analysis to display this plot")] * 5
+        blank_figures = [
+            _empty_figure(go, "Run analysis to display this plot"),
+            _empty_figure(go, "Run analysis to display this plot"),
+            no_update,
+            _empty_figure(go, "Run analysis to display this plot"),
+            _empty_figure(go, "Run analysis to display this plot"),
+        ]
         blank_comparison = ""
         try:
             document = _configuration(values)
@@ -867,17 +894,19 @@ def _preprocessing_figure(go, make_subplots, config):
         smoothing["window_points"], smoothing["polynomial_order"],
         baseline["exclusion_fwhm_multiplier"],
     )
+    epsilon_r = _load_reference(config, "reactant_absorptivity")
+    epsilon_p = _load_reference(config, "product_absorptivity")
     return _spectra_led_figure(
         go, make_subplots, wavelengths, absorbance,
-        led_wavelengths, led_processed,
+        epsilon_r, epsilon_p, led_wavelengths, led_processed,
         tuple(processing["wavelength_range_nm"]),
         values["experiment"]["irradiation_wavelength_nm"],
     )
 
 
 def _spectra_led_figure(go, make_subplots, wavelengths, absorbance,
-                        led_wavelengths, led_values, wavelength_limits,
-                        irradiation_wavelength):
+                        epsilon_r, epsilon_p, led_wavelengths, led_values,
+                        wavelength_limits, irradiation_wavelength):
     wavelengths = np.asarray(wavelengths, float)
     absorbance = np.asarray(absorbance, float)
     low, high = map(float, wavelength_limits)
@@ -887,7 +916,21 @@ def _spectra_led_figure(go, make_subplots, wavelengths, absorbance,
     display_wavelengths = wavelengths[wavelength_mask]
     display_absorbance = absorbance[wavelength_mask]
 
-    figure = make_subplots(specs=[[{"secondary_y": True}]])
+    figure = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.12,
+        specs=[[{"secondary_y": True}], [{}]], row_heights=[0.44, 0.56],
+        subplot_titles=("Reference molar absorptivity and processed LED",
+                        "Measured spectral decay"),
+    )
+    for reference, name, colour in (
+        (epsilon_r, "Reactant ε", PLOT_BLUE),
+        (epsilon_p, "Product ε", PLOT_ORANGE),
+    ):
+        figure.add_trace(go.Scatter(
+            x=np.asarray(reference[0], float), y=np.asarray(reference[1], float),
+            mode="lines", name=name, line={"color": colour, "width": 2.2},
+        ), row=1, col=1, secondary_y=False)
+
     count = display_absorbance.shape[1]
     intermediate = np.arange(1, max(count - 1, 1), dtype=int)
     if len(intermediate) > 60:
@@ -901,16 +944,16 @@ def _spectra_led_figure(go, make_subplots, wavelengths, absorbance,
             showlegend=position == 0,
             line={"color": "rgba(108,114,128,0.38)", "width": 1},
             hovertemplate=f"spectrum={index + 1}<br>λ=%{{x:.1f}} nm<br>A=%{{y:.5g}}<extra></extra>",
-        ), secondary_y=False)
+        ), row=2, col=1)
     figure.add_trace(go.Scatter(
         x=display_wavelengths, y=display_absorbance[:, 0], mode="lines",
         name="Initial spectrum", line={"color": PLOT_BLUE, "width": 2.4},
-    ), secondary_y=False)
+    ), row=2, col=1)
     if count > 1:
         figure.add_trace(go.Scatter(
             x=display_wavelengths, y=display_absorbance[:, -1], mode="lines",
             name="Final spectrum", line={"color": PLOT_ORANGE, "width": 2.4},
-        ), secondary_y=False)
+        ), row=2, col=1)
 
     led_wavelengths = np.asarray(led_wavelengths, float)
     led_values = np.asarray(led_values, float)
@@ -919,23 +962,27 @@ def _spectra_led_figure(go, make_subplots, wavelengths, absorbance,
         x=led_wavelengths, y=led_values / led_scale, mode="lines",
         name="Processed LED (normalized)",
         line={"color": PLOT_PURPLE, "width": 2},
-    ), secondary_y=True)
+    ), row=1, col=1, secondary_y=True)
     irradiation_wavelength = float(irradiation_wavelength)
     if display_wavelengths[0] <= irradiation_wavelength <= display_wavelengths[-1]:
         figure.add_vline(
             x=irradiation_wavelength, line={"color": PLOT_BROWN, "dash": "dot"},
             annotation_text=f"Nominal {irradiation_wavelength:g} nm",
             annotation_position="top left",
+            row=1, col=1,
         )
     _style_figure(
-        figure, "Preprocessing preview: measured spectra and processed LED",
-        "Wavelength (nm)", "Absorbance",
+        figure, "Preprocessing preview", "", "",
     )
-    figure.update_yaxes(title_text="Absorbance", secondary_y=False)
-    figure.update_yaxes(title_text="LED intensity (normalized)", secondary_y=True)
+    figure.update_yaxes(title_text="ε (M⁻¹ cm⁻¹)", row=1, col=1,
+                        secondary_y=False)
+    figure.update_yaxes(title_text="LED (normalized)", showgrid=False,
+                        row=1, col=1, secondary_y=True)
+    figure.update_yaxes(title_text="Absorbance", row=2, col=1)
+    figure.update_xaxes(title_text="Wavelength (nm)", row=2, col=1)
     figure.update_xaxes(range=[float(display_wavelengths[0]),
                                float(display_wavelengths[-1])])
-    figure.update_layout(uirevision="preprocessing-preview")
+    figure.update_layout(height=900, uirevision="preprocessing-preview")
     return figure
 
 
@@ -1352,6 +1399,8 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
     )
     spectra = _spectra_led_figure(
         go, make_subplots, result.wavelengths, result.absorbance,
+        (result.wavelengths, result.epsilon_r),
+        (result.wavelengths, result.epsilon_p),
         data.led[0], led_processed, data.wavelength_limits,
         irradiation_wavelength,
     )
@@ -1361,44 +1410,19 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
     if result.yield_fit.absorbance_correction is not None:
         fitted_absorbance += result.yield_fit.absorbance_correction
 
-    input_diagnostic = make_subplots(
-        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.12,
-        specs=[[{"secondary_y": True}], [{}]],
-        row_heights=[0.46, 0.54],
-        subplot_titles=("Reference molar absorptivity and processed LED",
-                        "Measured and reconstructed endpoints"),
-    )
-    input_diagnostic.add_trace(go.Scatter(
-        x=result.wavelengths, y=result.epsilon_r, mode="lines",
-        name="Reactant ε", line={"color": blue, "width": 2},
-    ), row=1, col=1, secondary_y=False)
-    input_diagnostic.add_trace(go.Scatter(
-        x=result.wavelengths, y=result.epsilon_p, mode="lines",
-        name="Product ε", line={"color": orange, "width": 2},
-    ), row=1, col=1, secondary_y=False)
-    led_aligned = np.interp(result.wavelengths, data.led[0], led_processed)
-    led_scale = max(float(np.max(led_aligned)), np.finfo(float).eps)
-    input_diagnostic.add_trace(go.Scatter(
-        x=result.wavelengths, y=led_aligned / led_scale, mode="lines",
-        name="Processed LED (normalized)", line={"color": PLOT_PURPLE, "width": 1.8},
-    ), row=1, col=1, secondary_y=True)
+    input_diagnostic = go.Figure()
     for index, label, colour in ((0, "Initial", blue), (-1, "Final", orange)):
         input_diagnostic.add_trace(go.Scatter(
             x=result.wavelengths, y=measured_absorbance[index], mode="lines",
             name=f"{label} measured", line={"color": colour, "width": 2},
-        ), row=2, col=1)
+        ))
         input_diagnostic.add_trace(go.Scatter(
             x=result.wavelengths, y=fitted_absorbance[index], mode="lines",
             name=f"{label} reconstructed",
             line={"color": colour, "width": 1.8, "dash": "dash"},
-        ), row=2, col=1)
-    _style_figure(input_diagnostic, "Reference spectra and endpoint reconstruction", "", "")
-    input_diagnostic.update_yaxes(title_text="ε (M⁻¹ cm⁻¹)", row=1, col=1,
-                                  secondary_y=False)
-    input_diagnostic.update_yaxes(title_text="LED (normalized)", row=1, col=1,
-                                  secondary_y=True)
-    input_diagnostic.update_yaxes(title_text="Absorbance", row=2, col=1)
-    input_diagnostic.update_xaxes(title_text="Wavelength (nm)", row=2, col=1)
+        ))
+    _style_figure(input_diagnostic, "Endpoint reconstruction",
+                  "Wavelength (nm)", "Absorbance")
 
     absorbance_residual = measured_absorbance - fitted_absorbance
     limit = float(np.percentile(np.abs(absorbance_residual), residual_percentile))

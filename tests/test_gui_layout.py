@@ -2,16 +2,23 @@ import tomllib
 import unittest
 from pathlib import Path
 
+import numpy as np
+
 from autoqy_core.version import get_project_version
 
 try:
     from dash import dcc, html
 
     from autoqy_core.power_web import create_app as create_power_app
-    from autoqy_core.tools.analysis_gui import create_app as create_analysis_app
+    from autoqy_core.tools.analysis_gui import (
+        _spectra_led_figure,
+        create_app as create_analysis_app,
+    )
     from autoqy_core.tools.smoother_gui import create_app as create_spectral_app
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
 except ImportError:
-    dcc = html = None
+    dcc = html = go = make_subplots = None
 
 
 def _components(root):
@@ -109,6 +116,41 @@ class GuiLayoutTests(unittest.TestCase):
         )
         self.assertIn("does not save analysis.json", visible_text)
         self.assertNotIn("validate-analysis", " ".join(app.callback_map))
+
+    def test_analysis_preprocessing_preview_is_available_before_the_fit(self):
+        app = create_analysis_app()
+        tabs = _by_id(app.layout, "analysis-plot-tabs")
+        labels = [tab.label for tab in tabs.children]
+        self.assertIn("Preprocessing", labels)
+        self.assertIn("Endpoint reconstruction", labels)
+        self.assertNotIn("References and reconstruction", labels)
+        preview = _by_id(app.layout, "spectra-figure")
+        self.assertEqual(preview.style["height"], "900px")
+        self.assertTrue(any(
+            key.startswith("spectra-figure.figure@")
+            for key in app.callback_map
+        ))
+
+    def test_analysis_preprocessing_separates_led_from_spectral_decay(self):
+        wavelengths = np.array([400.0, 450.0, 500.0])
+        absorbance = np.array([
+            [1.0, 0.8, 0.6],
+            [0.9, 0.7, 0.5],
+            [0.8, 0.6, 0.4],
+        ])
+        figure = _spectra_led_figure(
+            go, make_subplots, wavelengths, absorbance,
+            (wavelengths, np.array([100.0, 80.0, 60.0])),
+            (wavelengths, np.array([20.0, 50.0, 90.0])),
+            wavelengths, np.array([0.1, 1.0, 0.1]), (400.0, 500.0), 450.0,
+        )
+        traces = {trace.name: trace for trace in figure.data}
+        self.assertEqual(traces["Reactant ε"].xaxis, "x")
+        self.assertEqual(traces["Product ε"].xaxis, "x")
+        self.assertEqual(traces["Processed LED (normalized)"].yaxis, "y2")
+        self.assertEqual(traces["Initial spectrum"].xaxis, "x2")
+        self.assertEqual(traces["Final spectrum"].xaxis, "x2")
+        self.assertFalse(figure.layout.yaxis2.showgrid)
 
     def test_nested_panels_have_independent_open_and_closed_symbols(self):
         css = (Path(__file__).parents[1] / "autoqy_core" / "assets" / "power_web.css").read_text(
