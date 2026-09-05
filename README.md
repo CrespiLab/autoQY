@@ -6,7 +6,7 @@
 
 AutoQY calculates photoisomerization quantum yields and helps prepare optical-power and spectral data.
 
-If you just want to use the program on Windows, follow the quickstart below. 
+If you want to use the program on Windows, follow the quickstart below. 
 <details>
 <summary><strong>Advanced: manual installation on Windows, Linux, or macOS</strong></summary>
 
@@ -107,7 +107,9 @@ The Desktop folder also contains:
 
 ## Follow the tutorial
 
-Start with the **[395 nm step-by-step tutorial](ExampleData/Example-4_395nm-EpsilonError/TUTORIAL.md)**. It shows how to prepare spectra, build an analysis, run it, and inspect the results.
+If you want to click buttons right on, start with the **[395 nm step-by-step tutorial](ExampleData/Example-4_395nm-EpsilonError/TUTORIAL.md)**. It shows how to prepare spectra, build an analysis, run it, and inspect the results.
+
+A step-by-step guide of the different GUIs and how to inspect and export the results can be found in the **[Beginners Guide](BEGINNERS-GUIDE.md)**.
 
 More ready-to-run datasets are listed in **[ExampleData](ExampleData/README.md)**.
 
