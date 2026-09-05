@@ -8,7 +8,7 @@ AutoQY calculates photoisomerization quantum yields and helps prepare optical-po
 
 If you want to use the program on Windows, follow the quickstart below. 
 <details>
-<summary><strong>Advanced: manual installation on Windows, Linux, or macOS</strong></summary>
+<summary><strong>Advanced: manual installation on Windows, Linux, or macOS — click to expand</strong></summary>
 
 Use this method if you prefer to install and start AutoQY from a terminal. You
 need Conda and an internet connection. Manual installation does not create the
@@ -61,7 +61,10 @@ before starting a GUI.
 </details>
 
 
-## Windows quickstart
+<details>
+<summary><strong>Windows quickstart — click to expand</strong></summary>
+
+<br>
 
 ### 1. Install Conda first
 
@@ -93,6 +96,7 @@ Accept the Windows prompt if one appears, answer the questions, and wait for the
 
 When installation is complete, open the new **AutoQY** folder on your **Desktop**.
 
+
 ## Start here after installation
 
 For most work, double-click:
@@ -104,6 +108,8 @@ The Desktop folder also contains:
 - **AutoQY Spectral Treatment** — prepares spectra and calculates molar absorptivity.
 - **AutoQY Power GUI** — treats Thorlabs optical-power traces.
 - **Uninstall AutoQY** — removes AutoQY and can optionally remove its Conda environment.
+
+</details>
 
 ## Follow the tutorial
 
