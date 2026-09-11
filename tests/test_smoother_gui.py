@@ -158,6 +158,7 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertIn("show-all-legends", by_id)
         self.assertIn("hide-all-legends", by_id)
         self.assertEqual(by_id["minimal-spectrum-colors"].value, [])
+        self.assertEqual(by_id["show-original-spectra"].value, [])
         self.assertEqual(by_id["include-plot-title"].value, [])
         self.assertEqual(by_id["include-plot-legend"].value, ["on"])
         self.assertEqual(by_id["include-slice-title"].value, [])
@@ -265,6 +266,31 @@ class SpectralGuiTests(unittest.TestCase):
             [trace.showlegend for trace in figure.data], [True, False, True]
         )
         self.assertTrue(figure.layout.showlegend)
+
+    def test_original_spectra_are_hidden_by_default_and_can_be_enabled(self):
+        import plotly.graph_objects as go
+
+        dataset = SpectralDataset(
+            np.array([400.0, 410.0]), np.array([0.0, 1.0]),
+            np.array([[1.0, 2.0], [1.5, 2.5]]), source_format="csv",
+        )
+        processed = dataset.absorbance - 0.25
+        labels = ["one", "two"]
+        hidden = _absorbance_figure(
+            go, dataset, dataset.absorbance, processed, labels, "off"
+        )
+        visible = _absorbance_figure(
+            go, dataset, dataset.absorbance, processed, labels, "off",
+            show_original=True,
+        )
+        self.assertEqual(len(hidden.data), 2)
+        self.assertEqual(len(visible.data), 4)
+        self.assertFalse(any(
+            trace.name == "Uploaded absorbance" for trace in hidden.data
+        ))
+        self.assertEqual(
+            sum(trace.name == "Uploaded absorbance" for trace in visible.data), 2
+        )
 
     def test_slice_trace_remains_available_to_the_saved_image_legend(self):
         import plotly.graph_objects as go
@@ -713,7 +739,7 @@ class SpectralGuiTests(unittest.TestCase):
         preview_result = preview(
             packed, 400, 402, [], None, None, "off", 5, 3,
             [], 1, [None], [1.0], [[]], ["Custom legend"], [],
-            "Custom wavelength", "Custom OD", "Custom epsilon",
+            [], "Custom wavelength", "Custom OD", "Custom epsilon",
             [{"type": "legend-spectrum", "index": 0}],
             [{"type": "legend-name", "index": 0}],
         )
@@ -762,7 +788,7 @@ class SpectralGuiTests(unittest.TestCase):
             _pack(dataset, ["sample"], ["sample.csv"]),
             402.0, 408.0, [], None, None, "off", 5, 2,
             [], 1, [1e-5], [1.0], [["on"]], ["sample"], [],
-            "Wavelength (nm)", "Absorbance", "ε (M⁻¹ cm⁻¹)",
+            [], "Wavelength (nm)", "Absorbance", "ε (M⁻¹ cm⁻¹)",
             [{"type": "legend-spectrum", "index": 0}],
             [{"type": "legend-name", "index": 0}],
         )

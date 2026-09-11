@@ -586,6 +586,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                     className="toggle-control plot-option-toggle",
                                     options=[{"label": "Minimal colors", "value": "on"}],
                                 ),
+                                dcc.Checklist(
+                                    id="show-original-spectra", value=[],
+                                    className="toggle-control plot-option-toggle",
+                                    options=[{"label": "Show original", "value": "on"}],
+                                ),
                             ]),
                             html.Div(className="plot-option-menus", children=[
                                 image_export_options(
@@ -1084,6 +1089,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Input({"type": "legend-spectrum", "index": ALL}, "value"),
         Input({"type": "legend-name", "index": ALL}, "value"),
         Input("minimal-spectrum-colors", "value"),
+        Input("show-original-spectra", "value"),
         Input("main-x-axis-label", "value"),
         Input("main-absorbance-axis-label", "value"),
         Input("main-epsilon-axis-label", "value"),
@@ -1093,9 +1099,9 @@ window.autoqySaveText = (filename, text, mimeType) => {
     def preview(data, wavelength_low, wavelength_high, baseline_enabled,
                 baseline_low, baseline_high, method, sg_width, sg_order,
                 svd_enabled, svd_rank, concentrations, path_lengths,
-                legend_values, legend_names, minimal_colors, x_axis_label,
-                absorbance_axis_label, epsilon_axis_label, legend_value_ids,
-                legend_name_ids):
+                legend_values, legend_names, minimal_colors, show_original,
+                x_axis_label, absorbance_axis_label, epsilon_axis_label,
+                legend_value_ids, legend_name_ids):
         if not data:
             return (_empty(go, "Load spectral data to begin"),
                     "No result yet.", "", "Smoothing is off.", None, None, True, "")
@@ -1148,6 +1154,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                             _axis_label(x_axis_label, "Wavelength (nm)"),
                             _axis_label(absorbance_axis_label, "Absorbance"),
                             wavelength_range=plot_wavelength_range,
+                            show_original="on" in (show_original or []),
                         ),
                         "Processed absorbance is ready to export; ε is waiting for "
                         "concentration inputs.",
@@ -2381,7 +2388,8 @@ def _wavelength_slice_figure(go, coordinates, values, wavelength,
 def _absorbance_figure(go, dataset, original, processed, labels, method,
                        svd_enabled=None, svd_rank=None, legend_visibility=None,
                        minimal_colors=False, x_axis_label="Wavelength (nm)",
-                       y_axis_label="Absorbance", wavelength_range=None):
+                       y_axis_label="Absorbance", wavelength_range=None,
+                       show_original=False):
     figure = go.Figure()
     colors = _spectrum_colors(len(labels), minimal_colors)
     legend_visibility = _legend_visibility(None, len(labels), legend_visibility)
@@ -2397,7 +2405,7 @@ def _absorbance_figure(go, dataset, original, processed, labels, method,
     for index in plotted_indices:
         label = labels[index]
         color = colors[index]
-        if changed:
+        if changed and show_original:
             figure.add_trace(go.Scatter(
                 x=dataset.wavelengths, y=original[:, index], mode="lines",
                 line={"color": "rgba(90,96,108,.22)", "width": 1},
