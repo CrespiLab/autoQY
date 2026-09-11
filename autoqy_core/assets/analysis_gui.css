@@ -122,11 +122,32 @@
 
 .result-strip.analysis-result-strip { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .result-card-neutral { border-left-color: #6c7280; }
+.result-card-pss { border-left-color: #8a5a9b; }
 .analysis-result-strip .result-card strong {
   overflow: hidden;
   font-size: clamp(1.05rem, 1.7vw, 1.4rem);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.pss-distribution {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.pss-species {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.analysis-result-strip .pss-species span {
+  overflow: hidden;
+  font-size: .72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.analysis-result-strip .pss-species strong {
+  font-size: clamp(1rem, 1.5vw, 1.28rem);
 }
 .analysis-plot-panel { min-height: 790px; }
 .analysis-plot-panel .dash-graph,

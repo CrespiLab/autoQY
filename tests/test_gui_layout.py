@@ -11,6 +11,7 @@ try:
 
     from autoqy_core.power_web import create_app as create_power_app
     from autoqy_core.tools.analysis_gui import (
+        _pss_card,
         _spectra_led_figure,
         create_app as create_analysis_app,
     )
@@ -161,6 +162,30 @@ class GuiLayoutTests(unittest.TestCase):
         )
         self.assertIn("SPECORD", visible_text)
         self.assertIn("Cary .DSW/.BSW", visible_text)
+
+    def test_pss_distribution_is_visible_beside_quantum_yields(self):
+        app = create_analysis_app()
+        result_strip = next(
+            component for component in _components(app.layout)
+            if getattr(component, "className", None) == "result-strip analysis-result-strip"
+        )
+        result_ids = [getattr(component, "id", None) for component in result_strip.children]
+        self.assertEqual(
+            result_ids,
+            ["result-rp", "result-pr", "result-pss", "result-fit"],
+        )
+        card = _pss_card(
+            html,
+            {"extrapolated_pss_percent": {"reactant": 23.3459, "product": 76.6541}},
+            "trans", "cis",
+        )
+        visible_text = " ".join(
+            component.children
+            for component in _components(card)
+            if isinstance(getattr(component, "children", None), str)
+        )
+        self.assertIn("trans 23.3%", visible_text)
+        self.assertIn("cis 76.7%", visible_text)
 
     def test_analysis_preprocessing_separates_led_from_spectral_decay(self):
         wavelengths = np.array([400.0, 450.0, 500.0])
