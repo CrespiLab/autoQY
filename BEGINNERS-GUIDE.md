@@ -66,9 +66,16 @@ You will also need:
 - thermal R → P rate, if relevant;
 - thermal P → R rate, if relevant.
 
-The irradiation wavelength entered in AutoQY is mainly used as metadata and as a consistency marker.
+With optical-power input, the irradiation wavelength is mainly metadata and a
+consistency marker. The photon-flux calculation uses the **complete processed
+LED emission spectrum**, rather than treating the LED as perfectly
+monochromatic.
 
-The photon-flux calculation uses the **complete processed LED emission spectrum**, rather than treating the LED as perfectly monochromatic.
+If the photon flux was measured with a chemical actinometer, enable **Use
+photon flux from a chemical actinometer** instead. Enter the flux in mol
+photons/s and its uncertainty. An LED file is then unnecessary, and the
+irradiation wavelength is mandatory because AutoQY uses it as the exact
+monochromatic wavelength.
 
 ---
 
@@ -112,7 +119,9 @@ You can:
 
 Supported formats include:
 
-- SpectraGryph `.dat`;
+- SpectraGryph text `.dat`;
+- Analytik Jena SPECORD WinASPECT binary `.dat`;
+- Agilent/Varian Cary 50 and 60 `.DSW` and `.BSW`;
 - Avantes `.Abs8`;
 - TSV;
 - CSV.
@@ -656,7 +665,7 @@ Select:
 1. **Measurement spectra**
 2. **Reactant molar absorptivity**
 3. **Product molar absorptivity**
-4. **LED emission**
+4. **LED emission** (unless chemical-actinometer mode is used)
 5. **Irradiation timestamps**
 
 For new data, use **Generic CSV** where possible.
@@ -686,6 +695,8 @@ These settings apply only to the **LED emission spectrum**.
 
 They do not preprocess the experimental absorbance spectra.
 
+They are ignored when chemical-actinometer photon flux is selected.
+
 ---
 
 # 16. Experimental parameters
@@ -709,6 +720,11 @@ Irradiation wavelength: 395 nm
 Thermal R→P:            0 s⁻¹
 Thermal P→R:            6.3e-5 s⁻¹
 ```
+
+For a chemical actinometer, select **Use photon flux from a chemical
+actinometer** and enter **Photon flux (mol photons/s)** instead of power. The
+LED file and LED-processing settings are then ignored. The irradiation
+wavelength is required and represents the actual monochromatic wavelength.
 
 AutoQY expects thermal rate constants in $\mathrm{s^{-1}}$.
 

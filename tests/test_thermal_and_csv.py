@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import struct
 
 import numpy as np
 import pandas as pd
@@ -12,11 +13,13 @@ from autoqy_core.epsilon import (
     load_epsilon_table,
 )
 from autoqy_core.kinetics import _rates
+from autoqy_core.io import load_cary_bytes, load_specord_bytes
 from autoqy_core.power import load_generic_power_csv
 from autoqy_core.smoother import (
     SpectralDataset,
     export_smoothed_text,
     load_spectral_text,
+    load_spectral_bytes,
 )
 
 
@@ -93,6 +96,47 @@ class CsvTests(unittest.TestCase):
             export_epsilon_csv(self.result, ["sample"]),
         ):
             self.assertNotIn("\r", text)
+
+
+class VendorBinaryTests(unittest.TestCase):
+    def test_specord_winaspect_binary_loads_multiple_cycles(self):
+        wavelengths = np.array([400, 401, 402, 403], dtype="<f4")
+        signals = np.array([[0.1, 0.2, 0.3, 0.4],
+                            [0.5, 0.6, 0.7, 0.8]], dtype="<f4")
+        header = (
+            b"[GENERAL]\r\nXUNITS=nm\r\nNPOINTS=4\r\nNCYCL=2\r\n"
+            b"[MESS]\r\nORIGIN=SPECORD 200 PLUS\r\n[DATA]\r\nXDATA=\r\n"
+        )
+        payload = (header + wavelengths.tobytes() + b"\r\nYDATA=\r\n"
+                   + signals.tobytes())
+        loaded_wavelengths, loaded_signals = load_specord_bytes(payload)
+        np.testing.assert_array_equal(loaded_wavelengths, wavelengths)
+        np.testing.assert_allclose(loaded_signals, signals.T)
+        detected = load_spectral_bytes(payload, "auto")
+        self.assertEqual(detected.source_format, "specord")
+        self.assertEqual(detected.absorbance.shape, (4, 2))
+
+    def test_cary_winu_v_binary_is_detected_and_ordered(self):
+        wavelengths = np.arange(430.0, 399.0, -1.0, dtype=float)
+        signals = np.linspace(0.1, 0.4, len(wavelengths))
+        header = bytes([17]) + b"Varian UV-VIS-NIR" + bytes(110)
+        stream = b"".join(
+            struct.pack("<ff", wavelength, signal)
+            for wavelength, signal in zip(wavelengths, signals)
+        )
+        payload = header + stream + bytes(32)
+        loaded_wavelengths, loaded_signals = load_cary_bytes(payload)
+        np.testing.assert_array_equal(loaded_wavelengths, wavelengths[::-1])
+        np.testing.assert_allclose(loaded_signals[:, 0], signals[::-1], rtol=1e-6)
+        detected = load_spectral_bytes(payload, "auto")
+        self.assertEqual(detected.source_format, "agilent_cary")
+        self.assertEqual(detected.absorbance.shape, (31, 1))
+
+    def test_vendor_binary_rejects_wrong_magic(self):
+        with self.assertRaisesRegex(ValueError, "Cary"):
+            load_cary_bytes(bytes(128))
+        with self.assertRaisesRegex(ValueError, "SPECORD"):
+            load_specord_bytes(b"not a spectrum")
 
 
 if __name__ == "__main__":

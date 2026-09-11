@@ -20,7 +20,7 @@ class AnalysisInput:
     epsilon_r: tuple[np.ndarray, np.ndarray]
     epsilon_p: tuple[np.ndarray, np.ndarray]
     led: tuple[np.ndarray, np.ndarray]
-    power_mw: float
+    power_mw: float | None
     power_error_mw: float
     volume_ml: float
     thermal_rate: float = 0
@@ -38,6 +38,9 @@ class AnalysisInput:
     initial_yields: tuple[float, float] = (0.5, 0.5)
     yield_bounds: tuple[float, float] = (0, 1)
     thermal_forward_rate: float = 0
+    photon_flux_mol_s: float | None = None
+    photon_flux_error_mol_s: float = 0
+    irradiation_wavelength_nm: float | None = None
 
 
 @dataclass(frozen=True)
@@ -61,13 +64,22 @@ def run_analysis_pipeline(data):
     stop = np.argmin(np.abs(data.wavelengths - high))
     wavelengths = data.wavelengths[start:stop]
     absorbance = data.absorbance[start:stop]
-    led_processed = process_led(
-        *data.led, data.baseline_correct_led, data.led_smoothing_window,
-        data.led_polynomial_order, data.baseline_exclusion_fwhm_multiplier,
-    )
+    actinometer_mode = data.photon_flux_mol_s is not None
+    if actinometer_mode:
+        led_processed = np.zeros_like(data.led[1], dtype=float)
+        nominal_index = np.argmin(np.abs(data.led[0] - data.irradiation_wavelength_nm))
+        led_processed[nominal_index] = 100.0
+    else:
+        led_processed = process_led(
+            *data.led, data.baseline_correct_led, data.led_smoothing_window,
+            data.led_polynomial_order, data.baseline_exclusion_fwhm_multiplier,
+        )
     epsilon_r, epsilon_p, emission = interpolate_inputs(
         wavelengths, data.epsilon_r, data.epsilon_p, data.led[0], led_processed
     )
+    if actinometer_mode:
+        emission = np.zeros_like(wavelengths, dtype=float)
+        emission[np.argmin(np.abs(wavelengths - data.irradiation_wavelength_nm))] = 100.0
     if data.fit_method in {"regularized_concentrations", "ode_absorbance"}:
         concentration_fit = fit_concentrations_regularized(
             absorbance, wavelengths, epsilon_r, epsilon_p, data.timestamps,
@@ -96,17 +108,34 @@ def run_analysis_pipeline(data):
         active = np.flatnonzero(emission > threshold)
         if not len(active):
             raise ValueError("No LED-emission points exceed the configured threshold")
-        kinetic_slice = slice(active[0], active[-1] + 1)
+        if actinometer_mode:
+            kinetic_slice = slice(max(active[0] - 1, 0), min(active[-1] + 2, len(emission)))
+        else:
+            kinetic_slice = slice(active[0], active[-1] + 1)
 
+    if actinometer_mode:
+        levels = (
+            data.photon_flux_mol_s,
+            data.photon_flux_mol_s + data.photon_flux_error_mol_s,
+            data.photon_flux_mol_s - data.photon_flux_error_mol_s,
+        )
+    else:
+        levels = (
+            data.power_mw,
+            data.power_mw + data.power_error_mw,
+            data.power_mw - data.power_error_mw,
+        )
     fits = []
-    for power in (data.power_mw, data.power_mw + data.power_error_mw,
-                  data.power_mw - data.power_error_mw):
+    for level in levels:
+        power = None if actinometer_mode else level
+        photon_flux = level if actinometer_mode else None
         if data.fit_method in {"concentrations", "regularized_concentrations"}:
             fits.append(fit_quantum_yields(
                 wavelengths, emission, concentration_fit.concentrations,
                 data.timestamps, epsilon_r, epsilon_p, power, data.volume_ml,
                 data.thermal_rate, data.path_length_cm, data.initial_yields,
-                data.yield_bounds, data.thermal_forward_rate,
+                data.yield_bounds, data.thermal_forward_rate, photon_flux,
+                data.irradiation_wavelength_nm,
             ))
         elif data.fit_method == "emission":
             fits.append(fit_quantum_yields_absorbance(
@@ -115,6 +144,7 @@ def run_analysis_pipeline(data):
                 epsilon_r[kinetic_slice], epsilon_p[kinetic_slice], power,
                 data.volume_ml, data.thermal_rate, data.path_length_cm,
                 data.initial_yields, data.yield_bounds, data.thermal_forward_rate,
+                photon_flux, data.irradiation_wavelength_nm,
             ))
         elif data.fit_method == "ode_absorbance":
             fits.append(fit_quantum_yields_ode_absorbance(
@@ -122,7 +152,8 @@ def run_analysis_pipeline(data):
                 epsilon_p, power, data.volume_ml, data.thermal_rate,
                 data.path_length_cm, data.initial_yields, data.yield_bounds,
                 concentration_fit.concentrations[0], data.absorbance_baseline_order,
-                data.robust_loss_scale, data.thermal_forward_rate,
+                data.robust_loss_scale, data.thermal_forward_rate, photon_flux,
+                data.irradiation_wavelength_nm,
             ))
         else:
             raise ValueError(f"Unsupported fit method: {data.fit_method}")
@@ -135,7 +166,8 @@ def run_analysis_pipeline(data):
         fits[0].concentrations[0].sum(), fits[0].values,
         epsilon_r[kinetic_slice], epsilon_p[kinetic_slice], data.power_mw,
         data.volume_ml, data.thermal_rate, data.path_length_cm,
-        data.thermal_forward_rate,
+        data.thermal_forward_rate, data.photon_flux_mol_s,
+        data.irradiation_wavelength_nm,
     )
     return AnalysisResult(
         concentration_fit, fits[0], errors, wavelengths, absorbance,

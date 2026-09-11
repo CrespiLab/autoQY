@@ -35,6 +35,22 @@ def interpolate_inputs(wavelengths, epsilon_r, epsilon_p, led_wavelengths, led_i
     )
 
 
+def monochromatic_emission(wavelengths_nm, irradiation_wavelength_nm):
+    """Return a display spectrum that is zero except at the nominal wavelength."""
+    wavelengths = np.asarray(wavelengths_nm, float)
+    irradiation_wavelength_nm = float(irradiation_wavelength_nm)
+    if wavelengths.ndim != 1 or not len(wavelengths):
+        raise ValueError("A wavelength axis is required for monochromatic irradiation")
+    if (not np.isfinite(irradiation_wavelength_nm)
+            or irradiation_wavelength_nm < wavelengths[0]
+            or irradiation_wavelength_nm > wavelengths[-1]):
+        raise ValueError("Irradiation wavelength must lie within the measured wavelength range")
+    display_wavelengths = np.unique(np.append(wavelengths, irradiation_wavelength_nm))
+    intensity = np.zeros_like(display_wavelengths)
+    intensity[np.searchsorted(display_wavelengths, irradiation_wavelength_nm)] = 100.0
+    return display_wavelengths, intensity
+
+
 def fit_concentrations(absorbance, wavelengths, epsilon_r, epsilon_p, path_length_cm=1):
     epsilon = np.column_stack((epsilon_r, epsilon_p)) * path_length_cm
     coefficients = np.array([nnls(epsilon, spectrum)[0] for spectrum in absorbance.T])

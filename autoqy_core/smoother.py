@@ -11,7 +11,7 @@ from scipy.signal import savgol_filter
 from scipy.sparse import diags, eye
 from scipy.sparse.linalg import factorized
 
-from .io import load_avantes_abs8_bytes
+from .io import load_avantes_abs8_bytes, load_cary_bytes, load_specord_bytes
 
 
 @dataclass(frozen=True)
@@ -40,31 +40,49 @@ class SVDResult:
 
 def load_spectral_dataset(path, format_name="auto"):
     path = Path(path)
-    if path.suffix.lower() == ".abs8":
+    suffix = path.suffix.lower()
+    if suffix == ".abs8":
         format_name = "avantes_abs8"
+    elif suffix in {".dsw", ".bsw"}:
+        format_name = "agilent_cary"
     return load_spectral_bytes(path.read_bytes(), format_name)
 
 
 def load_spectral_bytes(data, format_name="auto"):
-    """Load either an Avantes binary record or a supported text dataset."""
-    if format_name == "avantes_abs8":
-        wavelengths, absorbance = load_avantes_abs8_bytes(data)
+    """Load supported instrument binaries or a text spectral dataset."""
+    binary_loaders = {
+        "avantes_abs8": load_avantes_abs8_bytes,
+        "agilent_cary": load_cary_bytes,
+        "specord": load_specord_bytes,
+    }
+    if format_name == "auto":
+        raw = bytes(data)
+        if raw.startswith(b"AVS84"):
+            format_name = "avantes_abs8"
+        elif len(raw) > 18 and raw[1:18] == b"Varian UV-VIS-NIR":
+            format_name = "agilent_cary"
+        elif raw.startswith(b"[GENERAL]") and b"[DATA]" in raw:
+            format_name = "specord"
+    if format_name in binary_loaders:
+        wavelengths, absorbance = binary_loaders[format_name](data)
+        absorbance = np.asarray(absorbance, float)
+        if absorbance.ndim == 1:
+            absorbance = absorbance[:, None]
         absorbance, interpolated = _fill_missing_absorbance(
-            wavelengths, absorbance[:, None]
+            wavelengths, absorbance
         )
         return SpectralDataset(
-            wavelengths, np.array([0.0]), absorbance, format_name, interpolated
+            wavelengths, np.arange(absorbance.shape[1], dtype=float),
+            absorbance, format_name, interpolated
         )
     try:
         text = bytes(data).decode("utf-8-sig")
     except UnicodeDecodeError as error:
         if format_name == "auto":
-            try:
-                return load_spectral_bytes(data, "avantes_abs8")
-            except Exception as avantes_error:
-                raise ValueError(
-                    "Input is neither supported UTF-8 spectral text nor an Avantes Abs8 file"
-                ) from avantes_error
+            raise ValueError(
+                "Input is neither supported UTF-8 spectral text nor a recognized "
+                "Avantes, Cary, or SPECORD binary file"
+            ) from error
         raise ValueError("Input is not UTF-8 spectral text") from error
     return load_spectral_text(text, format_name)
 

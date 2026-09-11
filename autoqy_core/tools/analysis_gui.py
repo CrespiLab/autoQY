@@ -18,11 +18,12 @@ from ..config import AnalysisConfig, input_format, load_config, validate_config
 from ..epsilon_uncertainty import load_epsilon_nominal
 from ..gui_window import serve_gui
 from ..io import load_spectra, load_spectrum, load_timestamps
-from ..output import result_summary
+from ..output import (format_scientific_value_uncertainty,
+                      format_value_uncertainty, result_summary)
 from ..plot_style import (PLOT_BLUE, PLOT_BROWN, PLOT_NEUTRAL,
                           PLOT_ORANGE, PLOT_PURPLE)
 from ..runner import run_analysis
-from ..spectra import process_led
+from ..spectra import monochromatic_emission, process_led
 from ..version import get_project_version
 
 
@@ -157,6 +158,11 @@ def create_app():
                        ("spectragryph_tsv", "Crespi group / SpectraGryph TSV"),
                    )
         default = "generic_delimited"
+        if not timestamp:
+            formats = formats + (
+                ("specord", "Analytik Jena SPECORD binary (.dat)"),
+                ("agilent_cary", "Agilent/Varian Cary 50/60 (.DSW/.BSW)"),
+            )
         return html.Div(className="analysis-file-card", children=[
             html.Label(label),
             html.Div(className="path-row", children=[
@@ -230,9 +236,11 @@ def create_app():
                         file_card("reactant_absorptivity", "Reactant molar absorptivity"),
                         file_card("product_absorptivity", "Product molar absorptivity"),
                     ]),
-                    html.Details(open=False, className="nested-tool input-file-group", children=[
+                    html.Details(id="led-input-panel", open=False,
+                                 className="nested-tool input-file-group", children=[
                         html.Summary(["LED emission", info_popup(
-                            "The complete LED spectrum is processed and integrated in the photon-flux calculation."
+                            "The complete LED spectrum is processed and integrated for optical-power input. "
+                            "It is not needed when chemical-actinometer photon flux is selected."
                         )]),
                         file_card("led_emission", "LED emission spectrum"),
                         html.Details(open=False, className="nested-tool led-processing-panel", children=[
@@ -259,10 +267,12 @@ def create_app():
                     html.Summary([html.Span("3 · Experiment", className="step-label"),
                                   html.Span("Physical parameters"),
                                   info_popup(
-                                      "Volume, path length, power, power error, and both thermal rates enter the model. "
-                                      "Irradiation wavelength is metadata and an LED consistency marker; the "
-                                      "calculation integrates the full processed LED spectrum."
+                                      "Choose optical power with an LED spectrum, or chemical-actinometer photon "
+                                      "flux in mol photons/s. Actinometer mode treats the nominal wavelength as "
+                                      "the actual monochromatic irradiation wavelength."
                                   )]),
+                    toggle("chemical_actinometer",
+                           "Use photon flux from a chemical actinometer", False),
                     pair("Sample volume", html.Div(className="volume-input-row", children=[
                              number("volume_value", 3000, min=0, step="any"),
                              dropdown("volume_unit", (("ul", "µL"), ("ml", "mL")), "ul"),
@@ -270,6 +280,12 @@ def create_app():
                          "Path length (cm)", number("path_length_cm", 1.0, min=0, step="any")),
                     pair("Power (mW)", number("power_mw", 1.0, min=0, step="any"),
                          "Power error (mW)", number("power_error_mw", 0.0, min=0, step="any")),
+                    pair("Photon flux (mol photons/s)",
+                         number("photon_flux_mol_s", None, min=0, step="any",
+                                placeholder="e.g. 4.8e-9", disabled=True),
+                         "Photon flux error (mol photons/s)",
+                         number("photon_flux_error_mol_s", 0.0, min=0, step="any",
+                                disabled=True)),
                     html.Label("Irradiation wavelength (nm)"),
                     number("irradiation_wavelength_nm", 455, min=0, step="any"),
                     pair("Thermal R→P (s⁻¹)",
@@ -471,6 +487,20 @@ def create_app():
         if ctx.triggered_id == "run-analysis":
             return "concentrations"
         return no_update
+
+    @app.callback(
+        Output({"type": "analysis-field", "name": "led_emission"}, "disabled"),
+        Output({"type": "browse-analysis-file", "name": "led_emission"}, "disabled"),
+        Output({"type": "analysis-field", "name": "power_mw"}, "disabled"),
+        Output({"type": "analysis-field", "name": "power_error_mw"}, "disabled"),
+        Output({"type": "analysis-field", "name": "photon_flux_mol_s"}, "disabled"),
+        Output({"type": "analysis-field", "name": "photon_flux_error_mol_s"}, "disabled"),
+        Input({"type": "analysis-field", "name": "chemical_actinometer"}, "value"),
+    )
+    def select_irradiation_source(enabled):
+        use_actinometer = "on" in (enabled or [])
+        return (use_actinometer, use_actinometer, use_actinometer, use_actinometer,
+                not use_actinometer, not use_actinometer)
 
     @app.callback(
         Output({"type": "analysis-field", "name": ALL}, "value"),
@@ -706,8 +736,13 @@ def create_app():
 
 
 def _configuration(values):
+    use_actinometer = _on(values, "chemical_actinometer")
+    configured_inputs = tuple(
+        item for item in (*SPECTRAL_INPUTS, TIMESTAMP_INPUT)
+        if not (use_actinometer and item[0] == "led_emission")
+    )
     formats = {}
-    for name, _ in (*SPECTRAL_INPUTS, TIMESTAMP_INPUT):
+    for name, _ in configured_inputs:
         kind = values.get(f"format_{name}")
         specification = {"type": kind}
         if kind == "generic_delimited":
@@ -725,13 +760,20 @@ def _configuration(values):
             "expected_pss_reactant_percent": values.get("expected_pss_reactant_percent"),
         },
         "inputs": {
-            **{name: values.get(name) or "" for name, _ in (*SPECTRAL_INPUTS, TIMESTAMP_INPUT)},
+            **{name: values.get(name) or "" for name, _ in configured_inputs},
             "formats": formats,
         },
         "experiment": {
+            "irradiation_source": ("chemical_actinometer" if use_actinometer
+                                   else "optical_power"),
             "volume_ul": _volume_ul(values),
-            "power_mw": values.get("power_mw"),
-            "power_error_mw": values.get("power_error_mw"),
+            **({
+                "photon_flux_mol_s": values.get("photon_flux_mol_s"),
+                "photon_flux_error_mol_s": values.get("photon_flux_error_mol_s"),
+            } if use_actinometer else {
+                "power_mw": values.get("power_mw"),
+                "power_error_mw": values.get("power_error_mw"),
+            }),
             "thermal_back_reaction_s_1": values.get("thermal_rate"),
             "thermal_forward_reaction_s_1": values.get("thermal_forward_rate"),
             "irradiation_wavelength_nm": values.get("irradiation_wavelength_nm"),
@@ -782,8 +824,14 @@ def _form_values(document):
         "output_stem": output["stem"],
         "volume_value": experiment["volume_ul"],
         "volume_unit": "ul",
-        "power_mw": experiment["power_mw"],
-        "power_error_mw": experiment["power_error_mw"],
+        "chemical_actinometer": _toggle_value(
+            experiment.get("irradiation_source", "optical_power")
+            == "chemical_actinometer"
+        ),
+        "power_mw": experiment.get("power_mw", 1.0),
+        "power_error_mw": experiment.get("power_error_mw", 0.0),
+        "photon_flux_mol_s": experiment.get("photon_flux_mol_s"),
+        "photon_flux_error_mol_s": experiment.get("photon_flux_error_mol_s", 0),
         "thermal_rate": experiment["thermal_back_reaction_s_1"],
         "thermal_forward_rate": experiment.get("thermal_forward_reaction_s_1", 0),
         "irradiation_wavelength_nm": experiment["irradiation_wavelength_nm"],
@@ -820,7 +868,7 @@ def _form_values(document):
     }
     formats = inputs.get("formats", {})
     for name, _ in (*SPECTRAL_INPUTS, TIMESTAMP_INPUT):
-        values[name] = inputs[name]
+        values[name] = inputs.get(name, "")
         spec = formats.get(name, "ahk_csv" if name == "timestamps" else "spectragryph_tsv")
         spec = {"type": spec} if isinstance(spec, str) else spec
         values[f"format_{name}"] = spec.get("type")
@@ -832,6 +880,8 @@ def _form_values(document):
 def _portable_document(document, folder):
     copied = json.loads(json.dumps(document))
     for name, _ in (*SPECTRAL_INPUTS, TIMESTAMP_INPUT):
+        if name not in copied["inputs"]:
+            continue
         path = Path(copied["inputs"][name]).expanduser()
         if path.is_absolute():
             try:
@@ -868,6 +918,19 @@ def _physical_parameter_preview(values):
                       for label, rate in rates if rate is not None and float(rate) > 0]
         if half_lives:
             text += " Thermal " + "; ".join(half_lives) + "."
+        if _on(values, "chemical_actinometer"):
+            flux = values.get("photon_flux_mol_s")
+            flux_error = values.get("photon_flux_error_mol_s")
+            wavelength = values.get("irradiation_wavelength_nm")
+            if flux is None or wavelength is None:
+                return (text + " Enter the photon flux and irradiation wavelength.",
+                        "message status-message status-warning")
+            formatted_flux = format_scientific_value_uncertainty(
+                flux, 0 if flux_error is None else flux_error
+            )
+            text += (f" Chemical-actinometer flux: ({formatted_flux[0]} ± "
+                     f"{formatted_flux[1]}) × 10^{formatted_flux[2]} mol photons/s "
+                     f"at {float(wavelength):g} nm (monochromatic).")
         warning = volume_ul < 50
         if warning:
             text += " Confirm that the volume was not entered in mL."
@@ -884,16 +947,21 @@ def _preprocessing_figure(go, make_subplots, config):
         config.input_path("measurement_spectra"),
         input_format(config, "measurement_spectra"),
     )
-    led_wavelengths, led_values = load_spectrum(
-        config.input_path("led_emission"), input_format(config, "led_emission")
-    )
-    smoothing = processing["led_smoothing"]
-    baseline = processing["led_baseline"]
-    led_processed = process_led(
-        led_wavelengths, led_values, baseline["enabled"],
-        smoothing["window_points"], smoothing["polynomial_order"],
-        baseline["exclusion_fwhm_multiplier"],
-    )
+    if values["experiment"].get("irradiation_source") == "chemical_actinometer":
+        led_wavelengths, led_processed = monochromatic_emission(
+            wavelengths, values["experiment"]["irradiation_wavelength_nm"]
+        )
+    else:
+        led_wavelengths, led_values = load_spectrum(
+            config.input_path("led_emission"), input_format(config, "led_emission")
+        )
+        smoothing = processing["led_smoothing"]
+        baseline = processing["led_baseline"]
+        led_processed = process_led(
+            led_wavelengths, led_values, baseline["enabled"],
+            smoothing["window_points"], smoothing["polynomial_order"],
+            baseline["exclusion_fwhm_multiplier"],
+        )
     epsilon_r = _load_reference(config, "reactant_absorptivity")
     epsilon_p = _load_reference(config, "product_absorptivity")
     return _spectra_led_figure(
@@ -1041,9 +1109,6 @@ def _input_checks(config):
 
     epsilon_r = _load_reference(config, "reactant_absorptivity")
     epsilon_p = _load_reference(config, "product_absorptivity")
-    led_wavelengths, led_values = load_spectrum(
-        config.input_path("led_emission"), input_format(config, "led_emission")
-    )
     requested_low, requested_high = processing["wavelength_range_nm"]
     common_low = max(float(wavelengths[0]), float(epsilon_r[0][0]),
                      float(epsilon_p[0][0]), float(requested_low))
@@ -1053,34 +1118,52 @@ def _input_checks(config):
         "ok" if common_high > common_low else "stop", "Wavelength overlap",
         f"usable measurement/reference range {common_low:.1f}–{common_high:.1f} nm",
     ))
-    smoothing, baseline = processing["led_smoothing"], processing["led_baseline"]
-    led_processed = process_led(
-        led_wavelengths, led_values, baseline["enabled"],
-        smoothing["window_points"], smoothing["polynomial_order"],
-        baseline["exclusion_fwhm_multiplier"],
-    )
-    active = np.flatnonzero(led_processed > np.max(led_processed) * 0.01)
-    led_overlap = bool(len(active) and common_high > common_low and
-                       led_wavelengths[active[-1]] >= common_low and
-                       led_wavelengths[active[0]] <= common_high)
-    checks.append(_check(
-        "ok" if led_overlap else "stop", "LED spectrum overlap",
-        ((f"active emission (above 1% of its maximum) spans "
-          f"{led_wavelengths[active[0]]:.1f}–{led_wavelengths[active[-1]]:.1f} nm "
-          f"and overlaps the fitted spectral range")
-         if len(active) else "processed LED has no positive active emission band") +
-        ("; green requires overlap" if led_overlap else "; red means no overlap"),
-    ))
     irradiation = float(experiment["irradiation_wavelength_nm"])
-    nominal_inside = bool(len(active) and
-                          led_wavelengths[active[0]] <= irradiation <=
-                          led_wavelengths[active[-1]])
-    checks.append(_check(
-        "ok" if nominal_inside else "warning", "Nominal irradiation wavelength",
-        f"{irradiation:g} nm is " + ("inside" if nominal_inside else "outside") +
-        " the active LED band; this value is metadata only—the calculation integrates "
-        "the full processed LED spectrum",
-    ))
+    if experiment.get("irradiation_source", "optical_power") == "chemical_actinometer":
+        nominal_inside = common_low <= irradiation <= common_high
+        formatted_flux = format_scientific_value_uncertainty(
+            experiment["photon_flux_mol_s"],
+            experiment.get("photon_flux_error_mol_s", 0),
+        )
+        checks.append(_check(
+            "ok" if nominal_inside else "stop", "Chemical-actinometer irradiation",
+            f"({formatted_flux[0]} ± {formatted_flux[1]}) × 10^{formatted_flux[2]} "
+            f"mol photons/s at {irradiation:g} nm; "
+            "the nominal wavelength is used as the actual monochromatic wavelength" +
+            (" and lies within the fitted range" if nominal_inside
+             else " but lies outside the fitted range"),
+        ))
+    else:
+        led_wavelengths, led_values = load_spectrum(
+            config.input_path("led_emission"), input_format(config, "led_emission")
+        )
+        smoothing, baseline = processing["led_smoothing"], processing["led_baseline"]
+        led_processed = process_led(
+            led_wavelengths, led_values, baseline["enabled"],
+            smoothing["window_points"], smoothing["polynomial_order"],
+            baseline["exclusion_fwhm_multiplier"],
+        )
+        active = np.flatnonzero(led_processed > np.max(led_processed) * 0.01)
+        led_overlap = bool(len(active) and common_high > common_low and
+                           led_wavelengths[active[-1]] >= common_low and
+                           led_wavelengths[active[0]] <= common_high)
+        checks.append(_check(
+            "ok" if led_overlap else "stop", "LED spectrum overlap",
+            ((f"active emission (above 1% of its maximum) spans "
+              f"{led_wavelengths[active[0]]:.1f}–{led_wavelengths[active[-1]]:.1f} nm "
+              f"and overlaps the fitted spectral range")
+             if len(active) else "processed LED has no positive active emission band") +
+            ("; green requires overlap" if led_overlap else "; red means no overlap"),
+        ))
+        nominal_inside = bool(len(active) and
+                              led_wavelengths[active[0]] <= irradiation <=
+                              led_wavelengths[active[-1]])
+        checks.append(_check(
+            "ok" if nominal_inside else "warning", "Nominal irradiation wavelength",
+            f"{irradiation:g} nm is " + ("inside" if nominal_inside else "outside") +
+            " the active LED band; this value is metadata only—the calculation integrates "
+            "the full processed LED spectrum",
+        ))
     if common_high > common_low:
         grid = wavelengths[(wavelengths >= common_low) & (wavelengths <= common_high)]
         reference_matrix = np.column_stack((
@@ -1292,11 +1375,17 @@ def _render_comparison(html, rows, selected_method):
             flags = "High parameter sensitivity"
         else:
             flags = "No automatic optimizer flags"
+        forward = format_value_uncertainty(
+            row["values"][0], row["errors"][0], two_digit_threshold=2
+        )
+        backward = format_value_uncertainty(
+            row["values"][1], row["errors"][1], two_digit_threshold=2
+        )
         body.append(html.Tr(className="comparison-selected" if row["method"] == selected_method else "",
                             children=[
             html.Td(_method_label(row["method"])),
-            html.Td(f"{row['values'][0]:.3g} ± {row['errors'][0]:.2g}%"),
-            html.Td(f"{row['values'][1]:.3g} ± {row['errors'][1]:.2g}%"),
+            html.Td(f"{forward[0]} ± {forward[1]}%"),
+            html.Td(f"{backward[0]} ± {backward[1]}%"),
             html.Td(f"{row['fraction_rmse']:.4g}"),
             html.Td(f"{row['absorbance_rmse']:.4g}"),
             html.Td(flags),
@@ -1393,10 +1482,13 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
                   "Fraction data − fit")
 
     measured_absorbance = result.absorbance.T
-    led_processed = process_led(
-        *data.led, data.baseline_correct_led, data.led_smoothing_window,
-        data.led_polynomial_order, data.baseline_exclusion_fwhm_multiplier,
-    )
+    if data.photon_flux_mol_s is not None:
+        led_processed = np.asarray(data.led[1], float)
+    else:
+        led_processed = process_led(
+            *data.led, data.baseline_correct_led, data.led_smoothing_window,
+            data.led_polynomial_order, data.baseline_exclusion_fwhm_multiplier,
+        )
     spectra = _spectra_led_figure(
         go, make_subplots, result.wavelengths, result.absorbance,
         (result.wavelengths, result.epsilon_r),
@@ -1503,7 +1595,8 @@ def _hex_rgba(colour, alpha):
 def _file_filter(name):
     if name == "timestamps":
         return "Timestamp files|*.csv;*.txt;*.tsv|All files|*.*"
-    return "Spectral files|*.dat;*.txt;*.tsv;*.csv|All files|*.*"
+    return ("Spectral files|*.dat;*.txt;*.tsv;*.csv;*.DSW;*.BSW;*.Abs8|"
+            "All files|*.*")
 
 
 def _choose_file(initial_directory=None, file_filter="All files|*.*"):

@@ -131,6 +131,37 @@ class GuiLayoutTests(unittest.TestCase):
             for key in app.callback_map
         ))
 
+    def test_analysis_offers_chemical_actinometer_photon_flux(self):
+        app = create_analysis_app()
+        actinometer = _by_id(
+            app.layout, {"type": "analysis-field", "name": "chemical_actinometer"}
+        )
+        photon_flux = _by_id(
+            app.layout, {"type": "analysis-field", "name": "photon_flux_mol_s"}
+        )
+        self.assertEqual(actinometer.options[0]["value"], "on")
+        self.assertIn("chemical actinometer", actinometer.options[0]["label"])
+        self.assertTrue(photon_flux.disabled)
+
+    def test_analysis_offers_specord_and_cary_binary_spectra(self):
+        app = create_analysis_app()
+        formats = _by_id(
+            app.layout,
+            {"type": "analysis-field", "name": "format_measurement_spectra"},
+        )
+        values = {option["value"] for option in formats.options}
+        self.assertIn("specord", values)
+        self.assertIn("agilent_cary", values)
+
+        spectral_app = create_spectral_app()
+        visible_text = " ".join(
+            component.children
+            for component in _components(spectral_app.layout)
+            if isinstance(getattr(component, "children", None), str)
+        )
+        self.assertIn("SPECORD", visible_text)
+        self.assertIn("Cary .DSW/.BSW", visible_text)
+
     def test_analysis_preprocessing_separates_led_from_spectral_decay(self):
         wavelengths = np.array([400.0, 450.0, 500.0])
         absorbance = np.array([

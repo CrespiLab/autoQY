@@ -16,6 +16,7 @@ from ..epsilon import (EpsilonResult, NMRSubtractionResult,
                        export_nmr_subtraction_csv, load_epsilon_table,
                        nonnegative_error_bounds, reconstruct_product_from_nmr)
 from ..gui_window import serve_gui
+from ..output import format_value_uncertainty
 from ..plot_style import (ANALYSIS_TRACE_PALETTE, PLOT_BLUE, PLOT_ORANGE,
                           PLOT_PURPLE)
 from ..smoother import (SpectralDataset, analyze_svd, baseline_spectra,
@@ -350,7 +351,10 @@ window.autoqySaveText = (filename, text, mimeType) => {
                         id="upload-spectra", className="upload-box", multiple=True,
                         children=html.Div([
                             html.Span("Drop or choose one or more spectral files"),
-                            html.Small("SpectraGryph .dat, Avantes .Abs8, TSV, or CSV"),
+                            html.Small(
+                                "SpectraGryph, SPECORD, Cary .DSW/.BSW, "
+                                "Avantes .Abs8, TSV, or CSV"
+                            ),
                             html.Small(
                                 "Each new drop is added; files dropped together are "
                                 "sorted naturally by name."
@@ -944,8 +948,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
             loaded = []
             for content, filename in zip(contents, filenames):
                 payload = base64.b64decode(content.split(",", 1)[1])
-                selected_format = ("avantes_abs8" if Path(filename or "").suffix.lower() == ".abs8"
-                                   else "auto")
+                selected_format = _input_format_from_name(filename)
                 loaded.append((load_spectral_bytes(payload, selected_format), filename))
             dataset, labels, resampled = _combine_loaded(loaded)
             missing = sum(item.interpolated_values for item, _ in loaded)
@@ -1279,8 +1282,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
             if isinstance(filenames, list):
                 filenames = filenames[0]
             payload = base64.b64decode(contents.split(",", 1)[1])
-            selected_format = ("avantes_abs8" if Path(filenames or "").suffix.lower() == ".abs8"
-                               else "auto")
+            selected_format = _input_format_from_name(filenames)
             dataset = load_spectral_bytes(payload, selected_format)
             if dataset.absorbance.shape[1] < 2:
                 raise ValueError("The NMR dataset must contain at least two spectra")
@@ -1749,7 +1751,7 @@ def _load_local_paths(paths):
             pass
     loaded = []
     for path in paths:
-        selected_format = "avantes_abs8" if path.suffix.lower() == ".abs8" else "auto"
+        selected_format = _input_format_from_name(path.name)
         loaded.append((load_spectral_bytes(path.read_bytes(), selected_format), path.name))
     dataset, labels, resampled = _combine_loaded(loaded)
     missing = sum(item.interpolated_values for item, _ in loaded)
@@ -1775,7 +1777,7 @@ def _choose_files(initial_directory=None):
         + _foreground_owner_script() +
         "$dialog = New-Object System.Windows.Forms.OpenFileDialog; "
         "$dialog.Multiselect = $true; "
-        "$dialog.Filter = 'Spectral files|*.dat;*.txt;*.tsv;*.csv;*.Abs8|All files|*.*'; "
+        "$dialog.Filter = 'Spectral files|*.dat;*.txt;*.tsv;*.csv;*.Abs8;*.DSW;*.BSW|All files|*.*'; "
         f"if ('{initial}') {{ $dialog.InitialDirectory = '{initial}' }}; "
         "$result = $dialog.ShowDialog($owner); "
         "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { "
@@ -1783,6 +1785,15 @@ def _choose_files(initial_directory=None):
         "$owner.Close(); $owner.Dispose()"
     )
     return _run_powershell_dialog(script)
+
+
+def _input_format_from_name(filename):
+    suffix = Path(filename or "").suffix.lower()
+    if suffix == ".abs8":
+        return "avantes_abs8"
+    if suffix in {".dsw", ".bsw"}:
+        return "agilent_cary"
+    return "auto"
 
 
 def _choose_folder(initial_directory=None):
@@ -2227,8 +2238,11 @@ def _decay_fit_message(fit):
     lifetime = fit["lifetime"]
     error = fit["lifetime_error"]
     duration = fit["duration"]
+    formatted_lifetime, formatted_error = format_value_uncertainty(
+        lifetime, error, two_digit_threshold=2
+    )
     message = (
-        f"Lifetime τ = {lifetime:.4g} ± {error:.2g} s "
+        f"Lifetime τ = {formatted_lifetime} ± {formatted_error} s "
         f"(1σ fit error; R² = {fit['r_squared']:.4f})."
     )
     if duration > lifetime:

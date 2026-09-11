@@ -92,7 +92,17 @@ Alternatively, leave the BAT file in Downloads. When asked whether to use the cu
 
 ### 4. Follow the installer
 
-Accept the Windows prompt if one appears, answer the questions, and wait for the installation to finish. It can take several minutes.
+When asked for a Git branch, press Enter to install `main`, or enter another
+branch name such as `develop` or `feature/my-change`. Accept the Windows prompt
+if one appears, answer the remaining questions, and wait for the installation
+to finish. It can take several minutes.
+
+Advanced users running the PowerShell installer directly can select a branch
+without an interactive prompt:
+
+```powershell
+.\Install-AutoQY.ps1 -Branch feature/my-change
+```
 
 When installation is complete, open the new **AutoQY** folder on your **Desktop**.
 

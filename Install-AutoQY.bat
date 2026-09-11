@@ -5,6 +5,22 @@ cd /d "%~dp0"
 echo AutoQY installer
 echo.
 
+set "AUTOQY_BRANCH="
+set /p "AUTOQY_BRANCH=Git branch to install [main]: "
+if not defined AUTOQY_BRANCH set "AUTOQY_BRANCH=main"
+
+set "AUTOQY_BRANCH_TO_VALIDATE=%AUTOQY_BRANCH%"
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$branch=$env:AUTOQY_BRANCH_TO_VALIDATE; if ($branch -notmatch '^[A-Za-z0-9][A-Za-z0-9._/-]*$' -or $branch.Contains('..') -or $branch.Contains('//') -or $branch.Contains('@{') -or $branch.EndsWith('/') -or $branch.EndsWith('.') -or $branch.EndsWith('.lock')) { Write-Error 'Invalid Git branch name.'; exit 1 }"
+if errorlevel 1 (
+    echo.
+    echo The branch name is not valid: %AUTOQY_BRANCH%
+    echo Use a branch name such as main, develop, or feature/my-change.
+    pause
+    exit /b 1
+)
+echo Selected branch: %AUTOQY_BRANCH%
+echo.
+
 set "AUTOQY_PS1_TARGET=%~dp0Install-AutoQY.ps1"
 set "AUTOQY_PS1_URL=https://raw.githubusercontent.com/CrespiLab/autoQY/main/Install-AutoQY.ps1"
 
@@ -19,9 +35,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Ready. Starting installation...
+echo Ready. Starting installation of branch "%AUTOQY_BRANCH%"...
 echo.
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%AUTOQY_PS1_TARGET%" %*
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%AUTOQY_PS1_TARGET%" -Branch "%AUTOQY_BRANCH%" %*
 set "AUTOQY_EXIT=%ERRORLEVEL%"
 
 echo.
