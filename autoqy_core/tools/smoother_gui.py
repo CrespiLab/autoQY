@@ -2311,7 +2311,12 @@ def _absorbance_figure(go, dataset, original, processed, labels, method,
     figure.update_layout(title={"text": _processing_title(
         method, svd_enabled, svd_rank), "x": 0.02})
     return _lock_wavelength_axis(
-        _style(figure, 520, any(legend_visibility)), wavelength_range
+        _style(
+            figure,
+            520,
+            0 < sum(legend_visibility) <= 20,
+        ),
+        wavelength_range,
     )
 
 
@@ -2361,7 +2366,7 @@ def _epsilon_figure(go, make_subplots, dataset, original, result, labels, method
     figure.update_layout(title={"text": _processing_title(
         method, svd_enabled, svd_rank), "x": 0.02})
     return _lock_wavelength_axis(
-        _style(figure, 690, any(legend_visibility)), wavelength_range
+        _style(figure, 690, 0 < sum(legend_visibility) <= 20,), wavelength_range
     )
 
 
