@@ -333,6 +333,19 @@ Savitzky–Golay operate on each spectrum independently. SVD mixes columns and i
 therefore intended for ordered time-series spectra, not independent replicate
 solutions. The suggested rank retains at least 99.5% of squared singular-value
 weight, but it remains an operator decision. Uploaded data is never modified.
+Wavelength, baseline, and Savitzky–Golay number fields submit on Enter or blur,
+which prevents a separate large-data update for every digit typed. SVD analysis
+is skipped entirely while SVD is disabled.
+
+For datasets above 60 spectra, the Plotly preview contains at most 60 evenly
+spaced spectra and always includes indices zero and the final index. The full
+matrix remains available to preprocessing, SVD, wavelength slicing, and
+processed-data export. Only the first and last spectra receive loaded-spectrum
+legend controls, only those two can create spectrum legend entries, and the
+per-spectrum concentration/path-length cards are replaced by an explanatory
+message. Browser stores use a compressed representation of the absorbance
+matrix to reduce callback traffic; this does not change exported numerical
+precision.
 
 Processed absorbance can be exported without concentration values. When every
 solution concentration and path length is supplied, the same workflow exports
@@ -350,6 +363,9 @@ text without changing the source filename. **Show all** and **Hide all** provide
 quick legend shortcuts.
 **Minimal colors** highlights the initial spectrum in blue and the final
 spectrum in orange, with intermediate spectra in grey as in the Analysis GUI.
+In the processed-absorbance preview, raw traces are hidden after preprocessing
+by default. **Show original** adds them to both the interactive plot and saved
+PNG/SVG figures without changing the processed-data export.
 PNG and SVG save buttons open a Save As dialog. Saved images contain only the
 plots by default. **Title in saved image** and **Legend in saved image** can be
 enabled independently. **Origin-style export** follows the supplied Origin-like

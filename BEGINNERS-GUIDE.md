@@ -149,6 +149,19 @@ Here you can:
 
 Changing the displayed name does **not** rename the original file.
 
+## Large kinetic datasets
+
+When more than 60 spectra are loaded, AutoQY keeps the browser responsive by
+showing at most 60 evenly spaced spectra in the interactive plot. The first and
+last spectra are always included. This is only a preview limit: baseline
+correction, smoothing, SVD, wavelength slices, and processed-data export still
+use every loaded spectrum.
+
+For these large datasets, **Loaded spectra** shows only the first and last
+legend-name and **Show** controls. Intermediate order and removal controls are
+not created, and only the endpoint spectra can appear in the legend. If the
+order needs correcting, arrange the source data before loading it.
+
 ---
 
 # 4. Select the wavelength range
@@ -203,6 +216,16 @@ For example:
 ```
 
 if that region is appropriate for the molecule being studied.
+
+Number fields used for wavelength selection and preprocessing are applied when
+you press **Enter** or move to another control. This prevents a large spectrum
+file from being recalculated once for every digit typed.
+
+After baseline correction, the processed-absorbance preview shows only the
+corrected spectra by default. Before supplying a complete set of Beer–Lambert
+values, enable **Show original** above the plot to compare the raw and corrected
+curves. Leave it disabled for a cleaner absorbance figure; the same choice is
+used by PNG and SVG export.
 
 ## Savitzky–Golay smoothing
 
@@ -312,6 +335,11 @@ For $n>1$:
 ```math id="cy4d0k"
 SEM = \frac{SD}{\sqrt{n}}
 ```
+
+Per-spectrum concentration and path-length fields are hidden when a dataset has
+more than 60 spectra. Large time series can still be processed and exported,
+but molar absorptivity should be calculated from a separate set containing at
+most 60 known-concentration spectra.
 
 ---
 
@@ -456,7 +484,10 @@ The simple exponential fit is most appropriate for traces that are reasonably cl
 
 Spectral Treatment can also prepare clean spectral figures directly.
 
-For an irradiation series containing many spectra, you can keep all curves visible without showing every filename in the legend.
+For datasets containing at most 60 spectra, you can keep all curves visible
+without showing every filename in the legend. Above 60 spectra, the figure uses
+the evenly spaced preview subset described earlier; the complete series remains
+in the processed CSV export.
 
 Expand:
 
@@ -865,6 +896,11 @@ shows good agreement.
 
 If the methods differ substantially, it can be useful to inspect the spectra, reference data, and fitting assumptions.
 
+Long method names wrap within the comparison table. On a narrow window, scroll
+the table horizontally to inspect all columns. Quantum-yield values, PSS values,
+and fit-status text also wrap inside their result cards rather than being cut
+off.
+
 ---
 
 # 20. Residuals and diagnostics
@@ -1228,3 +1264,5 @@ Run final analysis
 - Comparing more than one fitting approach is a useful way to assess how sensitive the result is to the analysis method.
 - For lifetime measurements, a longer time window generally gives a better estimate of both $\tau$ and the plateau.
 - For spectral figures, intermediate traces can remain visible even if only the first and last spectra are shown in the legend.
+- For files above 60 spectra, the displayed intermediate traces are an evenly
+  spaced preview; processing and CSV export still include the full series.

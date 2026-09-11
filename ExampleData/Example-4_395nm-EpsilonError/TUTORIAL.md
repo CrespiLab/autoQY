@@ -34,8 +34,9 @@ can then be selected in the Analysis GUI.
 1. Under **1 · Data**, select **Open files from folder** and load the three
    `.Abs8` files together, in numeric order.
 2. Under **2 · Range**, set the wavelength range to **250–700 nm**.
-3. Expand **Preprocess spectra**, enable **Baseline**, and set its interval to
-   **600–650 nm**.
+3. Expand **Preprocess spectra**, set the baseline interval to **600–650 nm**,
+   press **Enter** or leave each number field to apply it, and enable
+   **Baseline**.
 4. Select **SavGol**, then set a **5 nm** window and polynomial order **3**.
 5. Leave **SVD off**. These are independent preparations, not an ordered time
    series; SVD would mix their genuine between-sample variation.
@@ -49,8 +50,19 @@ can then be selected in the Analysis GUI.
    **Save reactant ε CSV**. The file contains processed absorbance,
    individual ε curves, their mean, SD, SEM, and non-negative limits.
 
+Before all Beer–Lambert values are entered, the processed-absorbance preview
+shows only the corrected spectra. Original spectra are hidden by default;
+enable **Show original** above the plot when you want the raw and corrected
+curves together. That choice also applies to a saved absorbance PNG or SVG.
+
 The bundled generic result is `reactant_absorptivity.csv`. If the GUI proposes a different
 name, select or rename the export before using it in the analysis configuration.
+
+This example has only three spectra. For kinetic files with more than 60
+spectra, Spectral Treatment plots an evenly spaced preview of at most 60,
+including the endpoints, but processes and exports the complete dataset.
+Per-spectrum Beer–Lambert inputs are intentionally unavailable for those large
+series.
 
 ## 3. Derive product ε from the PSS composition
 
@@ -180,6 +192,10 @@ is intentional.
    diagnostic opens the panel automatically.
 3. Inspect concentrations, fraction residuals, preprocessing,
    reference/reconstruction plots, and the wavelength-resolved residual map.
+
+Long quantum-yield values and fit descriptions wrap within their result cards.
+The fit-method comparison also wraps long method names; on a narrow window,
+scroll its table horizontally to see every result column.
 
 For the bundled files, the expected result is approximately:
 
