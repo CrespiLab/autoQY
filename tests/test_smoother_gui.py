@@ -10,20 +10,25 @@ from autoqy_core.epsilon import EpsilonResult
 from autoqy_core.plot_style import ANALYSIS_TRACE_PALETTE
 from autoqy_core.smoother import SpectralDataset
 from autoqy_core.tools.smoother_gui import (
+    MAX_INTERACTIVE_SPECTRA,
     _append_packed,
     _absorbance_figure,
     _colors,
     _combine_loaded,
     _csv_filename,
+    _epsilon_figure,
     _export_csv_payload,
     _fit_exponential_decay,
     _loaded_spectrum_rows,
     _pack,
     _pack_epsilon,
+    _parameter_cards,
+    _plotted_spectrum_indices,
     _prepare_processing,
     _remove_packed,
     _reorder_packed,
     _spectrum_colors,
+    _with_spectrum_state,
     _wavelength_slice,
     _wavelength_slice_figure,
     create_app,
@@ -100,6 +105,18 @@ class ProcessedAbsorbanceExportTests(unittest.TestCase):
             _csv_filename("subfolder/treated.csv", "default.csv")
         with self.assertRaisesRegex(ValueError, "must use the .csv extension"):
             _csv_filename("treated.tsv", "default.csv")
+
+    def test_large_plot_selection_is_even_and_includes_both_endpoints(self):
+        selected = _plotted_spectrum_indices(571)
+        self.assertEqual(len(selected), MAX_INTERACTIVE_SPECTRA)
+        self.assertEqual(selected[0], 0)
+        self.assertEqual(selected[-1], 570)
+        self.assertEqual(selected, sorted(set(selected)))
+        spacing = np.diff(selected)
+        self.assertLessEqual(int(spacing.max() - spacing.min()), 1)
+
+    def test_small_plot_selection_keeps_every_spectrum(self):
+        self.assertEqual(_plotted_spectrum_indices(4), [0, 1, 2, 3])
 
 
 @unittest.skipUnless(html is not None, "Dash GUI dependencies are not installed")
@@ -273,6 +290,139 @@ class SpectralGuiTests(unittest.TestCase):
             and component.id.get("type") == "legend-name"
         ]
         self.assertEqual([component.value for component in legend_inputs], ["one", "two"])
+
+    def test_large_loaded_spectrum_manager_only_builds_first_and_last_controls(self):
+        count = 571
+        dataset = SpectralDataset(
+            np.array([400.0, 410.0]), np.arange(count, dtype=float),
+            np.vstack((np.arange(count), np.arange(count) + 0.5)),
+            source_format="csv",
+        )
+        labels = [f"spectrum {index}" for index in range(count)]
+        rows = _loaded_spectrum_rows(
+            html, dcc, _pack(dataset, labels, ["series.csv"])
+        )
+        component_ids = [
+            component.id for component in _components(rows)
+            if isinstance(getattr(component, "id", None), dict)
+        ]
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(
+            [item["index"] for item in component_ids if item["type"] == "legend-name"],
+            [0, count - 1],
+        )
+        self.assertEqual(
+            [item["index"] for item in component_ids
+             if item["type"] == "legend-spectrum"],
+            [0, count - 1],
+        )
+        self.assertFalse(any(
+            item["type"] in {"move-spectrum-up", "move-spectrum-down", "remove-spectrum"}
+            for item in component_ids
+        ))
+
+    def test_large_datasets_do_not_create_beer_lambert_inputs(self):
+        labels = [f"spectrum {index}" for index in range(571)]
+        cards = _parameter_cards(html, dcc, labels)
+        serialized = str(cards[0].to_plotly_json())
+        self.assertEqual(len(cards), 1)
+        self.assertIn("controls are hidden", serialized)
+        control_types = {
+            component.id.get("type")
+            for component in _components(cards)
+            if isinstance(getattr(component, "id", None), dict)
+        }
+        self.assertNotIn("direct-concentration", control_types)
+        self.assertNotIn("path-length", control_types)
+
+    def test_sparse_legend_controls_merge_by_component_index(self):
+        count = 571
+        dataset = SpectralDataset(
+            np.array([400.0, 410.0]), np.arange(count, dtype=float),
+            np.vstack((np.arange(count), np.arange(count) + 0.5)),
+            source_format="csv",
+        )
+        labels = [f"spectrum {index}" for index in range(count)]
+        packed = _pack(dataset, labels, ["series.csv"])
+        packed["legend_visibility"] = [False] * count
+        packed["legend_names"] = [f"stored {index}" for index in range(count)]
+        updated = _with_spectrum_state(
+            packed,
+            legend_values=[["on"], []],
+            legend_names=["Initial", "Final"],
+            legend_value_ids=[
+                {"type": "legend-spectrum", "index": 0},
+                {"type": "legend-spectrum", "index": count - 1},
+            ],
+            legend_name_ids=[
+                {"type": "legend-name", "index": 0},
+                {"type": "legend-name", "index": count - 1},
+            ],
+        )
+        self.assertTrue(updated["legend_visibility"][0])
+        self.assertFalse(updated["legend_visibility"][1])
+        self.assertFalse(updated["legend_visibility"][-1])
+        self.assertEqual(updated["legend_names"][0], "Initial")
+        self.assertEqual(updated["legend_names"][1], "stored 1")
+        self.assertEqual(updated["legend_names"][-1], "Final")
+
+    def test_large_absorbance_plot_has_sixty_spectra_and_two_legend_entries(self):
+        import plotly.graph_objects as go
+
+        count = 571
+        dataset = SpectralDataset(
+            np.array([400.0, 410.0]), np.arange(count, dtype=float),
+            np.vstack((np.arange(count), np.arange(count) + 0.5)),
+            source_format="csv",
+        )
+        labels = [f"spectrum {index}" for index in range(count)]
+        figure = _absorbance_figure(
+            go, dataset, dataset.absorbance, dataset.absorbance,
+            labels, "off", legend_visibility=[True] * count,
+        )
+        self.assertEqual(len(figure.data), MAX_INTERACTIVE_SPECTRA)
+        self.assertEqual(
+            [trace.name for trace in figure.data if trace.showlegend],
+            [labels[0], labels[-1]],
+        )
+        self.assertTrue(figure.layout.showlegend)
+
+    def test_large_epsilon_plot_has_sixty_spectra_and_two_spectrum_legends(self):
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+
+        count = 571
+        absorbance = np.vstack((np.arange(count), np.arange(count) + 0.5))
+        dataset = SpectralDataset(
+            np.array([400.0, 410.0]), np.arange(count, dtype=float),
+            absorbance, source_format="csv",
+        )
+        result = EpsilonResult(
+            wavelengths=dataset.wavelengths,
+            absorbance=absorbance,
+            concentrations_m=np.ones(count),
+            path_lengths_cm=np.ones(count),
+            individual=absorbance,
+            mean=np.mean(absorbance, axis=1),
+            standard_deviation=np.zeros(2),
+            standard_error=np.zeros(2),
+        )
+        labels = [f"spectrum {index}" for index in range(count)]
+        figure = _epsilon_figure(
+            go, make_subplots, dataset, absorbance, result, labels, "off",
+            legend_visibility=[True] * count,
+        )
+        spectrum_traces = [
+            trace for trace in figure.data
+            if str(trace.legendgroup).startswith("spectrum-")
+        ]
+        self.assertEqual(len(spectrum_traces), 2 * MAX_INTERACTIVE_SPECTRA)
+        self.assertEqual(len({trace.legendgroup for trace in spectrum_traces}),
+                         MAX_INTERACTIVE_SPECTRA)
+        self.assertEqual(
+            [trace.name for trace in spectrum_traces if trace.showlegend],
+            [labels[0], labels[-1]],
+        )
 
     def test_minimal_palette_marks_initial_intermediate_and_final_spectra(self):
         self.assertEqual(_spectrum_colors(1, True), ["#2d6f8e"])
@@ -564,6 +714,8 @@ class SpectralGuiTests(unittest.TestCase):
             packed, 400, 402, [], None, None, "off", 5, 3,
             [], 1, [None], [1.0], [[]], ["Custom legend"], [],
             "Custom wavelength", "Custom OD", "Custom epsilon",
+            [{"type": "legend-spectrum", "index": 0}],
+            [{"type": "legend-name", "index": 0}],
         )
         self.assertIsNone(preview_result[4])
         self.assertIsNotNone(preview_result[5])
@@ -611,6 +763,8 @@ class SpectralGuiTests(unittest.TestCase):
             402.0, 408.0, [], None, None, "off", 5, 2,
             [], 1, [1e-5], [1.0], [["on"]], ["sample"], [],
             "Wavelength (nm)", "Absorbance", "ε (M⁻¹ cm⁻¹)",
+            [{"type": "legend-spectrum", "index": 0}],
+            [{"type": "legend-name", "index": 0}],
         )
         figure = result[0]
         self.assertEqual(tuple(figure.layout.xaxis.range), (402.0, 408.0))

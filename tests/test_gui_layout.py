@@ -217,6 +217,24 @@ class GuiLayoutTests(unittest.TestCase):
         self.assertIn('.nested-tool[open] > summary::after', css)
         self.assertNotIn('.tool-details summary::after', css)
 
+    def test_analysis_results_and_method_names_wrap_instead_of_clipping(self):
+        css = (Path(__file__).parents[1] / "autoqy_core" / "assets" / "analysis_gui.css").read_text(
+            encoding="utf-8"
+        )
+        result_rule = css.split(
+            ".analysis-result-strip .result-card strong {", 1
+        )[1].split("}", 1)[0]
+        species_rule = css.split(
+            ".analysis-result-strip .pss-species span {", 1
+        )[1].split("}", 1)[0]
+        comparison_rule = css.split(
+            ".comparison-table th, .comparison-table td {", 1
+        )[1].split("}", 1)[0]
+        for rule in (result_rule, species_rule, comparison_rule):
+            self.assertIn("white-space: normal", rule)
+        self.assertIn("overflow-wrap: anywhere", result_rule)
+        self.assertNotIn("text-overflow: ellipsis", result_rule)
+
 
 if __name__ == "__main__":
     unittest.main()

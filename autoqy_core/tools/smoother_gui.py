@@ -26,6 +26,9 @@ from ..smoother import (SpectralDataset, analyze_svd, baseline_spectra,
 from ..version import get_project_version
 
 
+MAX_INTERACTIVE_SPECTRA = 60
+
+
 def create_app():
     try:
         from dash import ALL, Dash, Input, Output, State, ctx, dcc, html, no_update
@@ -843,12 +846,14 @@ window.autoqySaveText = (filename, text, mimeType) => {
         State({"type": "direct-concentration", "index": ALL}, "value"),
         State({"type": "path-length", "index": ALL}, "value"),
         State({"type": "legend-spectrum", "index": ALL}, "value"),
+        State({"type": "legend-spectrum", "index": ALL}, "id"),
         State({"type": "legend-name", "index": ALL}, "value"),
+        State({"type": "legend-name", "index": ALL}, "id"),
         prevent_initial_call=True,
     )
     def load(contents, _, __, ___, ____, _____, filenames, existing_data,
              kinetics_start, concentrations, path_lengths, legend_values,
-             legend_names):
+             legend_value_ids, legend_names, legend_name_ids):
         if ctx.triggered_id == "clear-dataset":
             return None, "All spectra cleared.", None, None, "", None, None
 
@@ -862,6 +867,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 updated = _remove_packed(
                     existing_data, [index], concentrations, path_lengths,
                     legend_values, legend_names,
+                    legend_value_ids=legend_value_ids,
+                    legend_name_ids=legend_name_ids,
                 )
                 if updated is None:
                     return (None, "All spectra removed.", no_update,
@@ -883,6 +890,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 updated = _reorder_packed(
                     existing_data, order, concentrations, path_lengths,
                     legend_values, legend_names,
+                    legend_value_ids=legend_value_ids,
+                    legend_name_ids=legend_name_ids,
                 )
                 return (
                     updated, f"Moved {updated['labels'][target]} to position {target + 1}.",
@@ -894,7 +903,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
             start = float(kinetics_start) if kinetics_start is not None else now
             current = _with_spectrum_state(
                 existing_data, concentrations, path_lengths, legend_values,
-                legend_names,
+                legend_names, legend_value_ids, legend_name_ids,
             )
             merged = _append_packed(current, incoming, now - start)
             if existing_data:
@@ -1078,12 +1087,15 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Input("main-x-axis-label", "value"),
         Input("main-absorbance-axis-label", "value"),
         Input("main-epsilon-axis-label", "value"),
+        State({"type": "legend-spectrum", "index": ALL}, "id"),
+        State({"type": "legend-name", "index": ALL}, "id"),
     )
     def preview(data, wavelength_low, wavelength_high, baseline_enabled,
                 baseline_low, baseline_high, method, sg_width, sg_order,
                 svd_enabled, svd_rank, concentrations, path_lengths,
                 legend_values, legend_names, minimal_colors, x_axis_label,
-                absorbance_axis_label, epsilon_axis_label):
+                absorbance_axis_label, epsilon_axis_label, legend_value_ids,
+                legend_name_ids):
         if not data:
             return (_empty(go, "Load spectral data to begin"),
                     "No result yet.", "", "Smoothing is off.", None, None, True, "")
@@ -1094,7 +1106,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 svd_enabled, svd_rank,
             )
             concentration_data = _read_concentrations(
-                len(data["labels"]), concentrations, path_lengths
+                len(data["labels"]),
+                (concentrations if len(concentrations or []) == len(data["labels"])
+                 else data.get("concentrations")),
+                (path_lengths if len(path_lengths or []) == len(data["labels"])
+                 else data.get("path_lengths")),
             )
             processed_data = _pack(
                 SpectralDataset(
@@ -1103,15 +1119,28 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 ),
                 data["labels"], data.get("filenames", []),
             )
-            plot_labels = _legend_names(legend_names, data["labels"])
-            legend_visibility = _legend_visibility(legend_values, len(plot_labels))
+            plot_labels = _legend_names(
+                legend_names, data["labels"], data.get("legend_names"),
+                legend_name_ids,
+            )
+            legend_visibility = _legend_visibility(
+                legend_values, len(plot_labels), data.get("legend_visibility"),
+                legend_value_ids,
+            )
             use_minimal_colors = "on" in (minimal_colors or [])
             plot_wavelength_range = _wavelength_interval(
                 wavelength_low, wavelength_high
             )
             if concentration_data is None:
-                message = ("Enter the concentration and path length for every "
-                           "spectrum to calculate molar absorptivity.")
+                if len(data["labels"]) > MAX_INTERACTIVE_SPECTRA:
+                    message = (
+                        f"Beer–Lambert inputs are disabled above {MAX_INTERACTIVE_SPECTRA} "
+                        "spectra to keep the browser responsive. Processed absorbance can "
+                        "still be exported."
+                    )
+                else:
+                    message = ("Enter the concentration and path length for every "
+                               "spectrum to calculate molar absorptivity.")
                 return (_absorbance_figure(
                             go, dataset, original, processed, plot_labels,
                             method, svd_enabled, svd_rank, legend_visibility,
@@ -1146,9 +1175,15 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                    f"{negative_error} lower error bound(s) are negative. "
                                    "Negative means remain visible; plotted/exported error "
                                    "bounds are constrained to zero.")
-            concentration_message = "Concentrations: " + ", ".join(
-                f"{value:.6g} M" for value in concentrations
-            )
+            if count > MAX_INTERACTIVE_SPECTRA:
+                concentration_message = (
+                    f"Loaded {count} concentrations; first {concentrations[0]:.6g} M, "
+                    f"last {concentrations[-1]:.6g} M."
+                )
+            else:
+                concentration_message = "Concentrations: " + ", ".join(
+                    f"{value:.6g} M" for value in concentrations
+                )
             return (
                 _epsilon_figure(
                     go, make_subplots, dataset, original, result,
@@ -1432,6 +1467,14 @@ window.autoqySaveText = (filename, text, mimeType) => {
 
 
 def _parameter_cards(html, dcc, labels, concentrations=None, path_lengths=None):
+    if len(labels) > MAX_INTERACTIVE_SPECTRA:
+        return [html.Div(
+            f"This dataset contains {len(labels)} spectra. Per-spectrum concentration "
+            f"and path-length controls are hidden above {MAX_INTERACTIVE_SPECTRA} spectra "
+            "to keep the browser responsive. You can still preprocess and export all "
+            "spectra.",
+            className="status-message status-warning",
+        )]
     cards = []
     for index, label in enumerate(labels):
         cards.append(html.Div(className="spectrum-card", children=[
@@ -1462,9 +1505,12 @@ def _loaded_spectrum_rows(html, dcc, data):
     legend_visibility = data.get("legend_visibility", [True] * len(labels))
     if len(legend_visibility) != len(labels):
         legend_visibility = [True] * len(labels)
+    sparse = len(labels) > MAX_INTERACTIVE_SPECTRA
+    displayed_indices = ([0, len(labels) - 1] if sparse else range(len(labels)))
     rows = []
-    for index, label in enumerate(labels):
-        rows.append(html.Div(className="loaded-spectrum-row", children=[
+    for index in displayed_indices:
+        label = labels[index]
+        children = [
             html.Span(f"{index + 1}. {label}", className="loaded-spectrum-name"),
             dcc.Input(
                 id={"type": "legend-name", "index": index},
@@ -1478,21 +1524,26 @@ def _loaded_spectrum_rows(html, dcc, data):
                 value=["on"] if legend_visibility[index] else [],
                 className="toggle-control spectrum-legend-choice",
             ),
-            html.Button(
-                "↑", title="Move up", disabled=index == 0,
-                id={"type": "move-spectrum-up", "index": index},
-                className="button button-secondary spectrum-order-button",
-            ),
-            html.Button(
-                "↓", title="Move down", disabled=index == len(labels) - 1,
-                id={"type": "move-spectrum-down", "index": index},
-                className="button button-secondary spectrum-order-button",
-            ),
-            html.Button(
-                "Remove", id={"type": "remove-spectrum", "index": index},
-                className="button button-secondary compact-button spectrum-remove-button",
-            ),
-        ]))
+        ]
+        if not sparse:
+            children.extend([
+                html.Button(
+                    "↑", title="Move up", disabled=index == 0,
+                    id={"type": "move-spectrum-up", "index": index},
+                    className="button button-secondary spectrum-order-button",
+                ),
+                html.Button(
+                    "↓", title="Move down", disabled=index == len(labels) - 1,
+                    id={"type": "move-spectrum-down", "index": index},
+                    className="button button-secondary spectrum-order-button",
+                ),
+                html.Button(
+                    "Remove", id={"type": "remove-spectrum", "index": index},
+                    className=("button button-secondary compact-button "
+                               "spectrum-remove-button"),
+                ),
+            ])
+        rows.append(html.Div(className="loaded-spectrum-row", children=children))
     return rows
 
 
@@ -1616,7 +1667,8 @@ def _append_packed(existing_data, incoming_data, elapsed_seconds=None):
 
 
 def _with_spectrum_state(data, concentrations=None, path_lengths=None,
-                         legend_values=None, legend_names=None):
+                         legend_values=None, legend_names=None,
+                         legend_value_ids=None, legend_name_ids=None):
     """Copy live per-spectrum controls into the packed dataset."""
     if not data:
         return data
@@ -1627,23 +1679,25 @@ def _with_spectrum_state(data, concentrations=None, path_lengths=None,
     if path_lengths is not None and len(path_lengths) == count:
         updated["path_lengths"] = list(path_lengths)
     updated["legend_visibility"] = _legend_visibility(
-        legend_values, count, data.get("legend_visibility")
+        legend_values, count, data.get("legend_visibility"), legend_value_ids
     )
     updated["legend_names"] = _legend_names(
-        legend_names, data["labels"], data.get("legend_names")
+        legend_names, data["labels"], data.get("legend_names"), legend_name_ids
     )
     return updated
 
 
 def _reorder_packed(data, order, concentrations=None, path_lengths=None,
-                    legend_values=None, legend_names=None):
+                    legend_values=None, legend_names=None,
+                    legend_value_ids=None, legend_name_ids=None):
     """Reorder spectrum columns while retaining the existing coordinate slots."""
     count = len(data["labels"])
     order = [int(index) for index in order]
     if sorted(order) != list(range(count)):
         raise ValueError("Spectrum order must contain every loaded spectrum once")
     data = _with_spectrum_state(
-        data, concentrations, path_lengths, legend_values, legend_names
+        data, concentrations, path_lengths, legend_values, legend_names,
+        legend_value_ids, legend_name_ids,
     )
     dataset = _unpack(data)
     filenames = list(data.get("filenames", []))
@@ -1668,7 +1722,8 @@ def _reorder_packed(data, order, concentrations=None, path_lengths=None,
 
 
 def _remove_packed(data, remove_indices, concentrations=None, path_lengths=None,
-                   legend_values=None, legend_names=None):
+                   legend_values=None, legend_names=None,
+                   legend_value_ids=None, legend_name_ids=None):
     """Remove selected spectrum columns without changing the remaining coordinates."""
     if not data:
         return None
@@ -1684,7 +1739,8 @@ def _remove_packed(data, remove_indices, concentrations=None, path_lengths=None,
         return data
 
     data = _with_spectrum_state(
-        data, concentrations, path_lengths, legend_values, legend_names
+        data, concentrations, path_lengths, legend_values, legend_names,
+        legend_value_ids, legend_name_ids,
     )
     dataset = _unpack(data)
     reduced = SpectralDataset(
@@ -2109,27 +2165,64 @@ def _display_unique(labels):
     return result
 
 
+def _plotted_spectrum_indices(count, limit=MAX_INTERACTIVE_SPECTRA):
+    """Select evenly spaced spectrum columns, always retaining both endpoints."""
+    count = int(count)
+    limit = int(limit)
+    if count < 0:
+        raise ValueError("Spectrum count cannot be negative")
+    if limit < 1:
+        raise ValueError("Plot spectrum limit must be positive")
+    if count <= limit:
+        return list(range(count))
+    return np.linspace(0, count - 1, num=limit, dtype=int).tolist()
+
+
 def _axis_label(value, default):
     value = str(value or "").strip()
     return value or default
 
 
-def _legend_visibility(values, count, fallback=None):
-    if values is not None and len(values) == count:
-        return ["on" in (value or []) for value in values]
-    if fallback is not None and len(fallback) == count:
-        return [bool(value) for value in fallback]
-    return [True] * count
+def _indexed_control_updates(values, component_ids, count):
+    """Map full or sparse pattern-matching control values to spectrum indices."""
+    if values is None:
+        return {}
+    if component_ids is None:
+        return dict(enumerate(values)) if len(values) == count else {}
+    updates = {}
+    for component_id, value in zip(component_ids, values):
+        if not isinstance(component_id, dict) or "index" not in component_id:
+            continue
+        try:
+            index = int(component_id["index"])
+        except (TypeError, ValueError):
+            continue
+        if 0 <= index < count:
+            updates[index] = value
+    return updates
 
 
-def _legend_names(values, labels, fallback=None):
+def _legend_visibility(values, count, fallback=None, component_ids=None):
+    result = ([bool(value) for value in fallback]
+              if fallback is not None and len(fallback) == count
+              else [True] * count)
+    for index, value in _indexed_control_updates(
+        values, component_ids, count
+    ).items():
+        result[index] = "on" in (value or [])
+    return result
+
+
+def _legend_names(values, labels, fallback=None, component_ids=None):
     count = len(labels)
-    if values is None or len(values) != count:
-        values = fallback if fallback is not None and len(fallback) == count else labels
-    return [
-        str(value).strip() if str(value or "").strip() else str(labels[index])
-        for index, value in enumerate(values)
-    ]
+    result = (list(fallback) if fallback is not None and len(fallback) == count
+              else list(labels))
+    for index, value in _indexed_control_updates(
+        values, component_ids, count
+    ).items():
+        result[index] = value
+    return [str(value).strip() if str(value or "").strip() else str(labels[index])
+            for index, value in enumerate(result)]
 
 
 def _wavelength_slice(dataset, wavelength):
@@ -2292,8 +2385,17 @@ def _absorbance_figure(go, dataset, original, processed, labels, method,
     figure = go.Figure()
     colors = _spectrum_colors(len(labels), minimal_colors)
     legend_visibility = _legend_visibility(None, len(labels), legend_visibility)
+    plotted_indices = _plotted_spectrum_indices(len(labels))
+    sparse = len(labels) > MAX_INTERACTIVE_SPECTRA
+    legend_indices = ({plotted_indices[0], plotted_indices[-1]}
+                      if sparse else set(plotted_indices))
+    plotted_legend_visibility = {
+        index: legend_visibility[index] and index in legend_indices
+        for index in plotted_indices
+    }
     changed = not np.allclose(original, processed)
-    for index, label in enumerate(labels):
+    for index in plotted_indices:
+        label = labels[index]
         color = colors[index]
         if changed:
             figure.add_trace(go.Scatter(
@@ -2304,7 +2406,7 @@ def _absorbance_figure(go, dataset, original, processed, labels, method,
         figure.add_trace(go.Scatter(
             x=dataset.wavelengths, y=processed[:, index], mode="lines",
             line={"color": color, "width": 1.5}, name=label,
-            showlegend=legend_visibility[index],
+            showlegend=plotted_legend_visibility[index],
         ))
     figure.update_yaxes(title_text=y_axis_label)
     figure.update_xaxes(title_text=x_axis_label)
@@ -2314,7 +2416,7 @@ def _absorbance_figure(go, dataset, original, processed, labels, method,
         _style(
             figure,
             520,
-            0 < sum(legend_visibility) <= 20,
+            0 < sum(plotted_legend_visibility.values()) <= 20,
         ),
         wavelength_range,
     )
@@ -2332,12 +2434,22 @@ def _epsilon_figure(go, make_subplots, dataset, original, result, labels, method
     )
     colors = _spectrum_colors(len(labels), minimal_colors)
     legend_visibility = _legend_visibility(None, len(labels), legend_visibility)
-    for index, label in enumerate(labels):
+    plotted_indices = _plotted_spectrum_indices(len(labels))
+    sparse = len(labels) > MAX_INTERACTIVE_SPECTRA
+    legend_indices = ({plotted_indices[0], plotted_indices[-1]}
+                      if sparse else set(plotted_indices))
+    plotted_legend_visibility = {
+        index: legend_visibility[index] and index in legend_indices
+        for index in plotted_indices
+    }
+    for index in plotted_indices:
+        label = labels[index]
         color = colors[index]
         figure.add_trace(go.Scatter(
             x=dataset.wavelengths, y=result.absorbance[:, index], mode="lines",
             line={"color": color, "width": 1.3}, name=label,
-            legendgroup=f"spectrum-{index}", showlegend=legend_visibility[index],
+            legendgroup=f"spectrum-{index}",
+            showlegend=plotted_legend_visibility[index],
         ), row=1, col=1)
         figure.add_trace(go.Scatter(
             x=dataset.wavelengths, y=result.individual[:, index], mode="lines",
@@ -2366,7 +2478,11 @@ def _epsilon_figure(go, make_subplots, dataset, original, result, labels, method
     figure.update_layout(title={"text": _processing_title(
         method, svd_enabled, svd_rank), "x": 0.02})
     return _lock_wavelength_axis(
-        _style(figure, 690, 0 < sum(legend_visibility) <= 20,), wavelength_range
+        _style(
+            figure, 690,
+            0 < sum(plotted_legend_visibility.values()) <= 20,
+        ),
+        wavelength_range,
     )
 
 
