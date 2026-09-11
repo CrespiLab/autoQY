@@ -2,6 +2,7 @@ import unittest
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -15,6 +16,7 @@ from autoqy_core.tools.smoother_gui import (
     _absorbance_figure,
     _colors,
     _combine_loaded,
+    _compact_packed,
     _csv_filename,
     _epsilon_figure,
     _export_csv_payload,
@@ -28,6 +30,7 @@ from autoqy_core.tools.smoother_gui import (
     _remove_packed,
     _reorder_packed,
     _spectrum_colors,
+    _unpack,
     _with_spectrum_state,
     _wavelength_slice,
     _wavelength_slice_figure,
@@ -118,6 +121,15 @@ class ProcessedAbsorbanceExportTests(unittest.TestCase):
     def test_small_plot_selection_keeps_every_spectrum(self):
         self.assertEqual(_plotted_spectrum_indices(4), [0, 1, 2, 3])
 
+    def test_compact_browser_store_round_trips_absorbance(self):
+        compact = _compact_packed(self.packed)
+        self.assertNotIn("absorbance", compact)
+        self.assertEqual(compact["absorbance_encoding"], "zlib-base64-float64")
+        restored = _unpack(compact)
+        np.testing.assert_array_equal(restored.wavelengths, self.dataset.wavelengths)
+        np.testing.assert_array_equal(restored.coordinates, self.dataset.coordinates)
+        np.testing.assert_array_equal(restored.absorbance, self.dataset.absorbance)
+
 
 @unittest.skipUnless(html is not None, "Dash GUI dependencies are not installed")
 class SpectralGuiTests(unittest.TestCase):
@@ -145,6 +157,36 @@ class SpectralGuiTests(unittest.TestCase):
         ]
         self.assertEqual(len(opened), 1)
         self.assertIn("1 · Data", str(opened[0].to_plotly_json()))
+
+    def test_large_data_preprocessing_inputs_are_debounced(self):
+        components = {
+            component.id: component
+            for component in _components(self.app.layout)
+            if isinstance(getattr(component, "id", None), str)
+        }
+        for component_id in (
+            "wavelength-low", "wavelength-high", "baseline-low", "baseline-high",
+            "savgol-window", "savgol-order",
+        ):
+            self.assertTrue(components[component_id].debounce, component_id)
+
+    def test_svd_analysis_is_skipped_while_svd_is_off(self):
+        callback = next(
+            value["callback"].__wrapped__
+            for key, value in self.app.callback_map.items()
+            if "svd-rank.options" in key
+        )
+        dataset = SpectralDataset(
+            np.array([400.0, 401.0, 402.0]), np.array([0.0]),
+            np.array([[0.1], [0.2], [0.3]]), source_format="csv",
+        )
+        with patch("autoqy_core.tools.smoother_gui.analyze_svd") as analyze:
+            result = callback(
+                _compact_packed(_pack(dataset, ["sample"], ["sample.csv"])),
+                400.0, 402.0, [], None, None, "off", 5, 2, [],
+            )
+        analyze.assert_not_called()
+        self.assertEqual(result, ([], None, True, "SVD is off.", ""))
 
     def test_plot_controls_offer_legend_toggle_slice_and_exports(self):
         components = list(_components(self.app.layout))

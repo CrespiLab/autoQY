@@ -7,6 +7,7 @@ import re
 import subprocess
 from threading import Lock
 import time
+import zlib
 
 import numpy as np
 from scipy.optimize import curve_fit
@@ -388,8 +389,10 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                       "calculation, uncertainty statistics, and exported CSV."
                                   )]),
                     html.Div([
-                        dcc.Input(id="wavelength-low", type="number", placeholder="Start (nm)", disabled=True),
-                        dcc.Input(id="wavelength-high", type="number", placeholder="End (nm)", disabled=True),
+                        dcc.Input(id="wavelength-low", type="number", placeholder="Start (nm)",
+                                  disabled=True, debounce=True),
+                        dcc.Input(id="wavelength-high", type="number", placeholder="End (nm)",
+                                  disabled=True, debounce=True),
                     ], className="input-row"),
                     html.Details(open=False, className="nested-tool", children=[
                         html.Summary(["Preprocess spectra", info_popup(
@@ -413,8 +416,10 @@ window.autoqySaveText = (filename, text, mimeType) => {
                         ]),
                         html.Label("Baseline interval (nm)"),
                         html.Div([
-                            dcc.Input(id="baseline-low", type="number", placeholder="Start"),
-                            dcc.Input(id="baseline-high", type="number", placeholder="End"),
+                            dcc.Input(id="baseline-low", type="number", placeholder="Start",
+                                      debounce=True),
+                            dcc.Input(id="baseline-high", type="number", placeholder="End",
+                                      debounce=True),
                         ], className="input-row"),
                         html.Details(open=False, className="parameter-details", children=[
                             html.Summary(["Smoothing parameters", info_popup(
@@ -424,9 +429,9 @@ window.autoqySaveText = (filename, text, mimeType) => {
                             html.Label("Savitzky–Golay: window (nm) / polynomial order"),
                             html.Div([
                                 dcc.Input(id="savgol-window", type="number", value=5,
-                                          min=0, step="any"),
+                                          min=0, step="any", debounce=True),
                                 dcc.Input(id="savgol-order", type="number", value=3,
-                                          min=0, step=1),
+                                          min=0, step=1, debounce=True),
                             ], className="input-row"),
                         ]),
                         html.Div(className="svd-control-row", children=[
@@ -879,7 +884,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     return (None, "All spectra removed.", no_update,
                             no_update, "", None, None)
                 return (
-                    updated,
+                    _compact_packed(updated),
                     f"Removed 1 spectrum; "
                     f"{_count_text(len(updated['labels']), 'spectrum', 'spectra')} remain.",
                     no_update, no_update, "", no_update, kinetics_start,
@@ -899,7 +904,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     legend_name_ids=legend_name_ids,
                 )
                 return (
-                    updated, f"Moved {updated['labels'][target]} to position {target + 1}.",
+                    _compact_packed(updated),
+                    f"Moved {updated['labels'][target]} to position {target + 1}.",
                     no_update, no_update, "", no_update, kinetics_start,
                 )
 
@@ -918,7 +924,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
                            "now loaded.")
             else:
                 message = initial_message
-            return merged, message, None, None, "", source_folder, start
+            return (_compact_packed(merged), message, None, None, "",
+                    source_folder, start)
 
         try:
             if ctx.triggered_id == "open-local-spectra":
@@ -1053,6 +1060,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
                       svd_enabled):
         if not data:
             return [], None, True, "SVD is off.", ""
+        if "on" not in (svd_enabled or []):
+            return [], None, True, "SVD is off.", ""
         try:
             dataset, _, processed, _ = _prepare_processing(
                 data, wavelength_low, wavelength_high, baseline_enabled,
@@ -1118,13 +1127,13 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 (path_lengths if len(path_lengths or []) == len(data["labels"])
                  else data.get("path_lengths")),
             )
-            processed_data = _pack(
+            processed_data = _compact_packed(_pack(
                 SpectralDataset(
                     dataset.wavelengths, dataset.coordinates, processed,
                     dataset.source_format, dataset.interpolated_values,
                 ),
                 data["labels"], data.get("filenames", []),
-            )
+            ))
             plot_labels = _legend_names(
                 legend_names, data["labels"], data.get("legend_names"),
                 legend_name_ids,
@@ -2047,10 +2056,37 @@ def _pack(dataset, labels, filenames, concentrations=None, path_lengths=None):
     return packed
 
 
+def _compact_packed(data):
+    """Compress the large absorbance matrix before placing it in a browser store."""
+    if not data or data.get("absorbance_encoding") == "zlib-base64-float64":
+        return data
+    values = np.ascontiguousarray(np.asarray(data["absorbance"], dtype="<f8"))
+    compact = {key: value for key, value in data.items() if key != "absorbance"}
+    compact.update({
+        "absorbance_encoding": "zlib-base64-float64",
+        "absorbance_shape": list(values.shape),
+        "absorbance_data": base64.b64encode(
+            zlib.compress(values.tobytes())
+        ).decode("ascii"),
+    })
+    return compact
+
+
 def _unpack(data):
+    if data.get("absorbance_encoding") == "zlib-base64-float64":
+        shape = tuple(int(value) for value in data["absorbance_shape"])
+        payload = zlib.decompress(base64.b64decode(
+            data["absorbance_data"], validate=True
+        ))
+        absorbance = np.frombuffer(payload, dtype="<f8")
+        if absorbance.size != int(np.prod(shape)):
+            raise ValueError("Stored absorbance matrix has an invalid size")
+        absorbance = absorbance.reshape(shape)
+    else:
+        absorbance = np.asarray(data["absorbance"], float)
     return SpectralDataset(
         np.asarray(data["wavelengths"], float), np.asarray(data["coordinates"], float),
-        np.asarray(data["absorbance"], float), data["format"],
+        absorbance, data["format"],
         data.get("interpolated_values", 0),
     )
 
