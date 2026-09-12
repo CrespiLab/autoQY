@@ -39,7 +39,6 @@ if errorlevel 1 (
 )
 
 echo Ready. Starting installation of branch "%AUTOQY_BRANCH%"...
-echo When asked for an installation folder, you can copy and paste its full path.
 echo.
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%AUTOQY_PS1_TARGET%" -Branch "%AUTOQY_BRANCH%" -InstallerSourceUrl "%AUTOQY_PS1_URL%" -NoClosePrompt %*
 set "AUTOQY_EXIT=%ERRORLEVEL%"
