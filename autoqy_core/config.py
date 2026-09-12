@@ -53,10 +53,9 @@ def validate_config(config):
     required = {
         "analysis": ("id", "reactant_name", "product_name"),
         "inputs": ("measurement_spectra", "reactant_absorptivity",
-                   "product_absorptivity", "led_emission", "timestamps"),
-        "experiment": ("volume_ul", "power_mw", "power_error_mw",
-                       "thermal_back_reaction_s_1", "irradiation_wavelength_nm",
-                       "path_length_cm"),
+                   "product_absorptivity", "timestamps"),
+        "experiment": ("volume_ul", "thermal_back_reaction_s_1",
+                       "irradiation_wavelength_nm", "path_length_cm"),
         "processing": ("wavelength_range_nm", "led_smoothing", "led_baseline"),
         "fit": ("method", "initial_quantum_yields", "quantum_yield_bounds"),
         "plots": ("absorbance_residual_percentile",),
@@ -73,6 +72,23 @@ def validate_config(config):
         raise ConfigError("Invalid configuration:\n- " + "\n- ".join(errors))
 
     inputs = values["inputs"]
+    experiment = values["experiment"]
+    irradiation_source = experiment.get("irradiation_source", "optical_power")
+    if irradiation_source not in {"optical_power", "chemical_actinometer"}:
+        errors.append(
+            "experiment.irradiation_source must be optical_power or chemical_actinometer"
+        )
+    if irradiation_source == "optical_power":
+        for name in ("power_mw", "power_error_mw"):
+            if name not in experiment:
+                errors.append(f"experiment.{name} is required for optical_power")
+        if "led_emission" not in inputs:
+            errors.append("inputs.led_emission is required for optical_power")
+    elif "photon_flux_mol_s" not in experiment:
+        errors.append(
+            "experiment.photon_flux_mol_s is required for chemical_actinometer"
+        )
+
     formats = inputs.get("formats", {})
     if formats and not isinstance(formats, dict):
         errors.append("inputs.formats must be an object")
@@ -80,6 +96,12 @@ def validate_config(config):
         if not config.input_path(name).is_file():
             errors.append(f"inputs.{name} does not exist: {config.input_path(name)}")
         _validate_format(input_format(config, name), name, errors)
+    if irradiation_source == "optical_power" and "led_emission" in inputs:
+        if not config.input_path("led_emission").is_file():
+            errors.append(
+                f"inputs.led_emission does not exist: {config.input_path('led_emission')}"
+            )
+        _validate_format(input_format(config, "led_emission"), "led_emission", errors)
 
     uncertainty = values.get("uncertainty", {})
     if not isinstance(uncertainty, dict):
@@ -97,14 +119,29 @@ def validate_config(config):
             if epsilon_uncertainty.get("error_metric", "sd") not in {"sd", "sem"}:
                 errors.append("uncertainty.epsilon.error_metric must be sd or sem")
 
-    experiment = values["experiment"]
-    for name in ("volume_ul", "power_mw", "path_length_cm"):
+    for name in ("volume_ul", "path_length_cm", "irradiation_wavelength_nm"):
         if not _positive(experiment[name]):
             errors.append(f"experiment.{name} must be positive")
-    if not _nonnegative(experiment["power_error_mw"]):
-        errors.append("experiment.power_error_mw must be nonnegative")
-    elif _positive(experiment["power_mw"]) and experiment["power_error_mw"] >= experiment["power_mw"]:
-        errors.append("experiment.power_error_mw must be smaller than power_mw")
+    if irradiation_source == "optical_power" and all(
+            name in experiment for name in ("power_mw", "power_error_mw")):
+        if not _positive(experiment["power_mw"]):
+            errors.append("experiment.power_mw must be positive")
+        if not _nonnegative(experiment["power_error_mw"]):
+            errors.append("experiment.power_error_mw must be nonnegative")
+        elif (_positive(experiment["power_mw"])
+              and experiment["power_error_mw"] >= experiment["power_mw"]):
+            errors.append("experiment.power_error_mw must be smaller than power_mw")
+    if irradiation_source == "chemical_actinometer" and "photon_flux_mol_s" in experiment:
+        photon_flux = experiment["photon_flux_mol_s"]
+        photon_flux_error = experiment.get("photon_flux_error_mol_s", 0)
+        if not _positive(photon_flux):
+            errors.append("experiment.photon_flux_mol_s must be positive")
+        if not _nonnegative(photon_flux_error):
+            errors.append("experiment.photon_flux_error_mol_s must be nonnegative")
+        elif _positive(photon_flux) and photon_flux_error >= photon_flux:
+            errors.append(
+                "experiment.photon_flux_error_mol_s must be smaller than photon_flux_mol_s"
+            )
     if not _nonnegative(experiment["thermal_back_reaction_s_1"]):
         errors.append("experiment.thermal_back_reaction_s_1 must be nonnegative")
     if not _nonnegative(experiment.get("thermal_forward_reaction_s_1", 0)):

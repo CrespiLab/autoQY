@@ -16,10 +16,31 @@ def format_value_uncertainty(value, uncertainty, two_digit_threshold=3):
     leading = uncertainty / 10 ** exponent
     significant_digits = 2 if leading < two_digit_threshold else 1
     place = exponent - significant_digits + 1
-    rounded_value = round(value, -place)
     rounded_uncertainty = round(uncertainty, -place)
+    # Rounding can carry the uncertainty into the next decade (0.099 -> 0.1).
+    # Recalculate the reporting place so the value still matches the displayed
+    # uncertainty rather than retaining spurious decimal places.
+    rounded_exponent = math.floor(math.log10(rounded_uncertainty))
+    place = rounded_exponent - significant_digits + 1
+    rounded_uncertainty = round(rounded_uncertainty, -place)
+    rounded_value = round(value, -place)
     decimals = max(0, -place)
     return f"{rounded_value:.{decimals}f}", f"{rounded_uncertainty:.{decimals}f}"
+
+
+def format_scientific_value_uncertainty(value, uncertainty, two_digit_threshold=3):
+    """Format a value/error pair with one shared base-ten exponent."""
+    value, uncertainty = float(value), abs(float(uncertainty))
+    reference = abs(value) if value else uncertainty
+    if not math.isfinite(reference) or reference == 0:
+        formatted = format_value_uncertainty(value, uncertainty, two_digit_threshold)
+        return formatted[0], formatted[1], 0
+    exponent = math.floor(math.log10(reference))
+    scale = 10 ** exponent
+    formatted = format_value_uncertainty(
+        value / scale, uncertainty / scale, two_digit_threshold
+    )
+    return formatted[0], formatted[1], exponent
 
 
 def result_summary(result, data, irradiation_wavelength_nm):
@@ -51,21 +72,36 @@ def result_summary(result, data, irradiation_wavelength_nm):
         },
         "experiment": {
             "volume_ml": data.volume_ml,
+            "irradiation_source": ("chemical_actinometer"
+                                   if data.photon_flux_mol_s is not None
+                                   else "optical_power"),
             "power_mw": data.power_mw,
             "power_error_mw": data.power_error_mw,
+            "photon_flux_mol_s": data.photon_flux_mol_s,
+            "photon_flux_error_mol_s": data.photon_flux_error_mol_s,
             "thermal_back_reaction_s_1": data.thermal_rate,
             "thermal_forward_reaction_s_1": getattr(data, "thermal_forward_rate", 0),
             "irradiation_wavelength_nm": irradiation_wavelength_nm,
             "path_length_cm": data.path_length_cm,
         },
     }
+    if data.photon_flux_mol_s is not None:
+        flux = format_scientific_value_uncertainty(
+            data.photon_flux_mol_s, data.photon_flux_error_mol_s
+        )
+        summary["experiment"]["photon_flux_formatted_mol_s"] = {
+            "value": flux[0], "error": flux[1], "exponent": flux[2]
+        }
     uncertainty = result.epsilon_uncertainty
     if uncertainty is not None:
         optimizer_power = uncertainty.optimizer_power_errors * 100
         epsilon = uncertainty.epsilon_errors * 100
         combined = uncertainty.combined_errors * 100
+        irradiation_error_key = ("optimizer_and_photon_flux"
+                                 if data.photon_flux_mol_s is not None
+                                 else "optimizer_and_power")
         summary["quantum_yield_error_components_percent"] = {
-            "optimizer_and_power": _yield_pair(optimizer_power),
+            irradiation_error_key: _yield_pair(optimizer_power),
             "epsilon": _yield_pair(epsilon),
             "combined": _yield_pair(combined),
         }
@@ -113,8 +149,13 @@ def write_results(path, result, data, irradiation_wavelength_nm):
     if result.epsilon_uncertainty is not None:
         components = summary["quantum_yield_error_components_percent"]
         metadata = summary["epsilon_uncertainty"]
-        epsilon_text = f"""Error component optimizer + power R_to_P (%): {components['optimizer_and_power']['R_to_P']:g}
-Error component optimizer + power P_to_R (%): {components['optimizer_and_power']['P_to_R']:g}
+        irradiation_error_key = ("optimizer_and_photon_flux"
+                                 if data.photon_flux_mol_s is not None
+                                 else "optimizer_and_power")
+        irradiation_error_label = ("photon flux" if data.photon_flux_mol_s is not None
+                                   else "power")
+        epsilon_text = f"""Error component optimizer + {irradiation_error_label} R_to_P (%): {components[irradiation_error_key]['R_to_P']:g}
+Error component optimizer + {irradiation_error_label} P_to_R (%): {components[irradiation_error_key]['P_to_R']:g}
 Error component epsilon R_to_P (%): {components['epsilon']['R_to_P']:g}
 Error component epsilon P_to_R (%): {components['epsilon']['P_to_R']:g}
 Epsilon uncertainty method: {metadata['method']}
@@ -125,6 +166,18 @@ Reactant epsilon values constrained to zero: {metadata['constrained_negative_poi
 NMR epsilon values constrained to zero: {metadata['constrained_negative_points']['product']}
 
 """
+    if data.photon_flux_mol_s is None:
+        irradiation_input = (
+            f"Power average (mW): {data.power_mw:g}\n"
+            f"Power error (mW): {data.power_error_mw:g}"
+        )
+    else:
+        flux = summary["experiment"]["photon_flux_formatted_mol_s"]
+        irradiation_input = (
+            "Irradiation source: Chemical actinometer\n"
+            f"Photon flux (mol photons/s): ({flux['value']} +/- {flux['error']}) "
+            f"x 10^{flux['exponent']}"
+        )
     text = f"""Composition at the last timestamp (s): {last_composition['time_s']:g}
 Composition at the last timestamp - Reactant (%): {last_composition['reactant']:.1f}
 Composition at the last timestamp - Product (%): {last_composition['product']:.1f}
@@ -137,8 +190,7 @@ error_QY_BA (%): {formatted['P_to_R']['error']}
 {epsilon_text}Volume (ml): {data.volume_ml:g}
 k thermal back-reaction (s-1): {data.thermal_rate:g}
 k thermal forward-reaction (s-1): {getattr(data, 'thermal_forward_rate', 0):g}
-Power average (mW): {data.power_mw:g}
-Power error (mW): {data.power_error_mw:g}
+{irradiation_input}
 Wavelength of irradiation: {irradiation_wavelength_nm:g}
 
 Calculation Method: Integration

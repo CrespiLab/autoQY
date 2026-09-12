@@ -2,7 +2,7 @@
 param(
     [string]$EnvironmentName = "autoqy-core",
     [string]$RepositoryUrl = "https://github.com/CrespiLab/autoQY.git",
-    [string]$Branch = "main",
+    [string]$Branch,
     [switch]$CheckOnly
 )
 
@@ -34,6 +34,23 @@ function Read-Confirmation {
         if ($answer -match "^(?i:n|no)$") { return $false }
         Write-Host "Please answer yes or no."
     }
+}
+
+function Select-RepositoryBranch {
+    param([string]$RequestedBranch)
+
+    $selected = $RequestedBranch.Trim()
+    if (-not $selected) {
+        $selected = (Read-Host "Git branch to install [main]").Trim()
+        if (-not $selected) { $selected = "main" }
+    }
+    if ($selected -notmatch "^[A-Za-z0-9][A-Za-z0-9._/-]*$" -or
+        $selected.Contains("..") -or $selected.Contains("//") -or
+        $selected.Contains("@{") -or $selected.EndsWith("/") -or
+        $selected.EndsWith(".") -or $selected.EndsWith(".lock")) {
+        throw "Invalid Git branch name '$selected'. Use a name such as main, develop, or feature/my-change."
+    }
+    return $selected
 }
 
 function Select-InstallDirectory {
@@ -246,6 +263,22 @@ function Update-AutoQYCheckout {
     ) -Activity "Applying the downloaded update..."
 }
 
+function Assert-RemoteBranch {
+    param(
+        [string]$GitCommand,
+        [string]$RepositoryUrl,
+        [string]$Branch
+    )
+    Write-Host "   Checking that branch '$Branch' exists on GitHub..."
+    $result = Invoke-CapturedCommand -Command $GitCommand -Arguments @(
+        "ls-remote", "--exit-code", "--heads", $RepositoryUrl, "refs/heads/$Branch"
+    )
+    if ($result.ExitCode -ne 0 -or -not $result.Output) {
+        throw "Branch '$Branch' was not found in $RepositoryUrl. Check its spelling and try again."
+    }
+    Write-Host "   Branch found." -ForegroundColor Green
+}
+
 function Get-CondaHookPath {
     param([string]$CondaCommand)
     $condaBaseText = & $CondaCommand info --base
@@ -366,6 +399,9 @@ try {
     Write-Host "AutoQY installer" -ForegroundColor Blue
     Write-Host "This window may stay quiet while a step is working. Please leave it open."
 
+    $Branch = Select-RepositoryBranch -RequestedBranch $Branch
+    Write-Host "Git branch: $Branch" -ForegroundColor Green
+
     $InstallDirectory = if ($CheckOnly) {
         [System.IO.Path]::GetFullPath($CurrentDirectory)
     }
@@ -454,6 +490,11 @@ try {
 
     Activate-AutoQYEnvironment -CondaCommand $condaCommand `
         -Name $EnvironmentName -ExpectedPath $environmentPath
+
+    if (-not $projectInInstallFolder) {
+        Assert-RemoteBranch -GitCommand $gitCommand -RepositoryUrl $RepositoryUrl `
+            -Branch $Branch
+    }
 
     if (-not $projectInInstallFolder) {
         if (Test-Path -LiteralPath $ClonePath) {

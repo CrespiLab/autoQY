@@ -1,6 +1,8 @@
 """Load AutoQY input files without GUI dependencies."""
 
 from pathlib import Path
+import re
+import struct
 
 import numpy as np
 import pandas as pd
@@ -47,8 +49,118 @@ def load_avantes_abs8_bytes(data):
     return wavelengths, absorbance
 
 
+def load_cary(path):
+    """Load spectra from a Varian/Agilent Cary WinUV DSW or BSW file."""
+    return load_cary_bytes(Path(path).read_bytes())
+
+
+def load_cary_bytes(data):
+    """Decode wavelength/signal streams from a Cary WinUV binary container."""
+    data = bytes(data)
+    if len(data) < 18:
+        raise ValueError("Cary file is too small")
+    magic_length = data[0]
+    magic = data[1:1 + magic_length].decode("ascii", errors="ignore")
+    if not magic.startswith("Varian UV-VIS"):
+        raise ValueError("Not a Varian/Agilent Cary WinUV DSW or BSW file")
+
+    blocks = []
+    offset = 0
+    while offset <= len(data) - 16:
+        first_wavelength, first_value, second_wavelength, second_value = struct.unpack_from(
+            "<ffff", data, offset
+        )
+        step = second_wavelength - first_wavelength
+        if (_cary_point(first_wavelength, first_value)
+                and _cary_point(second_wavelength, second_value)
+                and 0.001 <= abs(step) <= 30.0):
+            decreasing = step < 0
+            wavelengths = [first_wavelength, second_wavelength]
+            values = [first_value, second_value]
+            end = offset + 16
+            while end + 8 <= len(data):
+                wavelength, value = struct.unpack_from("<ff", data, end)
+                next_step = wavelength - wavelengths[-1]
+                monotonic = next_step < -0.001 if decreasing else next_step > 0.001
+                if (not _cary_point(wavelength, value) or not monotonic
+                        or abs(next_step) > 30.0):
+                    break
+                wavelengths.append(wavelength)
+                values.append(value)
+                end += 8
+            if len(wavelengths) >= 30:
+                blocks.append((offset, end, np.asarray(wavelengths, float),
+                               np.asarray(values, float)))
+                offset = end
+                continue
+        offset += 1
+
+    unique = []
+    for block in blocks:
+        if unique and block[0] < unique[-1][1]:
+            if len(block[2]) > len(unique[-1][2]):
+                unique[-1] = block
+        else:
+            unique.append(block)
+    if not unique:
+        raise ValueError("No Cary spectral data streams were found")
+    spectra = [(w[::-1], y[::-1]) if w[0] > w[-1] else (w, y)
+               for _, _, w, y in unique]
+    return _align_spectra(spectra, "Cary")
+
+
+def load_specord(path):
+    """Load spectra from an Analytik Jena SPECORD WinASPECT DAT file."""
+    return load_specord_bytes(Path(path).read_bytes())
+
+
+def load_specord_bytes(data):
+    """Decode labelled float32 arrays from a SPECORD WinASPECT DAT file."""
+    data = bytes(data)
+    header_end = data.find(b"[DATA]")
+    if header_end < 0 or not data.startswith(b"[GENERAL]"):
+        raise ValueError("Not an Analytik Jena SPECORD WinASPECT DAT file")
+    header = data[:header_end].decode("latin-1")
+    if "ORIGIN=SPECORD" not in header.upper():
+        raise ValueError("SPECORD origin marker is missing")
+    point_match = re.search(r"(?mi)^NPOINTS=(\d+)\s*$", header)
+    cycle_match = re.search(r"(?mi)^NCYCL=(\d+)\s*$", header)
+    unit_match = re.search(r"(?mi)^XUNITS=([^\r\n]+)", header)
+    if not point_match:
+        raise ValueError("SPECORD point count is missing")
+    points = int(point_match.group(1))
+    cycles = int(cycle_match.group(1)) if cycle_match else 1
+    if not 2 <= points <= 1_000_000 or not 1 <= cycles <= 100_000:
+        raise ValueError("SPECORD point or cycle count is invalid")
+    if unit_match and unit_match.group(1).strip().lower() not in {"nm", "nanometer", "nanometers"}:
+        raise ValueError("SPECORD x axis must be wavelength in nm")
+
+    wavelength_offset = _binary_marker_offset(data, b"XDATA=")
+    value_offset = _binary_marker_offset(data, b"YDATA=")
+    wavelength_bytes = points * np.dtype("<f4").itemsize
+    value_bytes = points * cycles * np.dtype("<f4").itemsize
+    if wavelength_offset + wavelength_bytes > len(data) or value_offset + value_bytes > len(data):
+        raise ValueError("SPECORD data arrays are truncated")
+    wavelengths = np.frombuffer(data, dtype="<f4", count=points,
+                                offset=wavelength_offset).astype(float)
+    values = np.frombuffer(data, dtype="<f4", count=points * cycles,
+                           offset=value_offset).reshape(cycles, points).T.astype(float)
+    if not np.isfinite(wavelengths).all() or not np.isfinite(values).all():
+        raise ValueError("SPECORD file contains non-finite spectral values")
+    differences = np.diff(wavelengths)
+    if np.all(differences < 0):
+        wavelengths, values = wavelengths[::-1], values[::-1]
+    elif not np.all(differences > 0):
+        raise ValueError("SPECORD wavelengths must be monotonic")
+    return wavelengths, values
+
+
 def load_spectra(path, format_spec="spectragryph_tsv"):
     spec = _format_spec(format_spec)
+    if spec["type"] == "agilent_cary":
+        return load_cary(path)
+    if spec["type"] == "specord":
+        return load_specord(path)
     if spec["type"] == "spectragryph_tsv":
         data = pd.read_csv(path, sep="\t", float_precision="round_trip").drop(
             columns="Wavenumbers [1/cm]", errors="ignore"
@@ -134,3 +246,36 @@ def _column(data, reference):
     if reference not in data.columns:
         raise ValueError(f"Column {reference!r} was not found")
     return reference
+
+
+def _cary_point(wavelength, value):
+    return (np.isfinite(wavelength) and np.isfinite(value)
+            and 100.0 <= wavelength <= 5000.0
+            and -1_000_000.0 <= value <= 1_000_000.0)
+
+
+def _align_spectra(spectra, name):
+    low = max(wavelengths[0] for wavelengths, _ in spectra)
+    high = min(wavelengths[-1] for wavelengths, _ in spectra)
+    if high <= low:
+        raise ValueError(f"{name} spectra have no common wavelength range")
+    reference = min(spectra, key=lambda item: np.median(np.diff(item[0])))[0]
+    common = reference[(reference >= low) & (reference <= high)]
+    if len(common) < 2:
+        raise ValueError(f"{name} spectra have fewer than two common wavelengths")
+    values = np.column_stack([
+        np.interp(common, wavelengths, signal) for wavelengths, signal in spectra
+    ])
+    return common, values
+
+
+def _binary_marker_offset(data, marker):
+    position = data.find(marker)
+    if position < 0:
+        raise ValueError(f"SPECORD {marker.decode('ascii').rstrip('=')} array is missing")
+    position += len(marker)
+    if data[position:position + 2] == b"\r\n":
+        position += 2
+    elif data[position:position + 1] == b"\n":
+        position += 1
+    return position

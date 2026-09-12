@@ -13,6 +13,7 @@ from .io import load_spectra, load_spectrum, load_timestamps
 from .output import result_summary, write_detailed_data, write_results
 from .pipeline import AnalysisInput, run_analysis_pipeline
 from .plotting import write_figure
+from .spectra import monochromatic_emission
 
 
 @dataclass(frozen=True)
@@ -53,13 +54,22 @@ def run_analysis(config, output_directory=None):
     else:
         epsilon_r = _load_nominal_epsilon(config, "reactant_absorptivity")
         epsilon_p = _load_nominal_epsilon(config, "product_absorptivity")
-    led = load_spectrum(config.input_path("led_emission"), input_format(config, "led_emission"))
+    irradiation_source = experiment.get("irradiation_source", "optical_power")
+    if irradiation_source == "chemical_actinometer":
+        led = monochromatic_emission(
+            wavelengths, experiment["irradiation_wavelength_nm"]
+        )
+    else:
+        led = load_spectrum(
+            config.input_path("led_emission"), input_format(config, "led_emission")
+        )
     timestamps = load_timestamps(
         config.input_path("timestamps"), input_format(config, "timestamps")
     )
     _validate_loaded_data(wavelengths, absorbance, timestamps, epsilon_r, epsilon_p)
 
-    power_mw, power_error_mw = experiment["power_mw"], experiment["power_error_mw"]
+    power_mw = experiment.get("power_mw")
+    power_error_mw = experiment.get("power_error_mw", 0)
 
     smoothing, baseline = processing["led_smoothing"], processing["led_baseline"]
     initial, bounds = fit["initial_quantum_yields"], fit["quantum_yield_bounds"]
@@ -88,6 +98,11 @@ def run_analysis(config, output_directory=None):
         robust_loss_scale=fit.get("robust_loss_scale", 0.02),
         initial_yields=(initial["R_to_P"], initial["P_to_R"]),
         yield_bounds=(bounds["minimum"], bounds["maximum"]),
+        photon_flux_mol_s=(experiment.get("photon_flux_mol_s")
+                           if irradiation_source == "chemical_actinometer" else None),
+        photon_flux_error_mol_s=(experiment.get("photon_flux_error_mol_s", 0)
+                                 if irradiation_source == "chemical_actinometer" else 0),
+        irradiation_wavelength_nm=experiment["irradiation_wavelength_nm"],
     )
     result = (run_with_epsilon_uncertainty(
         data, *epsilon_envelopes, error_metric=epsilon_metric

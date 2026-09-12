@@ -32,9 +32,9 @@ RMSE should not be interpreted as a complexity-penalized model comparison.
 
 | Method | Phi R->P (%) | Phi P->R (%) | Concentration difference | Absorbance RMSE | Initial R fraction | Final R fraction |
 |---|---:|---:|---:|---:|---:|---:|
-| `concentrations` | 19.76 ± 0.12 | 26.16 ± 0.21 | reference | 0.003112 | 1.000 | 0.0386 |
-| `emission` | 17.64 ± 0.10 | 42.85 ± 0.34 | 1.31% | 0.003625 | 1.000 | 0.0378 |
-| `regularized_concentrations` | 20.27 ± 0.19 | 28.55 ± 0.78 | 0.93% | 0.003150 | 0.997 | 0.0409 |
+| `concentrations` | 19.76 ± 0.12 | 26.2 ± 0.2 | reference | 0.003112 | 1.000 | 0.0386 |
+| `emission` | 17.64 ± 0.10 | 42.9 ± 0.3 | 1.31% | 0.003625 | 1.000 | 0.0378 |
+| `regularized_concentrations` | 20.27 ± 0.19 | 28.6 ± 0.8 | 0.93% | 0.003150 | 0.997 | 0.0409 |
 | `ode_absorbance` | 19.36 ± 0.11 | 24.26 ± 0.17 | 0.44% | 0.002131 | 0.981 | 0.0366 |
 
 All concentration trajectories agree within 1.4%, and the forward quantum
@@ -50,10 +50,10 @@ Files: `340nm_raw_led__<method>.png` and `.svg`.
 
 | Method | Phi R->P (%) | Phi P->R (%) | Concentration difference | Absorbance RMSE | Initial R fraction | Final R fraction |
 |---|---:|---:|---:|---:|---:|---:|
-| `concentrations` | 17.68 ± 0.11 | 42.36 ± 0.46 | reference | 0.002573 | 1.000 | 0.0386 |
-| `emission` | 17.23 ± 0.10 | 41.18 ± 0.30 | 0.33% | 0.002660 | 1.000 | 0.0368 |
-| `regularized_concentrations` | 17.94 ± 0.17 | 44.42 ± 1.27 | 0.76% | 0.002694 | 0.998 | 0.0398 |
-| `ode_absorbance` | 17.19 ± 0.10 | 38.62 ± 0.26 | 0.48% | 0.001725 | 0.981 | 0.0363 |
+| `concentrations` | 17.68 ± 0.11 | 42.4 ± 0.5 | reference | 0.002573 | 1.000 | 0.0386 |
+| `emission` | 17.23 ± 0.10 | 41.2 ± 0.3 | 0.33% | 0.002660 | 1.000 | 0.0368 |
+| `regularized_concentrations` | 17.94 ± 0.17 | 44.4 ± 1.3 | 0.76% | 0.002694 | 0.998 | 0.0398 |
+| `ode_absorbance` | 17.19 ± 0.10 | 38.6 ± 0.3 | 0.48% | 0.001725 | 0.981 | 0.0363 |
 
 The four concentration trajectories agree within 0.8%. Forward yields agree
 within 0.8 percentage points, while reverse yields span 38.6-44.4%. This is
@@ -68,10 +68,10 @@ Files: `340nm_baselined_led__<method>.png` and `.svg`.
 
 | Method | Phi R->P (%) | Phi P->R (%) | Concentration difference | Absorbance RMSE | Initial R fraction | Final R fraction |
 |---|---:|---:|---:|---:|---:|---:|
-| `concentrations` | 36.77 ± 0.44 | 49.92 ± 0.63 | reference | 0.009044 | 0.964 | 0.7771 |
-| `emission` | 25.79 ± 0.48 | 51.40 ± 1.09 | 9.16% | 0.049952 | 1.000 | 0.8370 |
-| `regularized_concentrations` | 37.81 ± 0.38 | 50.08 ± 0.50 | 1.53% | 0.004609 | 0.983 | 0.7729 |
-| `ode_absorbance` | 35.14 ± 0.50 | 50.91 ± 0.76 | 2.43% | 0.004201 | 0.999 | 0.7884 |
+| `concentrations` | 36.8 ± 0.4 | 49.9 ± 0.6 | reference | 0.009044 | 0.964 | 0.7771 |
+| `emission` | 25.8 ± 0.5 | 51.4 ± 1.1 | 9.16% | 0.049952 | 1.000 | 0.8370 |
+| `regularized_concentrations` | 37.8 ± 0.4 | 50.1 ± 0.5 | 1.53% | 0.004609 | 0.983 | 0.7729 |
+| `ode_absorbance` | 35.1 ± 0.5 | 50.9 ± 0.8 | 2.43% | 0.004201 | 0.999 | 0.7884 |
 
 Here `emission` is the clear outlier. Its concentration trajectory differs by
 9.2%, its full-spectrum absorbance RMSE is approximately 5-12 times larger than

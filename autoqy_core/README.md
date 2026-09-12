@@ -178,6 +178,25 @@ remaining column; single-spectrum files use one value column.
 This reads a tab-separated header, uses the first column as wavelength in nm,
 and ignores a column named `Wavenumbers [1/cm]`.
 
+### Analytik Jena SPECORD binary
+
+```json
+{"type": "specord"}
+```
+
+This reads WinASPECT `.dat` files containing the SPECORD metadata header and
+labelled binary wavelength/signal arrays. The x axis must be wavelength in nm.
+
+### Agilent/Varian Cary 50 and 60 binary
+
+```json
+{"type": "agilent_cary"}
+```
+
+This reads Cary WinUV `.DSW` single-spectrum and `.BSW` batch files. Decreasing
+wavelength scans are restored to increasing order, and multiple scans are
+interpolated onto their finest common measured wavelength grid.
+
 ### Other generic delimiters
 
 ```json
@@ -223,6 +242,7 @@ one value per measured spectrum.
 |---|---|
 | `volume_ul` | microlitres |
 | `power_mw`, `power_error_mw` | mW |
+| `photon_flux_mol_s`, `photon_flux_error_mol_s` | mol photons s^-1 |
 | `thermal_back_reaction_s_1` | s^-1 |
 | `thermal_forward_reaction_s_1` | s^-1 |
 | `irradiation_wavelength_nm` | nm |
@@ -230,6 +250,29 @@ one value per measured spectrum.
 | `wavelength_range_nm` | nm |
 
 Volume is converted internally from microlitres to millilitres.
+
+### Chemical-actinometer photon flux
+
+Set `experiment.irradiation_source` to `chemical_actinometer` to supply a
+measured molar photon flux instead of optical power:
+
+```json
+"experiment": {
+  "irradiation_source": "chemical_actinometer",
+  "photon_flux_mol_s": 4.8e-9,
+  "photon_flux_error_mol_s": 1e-10,
+  "irradiation_wavelength_nm": 395
+}
+```
+
+In this mode `inputs.led_emission`, `power_mw`, and `power_error_mw` are not
+required. The irradiation wavelength is required and is used as the exact
+monochromatic wavelength. The GUI displays the corresponding spectrum as zero
+at every wavelength except 100 at the nominal wavelength.
+
+For Example 4, converting `1.46 ± 0.03 mW` at 395 nm gives the correctly
+rounded photon flux `(4.8 ± 0.1) × 10^-9 mol photons/s`. The unrounded values
+remain available internally for calculation.
 
 ## Optional molar-absorptivity uncertainty
 
@@ -277,9 +320,10 @@ The TXT and results JSON distinguish two endpoint values:
 
 ## Spectral Treatment GUI
 
-Run `autoqy-core smoother-gui` (or `autoqy-smoother-gui`) to load a
-SpectraGryph `.dat`, Avantes `.Abs8`, wavelength-by-row TSV, or CSV data. File
-types are detected automatically. **Open files from folder** also makes the
+Run `autoqy-core smoother-gui` (or `autoqy-smoother-gui`) to load
+SpectraGryph text, SPECORD WinASPECT `.dat`, Agilent/Varian Cary `.DSW/.BSW`,
+Avantes `.Abs8`, wavelength-by-row TSV, or CSV data. File types are detected
+automatically. **Open files from folder** also makes the
 source directory the default export location, and a loading indicator remains
 visible while large groups of spectra are parsed.
 
@@ -289,6 +333,19 @@ Savitzky–Golay operate on each spectrum independently. SVD mixes columns and i
 therefore intended for ordered time-series spectra, not independent replicate
 solutions. The suggested rank retains at least 99.5% of squared singular-value
 weight, but it remains an operator decision. Uploaded data is never modified.
+Wavelength, baseline, and Savitzky–Golay number fields submit on Enter or blur,
+which prevents a separate large-data update for every digit typed. SVD analysis
+is skipped entirely while SVD is disabled.
+
+For datasets above 60 spectra, the Plotly preview contains at most 60 evenly
+spaced spectra and always includes indices zero and the final index. The full
+matrix remains available to preprocessing, SVD, wavelength slicing, and
+processed-data export. Only the first and last spectra receive loaded-spectrum
+legend controls, only those two can create spectrum legend entries, and the
+per-spectrum concentration/path-length cards are replaced by an explanatory
+message. Browser stores use a compressed representation of the absorbance
+matrix to reduce callback traffic; this does not change exported numerical
+precision.
 
 Processed absorbance can be exported without concentration values. When every
 solution concentration and path length is supplied, the same workflow exports
@@ -306,6 +363,9 @@ text without changing the source filename. **Show all** and **Hide all** provide
 quick legend shortcuts.
 **Minimal colors** highlights the initial spectrum in blue and the final
 spectrum in orange, with intermediate spectra in grey as in the Analysis GUI.
+In the processed-absorbance preview, raw traces are hidden after preprocessing
+by default. **Show original** adds them to both the interactive plot and saved
+PNG/SVG figures without changing the processed-data export.
 PNG and SVG save buttons open a Save As dialog. Saved images contain only the
 plots by default. **Title in saved image** and **Legend in saved image** can be
 enabled independently. **Origin-style export** follows the supplied Origin-like

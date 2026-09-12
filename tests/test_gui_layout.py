@@ -11,6 +11,7 @@ try:
 
     from autoqy_core.power_web import create_app as create_power_app
     from autoqy_core.tools.analysis_gui import (
+        _pss_card,
         _spectra_led_figure,
         create_app as create_analysis_app,
     )
@@ -131,6 +132,61 @@ class GuiLayoutTests(unittest.TestCase):
             for key in app.callback_map
         ))
 
+    def test_analysis_offers_chemical_actinometer_photon_flux(self):
+        app = create_analysis_app()
+        actinometer = _by_id(
+            app.layout, {"type": "analysis-field", "name": "chemical_actinometer"}
+        )
+        photon_flux = _by_id(
+            app.layout, {"type": "analysis-field", "name": "photon_flux_mol_s"}
+        )
+        self.assertEqual(actinometer.options[0]["value"], "on")
+        self.assertIn("chemical actinometer", actinometer.options[0]["label"])
+        self.assertTrue(photon_flux.disabled)
+
+    def test_analysis_offers_specord_and_cary_binary_spectra(self):
+        app = create_analysis_app()
+        formats = _by_id(
+            app.layout,
+            {"type": "analysis-field", "name": "format_measurement_spectra"},
+        )
+        values = {option["value"] for option in formats.options}
+        self.assertIn("specord", values)
+        self.assertIn("agilent_cary", values)
+
+        spectral_app = create_spectral_app()
+        visible_text = " ".join(
+            component.children
+            for component in _components(spectral_app.layout)
+            if isinstance(getattr(component, "children", None), str)
+        )
+        self.assertIn("SPECORD", visible_text)
+        self.assertIn("Cary .DSW/.BSW", visible_text)
+
+    def test_pss_distribution_is_visible_beside_quantum_yields(self):
+        app = create_analysis_app()
+        result_strip = next(
+            component for component in _components(app.layout)
+            if getattr(component, "className", None) == "result-strip analysis-result-strip"
+        )
+        result_ids = [getattr(component, "id", None) for component in result_strip.children]
+        self.assertEqual(
+            result_ids,
+            ["result-rp", "result-pr", "result-pss", "result-fit"],
+        )
+        card = _pss_card(
+            html,
+            {"extrapolated_pss_percent": {"reactant": 23.3459, "product": 76.6541}},
+            "trans", "cis",
+        )
+        visible_text = " ".join(
+            component.children
+            for component in _components(card)
+            if isinstance(getattr(component, "children", None), str)
+        )
+        self.assertIn("trans 23.3%", visible_text)
+        self.assertIn("cis 76.7%", visible_text)
+
     def test_analysis_preprocessing_separates_led_from_spectral_decay(self):
         wavelengths = np.array([400.0, 450.0, 500.0])
         absorbance = np.array([
@@ -160,6 +216,24 @@ class GuiLayoutTests(unittest.TestCase):
         self.assertIn('.nested-tool > summary::after', css)
         self.assertIn('.nested-tool[open] > summary::after', css)
         self.assertNotIn('.tool-details summary::after', css)
+
+    def test_analysis_results_and_method_names_wrap_instead_of_clipping(self):
+        css = (Path(__file__).parents[1] / "autoqy_core" / "assets" / "analysis_gui.css").read_text(
+            encoding="utf-8"
+        )
+        result_rule = css.split(
+            ".analysis-result-strip .result-card strong {", 1
+        )[1].split("}", 1)[0]
+        species_rule = css.split(
+            ".analysis-result-strip .pss-species span {", 1
+        )[1].split("}", 1)[0]
+        comparison_rule = css.split(
+            ".comparison-table th, .comparison-table td {", 1
+        )[1].split("}", 1)[0]
+        for rule in (result_rule, species_rule, comparison_rule):
+            self.assertIn("white-space: normal", rule)
+        self.assertIn("overflow-wrap: anywhere", result_rule)
+        self.assertNotIn("text-overflow: ellipsis", result_rule)
 
 
 if __name__ == "__main__":

@@ -20,8 +20,8 @@ The optical path length is 1 cm. The irradiation power is 1.46 ± 0.03 mW.
 The sample volume is 1995 µL and the thermal back-reaction rate is 6.3e-5 s⁻¹.
 
 Ready-to-run CSV files are bundled under `generic_inputs`; the original TSV
-files are under `crespi_group_inputs`. The following steps regenerate them
-from the source spectra.
+and instrument files are under `crespi_group_inputs`. The following steps
+regenerate the processed inputs from the source spectra.
 
 ## 1. Open Spectral Treatment from the Analysis GUI
 
@@ -34,8 +34,9 @@ can then be selected in the Analysis GUI.
 1. Under **1 · Data**, select **Open files from folder** and load the three
    `.Abs8` files together, in numeric order.
 2. Under **2 · Range**, set the wavelength range to **250–700 nm**.
-3. Expand **Preprocess spectra**, enable **Baseline**, and set its interval to
-   **600–650 nm**.
+3. Expand **Preprocess spectra**, set the baseline interval to **600–650 nm**,
+   press **Enter** or leave each number field to apply it, and enable
+   **Baseline**.
 4. Select **SavGol**, then set a **5 nm** window and polynomial order **3**.
 5. Leave **SVD off**. These are independent preparations, not an ordered time
    series; SVD would mix their genuine between-sample variation.
@@ -45,12 +46,24 @@ can then be selected in the Analysis GUI.
 7. Inspect the individual ε traces, mean, and shaded error band. Large
    structured differences between measurements should be investigated before
    export; the band is not a substitute for inspecting the spectra.
-8. Under **4 · Output**, choose the Example 4 folder and select
-   **Save reactant ε CSV**. The file contains processed absorbance,
-   individual ε curves, their mean, SD, SEM, and non-negative limits.
+8. Under **4 · Output**, choose the Example 4 folder, set the CSV name to
+   `reactant_absorptivity.csv`, and select **Save processed CSV**. The file
+   contains processed absorbance, individual ε curves, their mean, SD, SEM,
+   and non-negative limits.
+
+Before all Beer–Lambert values are entered, the processed-absorbance preview
+shows only the corrected spectra. Original spectra are hidden by default;
+enable **Show original** above the plot when you want the raw and corrected
+curves together. That choice also applies to a saved absorbance PNG or SVG.
 
 The bundled generic result is `reactant_absorptivity.csv`. If the GUI proposes a different
 name, select or rename the export before using it in the analysis configuration.
+
+This example has only three spectra. For kinetic files with more than 60
+spectra, Spectral Treatment plots an evenly spaced preview of at most 60,
+including the endpoints, but processes and exports the complete dataset.
+Per-spectrum Beer–Lambert inputs are intentionally unavailable for those large
+series.
 
 ## 3. Derive product ε from the PSS composition
 
@@ -73,9 +86,9 @@ name, select or rename the export before using it in the analysis configuration.
    −500 M⁻¹ cm⁻¹ remain visible for diagnosis; values below that threshold stop
    export. By default, the primary exported product ε is constrained to
    zero while the raw audit column is retained.
-8. Select **Save reactant + NMR-derived ε CSVs**. Use the product export as
-   `product_absorptivity.csv` and retain the reactant export as
-   `reactant_absorptivity.csv`.
+8. Set the optional reactant and product file names to
+   `reactant_absorptivity.csv` and `product_absorptivity.csv`, then select
+   **Save reactant + NMR-derived ε CSVs**.
 
 The product bounds combine the reactant measurement SD with the selected NMR
 composition error. They are therefore asymmetric and wavelength dependent.
@@ -180,6 +193,10 @@ is intentional.
    diagnostic opens the panel automatically.
 3. Inspect concentrations, fraction residuals, preprocessing,
    reference/reconstruction plots, and the wavelength-resolved residual map.
+
+Long quantum-yield values and fit descriptions wrap within their result cards.
+The fit-method comparison also wraps long method names; on a narrow window,
+scroll its table horizontally to see every result column.
 
 For the bundled files, the expected result is approximately:
 
