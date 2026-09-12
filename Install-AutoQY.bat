@@ -43,6 +43,15 @@ echo.
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%AUTOQY_PS1_TARGET%" -Branch "%AUTOQY_BRANCH%" -InstallerSourceUrl "%AUTOQY_PS1_URL%" -NoClosePrompt %*
 set "AUTOQY_EXIT=%ERRORLEVEL%"
 
+if exist "%AUTOQY_PS1_TARGET%" (
+    echo Removing the downloaded PowerShell installer...
+    del /f /q "%AUTOQY_PS1_TARGET%"
+    if exist "%AUTOQY_PS1_TARGET%" (
+        echo Warning: could not remove %AUTOQY_PS1_TARGET%
+    ) else (
+        echo Downloaded PowerShell installer removed.
+    )
+)
 echo.
 if not "%AUTOQY_EXIT%"=="0" (
     echo The installer stopped with exit code %AUTOQY_EXIT%.
