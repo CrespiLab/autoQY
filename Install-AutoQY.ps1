@@ -3,6 +3,8 @@ param(
     [string]$EnvironmentName = "autoqy-core",
     [string]$RepositoryUrl = "https://github.com/CrespiLab/autoQY.git",
     [string]$Branch,
+    [string]$InstallerSourceUrl,
+    [switch]$NoClosePrompt,
     [switch]$CheckOnly
 )
 
@@ -10,6 +12,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $CurrentDirectory = (Get-Location).Path
 $InstallTimer = [System.Diagnostics.Stopwatch]::StartNew()
+$InstallExitCode = 0
 
 function Get-ElapsedText {
     return $InstallTimer.Elapsed.ToString("hh\:mm\:ss")
@@ -39,7 +42,7 @@ function Read-Confirmation {
 function Select-RepositoryBranch {
     param([string]$RequestedBranch)
 
-    $selected = $RequestedBranch.Trim()
+    $selected = "$RequestedBranch".Trim()
     if (-not $selected) {
         $selected = (Read-Host "Git branch to install [main]").Trim()
         if (-not $selected) { $selected = "main" }
@@ -53,6 +56,18 @@ function Select-RepositoryBranch {
     return $selected
 }
 
+function Get-InstallerSourceUrl {
+    param(
+        [string]$RepositoryUrl,
+        [string]$Branch
+    )
+
+    if ($RepositoryUrl -match "^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?$") {
+        return "https://raw.githubusercontent.com/$($Matches[1])/$($Matches[2])/$Branch/Install-AutoQY.ps1"
+    }
+    return $null
+}
+
 function Select-InstallDirectory {
     param([string]$CurrentPath)
 
@@ -62,8 +77,10 @@ function Select-InstallDirectory {
         return $currentFullPath
     }
 
+    Write-Host "You can copy and paste the full path of the folder you want to use."
+    Write-Host "For example, copy it from the File Explorer address bar."
     while ($true) {
-        $enteredPath = (Read-Host "Enter the full path to the installation folder").Trim().Trim('"')
+        $enteredPath = (Read-Host "Enter or paste the full path to the installation folder").Trim().Trim('"')
         if (-not $enteredPath) {
             Write-Host "Please enter a folder path."
             continue
@@ -401,6 +418,24 @@ try {
 
     $Branch = Select-RepositoryBranch -RequestedBranch $Branch
     Write-Host "Git branch: $Branch" -ForegroundColor Green
+    $expectedInstallerUrl = Get-InstallerSourceUrl `
+        -RepositoryUrl $RepositoryUrl -Branch $Branch
+    if ($InstallerSourceUrl -and $expectedInstallerUrl -and
+        -not [string]::Equals(
+            $InstallerSourceUrl, $expectedInstallerUrl,
+            [StringComparison]::OrdinalIgnoreCase
+        )) {
+        throw "The PowerShell installer URL does not match branch '$Branch': $InstallerSourceUrl"
+    }
+    $displayInstallerUrl = if ($InstallerSourceUrl) {
+        $InstallerSourceUrl
+    }
+    else {
+        $expectedInstallerUrl
+    }
+    if ($displayInstallerUrl) {
+        Write-Host "PowerShell installer URL: $displayInstallerUrl"
+    }
 
     $InstallDirectory = if ($CheckOnly) {
         [System.IO.Path]::GetFullPath($CurrentDirectory)
@@ -551,6 +586,11 @@ try {
 catch {
     Write-Host ""
     Write-Host "Installation failed: $($_.Exception.Message)" -ForegroundColor Red
-    exit 1
+    $InstallExitCode = 1
 }
+
+if (-not $NoClosePrompt) {
+    Read-Host "Press Enter to close"
+}
+exit $InstallExitCode
 
