@@ -129,24 +129,6 @@ A step-by-step guide of the different GUIs and how to inspect and export the res
 
 More ready-to-run datasets are listed in **[ExampleData](ExampleData/README.md)**.
 
-## Working with large spectral series
-
-Spectral Treatment keeps large kinetic datasets responsive. When a dataset has
-more than 60 spectra, the interactive Plotly preview shows at most 60 evenly
-spaced spectra, always including the first and last. All loaded spectra are
-still baseline-corrected, smoothed, available to wavelength slices, and written
-to the processed-data export. The loaded-spectrum manager exposes only the
-first and last legend controls, and per-spectrum Beer–Lambert fields are hidden;
-use a dataset of 60 spectra or fewer when concentrations must be entered in the
-GUI.
-
-Preprocessing number fields are applied after pressing **Enter** or moving focus
-out of the field. In the processed-absorbance preview, original spectra are
-hidden after baseline correction by default; enable **Show original** when they
-should appear in the interactive and exported figure. In the Analysis GUI, long
-quantum-yield results and fitting method names wrap instead of being clipped,
-while wide comparison tables can be scrolled horizontally.
-
 ## Advanced use
 
 Command-line usage, file formats, fitting methods, configuration details, and the Python API are documented in **[autoqy_core/README.md](autoqy_core/README.md)**.
