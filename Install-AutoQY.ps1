@@ -77,8 +77,6 @@ function Select-InstallDirectory {
         return $currentFullPath
     }
 
-    Write-Host "You can copy and paste the full path of the folder you want to use."
-    Write-Host "For example, copy it from the File Explorer address bar."
     while ($true) {
         $enteredPath = (Read-Host "Enter or paste the full path to the installation folder").Trim().Trim('"')
         if (-not $enteredPath) {
