@@ -20,8 +20,8 @@ The optical path length is 1 cm. The irradiation power is 1.46 ± 0.03 mW.
 The sample volume is 1995 µL and the thermal back-reaction rate is 6.3e-5 s⁻¹.
 
 Ready-to-run CSV files are bundled under `generic_inputs`; the original TSV
-files are under `crespi_group_inputs`. The following steps regenerate them
-from the source spectra.
+and instrument files are under `crespi_group_inputs`. The following steps
+regenerate the processed inputs from the source spectra.
 
 ## 1. Open Spectral Treatment from the Analysis GUI
 
@@ -46,9 +46,10 @@ can then be selected in the Analysis GUI.
 7. Inspect the individual ε traces, mean, and shaded error band. Large
    structured differences between measurements should be investigated before
    export; the band is not a substitute for inspecting the spectra.
-8. Under **4 · Output**, choose the Example 4 folder and select
-   **Save reactant ε CSV**. The file contains processed absorbance,
-   individual ε curves, their mean, SD, SEM, and non-negative limits.
+8. Under **4 · Output**, choose the Example 4 folder, set the CSV name to
+   `reactant_absorptivity.csv`, and select **Save processed CSV**. The file
+   contains processed absorbance, individual ε curves, their mean, SD, SEM,
+   and non-negative limits.
 
 Before all Beer–Lambert values are entered, the processed-absorbance preview
 shows only the corrected spectra. Original spectra are hidden by default;
@@ -85,9 +86,9 @@ series.
    −500 M⁻¹ cm⁻¹ remain visible for diagnosis; values below that threshold stop
    export. By default, the primary exported product ε is constrained to
    zero while the raw audit column is retained.
-8. Select **Save reactant + NMR-derived ε CSVs**. Use the product export as
-   `product_absorptivity.csv` and retain the reactant export as
-   `reactant_absorptivity.csv`.
+8. Set the optional reactant and product file names to
+   `reactant_absorptivity.csv` and `product_absorptivity.csv`, then select
+   **Save reactant + NMR-derived ε CSVs**.
 
 The product bounds combine the reactant measurement SD with the selected NMR
 composition error. They are therefore asymmetric and wavelength dependent.

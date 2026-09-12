@@ -128,6 +128,12 @@ Supported formats include:
 
 Multiple spectra can be loaded together.
 
+Files selected in one operation are sorted naturally, so `sample2` comes
+before `sample10`. A later drop or selection is appended instead of replacing
+the current series. **Open files from folder** also uses that source folder as
+the initial export folder. Use **Clear all spectra** when you want to discard
+the accumulated series and restart its elapsed-time counter.
+
 ## Check the spectrum order
 
 For molar-absorptivity measurements, the concentrations entered later should correspond to the correct spectra.
@@ -217,15 +223,15 @@ For example:
 
 if that region is appropriate for the molecule being studied.
 
-Number fields used for wavelength selection and preprocessing are applied when
-you press **Enter** or move to another control. This prevents a large spectrum
-file from being recalculated once for every digit typed.
+The main wavelength-range, baseline, and Savitzky–Golay number fields are
+applied when you press **Enter** or move to another control. This prevents a
+large spectrum file from being recalculated once for every digit typed.
 
-After baseline correction, the processed-absorbance preview shows only the
-corrected spectra by default. Before supplying a complete set of Beer–Lambert
-values, enable **Show original** above the plot to compare the raw and corrected
-curves. Leave it disabled for a cleaner absorbance figure; the same choice is
-used by PNG and SVG export.
+After baseline correction or smoothing, the processed-absorbance preview shows
+only the processed spectra by default. Before supplying a complete set of
+Beer–Lambert values, enable **Show original** above the plot to compare the raw
+and processed curves. Leave it disabled for a cleaner absorbance figure; the
+same choice is used by PNG and SVG export.
 
 ## Savitzky–Golay smoothing
 
@@ -241,6 +247,10 @@ A reasonable starting point for ordinary UV–Vis spectra is:
 Window: 5 nm
 Polynomial order: 3
 ```
+
+The window is entered in nanometres. AutoQY converts it to a valid odd number
+of detector points and reports the resulting point count below the controls.
+The polynomial order must be smaller than that point count.
 
 A useful check is to compare the spectrum with smoothing turned on and off. The aim is to reduce noise without noticeably changing the underlying band shape.
 
@@ -287,6 +297,11 @@ For time-series data, SVD can instead be useful for reducing noise because the s
 It is still useful to inspect the untreated spectra first.
 
 </details>
+
+When **SVD** is enabled, AutoQY proposes a component count from the currently
+processed series and enables the rank selector. The proposal is a starting
+point, not an automatic scientific decision; inspect the reconstructed spectra
+and compare them with SVD off.
 
 ---
 
@@ -387,13 +402,27 @@ A typical filename is:
 reactant_absorptivity.csv
 ```
 
+The same **Save processed CSV** button serves two cases:
+
+- without a complete set of concentrations and path lengths, it saves the
+  processed absorbance matrix;
+- with every Beer–Lambert value present, it also saves individual ε spectra,
+  their mean, SD, SEM, and non-negative uncertainty bounds.
+
+The save folder and optional CSV name can be changed. A missing `.csv`
+extension is added automatically, and AutoQY asks before replacing an existing
+file. Negative absorbance and ε values are preserved by default. Enable
+**Convert negative absorbance and ε values to 0** only when the saved CSV—not
+the preview or uploaded source—should be clamped.
+
 ---
 
 # 9. Use Spectral Treatment for simple kinetics
 
 Spectral Treatment can also be used independently of the quantum-yield workflow.
 
-Load a time-ordered spectral series and select a wavelength of interest.
+Load a time-ordered spectral series, expand **Wavelength slice over time** below
+the main plot, and select a wavelength of interest.
 
 For example:
 
@@ -478,6 +507,10 @@ The simple exponential fit is most appropriate for traces that are reasonably cl
 
 </details>
 
+The wavelength slice can be saved as PNG, SVG, or CSV. Its CSV contains the
+scaled time coordinates and absorbance values and, when a fit is enabled, the
+fitted curve and lifetime information.
+
 ---
 
 # 10. Use Spectral Treatment to prepare figures
@@ -489,13 +522,7 @@ without showing every filename in the legend. Above 60 spectra, the figure uses
 the evenly spaced preview subset described earlier; the complete series remains
 in the processed CSV export.
 
-Expand:
-
-```text id="0r67ux"
-Loaded spectra: order, legend, removal
-```
-
-Click:
+Expand **Legend options** above the main plot and click:
 
 ```text id="6mdvgj"
 Hide all
@@ -503,7 +530,8 @@ Hide all
 
 to hide the legend entries without removing the traces.
 
-Then re-enable only the important spectra, for example:
+Then expand **Loaded spectra: order, legend, removal** and re-enable only the
+important spectra, for example:
 
 ```text id="zpbzu8"
 First spectrum
@@ -527,6 +555,18 @@ Minimal colors
 
 to highlight the initial and final spectra while keeping intermediate traces visually quieter.
 
+## Image and axis options
+
+**Axis names** changes the labels used by the main and wavelength-slice plots.
+The main plot and slice have separate **Image export options**. For each saved
+image you can independently include the title and legend, use the
+publication-oriented **Origin-style export**, add a grid, and decide whether
+the y axis starts at zero. With Origin-style export enabled, PNG output is
+1950 × 1500 pixels; SVG remains vector based.
+
+The defaults are: title excluded, legend included, Origin style enabled, grid
+excluded, and y axis starting at zero.
+
 <details>
 <summary><strong>Example workflow for a publication-style spectral figure</strong></summary>
 
@@ -540,7 +580,7 @@ For a 30-spectrum irradiation series:
 6. Click **Hide all**.
 7. Re-enable only the first and final spectra in the legend.
 8. Rename them, for example, `E` and `PSS`.
-9. Remove the title if unnecessary.
+9. Leave **Title in saved image** disabled if the title is unnecessary.
 10. Enable **Origin-style export**.
 11. Save as SVG or PNG.
 
@@ -615,6 +655,14 @@ The resulting product ε uncertainty is generally wavelength dependent and asymm
 Small negative reconstructed ε values near a zero baseline can arise from noise or subtraction uncertainty.
 
 Larger negative spectral features may suggest checking the PSS composition, baseline, normalization, or whether more than two species are present.
+
+The NMR panel has its own baseline and Savitzky–Golay controls. It uses the
+first spectrum as reactant and the last as PSS, regardless of any intermediate
+spectra. By default, the primary product ε export is clipped at zero while a
+raw audit column is retained. Enable **Keep negative values in product ε** only
+when negative values should remain in the primary column. Values below
+−500 M⁻¹ cm⁻¹ stop export and should be investigated. Optional reactant and
+product filenames are available, and the NMR plot can be saved as PNG or SVG.
 
 </details>
 
