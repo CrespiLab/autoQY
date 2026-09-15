@@ -381,8 +381,9 @@ def create_app():
                         info_popup(
                             "Compare fit methods runs NIPE, regularized concentrations, full-spectrum ODE, and legacy "
                             "pure-NNLS concentrations on identical inputs. It disables ε uncertainty, omits "
-                            "the legacy emission fit, writes no files, and compares quantum yields plus fraction "
-                            "and absorbance residuals."
+                            "the legacy emission fit, and writes no files. For NIPE, the table shows the "
+                            "pre-plateau estimate when one is available; its residuals still describe the "
+                            "complete trace."
                         ),
                     ]),
                     html.Button("Save JSON", id="save-analysis-json", n_clicks=0,
@@ -455,11 +456,12 @@ def create_app():
                         "Fit-method comparison",
                         "Runs four fits with the same data and nominal ε spectra. It reports "
                         "optimizer-and-power uncertainty, time-trace fraction RMSE, full-spectrum "
-                        "absorbance RMSE, and explicit optimizer flags. Fraction RMSE compares "
+                        "absorbance RMSE, and automatic fit flags. Fraction RMSE compares "
                         "recovered and fitted reactant fractions over time; absorbance RMSE compares "
-                        "all measured and reconstructed absorbance points. Lower is better, but also "
-                        "inspect residual structure and method assumptions. ε uncertainty is disabled "
-                        "and no result files are written."
+                        "all measured and reconstructed absorbance points. NIPE uses its pre-plateau "
+                        "yield when available, while its residual metrics continue to describe the "
+                        "complete trace. Lower is better, but also inspect residual structure and "
+                        "method assumptions. ε uncertainty is disabled and no result files are written."
                     ),
                     html.Div("", id="method-comparison", className="helper-text"),
                 ]),
@@ -1270,7 +1272,7 @@ def _fit_diagnostic_checks(result, data, document):
             "stop": "The combined reactant and product amount changes too much for a simple two-species model.",
         }[diagnostic.level]
         checks.append(_check(
-            diagnostic.level, "NIPE A⇌B model check",
+            diagnostic.level, "A⇌B model check",
             f"{status_text} The first-to-last change is "
             f"{diagnostic.balance_change_fraction:+.1%}. This may indicate degradation, another "
             "absorbing species, or unsuitable reference spectra. If this check is red, report the "
@@ -1416,10 +1418,16 @@ def _compare_fit_methods(config):
             fitted_absorbance = result.yield_fit.concentrations @ epsilon * data.path_length_cm
             if result.yield_fit.absorbance_correction is not None:
                 fitted_absorbance += result.yield_fit.absorbance_correction
+            reported_values, reported_errors, yield_source = (
+                _comparison_quantum_yield(result)
+            )
+            fit_diagnostics = _fit_diagnostic_checks(result, data, values)
             rows.append({
                 "method": method,
-                "values": result.yield_fit.values * 100,
-                "errors": result.yield_errors * 100,
+                "values": reported_values,
+                "errors": reported_errors,
+                "yield_source": yield_source,
+                "diagnostics": fit_diagnostics,
                 "fraction_rmse": float(np.sqrt(np.mean(
                     (measured_fraction - fitted_fraction) ** 2
                 ))),
@@ -1433,22 +1441,31 @@ def _compare_fit_methods(config):
     return rows
 
 
+def _comparison_quantum_yield(result):
+    """Choose the yield that represents each method in the comparison table."""
+    values = np.asarray(result.yield_fit.values, float) * 100
+    errors = np.asarray(result.yield_errors, float) * 100
+    if result.fit_method != "nipe":
+        return values, errors, "Complete trace"
+    nipe = getattr(result.yield_fit, "nipe", None)
+    windows = getattr(nipe, "window_analysis", None)
+    if windows is None:
+        return values, errors, "Complete trace; no reliable early window"
+    return (
+        np.asarray(windows.extrapolated_values, float) * 100,
+        np.asarray(windows.extrapolated_standard_errors, float) * 100,
+        "Pre-plateau NIPE estimate",
+    )
+
+
 def _render_comparison(html, rows, selected_method):
-    headings = ("Method", "Φ R→P", "Φ P→R", "Fraction RMSE", "Absorbance RMSE",
-                "Automatic fit flags")
+    headings = ("Method", "Yield shown", "Φ R→P", "Φ P→R", "Fraction RMSE",
+                "Absorbance RMSE", "Fit diagnostics")
     body = []
     for row in rows:
-        condition = float(row["jacobian_condition"])
-        if not row["optimizer_success"]:
-            flags = "Optimizer did not converge"
-        elif not np.isfinite(condition) or condition > 1e8:
-            flags = "Very weak parameter sensitivity"
-        elif row["active_bounds"]:
-            flags = "Quantum yield at configured bound"
-        elif condition > 1e6:
-            flags = "High parameter sensitivity"
-        else:
-            flags = "No automatic optimizer flags"
+        diagnostic_level, flags = _comparison_diagnostic_summary(
+            row.get("diagnostics", [])
+        )
         forward = format_value_uncertainty(
             row["values"][0], row["errors"][0], two_digit_threshold=2
         )
@@ -1458,11 +1475,16 @@ def _render_comparison(html, rows, selected_method):
         body.append(html.Tr(className="comparison-selected" if row["method"] == selected_method else "",
                             children=[
             html.Td(_method_label(row["method"])),
+            html.Td(row.get("yield_source", "Complete trace")),
             html.Td(f"{forward[0]} ± {forward[1]}%"),
             html.Td(f"{backward[0]} ± {backward[1]}%"),
             html.Td(f"{row['fraction_rmse']:.4g}"),
             html.Td(f"{row['absorbance_rmse']:.4g}"),
-            html.Td(flags),
+            html.Td(
+                flags,
+                className=(f"comparison-diagnostic "
+                           f"comparison-diagnostic-{diagnostic_level}"),
+            ),
         ]))
     return html.Div([
         html.Div(className="comparison-table-wrap", children=[
@@ -1471,7 +1493,21 @@ def _render_comparison(html, rows, selected_method):
                 html.Tbody(body),
             ])
         ]),
+        html.Small(
+            "When available, NIPE quantum yields come from the pre-plateau analysis. "
+            "The NIPE fraction and absorbance RMSE values still assess its complete-trace fit.",
+            className="helper-text",
+        ),
     ])
+
+
+def _comparison_diagnostic_summary(checks):
+    """Return the highest fit-diagnostic level and its concise table label."""
+    for level, label in (("stop", "Red flag"), ("warning", "Review")):
+        titles = [item["title"] for item in checks if item["level"] == level]
+        if titles:
+            return level, f"{label}: {'; '.join(titles)}"
+    return "ok", "No automatic fit flags"
 
 
 def _yield_card(html, label, summary, name):

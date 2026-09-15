@@ -1,6 +1,7 @@
 import tomllib
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -11,6 +12,8 @@ try:
 
     from autoqy_core.power_web import create_app as create_power_app
     from autoqy_core.tools.analysis_gui import (
+        _comparison_diagnostic_summary,
+        _comparison_quantum_yield,
         _pss_card,
         _render_nipe_window_analysis,
         _nipe_headline_warning,
@@ -232,6 +235,32 @@ class GuiLayoutTests(unittest.TestCase):
         self.assertIn("NIPE pre-plateau window analysis", visible_text)
         self.assertIn("status-stop", warning.className)
         self.assertEqual(_nipe_headline_warning(html, {"fit_method": "emission"}), "")
+
+    def test_method_comparison_uses_nipe_pre_plateau_yield(self):
+        windows = SimpleNamespace(
+            extrapolated_values=np.array([0.148701, 0.123818]),
+            extrapolated_standard_errors=np.array([0.001730, 0.002558]),
+        )
+        result = SimpleNamespace(
+            fit_method="nipe",
+            yield_errors=np.array([0.001, 0.001]),
+            yield_fit=SimpleNamespace(
+                values=np.array([0.119590, 0.082680]),
+                nipe=SimpleNamespace(window_analysis=windows),
+            ),
+        )
+        values, errors, source = _comparison_quantum_yield(result)
+        np.testing.assert_allclose(values, [14.8701, 12.3818])
+        np.testing.assert_allclose(errors, [0.1730, 0.2558])
+        self.assertEqual(source, "Pre-plateau NIPE estimate")
+
+    def test_method_comparison_reports_red_model_diagnostic(self):
+        level, label = _comparison_diagnostic_summary([
+            {"level": "stop", "title": "A⇌B model check", "body": ""},
+            {"level": "warning", "title": "Initial product", "body": ""},
+        ])
+        self.assertEqual(level, "stop")
+        self.assertEqual(label, "Red flag: A⇌B model check")
 
     def test_pss_distribution_is_visible_beside_quantum_yields(self):
         app = create_analysis_app()

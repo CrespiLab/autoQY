@@ -233,6 +233,10 @@
   white-space: normal;
 }
 .comparison-table th { color: #505661; font-weight: 700; }
+.comparison-diagnostic { font-weight: 700; }
+.comparison-diagnostic-ok { color: #356b4c; }
+.comparison-diagnostic-warning { color: #8a5b17; }
+.comparison-diagnostic-stop { color: #a33f31; background: #fff3f0; }
 .comparison-table th:first-child, .comparison-table td:first-child {
   min-width: 180px;
   overflow-wrap: anywhere;
