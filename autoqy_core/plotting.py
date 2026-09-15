@@ -127,15 +127,14 @@ def write_figure(path, result, data, residual_percentile=100):
                 uncertainty.concentration_fit_maximum[fit_mask, index],
                 color=colour, alpha=0.13,
             )
-    nominal = " (nominal ε)" if uncertainty is not None else ""
     concentration.scatter(times, measured[:, 0], s=24, facecolors="none",
-                          edgecolors=blue, label=f"Reactant data{nominal}")
+                          edgecolors=blue, label="Reactant data")
     concentration.scatter(times, measured[:, 1], s=24, facecolors="none",
-                          edgecolors=orange, label=f"Product data{nominal}")
+                          edgecolors=orange, label="Product data")
     concentration.plot(fit_times, fitted[fit_mask, 0], color=blue, linewidth=2,
-                       zorder=4, label=f"Reactant fit{nominal}")
+                       zorder=4, label="Reactant fit")
     concentration.plot(fit_times, fitted[fit_mask, 1], color=orange, linewidth=2,
-                       zorder=4, label=f"Product fit{nominal}")
+                       zorder=4, label="Product fit")
     if fit_end_time is not None:
         concentration.axvline(fit_end_time, color=brown, linestyle="--", linewidth=1.4)
         concentration.annotate(
@@ -146,7 +145,7 @@ def write_figure(path, result, data, residual_percentile=100):
     concentration.set(title=(
                           "NIPE concentrations: fit limited to accepted window"
                           if result.fit_method == "nipe" else
-                          "Concentrations: nominal ε and ε-bound ranges"
+                          "Concentrations with ε-bound ranges"
                           if uncertainty is not None else "Concentration fit"),
                       xlabel="Irradiation time (s)",
                       ylabel="Concentration (mol/L)")
@@ -159,7 +158,7 @@ def write_figure(path, result, data, residual_percentile=100):
             color=blue, alpha=0.16, label="ε-bound range",
         )
     residual.plot(times, fraction_residual, "o-", color=blue, markersize=4,
-                  label=f"Nominal ε residual" if uncertainty is not None else None)
+                  label="Residual" if uncertainty is not None else None)
     residual.axhline(0, color="black", linewidth=0.8)
     residual.set(title="Reactant fraction residual", xlabel="Irradiation time (s)",
                  ylabel="Fraction data - fit")
@@ -191,7 +190,7 @@ def write_figure(path, result, data, residual_percentile=100):
     heatmap_title = "Absorbance residuals"
     if uncertainty is not None:
         heatmap_title = (
-            "Absorbance residuals (nominal ε)\n"
+            "Absorbance residuals\n"
             f"ε-bound RMSE {uncertainty.absorbance_residual_rmse_minimum:.3g}–"
             f"{uncertainty.absorbance_residual_rmse_maximum:.3g}"
         )
