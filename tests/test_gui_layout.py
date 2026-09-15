@@ -11,9 +11,14 @@ try:
     from dash import dcc, html
 
     from autoqy_core.power_web import create_app as create_power_app
+    from autoqy_core.plotting import _quantum_yield_annotation
     from autoqy_core.tools.analysis_gui import (
         _comparison_diagnostic_summary,
         _comparison_quantum_yield,
+        _interactive_figures,
+        _nipe_concentration_note,
+        _nipe_fit_display_window,
+        _fit_note,
         _pss_card,
         _render_nipe_window_analysis,
         _nipe_headline_warning,
@@ -178,6 +183,7 @@ class GuiLayoutTests(unittest.TestCase):
     def test_analysis_has_collapsible_nipe_window_report(self):
         app = create_analysis_app()
         _by_id(app.layout, "nipe-headline-warning")
+        _by_id(app.layout, "nipe-concentration-note")
         panel = _by_id(app.layout, "nipe-window-panel")
         self.assertIsInstance(panel, html.Details)
         self.assertFalse(panel.open)
@@ -220,6 +226,8 @@ class GuiLayoutTests(unittest.TestCase):
         self.assertIn("12.4 ± 0.3%", visible_text)
         self.assertIn("Sustained flattening was detected at 240 s", visible_text)
         self.assertIn("0–90", visible_text)
+        self.assertIn("how reliably the two directional quantum yields", visible_text)
+        self.assertIn("windows above 10,000 are rejected automatically", visible_text)
 
     def test_nipe_full_trace_result_warns_user_to_open_window_analysis(self):
         warning = _nipe_headline_warning(html, {
@@ -248,6 +256,101 @@ class GuiLayoutTests(unittest.TestCase):
         self.assertIn("does not establish degradation", visible_text)
         self.assertIn("complete-trace yield as the main result", visible_text)
         self.assertIn("status-warning", warning.className)
+
+    def test_nipe_fit_card_points_to_plain_language_window_report(self):
+        self.assertEqual(
+            _fit_note({"nipe": {"interval_count": 120}}),
+            "See NIPE pre-plateau window analysis",
+        )
+
+    def test_saved_figure_shows_both_nipe_yields_for_a_red_flag(self):
+        result = SimpleNamespace(
+            fit_method="nipe",
+            epsilon_uncertainty=None,
+            ab_model_diagnostic=SimpleNamespace(level="stop"),
+            yield_errors=np.array([0.001, 0.002]),
+            yield_fit=SimpleNamespace(
+                values=np.array([0.11959, 0.08268]),
+                nipe=SimpleNamespace(window_analysis=SimpleNamespace(
+                    extrapolated_values=np.array([0.148701, 0.123818]),
+                    extrapolated_standard_errors=np.array([0.001730, 0.002558]),
+                )),
+            ),
+        )
+        annotation = _quantum_yield_annotation(result)
+        self.assertIn("Complete-trace NIPE (red flag)", annotation)
+        self.assertIn("Recommended pre-plateau NIPE estimate", annotation)
+        self.assertIn("14.87 ± 0.17%", annotation)
+        self.assertIn("12.4 ± 0.3%", annotation)
+
+    def test_nipe_concentration_plot_stops_fit_at_accepted_window(self):
+        times = np.array([0.0, 30.0, 60.0, 90.0, 120.0])
+        concentrations = np.array([
+            [6.0e-5, 0.0],
+            [4.8e-5, 1.2e-5],
+            [3.9e-5, 2.1e-5],
+            [3.3e-5, 2.7e-5],
+            [3.0e-5, 3.0e-5],
+        ])
+        fractions = concentrations / concentrations.sum(axis=1, keepdims=True)
+        result = SimpleNamespace(
+            fit_method="nipe",
+            epsilon_uncertainty=None,
+            concentration_fit=SimpleNamespace(
+                concentrations=concentrations,
+                fractions=fractions,
+            ),
+            yield_fit=SimpleNamespace(
+                concentrations=concentrations.copy(),
+                absorbance_correction=None,
+                nipe=SimpleNamespace(window_analysis=SimpleNamespace(
+                    analysis_end_time_s=60.0,
+                )),
+            ),
+            wavelengths=np.array([350.0, 365.0, 380.0]),
+            epsilon_r=np.array([10_000.0, 12_000.0, 8_000.0]),
+            epsilon_p=np.array([7_000.0, 9_000.0, 11_000.0]),
+            absorbance=np.array([
+                concentrations @ np.array([10_000.0, 7_000.0]),
+                concentrations @ np.array([12_000.0, 9_000.0]),
+                concentrations @ np.array([8_000.0, 11_000.0]),
+            ]),
+        )
+        data = SimpleNamespace(
+            timestamps=times,
+            photon_flux_mol_s=1.0e-8,
+            led=(result.wavelengths, np.array([0.2, 1.0, 0.2])),
+            wavelength_limits=(350.0, 380.0),
+            path_length_cm=1.0,
+        )
+
+        mask, end_time = _nipe_fit_display_window(result, times)
+        np.testing.assert_array_equal(mask, [True, True, True, False, False])
+        self.assertEqual(end_time, 60.0)
+
+        note = _nipe_concentration_note(html, result, data)
+        visible_text = " ".join(
+            child.children if hasattr(child, "children") else str(child)
+            for child in note.children
+        )
+        self.assertIn("fitted lines and ε ranges stop at 60 s", visible_text)
+        self.assertIn("points after the dashed line are not fitted", visible_text)
+
+        concentration, *_ = _interactive_figures(
+            go, make_subplots, result, data, 99.0, 365.0,
+        )
+        traces = {trace.name: trace for trace in concentration.data}
+        self.assertEqual(tuple(traces["Reactant data"].x), tuple(times))
+        self.assertEqual(tuple(traces["Product data"].x), tuple(times))
+        self.assertEqual(tuple(traces["Reactant fit"].x), (0.0, 30.0, 60.0))
+        self.assertEqual(tuple(traces["Product fit"].x), (0.0, 30.0, 60.0))
+        self.assertEqual(traces["Product fit"].line.width, 3)
+        self.assertGreater(
+            list(concentration.data).index(traces["Product fit"]),
+            list(concentration.data).index(traces["Product data"]),
+        )
+        self.assertEqual(concentration.layout.shapes[0].x0, 60.0)
+        self.assertEqual(concentration.layout.shapes[0].line.dash, "dash")
 
     def test_method_comparison_uses_nipe_pre_plateau_yield(self):
         windows = SimpleNamespace(

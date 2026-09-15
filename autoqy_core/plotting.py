@@ -11,10 +11,86 @@ import numpy as np
 from .output import format_value_uncertainty
 
 
+def _nipe_window_analysis(result):
+    nipe = getattr(result.yield_fit, "nipe", None)
+    return getattr(nipe, "window_analysis", None)
+
+
+def _nipe_fit_display_window(result, timestamps):
+    times = np.asarray(timestamps, dtype=float)
+    mask = np.ones(times.shape, dtype=bool)
+    if result.fit_method != "nipe" or times.size == 0:
+        return mask, None
+    window = _nipe_window_analysis(result)
+    end_relative = getattr(window, "analysis_end_time_s", None)
+    if end_relative is None or not np.isfinite(end_relative):
+        return mask, None
+    end_absolute = min(float(times[-1]), float(times[0]) + float(end_relative))
+    tolerance = max(1.0, abs(end_absolute)) * np.finfo(float).eps * 16
+    mask = times <= end_absolute + tolerance
+    return (mask, float(times[mask][-1])) if np.any(mask) else (
+        np.ones(times.shape, dtype=bool), None
+    )
+
+
+def _effective_ab_model_level(result):
+    uncertainty = getattr(result, "epsilon_uncertainty", None)
+    if uncertainty is not None:
+        return getattr(uncertainty, "ab_model_level", None)
+    diagnostic = getattr(result, "ab_model_diagnostic", None)
+    return getattr(diagnostic, "level", None)
+
+
+def _quantum_yield_annotation(result):
+    phi_rp = "$\\Phi_{\\mathrm{R}\\rightarrow\\mathrm{P}}$"
+    phi_pr = "$\\Phi_{\\mathrm{P}\\rightarrow\\mathrm{R}}$"
+
+    def formatted_lines(label, values, errors):
+        formatted = [
+            format_value_uncertainty(value, error, two_digit_threshold=2)
+            for value, error in zip(np.asarray(values) * 100, np.asarray(errors) * 100)
+        ]
+        values_text = (
+            f"{phi_rp}: {formatted[0][0]} ± {formatted[0][1]}%\n"
+            f"{phi_pr}: {formatted[1][0]} ± {formatted[1][1]}%"
+        )
+        return f"{label}\n{values_text}" if label else values_text
+
+    complete = formatted_lines(
+        None, result.yield_fit.values, result.yield_errors,
+    )
+    if result.fit_method != "nipe" or _effective_ab_model_level(result) != "stop":
+        return complete
+
+    window = _nipe_window_analysis(result)
+    if window is None:
+        return complete + "\n\nRed NIPE flag: no reliable pre-plateau estimate available"
+    errors = window.extrapolated_standard_errors
+    uncertainty = getattr(result, "epsilon_uncertainty", None)
+    includes_epsilon = (
+        uncertainty is not None
+        and getattr(uncertainty, "nipe_window_combined_errors", None) is not None
+    )
+    if includes_epsilon:
+        errors = uncertainty.nipe_window_combined_errors
+    label = "Recommended pre-plateau NIPE estimate"
+    if includes_epsilon:
+        label += " (includes ε range)"
+    return (
+        formatted_lines(
+            "Complete-trace NIPE (red flag)",
+            result.yield_fit.values,
+            result.yield_errors,
+        )
+        + "\n\n"
+        + formatted_lines(label, window.extrapolated_values, errors)
+    )
+
+
 def write_figure(path, result, data, residual_percentile=100):
     if not 0 < residual_percentile <= 100:
         raise ValueError("residual_percentile must be greater than 0 and at most 100")
-    times = data.timestamps
+    times = np.asarray(data.timestamps)
     measured = result.concentration_fit.concentrations
     fitted = result.yield_fit.concentrations
     fitted_fraction = fitted[:, 0] / fitted.sum(axis=1)
@@ -26,8 +102,10 @@ def write_figure(path, result, data, residual_percentile=100):
         fitted_absorbance = fitted_absorbance + result.yield_fit.absorbance_correction
     absorbance_residual = measured_absorbance - fitted_absorbance
     uncertainty = result.epsilon_uncertainty
+    fit_mask, fit_end_time = _nipe_fit_display_window(result, times)
+    fit_times = times[fit_mask]
 
-    blue, orange = "#346aa9", "#e16203"
+    blue, orange, brown = "#346aa9", "#e16203", "#8a6642"
     figure, axes = plt.subplots(
         2, 2, figsize=(13, 7), constrained_layout=True,
         gridspec_kw={"wspace": 0.16},
@@ -45,8 +123,8 @@ def write_figure(path, result, data, residual_percentile=100):
                 fmt="none", ecolor=colour, elinewidth=0.8, alpha=0.35, capsize=2,
             )
             concentration.fill_between(
-                times, uncertainty.concentration_fit_minimum[:, index],
-                uncertainty.concentration_fit_maximum[:, index],
+                fit_times, uncertainty.concentration_fit_minimum[fit_mask, index],
+                uncertainty.concentration_fit_maximum[fit_mask, index],
                 color=colour, alpha=0.13,
             )
     nominal = " (nominal ε)" if uncertainty is not None else ""
@@ -54,10 +132,22 @@ def write_figure(path, result, data, residual_percentile=100):
                           edgecolors=blue, label=f"Reactant data{nominal}")
     concentration.scatter(times, measured[:, 1], s=24, facecolors="none",
                           edgecolors=orange, label=f"Product data{nominal}")
-    concentration.plot(times, fitted[:, 0], color=blue, label=f"Reactant fit{nominal}")
-    concentration.plot(times, fitted[:, 1], color=orange, label=f"Product fit{nominal}")
-    concentration.set(title=("Concentrations: nominal ε and ε-bound ranges"
-                             if uncertainty is not None else "Concentration fit"),
+    concentration.plot(fit_times, fitted[fit_mask, 0], color=blue, linewidth=2,
+                       zorder=4, label=f"Reactant fit{nominal}")
+    concentration.plot(fit_times, fitted[fit_mask, 1], color=orange, linewidth=2,
+                       zorder=4, label=f"Product fit{nominal}")
+    if fit_end_time is not None:
+        concentration.axvline(fit_end_time, color=brown, linestyle="--", linewidth=1.4)
+        concentration.annotate(
+            "NIPE fit window ends", xy=(fit_end_time, 1),
+            xycoords=("data", "axes fraction"), xytext=(4, -4),
+            textcoords="offset points", ha="left", va="top", fontsize=8, color=brown,
+        )
+    concentration.set(title=(
+                          "NIPE concentrations: fit limited to accepted window"
+                          if result.fit_method == "nipe" else
+                          "Concentrations: nominal ε and ε-bound ranges"
+                          if uncertainty is not None else "Concentration fit"),
                       xlabel="Irradiation time (s)",
                       ylabel="Concentration (mol/L)")
     concentration.legend(frameon=False, ncol=2)
@@ -81,15 +171,9 @@ def write_figure(path, result, data, residual_percentile=100):
     for time, spectrum in zip(times, measured_absorbance):
         spectra.plot(result.wavelengths, spectrum, color=colour_map(normalization(time)),
                      linewidth=1)
-    formatted = [format_value_uncertainty(value, error, two_digit_threshold=2)
-                 for value, error in
-                 zip(result.yield_fit.values * 100, result.yield_errors * 100)]
-    phi_rp = "$\\Phi_{\\mathrm{R}\\rightarrow\\mathrm{P}}$"
-    phi_pr = "$\\Phi_{\\mathrm{P}\\rightarrow\\mathrm{R}}$"
     spectra.text(0.98, 0.96,
-                 f"{phi_rp}: {formatted[0][0]} \u00b1 {formatted[0][1]}%\n"
-                 f"{phi_pr}: {formatted[1][0]} \u00b1 {formatted[1][1]}%",
-                 transform=spectra.transAxes, ha="right", va="top",
+                 _quantum_yield_annotation(result),
+                 transform=spectra.transAxes, ha="right", va="top", fontsize=8.5,
                  bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"})
     spectra.set(title="Absorption spectra over time", xlabel="Wavelength (nm)",
                 ylabel="Absorbance")

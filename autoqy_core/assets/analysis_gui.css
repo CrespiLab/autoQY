@@ -201,6 +201,11 @@
   font-size: .82rem;
   line-height: 1.5;
 }
+.nipe-concentration-note {
+  margin: 14px 14px 0;
+  font-size: .82rem;
+  line-height: 1.5;
+}
 .nipe-window-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -222,6 +227,8 @@
   white-space: normal;
 }
 .nipe-window-table th { color: #505661; font-weight: 700; }
+.nipe-window-table .nipe-condition-info { margin-left: 6px; vertical-align: middle; }
+.nipe-window-table .nipe-condition-info .info-popup-content { left: auto; right: -8px; }
 .comparison-table-wrap { overflow-x: auto; }
 .comparison-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: .78rem; }
 .comparison-table th, .comparison-table td {
