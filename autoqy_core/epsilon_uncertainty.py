@@ -56,6 +56,13 @@ class EpsilonUncertaintySummary:
     bound_absorbance_rmse: np.ndarray
     bound_active_bounds: np.ndarray
     bound_jacobian_conditions: np.ndarray
+    bound_ab_model_levels: tuple[str, ...]
+    ab_model_level: str
+    nipe_window_bound_combination_count: int
+    nipe_window_epsilon_errors: np.ndarray | None
+    nipe_window_combined_errors: np.ndarray | None
+    nipe_window_yield_minimum: np.ndarray | None
+    nipe_window_yield_maximum: np.ndarray | None
 
 
 def load_epsilon_envelope(path, error_metric="sd"):
@@ -203,6 +210,52 @@ def run_with_epsilon_uncertainty(data, reactant, product, error_metric="sd"):
     residual_rmse = np.asarray([_absorbance_residual_rmse(result, data.path_length_cm)
                                 for result in results])
     bound_fraction_rmse = np.sqrt(np.mean(fraction_residuals ** 2, axis=1))
+    bound_ab_model_levels = tuple(
+        (result.ab_model_diagnostic.level
+         if result.ab_model_diagnostic is not None else "unknown")
+        for result in results
+    )
+    known_ab_levels = [level for level in bound_ab_model_levels if level != "unknown"]
+    if known_ab_levels and all(level == "stop" for level in known_ab_levels):
+        ab_model_level = "stop"
+    elif known_ab_levels and all(level == "ok" for level in known_ab_levels):
+        ab_model_level = "ok"
+    else:
+        ab_model_level = "warning"
+
+    nominal_window = getattr(nominal_result.yield_fit.nipe, "window_analysis", None)
+    window_analyses = [
+        result.yield_fit.nipe.window_analysis
+        for result in results
+        if (result.yield_fit.nipe is not None
+            and result.yield_fit.nipe.window_analysis is not None)
+    ]
+    if nominal_window is not None and window_analyses:
+        window_values = np.asarray([
+            analysis.extrapolated_values for analysis in window_analyses
+        ])
+        window_errors = np.asarray([
+            analysis.extrapolated_standard_errors for analysis in window_analyses
+        ])
+        window_minimum = np.min(window_values, axis=0)
+        window_maximum = np.max(window_values, axis=0)
+        window_nominal = nominal_window.extrapolated_values
+        window_epsilon_errors = np.maximum(
+            window_nominal - window_minimum, window_maximum - window_nominal
+        )
+        window_combined_lower = np.min(window_values - window_errors, axis=0)
+        window_combined_upper = np.max(window_values + window_errors, axis=0)
+        window_combined_errors = np.maximum(
+            window_nominal - window_combined_lower,
+            window_combined_upper - window_nominal,
+        )
+        window_bound_count = len(window_analyses)
+    else:
+        window_bound_count = 0
+        window_epsilon_errors = None
+        window_combined_errors = None
+        window_minimum = None
+        window_maximum = None
     summary = EpsilonUncertaintySummary(
         method="deterministic_extremes",
         error_metric=str(error_metric).lower(),
@@ -241,6 +294,13 @@ def run_with_epsilon_uncertainty(data, reactant, product, error_metric="sd"):
         bound_jacobian_conditions=np.asarray([
             result.yield_fit.jacobian_condition for result in results
         ], dtype=float),
+        bound_ab_model_levels=bound_ab_model_levels,
+        ab_model_level=ab_model_level,
+        nipe_window_bound_combination_count=window_bound_count,
+        nipe_window_epsilon_errors=window_epsilon_errors,
+        nipe_window_combined_errors=window_combined_errors,
+        nipe_window_yield_minimum=window_minimum,
+        nipe_window_yield_maximum=window_maximum,
     )
     return replace(
         nominal_result,

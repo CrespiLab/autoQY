@@ -85,20 +85,41 @@ def result_summary(result, data, irradiation_wavelength_nm):
             "path_length_cm": data.path_length_cm,
         },
     }
+    uncertainty = result.epsilon_uncertainty
     diagnostic = getattr(result, "ab_model_diagnostic", None)
     if diagnostic is not None:
-        apparent = not diagnostic.model_supported
+        diagnostic_status = (
+            uncertainty.ab_model_level if uncertainty is not None
+            else diagnostic.level
+        )
+        status_counts = None
+        if uncertainty is not None:
+            status_counts = {
+                level: uncertainty.bound_ab_model_levels.count(level)
+                for level in ("ok", "warning", "stop")
+            }
+        interpretation = {
+            "ok": "closed A <=> B model supported",
+            "warning": (
+                "review required; the small model mismatch or its epsilon-range "
+                "sensitivity is not by itself evidence of degradation"
+            ),
+            "stop": (
+                "apparent estimate; degradation or another side process breaks the "
+                "closed A <=> B model across the epsilon range"
+            ),
+        }[diagnostic_status]
         summary["ab_model_assessment"] = {
-            "status": diagnostic.level,
-            "model_supported": diagnostic.model_supported,
+            "status": diagnostic_status,
+            "nominal_epsilon_status": diagnostic.level,
+            "model_supported": diagnostic_status == "ok",
             "tracked_balance_change_percent": diagnostic.balance_change_fraction * 100,
             "tracked_balance_span_percent": diagnostic.balance_span_fraction * 100,
             "spectral_relative_rmse_percent": diagnostic.spectral_relative_rmse * 100,
-            "quantum_yield_interpretation": (
-                "apparent estimate; degradation or another side process breaks the closed "
-                "A <=> B model" if apparent else "closed A <=> B model supported"
-            ),
+            "quantum_yield_interpretation": interpretation,
         }
+        if status_counts is not None:
+            summary["ab_model_assessment"]["epsilon_bound_status_counts"] = status_counts
     nipe = getattr(result.yield_fit, "nipe", None)
     if nipe is not None:
         summary["nipe"] = {
@@ -109,7 +130,13 @@ def result_summary(result, data, irradiation_wavelength_nm):
         }
         windows = nipe.window_analysis
         if windows is not None:
-            summary["nipe"]["pre_plateau_window_analysis"] = {
+            reported_errors = windows.extrapolated_standard_errors
+            error_source = "window_fit"
+            if (uncertainty is not None
+                    and uncertainty.nipe_window_combined_errors is not None):
+                reported_errors = uncertainty.nipe_window_combined_errors
+                error_source = "window_fit_and_epsilon_range"
+            window_summary = {
                 "plateau_detected": windows.plateau_detected,
                 "plateau_time_s": windows.plateau_time_s,
                 "analysis_end_time_s": windows.analysis_end_time_s,
@@ -124,6 +151,11 @@ def result_summary(result, data, irradiation_wavelength_nm):
                     "R_to_P": float(windows.extrapolated_standard_errors[0] * 100),
                     "P_to_R": float(windows.extrapolated_standard_errors[1] * 100),
                 },
+                "extrapolated_reported_error_percent": {
+                    "R_to_P": float(reported_errors[0] * 100),
+                    "P_to_R": float(reported_errors[1] * 100),
+                },
+                "reported_error_source": error_source,
                 "full_trace_change_percent": {
                     "R_to_P": float(windows.full_trace_change_fraction[0] * 100),
                     "P_to_R": float(windows.full_trace_change_fraction[1] * 100),
@@ -147,6 +179,23 @@ def result_summary(result, data, irradiation_wavelength_nm):
                     )
                 ],
             }
+            if (uncertainty is not None
+                    and uncertainty.nipe_window_yield_minimum is not None):
+                window_summary["epsilon_range"] = {
+                    "bound_combination_count": (
+                        uncertainty.nipe_window_bound_combination_count
+                    ),
+                    "quantum_yield_minimum_percent": _yield_pair(
+                        uncertainty.nipe_window_yield_minimum * 100
+                    ),
+                    "quantum_yield_maximum_percent": _yield_pair(
+                        uncertainty.nipe_window_yield_maximum * 100
+                    ),
+                    "epsilon_error_percent": _yield_pair(
+                        uncertainty.nipe_window_epsilon_errors * 100
+                    ),
+                }
+            summary["nipe"]["pre_plateau_window_analysis"] = window_summary
     if data.photon_flux_mol_s is not None:
         flux = format_scientific_value_uncertainty(
             data.photon_flux_mol_s, data.photon_flux_error_mol_s
@@ -154,7 +203,6 @@ def result_summary(result, data, irradiation_wavelength_nm):
         summary["experiment"]["photon_flux_formatted_mol_s"] = {
             "value": flux[0], "error": flux[1], "exponent": flux[2]
         }
-    uncertainty = result.epsilon_uncertainty
     if uncertainty is not None:
         optimizer_power = uncertainty.optimizer_power_errors * 100
         epsilon = uncertainty.epsilon_errors * 100
@@ -171,6 +219,8 @@ def result_summary(result, data, irradiation_wavelength_nm):
             "method": uncertainty.method,
             "error_metric": uncertainty.error_metric,
             "bound_combination_count": uncertainty.bound_combination_count,
+            "ab_model_status": uncertainty.ab_model_level,
+            "ab_model_bound_statuses": list(uncertainty.bound_ab_model_levels),
             "reactant_source_schema": uncertainty.reactant_source_schema,
             "product_source_schema": uncertainty.product_source_schema,
             "reactant_source_path": uncertainty.reactant_source_path,
@@ -229,7 +279,10 @@ NIPE normalized residual RMSE: {nipe['normalized_residual_rmse']:.6g}
         windows = nipe.get("pre_plateau_window_analysis")
         if windows is not None:
             early = windows["extrapolated_zero_exposure_yield_percent"]
-            early_error = windows["extrapolated_standard_error_percent"]
+            early_error = windows.get(
+                "extrapolated_reported_error_percent",
+                windows["extrapolated_standard_error_percent"],
+            )
             early_rp = format_value_uncertainty(
                 early["R_to_P"], early_error["R_to_P"], two_digit_threshold=2,
             )
@@ -241,6 +294,7 @@ NIPE normalized residual RMSE: {nipe['normalized_residual_rmse']:.6g}
 NIPE automatic plateau time (s): {windows['plateau_time_s']:.6g}
 NIPE last pre-plateau time (s): {windows['analysis_end_time_s']:.6g}
 NIPE window duration (s): {windows['window_duration_s']:.6g}
+NIPE early-estimate uncertainty source: {windows['reported_error_source']}
 NIPE zero-exposure apparent QY R_to_P (%): {early_rp[0]} +/- {early_rp[1]}
 NIPE zero-exposure apparent QY P_to_R (%): {early_pr[0]} +/- {early_pr[1]}
 NIPE full-trace change from early R_to_P (%): {change['R_to_P']:.6g}

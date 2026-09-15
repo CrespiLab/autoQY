@@ -236,6 +236,19 @@ class GuiLayoutTests(unittest.TestCase):
         self.assertIn("status-stop", warning.className)
         self.assertEqual(_nipe_headline_warning(html, {"fit_method": "emission"}), "")
 
+    def test_nipe_epsilon_sensitive_result_does_not_claim_degradation(self):
+        warning = _nipe_headline_warning(html, {
+            "fit_method": "nipe",
+            "ab_model_assessment": {"status": "warning"},
+        })
+        visible_text = " ".join(
+            child.children if hasattr(child, "children") else str(child)
+            for child in warning.children
+        )
+        self.assertIn("does not establish degradation", visible_text)
+        self.assertIn("complete-trace yield as the main result", visible_text)
+        self.assertIn("status-warning", warning.className)
+
     def test_method_comparison_uses_nipe_pre_plateau_yield(self):
         windows = SimpleNamespace(
             extrapolated_values=np.array([0.148701, 0.123818]),
@@ -243,6 +256,8 @@ class GuiLayoutTests(unittest.TestCase):
         )
         result = SimpleNamespace(
             fit_method="nipe",
+            epsilon_uncertainty=None,
+            ab_model_diagnostic=SimpleNamespace(level="stop"),
             yield_errors=np.array([0.001, 0.001]),
             yield_fit=SimpleNamespace(
                 values=np.array([0.119590, 0.082680]),
@@ -253,6 +268,26 @@ class GuiLayoutTests(unittest.TestCase):
         np.testing.assert_allclose(values, [14.8701, 12.3818])
         np.testing.assert_allclose(errors, [0.1730, 0.2558])
         self.assertEqual(source, "Pre-plateau NIPE estimate")
+
+    def test_method_comparison_keeps_full_trace_nipe_when_model_passes(self):
+        windows = SimpleNamespace(
+            extrapolated_values=np.array([0.45, 0.64]),
+            extrapolated_standard_errors=np.array([0.01, 0.02]),
+        )
+        result = SimpleNamespace(
+            fit_method="nipe",
+            epsilon_uncertainty=None,
+            ab_model_diagnostic=SimpleNamespace(level="ok"),
+            yield_errors=np.array([0.003, 0.004]),
+            yield_fit=SimpleNamespace(
+                values=np.array([0.40, 0.52]),
+                nipe=SimpleNamespace(window_analysis=windows),
+            ),
+        )
+        values, errors, source = _comparison_quantum_yield(result)
+        np.testing.assert_allclose(values, [40.0, 52.0])
+        np.testing.assert_allclose(errors, [0.3, 0.4])
+        self.assertEqual(source, "Complete trace; check passed")
 
     def test_method_comparison_reports_red_model_diagnostic(self):
         level, label = _comparison_diagnostic_summary([

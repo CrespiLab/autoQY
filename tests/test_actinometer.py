@@ -104,6 +104,35 @@ class ActinometerTests(unittest.TestCase):
         )
         self.assertEqual(output.files, ())
 
+    def test_nipe_pre_plateau_uncertainty_includes_epsilon_range(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            values = json.loads(
+                (EXAMPLE_DIRECTORY / "analysis.json").read_text(encoding="utf-8")
+            )
+            values["fit"]["method"] = "nipe"
+            values["outputs"].update({
+                "directory": temporary,
+                "write_text": False,
+                "write_figures": False,
+                "write_json": False,
+                "write_config": False,
+                "write_detailed_data": False,
+            })
+            output = run_analysis(AnalysisConfig(values, EXAMPLE_DIRECTORY))
+
+        uncertainty = output.result.epsilon_uncertainty
+        self.assertGreater(uncertainty.nipe_window_bound_combination_count, 1)
+        self.assertIsNotNone(uncertainty.nipe_window_combined_errors)
+        summary = result_summary(output.result, output.data, 395)
+        windows = summary["nipe"]["pre_plateau_window_analysis"]
+        self.assertEqual(
+            windows["reported_error_source"], "window_fit_and_epsilon_range"
+        )
+        self.assertIn("epsilon_range", windows)
+        self.assertEqual(summary["ab_model_assessment"]["status"], "warning")
+        counts = summary["ab_model_assessment"]["epsilon_bound_status_counts"]
+        self.assertEqual(sum(counts.values()), uncertainty.bound_combination_count)
+
 
 if __name__ == "__main__":
     unittest.main()

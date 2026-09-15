@@ -380,10 +380,9 @@ def create_app():
                         html.P("7 · Analyze", className="step-label"),
                         info_popup(
                             "Compare fit methods runs NIPE, regularized concentrations, full-spectrum ODE, and legacy "
-                            "pure-NNLS concentrations on identical inputs. It disables ε uncertainty, omits "
-                            "the legacy emission fit, and writes no files. For NIPE, the table shows the "
-                            "pre-plateau estimate when one is available; its residuals still describe the "
-                            "complete trace."
+                            "pure-NNLS concentrations on identical inputs. It applies the selected ε uncertainty "
+                            "to every method, omits the legacy emission fit, and writes no files. NIPE uses the "
+                            "pre-plateau estimate only when the A⇌B check is red."
                         ),
                     ]),
                     html.Button("Save JSON", id="save-analysis-json", n_clicks=0,
@@ -459,9 +458,9 @@ def create_app():
                         "absorbance RMSE, and automatic fit flags. Fraction RMSE compares "
                         "recovered and fitted reactant fractions over time; absorbance RMSE compares "
                         "all measured and reconstructed absorbance points. NIPE uses its pre-plateau "
-                        "yield when available, while its residual metrics continue to describe the "
-                        "complete trace. Lower is better, but also inspect residual structure and "
-                        "method assumptions. ε uncertainty is disabled and no result files are written."
+                        "yield only when the A⇌B check is red; otherwise the complete-trace NIPE result "
+                        "remains primary. Lower is better, but also inspect residual structure and "
+                        "method assumptions. The selected ε uncertainty applies to every method."
                     ),
                     html.Div("", id="method-comparison", className="helper-text"),
                 ]),
@@ -708,8 +707,13 @@ def create_app():
                     f"{item.category.__name__}: {item.message}"
                     for item in caught_warnings
                 )
+                epsilon_range_on = (
+                    document.get("uncertainty", {}).get("epsilon", {}).get("method")
+                    == "deterministic_extremes"
+                )
                 return (
-                    "Fit-method comparison completed with ε uncertainty disabled.",
+                    "Fit-method comparison completed" +
+                    (" with the selected ε range." if epsilon_range_on else "."),
                     "message status-message status-ok",
                     blank_card, blank_back, blank_pss, blank_fit,
                     blank_headline_warning, *blank_figures,
@@ -1266,17 +1270,39 @@ def _fit_diagnostic_checks(result, data, document):
     checks = []
     diagnostic = result.ab_model_diagnostic
     if diagnostic is not None:
+        uncertainty = result.epsilon_uncertainty
+        diagnostic_level = (
+            uncertainty.ab_model_level if uncertainty is not None
+            else diagnostic.level
+        )
         status_text = {
             "ok": "The combined reactant and product amount stays sufficiently constant.",
-            "warning": "The combined reactant and product amount changes slightly; review the result.",
-            "stop": "The combined reactant and product amount changes too much for a simple two-species model.",
-        }[diagnostic.level]
+            "warning": (
+                "The check depends on the ε values or shows a small mismatch. "
+                "This is not proof of degradation."
+            ),
+            "stop": (
+                "The combined reactant and product amount changes too much for a simple "
+                "two-species model across the selected ε range."
+            ),
+        }[diagnostic_level]
+        epsilon_text = ""
+        if uncertainty is not None:
+            counts = {
+                level: uncertainty.bound_ab_model_levels.count(level)
+                for level in ("ok", "warning", "stop")
+            }
+            epsilon_text = (
+                f" Across {uncertainty.bound_combination_count} ε combinations: "
+                f"{counts['ok']} passed, {counts['warning']} need review, and "
+                f"{counts['stop']} are red."
+            )
         checks.append(_check(
-            diagnostic.level, "A⇌B model check",
+            diagnostic_level, "A⇌B model check",
             f"{status_text} The first-to-last change is "
-            f"{diagnostic.balance_change_fraction:+.1%}. This may indicate degradation, another "
-            "absorbing species, or unsuitable reference spectra. If this check is red, report the "
-            "quantum yield as an apparent estimate and inspect the early-time NIPE result.",
+            f"{diagnostic.balance_change_fraction:+.1%} using nominal ε.{epsilon_text} "
+            "If this check is red, report an apparent quantum yield and inspect the early-time "
+            "NIPE result.",
         ))
     measured = result.concentration_fit.concentrations
     fitted = result.yield_fit.concentrations
@@ -1400,7 +1426,6 @@ def _compare_fit_methods(config):
         for method in methods:
             values = deepcopy(config.values)
             values["fit"]["method"] = method
-            values.setdefault("uncertainty", {}).setdefault("epsilon", {})["method"] = "none"
             for name in ("write_text", "write_figures", "write_json", "write_config",
                          "write_detailed_data"):
                 values["outputs"][name] = False
@@ -1447,14 +1472,28 @@ def _comparison_quantum_yield(result):
     errors = np.asarray(result.yield_errors, float) * 100
     if result.fit_method != "nipe":
         return values, errors, "Complete trace"
+    uncertainty = result.epsilon_uncertainty
+    model_status = (
+        uncertainty.ab_model_level if uncertainty is not None
+        else result.ab_model_diagnostic.level
+    )
     nipe = getattr(result.yield_fit, "nipe", None)
     windows = getattr(nipe, "window_analysis", None)
+    if model_status != "stop":
+        suffix = "check passed" if model_status == "ok" else "model review"
+        return values, errors, f"Complete trace; {suffix}"
     if windows is None:
         return values, errors, "Complete trace; no reliable early window"
+    window_errors = windows.extrapolated_standard_errors
+    source = "Pre-plateau NIPE estimate"
+    if (uncertainty is not None
+            and uncertainty.nipe_window_combined_errors is not None):
+        window_errors = uncertainty.nipe_window_combined_errors
+        source += "; includes ε range"
     return (
         np.asarray(windows.extrapolated_values, float) * 100,
-        np.asarray(windows.extrapolated_standard_errors, float) * 100,
-        "Pre-plateau NIPE estimate",
+        np.asarray(window_errors, float) * 100,
+        source,
     )
 
 
@@ -1494,8 +1533,8 @@ def _render_comparison(html, rows, selected_method):
             ])
         ]),
         html.Small(
-            "When available, NIPE quantum yields come from the pre-plateau analysis. "
-            "The NIPE fraction and absorbance RMSE values still assess its complete-trace fit.",
+            "NIPE uses the pre-plateau estimate only for a red A⇌B check. Its fraction and "
+            "absorbance RMSE values still assess the complete-trace fit.",
             className="helper-text",
         ),
     ])
@@ -1526,13 +1565,31 @@ def _nipe_headline_warning(html, summary):
     if summary.get("fit_method") != "nipe":
         return ""
     status = summary.get("ab_model_assessment", {}).get("status")
-    warning_class = "status-stop" if status == "stop" else "status-warning"
+    if status == "stop":
+        label = "NIPE warning: "
+        message = (
+            "the quantum yields above use the complete trace and are not corrected for "
+            "degradation. Do not report them without opening ‘NIPE pre-plateau window "
+            "analysis’ below. Use the early-time apparent estimates shown there."
+        )
+        warning_class = "status-stop"
+    elif status == "warning":
+        label = "NIPE review: "
+        message = (
+            "the A⇌B check is sensitive to the ε range or shows only a small mismatch. "
+            "This does not establish degradation. Keep the complete-trace yield as the main "
+            "result and inspect the NIPE window analysis as a sensitivity check."
+        )
+        warning_class = "status-warning"
+    else:
+        label = "NIPE note: "
+        message = (
+            "the A⇌B check passes. The values above use the complete trace; the NIPE window "
+            "analysis is an early-time sensitivity check, not a degradation correction."
+        )
+        warning_class = "status-ok"
     return html.Div([
-        html.Strong("NIPE warning: "),
-        "the quantum yields above use the complete trace and are not corrected for "
-        "degradation. Do not report them without opening ‘NIPE pre-plateau window "
-        "analysis’ below. If the A⇌B check is red, use the early-time apparent "
-        "estimates shown there.",
+        html.Strong(label), message,
     ], className=f"message status-message nipe-result-warning {warning_class}")
 
 
@@ -1552,7 +1609,10 @@ def _render_nipe_window_analysis(html, summary, reactant_name, product_name):
         )
 
     early = analysis["extrapolated_zero_exposure_yield_percent"]
-    early_error = analysis["extrapolated_standard_error_percent"]
+    early_error = analysis.get(
+        "extrapolated_reported_error_percent",
+        analysis["extrapolated_standard_error_percent"],
+    )
     change = analysis["full_trace_change_percent"]
     model_status = summary.get("ab_model_assessment", {}).get("status", "unknown")
     early_rp = format_value_uncertainty(
@@ -1566,16 +1626,36 @@ def _render_nipe_window_analysis(html, summary, reactant_name, product_name):
         if analysis["plateau_detected"] else
         "No sustained plateau was detected; the available trace defined the limit. "
     )
+    if model_status == "stop":
+        estimate_label = "Recommended pre-degradation apparent estimate"
+        interpretation = (
+            "The A⇌B check is red. Use these early-time apparent estimates instead of the "
+            "complete-trace headline values."
+        )
+    elif model_status == "warning":
+        estimate_label = "Early-time sensitivity estimate"
+        interpretation = (
+            "The A⇌B check needs review, but this alone does not prove degradation. Keep the "
+            "complete-trace result primary and use these values as a sensitivity check."
+        )
+    else:
+        estimate_label = "Early-time sensitivity estimate"
+        interpretation = (
+            "The A⇌B check passes. Keep the complete-trace result primary; these early values "
+            "only show how sensitive NIPE is to the selected time region."
+        )
+    if analysis.get("reported_error_source") == "window_fit_and_epsilon_range":
+        estimate_label += " · includes ε range"
     cards = html.Div(className="nipe-window-summary", children=[
         html.Div(className="result-card", children=[
             html.Span(f"{reactant_name} → {product_name}"),
             html.Strong(f"{early_rp[0]} ± {early_rp[1]}%"),
-            html.Small("Zero-exposure apparent estimate"),
+            html.Small(estimate_label),
         ]),
         html.Div(className="result-card result-card-accent", children=[
             html.Span(f"{product_name} → {reactant_name}"),
             html.Strong(f"{early_pr[0]} ± {early_pr[1]}%"),
-            html.Small("Zero-exposure apparent estimate"),
+            html.Small(estimate_label),
         ]),
     ])
     rows = []
@@ -1621,10 +1701,11 @@ def _render_nipe_window_analysis(html, summary, reactant_name, product_name):
             f"{product_name}→{reactant_name} {change['P_to_R']:+.1f}%.",
             className="nipe-window-copy",
         ),
+        html.P(interpretation, className="nipe-window-copy"),
         table,
         html.Small(
-            "These remain apparent yields when the A⇌B diagnostic is red; windowing does "
-            "not identify a separate degradation-product quantum yield.",
+            "A flattening concentration curve can be an ordinary photostationary state; it is "
+            "not by itself evidence of degradation.",
             className="helper-text",
         ),
     ])
@@ -1706,8 +1787,19 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
             x=times, y=fitted[:, index], mode="lines", name=f"{name} fit",
             line={"color": colour, "width": 2},
         ))
-    _style_figure(concentration, "Concentration fit", "Irradiation time (s)",
+    concentration_title = (
+        "NIPE reaction-coordinate fit · tracked A+B total"
+        if result.fit_method == "nipe" else "Concentration fit"
+    )
+    _style_figure(concentration, concentration_title, "Irradiation time (s)",
                   "Concentration (mol/L)")
+    if result.fit_method == "nipe":
+        concentration.add_annotation(
+            text=("NIPE retains the measured A+B total, so these absolute-concentration "
+                  "lines are not forced to finish at a flat plateau."),
+            x=0, y=1.13, xref="paper", yref="paper", showarrow=False,
+            xanchor="left", align="left", font={"color": PLOT_NEUTRAL, "size": 12},
+        )
 
     fraction = go.Figure()
     if uncertainty is not None:
