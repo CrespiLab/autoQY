@@ -1,0 +1,9 @@
+Volume (ml): 2.07
+( 2 mL + 70 uL sample)
+k thermal back-reaction (s-1): 0.0
+Power average (mW): 3.292440036214156
+Power error (mW): 0.003262387097114711
+Wavelength of irradiation: 365
+
+F2 Epsilon : 17536.33333	±	104.061832
+F1 Epsilon : 11955	±	20.61813892

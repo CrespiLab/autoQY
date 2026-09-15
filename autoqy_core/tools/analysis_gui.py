@@ -304,6 +304,7 @@ def create_app():
                                   )]),
                     html.Label("Method"),
                     dropdown("fit_method", (
+                        ("nipe", "NIPE (degradation-aware apparent yield)"),
                         ("regularized_concentrations", "Regularized concentrations"),
                         ("ode_absorbance", "Full-spectrum ODE absorbance"),
                         ("concentrations", "Concentrations (legacy pure NNLS)"),
@@ -321,7 +322,8 @@ def create_app():
                     ]),
                     html.Details(className="nested-tool", children=[
                         html.Summary(["Method-specific controls", info_popup(
-                            "Emission threshold applies to the legacy emission fit; regularization strength "
+                            "NIPE uses normalized integrated photon balances and does not require a physical "
+                            "zero-time or infinite-conversion boundary. Emission threshold applies to the legacy emission fit; regularization strength "
                             "applies to regularized concentrations; baseline order and robust-loss scale apply "
                             "to the full-spectrum ODE fit. Expected PSS is an optional diagnostic reference."
                         )]),
@@ -378,7 +380,7 @@ def create_app():
                     html.Div(className="action-title-row", children=[
                         html.P("7 · Analyze", className="step-label"),
                         info_popup(
-                            "Compare fit methods runs regularized concentrations, full-spectrum ODE, and legacy "
+                            "Compare fit methods runs NIPE, regularized concentrations, full-spectrum ODE, and legacy "
                             "pure-NNLS concentrations on identical inputs. It disables ε uncertainty, omits "
                             "the legacy emission fit, writes no files, and compares quantum yields plus fraction "
                             "and absorbance residuals."
@@ -429,7 +431,7 @@ def create_app():
                         "amber below 50 µL; missing alignment or overlap red; either thermal rate amber when "
                         "its half-life is shorter than one interval or one tenth of the experiment; "
                         "spectral condition number amber 10–30 and red above 30; initial product amber "
-                        "above 2%; fraction, absorbance, or conservation error amber above 2% and red "
+                        "above 2%; NIPE tracked-balance or spectral mismatch amber above 2% and red "
                         "above 5%; parameter sensitivity amber at 10⁶–10⁸ or a yield bound and red "
                         "above 10⁸ or optimizer failure; response time amber beyond two intervals or "
                         "25%; expected PSS amber beyond 5 percentage points."
@@ -438,10 +440,26 @@ def create_app():
                     html.Div("Save JSON or run analysis to inspect the inputs.", id="diagnostic-checks",
                              className="diagnostic-list"),
                 ]),
+                html.Details(id="nipe-window-panel", open=False,
+                             className="panel tool-details", children=[
+                    html.Summary([
+                        "NIPE pre-plateau window analysis",
+                        info_popup(
+                            "Automatically detects sustained concentration flattening, keeps "
+                            "short identifiable windows entirely before the plateau, and "
+                            "extrapolates their apparent yields toward zero exposure. The full-trace "
+                            "NIPE result remains unchanged for comparison."
+                        ),
+                    ]),
+                    html.Div(
+                        "Run an analysis with NIPE selected to inspect automatic time windows.",
+                        id="nipe-window-analysis", className="helper-text",
+                    ),
+                ]),
                 html.Section(className="panel comparison-panel", children=[
                     section_title(
                         "Fit-method comparison",
-                        "Runs three fits with the same data and nominal ε spectra. It reports "
+                        "Runs four fits with the same data and nominal ε spectra. It reports "
                         "optimizer-and-power uncertainty, time-trace fraction RMSE, full-spectrum "
                         "absorbance RMSE, and explicit optimizer flags. Fraction RMSE compares "
                         "recovered and fitted reactant fractions over time; absorbance RMSE compares "
@@ -623,6 +641,7 @@ def create_app():
         Output("residual-heatmap", "figure"),
         Output("diagnostic-checks", "children"),
         Output("diagnostic-panel", "open"),
+        Output("nipe-window-analysis", "children"),
         Output("method-comparison", "children"),
         Output("analysis-output-files", "children"),
         Output("analysis-python-error", "children"),
@@ -646,6 +665,7 @@ def create_app():
             _empty_figure(go, "Run analysis to display this plot"),
             _empty_figure(go, "Run analysis to display this plot"),
         ]
+        blank_nipe_windows = "Run an analysis with NIPE selected to inspect automatic time windows."
         blank_comparison = ""
         try:
             document = _configuration(values)
@@ -670,7 +690,8 @@ def create_app():
                 if not selected:
                     return ("Save cancelled.", "message", blank_card, blank_back, blank_pss,
                             blank_fit,
-                            *blank_figures, diagnostics, diagnostics_open, blank_comparison,
+                            *blank_figures, diagnostics, diagnostics_open, blank_nipe_windows,
+                            blank_comparison,
                             "No analysis was run.", "")
                 target = Path(selected)
                 saved = _portable_document(document, target.parent) if _on(values, "relative_paths") else document
@@ -678,7 +699,8 @@ def create_app():
                 target.write_text(json.dumps(saved, indent=2) + "\n", encoding="utf-8")
                 return (f"Saved and validated {target}", "message status-message status-ok",
                         blank_card, blank_back, blank_pss, blank_fit, *blank_figures,
-                        diagnostics, diagnostics_open, blank_comparison, html.Code(str(target)), "")
+                        diagnostics, diagnostics_open, blank_nipe_windows,
+                        blank_comparison, html.Code(str(target)), "")
             if action == "compare-fit-methods":
                 with warnings.catch_warnings(record=True) as caught_warnings:
                     warnings.simplefilter("always")
@@ -691,7 +713,7 @@ def create_app():
                     "Fit-method comparison completed with ε uncertainty disabled.",
                     "message status-message status-ok",
                     blank_card, blank_back, blank_pss, blank_fit, *blank_figures,
-                    diagnostics, diagnostics_open,
+                    diagnostics, diagnostics_open, blank_nipe_windows,
                     _render_comparison(html, comparison, document["fit"]["method"]),
                     "No result files were generated by the comparison.", warning_text,
                 )
@@ -717,6 +739,11 @@ def create_app():
             )
             fit = [html.Span("Fit"), html.Strong(_method_label(output.result.fit_method)),
                    html.Small(_fit_note(summary))]
+            nipe_windows = _render_nipe_window_analysis(
+                html, summary,
+                document["analysis"].get("reactant_name") or "Reactant",
+                document["analysis"].get("product_name") or "Product",
+            )
             files = [html.Code(str(path)) for path in output.files]
             fit_checks = _fit_diagnostic_checks(output.result, output.data, document)
             all_checks = input_checks + fit_checks
@@ -740,7 +767,7 @@ def create_app():
                 message_class = "message status-message status-ok"
             return (message, message_class,
                     rp, pr, pss, fit, *figures, diagnostics,
-                    True if has_stop else no_update, blank_comparison,
+                    True if has_stop else no_update, nipe_windows, blank_comparison,
                     files, warning_text)
         except Exception as error:
             message = f"{type(error).__name__}: {error}"
@@ -749,7 +776,8 @@ def create_app():
                     blank_fit,
                     *blank_figures,
                     _render_checks(html, [{"level": "stop", "title": "Stopped", "body": message}]),
-                    True, blank_comparison, "No files were generated.", message)
+                    True, blank_nipe_windows, blank_comparison,
+                    "No files were generated.", message)
 
     return app
 
@@ -1213,6 +1241,21 @@ def _load_reference(config, name):
 
 def _fit_diagnostic_checks(result, data, document):
     checks = []
+    diagnostic = result.ab_model_diagnostic
+    if diagnostic is not None:
+        status_text = {
+            "ok": "The closed A⇌B model is supported by this automatic check.",
+            "warning": "The closed A⇌B model is questionable; inspect the spectra and balance trend.",
+            "stop": "The closed A⇌B model is not supported. Report any fitted quantum yield only as an apparent estimate.",
+        }[diagnostic.level]
+        checks.append(_check(
+            diagnostic.level, "NIPE A⇌B model check",
+            f"{status_text} Independently recovered A+B changes by "
+            f"{diagnostic.balance_change_fraction:+.2%} from first to last spectrum and spans "
+            f"{diagnostic.balance_span_fraction:.2%}; the two-reference spectral RMSE is "
+            f"{diagnostic.spectral_relative_rmse:.2%} of signal RMS. Green ≤2%, amber 2–5%, "
+            "red >5% for either balance span or spectral mismatch.",
+        ))
     measured = result.concentration_fit.concentrations
     fitted = result.yield_fit.concentrations
     totals = measured.sum(axis=1)
@@ -1255,14 +1298,6 @@ def _fit_diagnostic_checks(result, data, document):
         f"absorbance RMSE {absorbance_rmse:.4g} ({relative_rmse:.2%} of maximum absorbance). "
         "This compares every measured wavelength and time with the fitted reconstruction; "
         "green ≤2%, amber 2–5%, red >5% of maximum absorbance",
-    ))
-
-    total_cv = float(np.std(totals) / np.mean(totals)) if np.mean(totals) else np.inf
-    total_level = "stop" if total_cv > 0.05 else "warning" if total_cv > 0.02 else "ok"
-    checks.append(_check(
-        total_level, "Concentration conservation",
-        f"total-concentration coefficient of variation {total_cv:.3%}; "
-        "green ≤2%, amber 2–5%, red >5%",
     ))
 
     fit = result.yield_fit
@@ -1337,7 +1372,7 @@ def _transition_time(times, values, fraction=0.95):
 
 
 def _compare_fit_methods(config):
-    methods = ("regularized_concentrations", "ode_absorbance", "concentrations")
+    methods = ("nipe", "regularized_concentrations", "ode_absorbance", "concentrations")
     rows = []
     with TemporaryDirectory(prefix="autoqy-method-comparison-") as temporary:
         for method in methods:
@@ -1429,6 +1464,86 @@ def _yield_card(html, label, summary, name):
     return [html.Span(label),
             html.Strong(f"{formatted['value']} ± {formatted['error']}%"),
             html.Small("Quantum yield")]
+
+
+def _render_nipe_window_analysis(html, summary, reactant_name, product_name):
+    nipe = summary.get("nipe")
+    if nipe is None:
+        return html.P(
+            "Select NIPE as the fitting method to run the automatic pre-plateau analysis.",
+            className="helper-text",
+        )
+    analysis = nipe.get("pre_plateau_window_analysis")
+    if analysis is None:
+        return html.P(
+            "No reliable pre-plateau estimate was available. At least three short, "
+            "independently identifiable windows are required.",
+            className="helper-text",
+        )
+
+    early = analysis["extrapolated_zero_exposure_yield_percent"]
+    early_error = analysis["extrapolated_standard_error_percent"]
+    change = analysis["full_trace_change_percent"]
+    model_status = summary.get("ab_model_assessment", {}).get("status", "unknown")
+    plateau = (
+        f"Sustained flattening was detected at {analysis['plateau_time_s']:.3g} s. "
+        if analysis["plateau_detected"] else
+        "No sustained plateau was detected; the available trace defined the limit. "
+    )
+    cards = html.Div(className="nipe-window-summary", children=[
+        html.Div(className="result-card", children=[
+            html.Span(f"{reactant_name} → {product_name}"),
+            html.Strong(f"{early['R_to_P']:.3g} ± {early_error['R_to_P']:.2g}%"),
+            html.Small("Zero-exposure apparent estimate"),
+        ]),
+        html.Div(className="result-card result-card-accent", children=[
+            html.Span(f"{product_name} → {reactant_name}"),
+            html.Strong(f"{early['P_to_R']:.3g} ± {early_error['P_to_R']:.2g}%"),
+            html.Small("Zero-exposure apparent estimate"),
+        ]),
+    ])
+    rows = [html.Tr([
+        html.Td(f"{item['start_s']:.3g}–{item['end_s']:.3g}"),
+        html.Td(f"{item['R_to_P_percent']:.3g} ± "
+                f"{item['R_to_P_standard_error_percent']:.2g}"),
+        html.Td(f"{item['P_to_R_percent']:.3g} ± "
+                f"{item['P_to_R_standard_error_percent']:.2g}"),
+        html.Td(f"{item['jacobian_condition']:.3g}"),
+    ]) for item in analysis["windows"]]
+    table = html.Div(className="nipe-window-table-wrap", children=[
+        html.Table(className="nipe-window-table", children=[
+            html.Thead(html.Tr([
+                html.Th("Window (s)"),
+                html.Th(f"Φ {reactant_name}→{product_name} (%)"),
+                html.Th(f"Φ {product_name}→{reactant_name} (%)"),
+                html.Th("Condition"),
+            ])),
+            html.Tbody(rows),
+        ])
+    ])
+    return html.Div([
+        cards,
+        html.P(
+            plateau +
+            f"The last accepted pre-plateau point was "
+            f"{analysis['analysis_end_time_s']:.3g} s. "
+            f"The procedure retained {analysis['window_count']} windows of approximately "
+            f"{analysis['window_duration_s']:.3g} s. A⇌B diagnostic: {model_status}.",
+            className="nipe-window-copy",
+        ),
+        html.P(
+            f"Relative full-trace change from the zero-exposure estimate: "
+            f"{reactant_name}→{product_name} {change['R_to_P']:+.1f}%; "
+            f"{product_name}→{reactant_name} {change['P_to_R']:+.1f}%.",
+            className="nipe-window-copy",
+        ),
+        table,
+        html.Small(
+            "These remain apparent yields when the A⇌B diagnostic is red; windowing does "
+            "not identify a separate degradation-product quantum yield.",
+            className="helper-text",
+        ),
+    ])
 
 
 def _pss_card(html, summary=None, reactant_name="Reactant", product_name="Product"):
@@ -1604,6 +1719,7 @@ def _empty_figure(go, message):
 
 def _method_label(method):
     return {
+        "nipe": "NIPE apparent yield",
         "concentrations": "Concentrations (legacy pure NNLS)",
         "regularized_concentrations": "Regularized concentrations",
         "ode_absorbance": "ODE absorbance",
@@ -1612,6 +1728,10 @@ def _method_label(method):
 
 
 def _fit_note(summary):
+    nipe = summary.get("nipe")
+    if nipe:
+        status = summary.get("ab_model_assessment", {}).get("status", "unknown")
+        return f"{nipe['interval_count']} normalized intervals · A⇌B check {status}"
     uncertainty = summary.get("epsilon_uncertainty")
     return (f"{uncertainty['bound_combination_count']} ε combinations"
             if uncertainty else "Power + optimizer uncertainty")

@@ -196,6 +196,27 @@
 .diagnostic-ok { border-left-color: #4f8a68; background: #f4faf6; }
 .diagnostic-warning { border-left-color: #d49a3a; background: #fff9ed; }
 .diagnostic-stop { border-left-color: #b85c4a; background: #fff3f0; }
+.nipe-window-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.nipe-window-summary .result-card strong {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.nipe-window-copy { margin: 8px 0; color: #39454d; font-size: .84rem; line-height: 1.5; }
+.nipe-window-table-wrap { margin: 12px 0; overflow-x: auto; }
+.nipe-window-table { width: 100%; min-width: 610px; border-collapse: collapse; font-size: .78rem; }
+.nipe-window-table th, .nipe-window-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e3dfd7;
+  text-align: left;
+  vertical-align: top;
+  white-space: normal;
+}
+.nipe-window-table th { color: #505661; font-weight: 700; }
 .comparison-table-wrap { overflow-x: auto; }
 .comparison-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: .78rem; }
 .comparison-table th, .comparison-table td {

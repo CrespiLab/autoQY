@@ -12,6 +12,7 @@ try:
     from autoqy_core.power_web import create_app as create_power_app
     from autoqy_core.tools.analysis_gui import (
         _pss_card,
+        _render_nipe_window_analysis,
         _spectra_led_figure,
         create_app as create_analysis_app,
     )
@@ -162,6 +163,57 @@ class GuiLayoutTests(unittest.TestCase):
         )
         self.assertIn("SPECORD", visible_text)
         self.assertIn("Cary .DSW/.BSW", visible_text)
+
+    def test_analysis_offers_nipe_as_a_fit_method(self):
+        app = create_analysis_app()
+        methods = _by_id(
+            app.layout, {"type": "analysis-field", "name": "fit_method"}
+        )
+        self.assertIn("nipe", {option["value"] for option in methods.options})
+
+    def test_analysis_has_collapsible_nipe_window_report(self):
+        app = create_analysis_app()
+        panel = _by_id(app.layout, "nipe-window-panel")
+        self.assertIsInstance(panel, html.Details)
+        self.assertFalse(panel.open)
+        _by_id(panel, "nipe-window-analysis")
+
+    def test_nipe_window_report_shows_recommended_yields_and_windows(self):
+        summary = {
+            "ab_model_assessment": {"status": "stop"},
+            "nipe": {"pre_plateau_window_analysis": {
+                "plateau_detected": True,
+                "plateau_time_s": 240.0,
+                "analysis_end_time_s": 210.0,
+                "window_point_count": 4,
+                "window_duration_s": 90.0,
+                "window_count": 1,
+                "extrapolated_zero_exposure_yield_percent": {
+                    "R_to_P": 15.3, "P_to_R": 11.7,
+                },
+                "extrapolated_standard_error_percent": {
+                    "R_to_P": 0.5, "P_to_R": 1.0,
+                },
+                "full_trace_change_percent": {
+                    "R_to_P": -16.6, "P_to_R": -28.6,
+                },
+                "windows": [{
+                    "start_s": 0.0, "end_s": 90.0, "midpoint_s": 45.0,
+                    "R_to_P_percent": 14.8, "P_to_R_percent": 11.1,
+                    "R_to_P_standard_error_percent": 0.2,
+                    "P_to_R_standard_error_percent": 0.3,
+                    "jacobian_condition": 7.0,
+                }],
+            }},
+        }
+        rendered = _render_nipe_window_analysis(html, summary, "F2", "F1")
+        visible_text = " ".join(
+            component.children for component in _components(rendered)
+            if isinstance(getattr(component, "children", None), str)
+        )
+        self.assertIn("15.3 ± 0.5%", visible_text)
+        self.assertIn("Sustained flattening was detected at 240 s", visible_text)
+        self.assertIn("0–90", visible_text)
 
     def test_pss_distribution_is_visible_beside_quantum_yields(self):
         app = create_analysis_app()

@@ -70,13 +70,40 @@ spectral decay; the LED is not overlaid on the decay. After a run, the GUI
 reports the two quantum yields and fit status, lists the generated files, and
 adds interactive views for concentrations, fraction residuals, endpoint
 reconstruction, and wavelength-resolved absorbance residuals. Automatic
-diagnostics are grouped as green, amber, or red checks. **Compare fit methods** runs regularized
-concentrations, full-spectrum ODE, and legacy concentration fitting with the
+diagnostics are grouped as green, amber, or red checks. **Compare fit methods** runs NIPE,
+regularized concentrations, full-spectrum ODE, and legacy concentration fitting with the
 same nominal inputs; it writes no result files and disables epsilon uncertainty
 for the comparison. **Open Spectral Treatment** starts that GUI in its own
 dedicated window.
 
 ## Fitting methods
+
+`"method": "nipe"` applies the Normalized Integrated Photokinetic Equation
+approach of Vorobyev, Lim, and Lee (J. Photochem. Photobiol. A 478 (2026)
+117229; DOI: 10.1016/j.jphotochem.2026.117229). It evaluates many arbitrary
+time intervals, normalizes each integrated concentration change by its absorbed
+photon dose, and uses the measured time-dependent optical density for the
+inner-filter correction. The fitted coordinate `(P - R) / 2` separates the
+isomerization signal from common-mode changes in apparent `R + P`.
+
+NIPE always runs an independent two-reference balance check, including when a
+different fit method is selected. A 2–5% tracked-balance span or relative
+spectral mismatch is amber; above 5% is red. A red result means the closed
+`R <=> P` model is not supported. NIPE still returns a quantum-yield estimate,
+but labels it **apparent**: without a degradation-product spectrum or an
+independent product assay, isomerization and degradation cannot be uniquely
+separated into mechanistic yields.
+
+For NIPE fits, AutoQY also performs an automatic short-window analysis. It
+detects the first sustained flattening of the recovered composition curve,
+excludes that point and everything after it, and selects rolling windows of
+four to six spectra from the usable early trace. Windows are retained only if
+they span measurable conversion, identify both yields without touching a
+bound, and have a finite Jacobian condition number below 10,000. A linear trend
+through the accepted local NIPE yields is extrapolated to zero exposure. The
+GUI reports this pre-plateau apparent estimate, every accepted window, and its
+change relative to the unchanged full-trace NIPE result in a separate
+collapsible panel. At least three accepted windows are required.
 
 `"method": "regularized_concentrations"` is the recommended concentration
 route. It fits all spectra together with a single conserved total concentration.
@@ -112,8 +139,9 @@ poorly conditioned and can report large quantum-yield errors or concentrations
 that disagree with the full-spectrum methods. `emission_threshold_fraction`
 defines the active band as a fraction of the processed LED maximum.
 
-All four methods use the same rate equations, path length, power uncertainty,
-two thermal directions, bounds, outputs, and plotting pipeline. The thermal
+The four ODE-based/legacy methods use the same rate equations; NIPE uses their
+equivalent integrated photon balance. All five share path length, power
+uncertainty, two thermal directions, bounds, outputs, and plotting. The thermal
 part of the reactant derivative is
 `d[R]/dt = … + k_P→R[P] - k_R→P[R]`; the product derivative is its negative.
 `thermal_forward_reaction_s_1` is optional and defaults to zero, so existing
@@ -133,7 +161,7 @@ containing every method-specific control is:
 ```
 
 Controls unused by the selected method are ignored. For a new dataset, compare
-`regularized_concentrations` with `ode_absorbance` and inspect both the
+`nipe`, `regularized_concentrations`, and `ode_absorbance` and inspect both the
 concentration and wavelength-resolved residuals. Agreement is stronger evidence
 than either result alone.
 

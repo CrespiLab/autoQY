@@ -878,6 +878,31 @@ It jointly fits:
 
 Optional per-spectrum baseline corrections and robust loss can help accommodate small baseline differences or isolated problematic wavelengths.
 
+### NIPE — degradation warning and apparent yield
+
+NIPE integrates the photons absorbed between many pairs of measured times and
+normalizes each observed composition change by that photon dose. It therefore
+does not depend on a perfect zero-time spectrum or complete conversion.
+
+AutoQY also independently fits the apparent reactant and product amounts
+without forcing their sum to remain constant. If the tracked balance or the
+two-reference spectral mismatch exceeds 5%, the **NIPE A⇌B model check** turns
+red. This is the warning that degradation, an additional species, or another
+side process has invalidated the closed two-state model. The displayed NIPE
+quantum yield is then an *apparent estimate*, not a clean mechanistic yield.
+Separating an isomerization yield from a degradation yield requires additional
+information such as a degradation-product spectrum or an independent assay.
+
+When NIPE is selected, the **NIPE pre-plateau window analysis** panel opens on
+demand beneath the main diagnostics. AutoQY looks for three consecutive
+composition changes that have fallen below 5% of the initial change. It keeps
+only short, numerically identifiable windows that end before that plateau and
+extrapolates their local quantum-yield trend back toward zero exposure. The
+panel shows the suggested early-time apparent yields, the full-trace change,
+and every accepted time window. If fewer than three trustworthy windows exist,
+AutoQY declines to make the extrapolation instead of silently using an unstable
+estimate.
+
 ### Concentrations — legacy pure NNLS
 
 This method independently decomposes every spectrum into reactant and product using non-negative least squares and then fits the resulting concentration trajectory.

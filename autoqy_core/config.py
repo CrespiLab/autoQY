@@ -166,10 +166,10 @@ def validate_config(config):
 
     fit = values["fit"]
     methods = {"concentrations", "emission", "regularized_concentrations",
-               "ode_absorbance"}
+               "ode_absorbance", "nipe"}
     if fit["method"] not in methods:
         errors.append("fit.method must be concentrations, emission, "
-                      "regularized_concentrations, or ode_absorbance")
+                      "regularized_concentrations, ode_absorbance, or nipe")
     threshold = fit.get("emission_threshold_fraction", 0.01)
     if not (_positive(threshold) and threshold < 1):
         errors.append("fit.emission_threshold_fraction must be greater than 0 and less than 1")

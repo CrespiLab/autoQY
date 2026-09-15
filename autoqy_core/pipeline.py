@@ -1,15 +1,18 @@
 """Headless AutoQY analysis pipeline."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import warnings
 
 import numpy as np
 
-from .kinetics import (YieldFit, extrapolate_photostationary_state,
+from .kinetics import (YieldFit, analyze_nipe_time_windows,
+                       extrapolate_photostationary_state,
                        fit_quantum_yields, fit_quantum_yields_absorbance,
-                       fit_quantum_yields_ode_absorbance)
-from .spectra import (ConcentrationFit, fit_concentrations,
-                      fit_concentrations_regularized, interpolate_inputs, process_led)
+                       fit_quantum_yields_nipe, fit_quantum_yields_ode_absorbance)
+from .spectra import (ABModelDiagnostic, ConcentrationFit, assess_ab_model,
+                      fit_concentrations, fit_concentrations_regularized,
+                      fit_concentrations_variable_total, interpolate_inputs,
+                      process_led)
 
 
 @dataclass(frozen=True)
@@ -55,6 +58,7 @@ class AnalysisResult:
     fit_method: str
     extrapolated_pss: np.ndarray
     epsilon_uncertainty: object | None = None
+    ab_model_diagnostic: ABModelDiagnostic | None = None
 
 
 def run_analysis_pipeline(data):
@@ -80,7 +84,13 @@ def run_analysis_pipeline(data):
     if actinometer_mode:
         emission = np.zeros_like(wavelengths, dtype=float)
         emission[np.argmin(np.abs(wavelengths - data.irradiation_wavelength_nm))] = 100.0
-    if data.fit_method in {"regularized_concentrations", "ode_absorbance"}:
+    variable_concentration_fit = fit_concentrations_variable_total(
+        absorbance, epsilon_r, epsilon_p, data.path_length_cm
+    )
+    ab_model_diagnostic = assess_ab_model(variable_concentration_fit, absorbance)
+    if data.fit_method == "nipe":
+        concentration_fit = variable_concentration_fit
+    elif data.fit_method in {"regularized_concentrations", "ode_absorbance"}:
         concentration_fit = fit_concentrations_regularized(
             absorbance, wavelengths, epsilon_r, epsilon_p, data.timestamps,
             data.path_length_cm, data.regularization_strength,
@@ -155,8 +165,31 @@ def run_analysis_pipeline(data):
                 data.robust_loss_scale, data.thermal_forward_rate, photon_flux,
                 data.irradiation_wavelength_nm,
             ))
+        elif data.fit_method == "nipe":
+            fits.append(fit_quantum_yields_nipe(
+                wavelengths, emission, absorbance,
+                variable_concentration_fit.concentrations, data.timestamps,
+                epsilon_r, epsilon_p, power, data.volume_ml, data.thermal_rate,
+                data.path_length_cm, data.initial_yields, data.yield_bounds,
+                data.thermal_forward_rate, photon_flux,
+                data.irradiation_wavelength_nm,
+            ))
         else:
             raise ValueError(f"Unsupported fit method: {data.fit_method}")
+
+    if data.fit_method == "nipe":
+        window_analysis = analyze_nipe_time_windows(
+            wavelengths, emission, absorbance,
+            variable_concentration_fit.concentrations, data.timestamps,
+            epsilon_r, epsilon_p, data.power_mw, data.volume_ml,
+            data.thermal_rate, data.path_length_cm, data.initial_yields,
+            data.yield_bounds, data.thermal_forward_rate,
+            data.photon_flux_mol_s, data.irradiation_wavelength_nm,
+            full_trace_values=fits[0].values,
+        )
+        fits[0] = replace(
+            fits[0], nipe=replace(fits[0].nipe, window_analysis=window_analysis)
+        )
 
     lower = fits[1].values - fits[1].standard_errors
     upper = fits[2].values + fits[2].standard_errors
@@ -172,6 +205,7 @@ def run_analysis_pipeline(data):
     return AnalysisResult(
         concentration_fit, fits[0], errors, wavelengths, absorbance,
         epsilon_r, epsilon_p, data.fit_method, extrapolated_pss,
+        ab_model_diagnostic=ab_model_diagnostic,
     )
 
 

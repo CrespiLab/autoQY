@@ -15,6 +15,17 @@ class ConcentrationFit:
     residuals: np.ndarray
 
 
+@dataclass(frozen=True)
+class ABModelDiagnostic:
+    """Evidence for or against a closed, two-species A <=> B model."""
+
+    level: str
+    model_supported: bool
+    balance_change_fraction: float
+    balance_span_fraction: float
+    spectral_relative_rmse: float
+
+
 def process_led(wavelengths, intensity, baseline_correction=True, smoothing_window=12,
                 polynomial_order=3, exclusion_fwhm_multiplier=10):
     processed = savgol_filter(np.asarray(intensity, float), smoothing_window, polynomial_order)
@@ -68,6 +79,49 @@ def fit_concentrations(absorbance, wavelengths, epsilon_r, epsilon_p, path_lengt
     concentrations = fractions * total_concentration
     reconstructed = concentrations @ epsilon.T
     return ConcentrationFit(concentrations, fractions, reconstructed, absorbance.T - reconstructed)
+
+
+def fit_concentrations_variable_total(absorbance, epsilon_r, epsilon_p,
+                                      path_length_cm=1):
+    """Recover independent A/B concentrations without imposing mass balance.
+
+    Unlike :func:`fit_concentrations`, this fit deliberately retains changes in
+    the apparent A + B total.  NIPE uses that otherwise-hidden signal to test
+    whether a closed A <=> B model remains chemically defensible.
+    """
+    target = np.asarray(absorbance, float).T
+    epsilon = np.column_stack((epsilon_r, epsilon_p)) * path_length_cm
+    coefficients = np.array([nnls(epsilon, spectrum)[0] for spectrum in target])
+    totals = coefficients.sum(axis=1)
+    fractions = np.divide(
+        coefficients,
+        totals[:, None],
+        out=np.zeros_like(coefficients),
+        where=totals[:, None] > 0,
+    )
+    reconstructed = coefficients @ epsilon.T
+    return ConcentrationFit(coefficients, fractions, reconstructed, target - reconstructed)
+
+
+def assess_ab_model(concentration_fit, absorbance):
+    """Classify two-species balance and reconstruction drift for NIPE."""
+    totals = np.asarray(concentration_fit.concentrations, float).sum(axis=1)
+    initial_total = float(totals[0]) if len(totals) else 0.0
+    if not np.isfinite(initial_total) or initial_total <= 0:
+        return ABModelDiagnostic("stop", False, np.inf, np.inf, np.inf)
+
+    balance_change = float((totals[-1] - initial_total) / initial_total)
+    balance_span = float(np.ptp(totals) / initial_total)
+    target = np.asarray(absorbance, float).T
+    residual_rmse = float(np.sqrt(np.mean(concentration_fit.residuals ** 2)))
+    signal_rms = max(float(np.sqrt(np.mean(target ** 2))), np.finfo(float).eps)
+    spectral_relative_rmse = residual_rmse / signal_rms
+    score = max(balance_span, spectral_relative_rmse)
+    level = "stop" if score > 0.05 else "warning" if score > 0.02 else "ok"
+    return ABModelDiagnostic(
+        level, level == "ok", balance_change, balance_span,
+        spectral_relative_rmse,
+    )
 
 
 def fit_concentrations_regularized(absorbance, wavelengths, epsilon_r, epsilon_p,

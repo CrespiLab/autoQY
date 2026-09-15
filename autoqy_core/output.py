@@ -85,6 +85,68 @@ def result_summary(result, data, irradiation_wavelength_nm):
             "path_length_cm": data.path_length_cm,
         },
     }
+    diagnostic = getattr(result, "ab_model_diagnostic", None)
+    if diagnostic is not None:
+        apparent = not diagnostic.model_supported
+        summary["ab_model_assessment"] = {
+            "status": diagnostic.level,
+            "model_supported": diagnostic.model_supported,
+            "tracked_balance_change_percent": diagnostic.balance_change_fraction * 100,
+            "tracked_balance_span_percent": diagnostic.balance_span_fraction * 100,
+            "spectral_relative_rmse_percent": diagnostic.spectral_relative_rmse * 100,
+            "quantum_yield_interpretation": (
+                "apparent estimate; degradation or another side process breaks the closed "
+                "A <=> B model" if apparent else "closed A <=> B model supported"
+            ),
+        }
+    nipe = getattr(result.yield_fit, "nipe", None)
+    if nipe is not None:
+        summary["nipe"] = {
+            "reference": "Vorobyev, Lim and Lee, J. Photochem. Photobiol. A 478 (2026) 117229",
+            "interval_count": nipe.interval_count,
+            "minimum_interval_fraction": nipe.minimum_interval_fraction,
+            "normalized_residual_rmse": nipe.normalized_residual_rmse,
+        }
+        windows = nipe.window_analysis
+        if windows is not None:
+            summary["nipe"]["pre_plateau_window_analysis"] = {
+                "plateau_detected": windows.plateau_detected,
+                "plateau_time_s": windows.plateau_time_s,
+                "analysis_end_time_s": windows.analysis_end_time_s,
+                "window_point_count": windows.window_point_count,
+                "window_duration_s": windows.window_duration_s,
+                "window_count": len(windows.window_start_s),
+                "extrapolated_zero_exposure_yield_percent": {
+                    "R_to_P": float(windows.extrapolated_values[0] * 100),
+                    "P_to_R": float(windows.extrapolated_values[1] * 100),
+                },
+                "extrapolated_standard_error_percent": {
+                    "R_to_P": float(windows.extrapolated_standard_errors[0] * 100),
+                    "P_to_R": float(windows.extrapolated_standard_errors[1] * 100),
+                },
+                "full_trace_change_percent": {
+                    "R_to_P": float(windows.full_trace_change_fraction[0] * 100),
+                    "P_to_R": float(windows.full_trace_change_fraction[1] * 100),
+                },
+                "windows": [
+                    {
+                        "start_s": float(start),
+                        "end_s": float(end),
+                        "midpoint_s": float(midpoint),
+                        "R_to_P_percent": float(values[0] * 100),
+                        "P_to_R_percent": float(values[1] * 100),
+                        "R_to_P_standard_error_percent": float(errors[0] * 100),
+                        "P_to_R_standard_error_percent": float(errors[1] * 100),
+                        "jacobian_condition": float(condition),
+                    }
+                    for start, end, midpoint, values, errors, condition in zip(
+                        windows.window_start_s, windows.window_end_s,
+                        windows.window_midpoint_s, windows.window_values,
+                        windows.window_standard_errors,
+                        windows.window_jacobian_conditions,
+                    )
+                ],
+            }
     if data.photon_flux_mol_s is not None:
         flux = format_scientific_value_uncertainty(
             data.photon_flux_mol_s, data.photon_flux_error_mol_s
@@ -144,7 +206,41 @@ def write_results(path, result, data, irradiation_wavelength_nm):
         "emission": "Emission (legacy)",
         "regularized_concentrations": "Regularized concentrations",
         "ode_absorbance": "Full-spectrum ODE absorbance",
+        "nipe": "NIPE normalized integrated photokinetic equation",
     }[result.fit_method]
+    assessment_text = ""
+    assessment = summary.get("ab_model_assessment")
+    if assessment is not None:
+        assessment_text = f"""A<=>B model status: {assessment['status'].upper()}
+A<=>B model supported: {'YES' if assessment['model_supported'] else 'NO'}
+Tracked A+B balance change (%): {assessment['tracked_balance_change_percent']:.3g}
+Tracked A+B balance span (%): {assessment['tracked_balance_span_percent']:.3g}
+Two-reference spectral relative RMSE (%): {assessment['spectral_relative_rmse_percent']:.3g}
+Quantum-yield interpretation: {assessment['quantum_yield_interpretation']}
+
+"""
+    nipe_text = ""
+    if "nipe" in summary:
+        nipe = summary["nipe"]
+        nipe_text = f"""NIPE normalized intervals: {nipe['interval_count']}
+NIPE normalized residual RMSE: {nipe['normalized_residual_rmse']:.6g}
+
+"""
+        windows = nipe.get("pre_plateau_window_analysis")
+        if windows is not None:
+            early = windows["extrapolated_zero_exposure_yield_percent"]
+            early_error = windows["extrapolated_standard_error_percent"]
+            change = windows["full_trace_change_percent"]
+            nipe_text += f"""NIPE pre-plateau window count: {windows['window_count']}
+NIPE automatic plateau time (s): {windows['plateau_time_s']:.6g}
+NIPE last pre-plateau time (s): {windows['analysis_end_time_s']:.6g}
+NIPE window duration (s): {windows['window_duration_s']:.6g}
+NIPE zero-exposure apparent QY R_to_P (%): {early['R_to_P']:.6g} +/- {early_error['R_to_P']:.6g}
+NIPE zero-exposure apparent QY P_to_R (%): {early['P_to_R']:.6g} +/- {early_error['P_to_R']:.6g}
+NIPE full-trace change from early R_to_P (%): {change['R_to_P']:.6g}
+NIPE full-trace change from early P_to_R (%): {change['P_to_R']:.6g}
+
+"""
     epsilon_text = "\n"
     if result.epsilon_uncertainty is not None:
         components = summary["quantum_yield_error_components_percent"]
@@ -187,7 +283,7 @@ QY_AB_opt (%): {formatted['R_to_P']['value']}
 QY_BA_opt (%): {formatted['P_to_R']['value']}
 error_QY_AB (%): {formatted['R_to_P']['error']}
 error_QY_BA (%): {formatted['P_to_R']['error']}
-{epsilon_text}Volume (ml): {data.volume_ml:g}
+{assessment_text}{nipe_text}{epsilon_text}Volume (ml): {data.volume_ml:g}
 k thermal back-reaction (s-1): {data.thermal_rate:g}
 k thermal forward-reaction (s-1): {getattr(data, 'thermal_forward_rate', 0):g}
 {irradiation_input}

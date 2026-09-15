@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "analysis": {
+    "id": "example5_nipe_M3",
+    "reactant_name": "F2",
+    "product_name": "F1"
+  },
+  "inputs": {
+    "measurement_spectra": "M3.dat",
+    "reactant_absorptivity": "F2_MeCN_Epsilon.dat",
+    "product_absorptivity": "F1_MeCN_Epsilon.dat",
+    "led_emission": "LED365nm_baselined.dat",
+    "timestamps": "timestamps_30s.csv",
+    "formats": {
+      "measurement_spectra": {"type": "spectragryph_tsv"},
+      "reactant_absorptivity": {"type": "spectragryph_tsv"},
+      "product_absorptivity": {"type": "spectragryph_tsv"},
+      "led_emission": {"type": "spectragryph_tsv"},
+      "timestamps": {
+        "type": "generic_delimited",
+        "delimiter": ",",
+        "header": true,
+        "time_column": "irradiation_seconds"
+      }
+    }
+  },
+  "experiment": {
+    "volume_ul": 2070,
+    "power_mw": 3.292440036214156,
+    "power_error_mw": 0.003262387097114711,
+    "thermal_back_reaction_s_1": 0,
+    "thermal_forward_reaction_s_1": 0,
+    "irradiation_wavelength_nm": 365,
+    "path_length_cm": 1
+  },
+  "processing": {
+    "wavelength_range_nm": [250, 800],
+    "led_smoothing": {
+      "method": "savgol",
+      "window_points": 12,
+      "polynomial_order": 3
+    },
+    "led_baseline": {
+      "enabled": false,
+      "exclusion_fwhm_multiplier": 10
+    }
+  },
+  "fit": {
+    "method": "nipe",
+    "emission_threshold_fraction": 0.01,
+    "regularization_strength": 1,
+    "absorbance_baseline_order": 1,
+    "robust_loss_scale": 0.02,
+    "initial_quantum_yields": {"R_to_P": 0.15, "P_to_R": 0.12},
+    "quantum_yield_bounds": {"minimum": 0, "maximum": 1}
+  },
+  "plots": {"absorbance_residual_percentile": 99},
+  "uncertainty": {"epsilon": {"method": "none", "error_metric": "sd"}},
+  "outputs": {
+    "directory": "results/M3",
+    "stem": "example5_nipe_M3",
+    "write_text": true,
+    "write_figures": true,
+    "write_json": true,
+    "write_config": true,
+    "write_detailed_data": true,
+    "overwrite": true
+  }
+}
