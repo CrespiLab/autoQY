@@ -13,6 +13,7 @@ try:
     from autoqy_core.tools.analysis_gui import (
         _pss_card,
         _render_nipe_window_analysis,
+        _nipe_headline_warning,
         _spectra_led_figure,
         create_app as create_analysis_app,
     )
@@ -173,6 +174,7 @@ class GuiLayoutTests(unittest.TestCase):
 
     def test_analysis_has_collapsible_nipe_window_report(self):
         app = create_analysis_app()
+        _by_id(app.layout, "nipe-headline-warning")
         panel = _by_id(app.layout, "nipe-window-panel")
         self.assertIsInstance(panel, html.Details)
         self.assertFalse(panel.open)
@@ -189,10 +191,10 @@ class GuiLayoutTests(unittest.TestCase):
                 "window_duration_s": 90.0,
                 "window_count": 1,
                 "extrapolated_zero_exposure_yield_percent": {
-                    "R_to_P": 15.3, "P_to_R": 11.7,
+                    "R_to_P": 14.870101, "P_to_R": 12.38181,
                 },
                 "extrapolated_standard_error_percent": {
-                    "R_to_P": 0.5, "P_to_R": 1.0,
+                    "R_to_P": 0.173003, "P_to_R": 0.255767,
                 },
                 "full_trace_change_percent": {
                     "R_to_P": -16.6, "P_to_R": -28.6,
@@ -211,9 +213,25 @@ class GuiLayoutTests(unittest.TestCase):
             component.children for component in _components(rendered)
             if isinstance(getattr(component, "children", None), str)
         )
-        self.assertIn("15.3 ± 0.5%", visible_text)
+        self.assertIn("14.87 ± 0.17%", visible_text)
+        self.assertIn("12.4 ± 0.3%", visible_text)
         self.assertIn("Sustained flattening was detected at 240 s", visible_text)
         self.assertIn("0–90", visible_text)
+
+    def test_nipe_full_trace_result_warns_user_to_open_window_analysis(self):
+        warning = _nipe_headline_warning(html, {
+            "fit_method": "nipe",
+            "ab_model_assessment": {"status": "stop"},
+        })
+        visible_text = " ".join(
+            child.children if hasattr(child, "children") else str(child)
+            for child in warning.children
+        )
+        self.assertIn("not corrected for degradation", visible_text)
+        self.assertIn("Do not report them", visible_text)
+        self.assertIn("NIPE pre-plateau window analysis", visible_text)
+        self.assertIn("status-stop", warning.className)
+        self.assertEqual(_nipe_headline_warning(html, {"fit_method": "emission"}), "")
 
     def test_pss_distribution_is_visible_beside_quantum_yields(self):
         app = create_analysis_app()
@@ -241,6 +259,7 @@ class GuiLayoutTests(unittest.TestCase):
 
     def test_analysis_preprocessing_separates_led_from_spectral_decay(self):
         wavelengths = np.array([400.0, 450.0, 500.0])
+        reference_wavelengths = np.array([350.0, 400.0, 450.0, 500.0, 550.0])
         absorbance = np.array([
             [1.0, 0.8, 0.6],
             [0.9, 0.7, 0.5],
@@ -248,8 +267,8 @@ class GuiLayoutTests(unittest.TestCase):
         ])
         figure = _spectra_led_figure(
             go, make_subplots, wavelengths, absorbance,
-            (wavelengths, np.array([100.0, 80.0, 60.0])),
-            (wavelengths, np.array([20.0, 50.0, 90.0])),
+            (reference_wavelengths, np.array([10_000.0, 100.0, 80.0, 60.0, 9_000.0])),
+            (reference_wavelengths, np.array([8_000.0, 20.0, 50.0, 90.0, 7_000.0])),
             wavelengths, np.array([0.1, 1.0, 0.1]), (400.0, 500.0), 450.0,
         )
         traces = {trace.name: trace for trace in figure.data}
@@ -259,6 +278,11 @@ class GuiLayoutTests(unittest.TestCase):
         self.assertEqual(traces["Initial spectrum"].xaxis, "x2")
         self.assertEqual(traces["Final spectrum"].xaxis, "x2")
         self.assertFalse(figure.layout.yaxis2.showgrid)
+        self.assertEqual(tuple(figure.layout.yaxis.range)[0], 0)
+        self.assertEqual(tuple(figure.layout.yaxis2.range)[0], 0)
+        self.assertLess(tuple(figure.layout.yaxis.range)[1], 1_000)
+        self.assertTrue(np.all(np.asarray(traces["Reactant ε"].x) >= 400.0))
+        self.assertTrue(np.all(np.asarray(traces["Reactant ε"].x) <= 500.0))
 
     def test_nested_panels_have_independent_open_and_closed_symbols(self):
         css = (Path(__file__).parents[1] / "autoqy_core" / "assets" / "power_web.css").read_text(

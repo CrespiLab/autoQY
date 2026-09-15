@@ -196,6 +196,11 @@
 .diagnostic-ok { border-left-color: #4f8a68; background: #f4faf6; }
 .diagnostic-warning { border-left-color: #d49a3a; background: #fff9ed; }
 .diagnostic-stop { border-left-color: #b85c4a; background: #fff3f0; }
+.nipe-result-warning {
+  margin: 0 0 14px;
+  font-size: .82rem;
+  line-height: 1.5;
+}
 .nipe-window-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

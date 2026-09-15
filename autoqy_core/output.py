@@ -230,13 +230,19 @@ NIPE normalized residual RMSE: {nipe['normalized_residual_rmse']:.6g}
         if windows is not None:
             early = windows["extrapolated_zero_exposure_yield_percent"]
             early_error = windows["extrapolated_standard_error_percent"]
+            early_rp = format_value_uncertainty(
+                early["R_to_P"], early_error["R_to_P"], two_digit_threshold=2,
+            )
+            early_pr = format_value_uncertainty(
+                early["P_to_R"], early_error["P_to_R"], two_digit_threshold=2,
+            )
             change = windows["full_trace_change_percent"]
             nipe_text += f"""NIPE pre-plateau window count: {windows['window_count']}
 NIPE automatic plateau time (s): {windows['plateau_time_s']:.6g}
 NIPE last pre-plateau time (s): {windows['analysis_end_time_s']:.6g}
 NIPE window duration (s): {windows['window_duration_s']:.6g}
-NIPE zero-exposure apparent QY R_to_P (%): {early['R_to_P']:.6g} +/- {early_error['R_to_P']:.6g}
-NIPE zero-exposure apparent QY P_to_R (%): {early['P_to_R']:.6g} +/- {early_error['P_to_R']:.6g}
+NIPE zero-exposure apparent QY R_to_P (%): {early_rp[0]} +/- {early_rp[1]}
+NIPE zero-exposure apparent QY P_to_R (%): {early_pr[0]} +/- {early_pr[1]}
 NIPE full-trace change from early R_to_P (%): {change['R_to_P']:.6g}
 NIPE full-trace change from early P_to_R (%): {change['P_to_R']:.6g}
 
