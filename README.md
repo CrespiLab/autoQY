@@ -19,7 +19,7 @@ Windows Desktop shortcuts described above.
 ```powershell
 conda create --name autoqy-core python=3.12 pip git
 conda activate autoqy-core
-git clone --branch 2.3.0 --single-branch https://github.com/CrespiLab/autoQY.git AutoQY-Core
+git clone --branch main --single-branch https://github.com/CrespiLab/autoQY.git AutoQY-Core
 cd AutoQY-Core
 python -m pip install --upgrade pip
 python -m pip install -e ".[gui]"
@@ -30,7 +30,7 @@ python -m pip install -e ".[gui]"
 ```bash
 conda create --name autoqy-core python=3.12 pip git
 conda activate autoqy-core
-git clone --branch 2.3.0 --single-branch https://github.com/CrespiLab/autoQY.git AutoQY-Core
+git clone --branch main --single-branch https://github.com/CrespiLab/autoQY.git AutoQY-Core
 cd AutoQY-Core
 python -m pip install --upgrade pip
 python -m pip install -e '.[gui]'
@@ -41,7 +41,7 @@ python -m pip install -e '.[gui]'
 ```bash
 conda create --name autoqy-core python=3.12 pip git
 conda activate autoqy-core
-git clone --branch 2.3.0 --single-branch https://github.com/CrespiLab/autoQY.git AutoQY-Core
+git clone --branch main --single-branch https://github.com/CrespiLab/autoQY.git AutoQY-Core
 cd AutoQY-Core
 python -m pip install --upgrade pip
 python -m pip install -e '.[gui]'
