@@ -234,7 +234,7 @@ def savgol_window_points(wavelengths, width_nm, polynomial_order=3):
     return points
 
 
-def export_smoothed_text(dataset, reconstructed, format_name=None):
+def export_smoothed_text(dataset, reconstructed, format_name=None, labels=None):
     """Serialize a reconstruction as CSV unless another format is requested."""
     format_name = format_name or "csv"
     reconstructed = np.asarray(reconstructed, float)
@@ -254,6 +254,10 @@ def export_smoothed_text(dataset, reconstructed, format_name=None):
         raise ValueError(f"Unsupported smoother export format: {format_name}")
     value_columns = (["Absorbance"] if format_name == "avantes_abs8"
                      else [f"{value:g}" for value in dataset.coordinates])
+    if labels is not None:
+        if len(labels) != reconstructed.shape[1]:
+            raise ValueError("Spectrum labels do not match the reconstructed matrix")
+        value_columns = list(labels)
     columns = ["Wavelength"] + value_columns
     frame = pd.DataFrame(np.column_stack([dataset.wavelengths, reconstructed]), columns=columns)
     return frame.to_csv(

@@ -361,9 +361,10 @@ and existing files require confirmation before replacement. Negative values are
 preserved by default; the output option can clamp saved absorbance and epsilon
 values to zero without changing the preview or source data.
 
-### Pure-isomer reconstruction in absorbance
+### Unified spectrum reconstruction
 
-Expand **Reconstruct pure isomer**, select a pure stable-isomer reference and
+Expand **4 · Reconstruction → Reconstruct spectrum**, choose **Loaded absorbance
+spectra**, select a pure stable-isomer reference and
 a mixture/PSS spectrum from the loaded dataset, then enter the **metastable**
 isomer percentage in the mixture and click **Reconstruct**. No concentrations,
 path-length inputs, or molar-absorptivity conversion are required.
@@ -381,7 +382,7 @@ smoothing, SVD, and wavelength-range settings apply, and preprocessing changes
 update the reconstruction. Changing the dataset, spectrum selections, or
 composition clears the reconstruction until **Reconstruct** is clicked again.
 
-In **5 · Output**, choose **Reconstructed pure isomer (absorbance)** under
+In **5 · Output**, choose **Reconstructed metastable spectrum** under
 **CSV content**, then click **Save CSV**. The default file is
 `reconstructed-metastable-isomer.csv`; the Output folder, optional file name,
 negative-value option, and overwrite confirmation apply to this export too.
@@ -390,15 +391,43 @@ exports the measured series. Negative values are preserved unless Output
 clamping is enabled. Percentages must be greater than 0 and
 at most 100; small metastable fractions amplify measurement noise.
 
+The same panel also offers **Reference ε + UV–Vis reactant/PSS + NMR**. Upload
+the triplicate stable-isomer ε CSV made by Spectral Treatment, or calculate its
+ε in Data. Load the UV–Vis irradiation dataset (first spectrum = stable reference,
+last = PSS), select its preprocessing, enter the **metastable** percentage
+(77 for 23% stable), and click **Reconstruct**. An uploaded reference takes
+precedence over calculated Data ε; clear it to use Data again. Only one ε
+reference file is needed—there is no PSS-error or second ε-file requirement.
+
+Choose reference **Replicate SD** (default) or **SEM of the mean**. Optional NMR
+composition uncertainty defaults to **1 percentage point (1σ)**; use zero to
+omit it. Reference SD/SEM must be available, not silently replaced by zero.
+The retained shared-reference calibration divides both UV–Vis curves by the
+stable-reference absorbance maximum and scales them by the reference ε maximum.
+Metastable ε follows the same weighted subtraction. The lower/upper envelope
+combines reference ε mean ± selected error and composition ± entered error.
+It is generally asymmetric, is not an independent-PSS-error or full-covariance
+calculation, and includes **no PSS measurement uncertainty**. The export records
+the error basis, NMR uncertainty, method, and this exclusion.
+
+For absorbance-only reconstruction, entering composition uncertainty adds a
+composition-only band and CSV column; absorbance measurement error is unavailable.
+The ε result is shown in its own plot and in Displayed data. **Show reconstructed
+isomer** applies to that plot too. Save the product alone with **Reconstructed
+metastable spectrum**, or both ε files with **Stable + reconstructed ε (pair)**,
+all through Output. The product CSV remains compatible with Analysis.
+
 ### Spectral plots and exports
 
 Files dropped together are naturally ordered by name, so `sample1` precedes
 `sample2` and `sample10`. Open **Loaded spectra: order, legend, removal** to
 move individual spectra up or down, remove them, or choose exactly which trace
-names appear in the legend. **Enable legend editing** is off by default: the
+names appear in the legend. **Legend options → Enable legend editing** is off by default: the
 name inputs and visibility checkboxes are created only when requested, and
 custom names and visibility are retained when editing is turned off. The name field beside each trace changes its legend
-text without changing the source filename. **Show all** and **Hide all** provide
+text without changing the source filename. Saved CSV spectrum columns use the
+current legend names (or the source spectrum names when not edited), not numeric
+indices. **Show all** and **Hide all** provide
 quick legend shortcuts.
 The default full-color spectrum palette uses Okabe–Ito color-blind-friendly
 colors (without yellow on the white background), cycling after seven spectra.
@@ -472,11 +501,19 @@ current recovery snapshot. Old JSON autosaves remain readable for migration.
 
 All spectral CSV exports use **Output → CSV content → Save CSV**. Choose the
 processed dataset/calculated ε, reconstructed isomer, wavelength slice, or
-reactant plus NMR-derived product ε. The latter uses the two file names and
-negative-product option under **NMR CSV options** in Output; the other modes
+**Stable + reconstructed ε (pair)**. The latter uses the two file names and
+negative-product option under **Reconstruction ε CSV options** in Output; the other modes
 use the shared CSV name and negative-value option. Every mode uses **Save folder**
 and asks before overwriting existing files. Reconstruction and slice panels
 do not have separate CSV save buttons.
+
+The **Displayed data** panel replaces the former Result panel with a
+spreadsheet-style numerical view. Select the main spectra, wavelength slice,
+or NMR reconstruction. Its columns follow the actual plotted curves and legend
+names, including visible raw data, reconstruction, and fits; hidden curves are
+omitted. Rows are paginated to keep large datasets responsive. This view is a
+preview of the plot (including the 60-spectrum preview limit), not a replacement
+for exporting the full dataset through Output.
 
 The dedicated browser process is monitored directly: closing or killing it
 stops the server, while a delayed browser heartbeat does not close a busy or
@@ -484,10 +521,10 @@ suspended app window. Connection failures leave the spectral page visible.
 If AutoQY falls back to a normal browser tab, whose process it cannot track,
 a two-minute heartbeat timeout still cleans up the server after a browser crash.
 
-The optional NMR-guided PSS workflow loads a dataset whose first spectrum is
-reactant and last spectrum is the final PSS. It supports its own baseline and
-Savitzky–Golay settings, propagates the entered PSS composition uncertainty,
-and exports reactant and reconstructed product epsilon CSV files. The primary
+The calibrated ε route in **Reconstruct spectrum** loads a dataset whose first
+spectrum is reactant and last spectrum is the final PSS. It supports baseline
+and Savitzky–Golay settings, propagates reference and NMR composition errors,
+and exports stable and reconstructed product ε CSV files. The primary
 product epsilon is clipped at zero by default, while a raw audit column is
 always retained; **Keep negative values in product epsilon** changes the primary
 export behavior.

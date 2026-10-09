@@ -20,7 +20,8 @@ from scipy.optimize import curve_fit
 from ..epsilon import (EpsilonResult, NMRSubtractionResult,
                        calculate_epsilon_statistics, export_epsilon_csv,
                        export_nmr_subtraction_csv, load_epsilon_table,
-                       nonnegative_error_bounds, reconstruct_product_from_nmr)
+                       nonnegative_error_bounds, reconstruct_product_from_nmr,
+                       reconstruct_spectrum_with_uncertainty)
 from ..gui_window import serve_gui
 from ..output import format_value_uncertainty
 from ..plot_style import (COLORBLIND_TRACE_PALETTE, PLOT_BLUE, PLOT_ORANGE,
@@ -38,7 +39,7 @@ MAX_INTERACTIVE_SPECTRA = 60
 
 def create_app(recovery_file=None):
     try:
-        from dash import ALL, Dash, Input, Output, State, ctx, dcc, html, no_update, set_props
+        from dash import ALL, Dash, Input, Output, State, ctx, dcc, html, no_update, set_props, dash_table
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
     except ImportError as error:
@@ -51,6 +52,12 @@ def create_app(recovery_file=None):
     recovery_message = "Changes are autosaved locally after a short pause."
     try:
         recovered = recovery.read()
+        if recovered and recovered.get("nmr") and "nmr-reactant-percent" in recovered.get("settings", {}):
+            settings = recovered["settings"]
+            settings["reconstruction-mode"] = "calibrated"
+            settings["isomer-percent"] = 100 - float(settings["nmr-reactant-percent"])
+            recovered["isomer_request"] = {"mode": "calibrated", "percent": settings["isomer-percent"],
+                                            "error_percent": settings.get("nmr-error-percent", 1), "error_basis": "sd"}
         if recovered and recovered.get("dataset"):
             restored_dataset = _unpack(recovered["dataset"])
             if restored_dataset.absorbance.shape != (
@@ -424,8 +431,6 @@ window.autoqySaveText = (filename, text, mimeType) => {
                         html.Div(str(recovery.path), className="helper-text",
                                  style={"overflowWrap": "anywhere"}),
                     ]),
-                    dcc.Checklist(id="edit-legend", value=[], className="toggle-control",
-                                  options=[{"label": "Enable legend editing", "value": "on"}]),
                     html.Details(className="nested-tool loaded-spectra-tool", children=[
                         html.Summary("Loaded spectra: order, legend, removal"),
                         html.Small(
@@ -512,20 +517,28 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     html.Div(id="concentration-parameters"),
                     html.Div(id="concentration-message", className="message"),
                 ]),
-                html.Details(open=False, className="panel tool-details", children=[
+                html.Details(id="reconstruction-panel", open=False, className="panel tool-details", children=[
                     html.Summary([
                         html.Span("4 · Reconstruction", className="step-label"),
-                        "Reconstruct pure isomer", info_popup(
+                        "Reconstruct spectrum", info_popup(
                             "Recover pure metastable-isomer absorbance from a pure stable-isomer "
                             "reference and a mixture of known composition: "
                             "A_meta = (A_mixture − (1 − f) × A_stable) / f, where f is the "
                             "metastable fraction. Both measurements must have the same total "
                             "concentration and path length. Current preprocessing applies; "
                             "no ε conversion or separate peak normalization is needed. "
-                            "Negative values are retained, and small fractions amplify noise."
+                            "Negative values are retained, and small fractions amplify noise. "
+                            "The ε route combines a triplicate reference with UV–Vis reactant/PSS "
+                            "spectra and NMR composition. Its shared-reference uncertainty envelope "
+                            "uses reference SD/SEM and optional NMR error (default 1 percentage point), "
+                            "without a separate PSS measurement-error input."
                         ),
                     ]),
-                    html.Small("Use a pure stable-isomer reference and a mixture measured "
+                    html.Label("Reconstruction inputs"),
+                    dcc.Dropdown(id="reconstruction-mode", value="absorbance", clearable=False,
+                                 options=[{"label": "Loaded absorbance spectra", "value": "absorbance"},
+                                          {"label": "Reference ε + UV–Vis reactant/PSS + NMR", "value": "calibrated"}]),
+                    html.Small(id="reconstruction-description", children="Use a pure stable-isomer reference and a mixture measured "
                                "at the same total concentration and path length. Current "
                                "baseline, smoothing and wavelength range apply. No ε conversion "
                                "or peak normalization is used."),
@@ -536,6 +549,26 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     html.Label("Metastable isomer in mixture (%)"),
                     dcc.Input(id="isomer-percent", type="number", min=0, max=100,
                               step="any", debounce=True, placeholder="e.g. 80"),
+                    html.Label("Composition uncertainty (percentage points, 1σ)"),
+                    dcc.Input(id="nmr-error-percent", type="number", value=1, min=0,
+                              step="any", debounce=True),
+                    html.Small("Enter the metastable fraction: 20% stable means 80% metastable. "
+                               "For absorbance, only composition uncertainty is available."),
+                    html.Div(id="epsilon-reconstruction-inputs", style={"display": "none"}, children=[
+                        html.Label("Stable-isomer ε CSV"),
+                        dcc.Upload(id="epsilon-reference-upload", className="upload-box compact-upload",
+                                   children=html.Div("Drop / choose stable ε export"), multiple=False),
+                        html.Div(id="epsilon-input-message", className="message"),
+                        html.Button("Clear ε inputs", id="clear-epsilon-inputs", className="button button-secondary"),
+                        html.Label("Spectral uncertainty to propagate"),
+                        dcc.Dropdown(id="reconstruction-error-basis", value="sd", clearable=False,
+                                     options=[{"label": "Replicate SD", "value": "sd"},
+                                              {"label": "SEM of the mean", "value": "sem"}]),
+                        html.Small("Use the triplicate reference ε export, or calculate it in Data. "
+                                   "The UV–Vis PSS measurement needs no uncertainty input. "
+                                   "The shared-reference calibration envelope propagates reference "
+                                   "SD/SEM and optional NMR composition uncertainty (default 1 percentage point)."),
+                    ]),
                     html.Button("Reconstruct", id="reconstruct-isomer", disabled=True,
                                 className="button button-secondary"),
                     dcc.Checklist(id="show-reconstructed-isomer", value=["on"],
@@ -565,9 +598,9 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     dcc.Dropdown(id="csv-export-kind", clearable=False, value="processed",
                                  options=[
                                      {"label": "Processed dataset / calculated ε", "value": "processed"},
-                                     {"label": "Reconstructed pure isomer (absorbance)", "value": "isomer"},
+                                     {"label": "Reconstructed metastable spectrum", "value": "isomer"},
                                      {"label": "Wavelength slice", "value": "slice"},
-                                     {"label": "Reactant + NMR-derived product ε", "value": "nmr"},
+                                     {"label": "Stable + reconstructed ε (pair)", "value": "nmr"},
                                  ]),
                     html.Label("CSV file name (optional)"),
                     dcc.Input(id="save-filename", type="text",
@@ -590,7 +623,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     html.Div(id="epsilon-save-message", className="message"),
                     dcc.ConfirmDialog(id="confirm-epsilon-overwrite"),
                     html.Details(className="nested-tool", children=[
-                        html.Summary("NMR CSV options"),
+                        html.Summary("Reconstruction ε CSV options"),
                     html.Div(className="export-mode-control", children=[
                         dcc.Checklist(
                             id="nmr-export-raw", value=[], className="toggle-control",
@@ -600,7 +633,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                    "The raw audit column is always preserved."),
                     ]),
                     html.Label("CSV file names (optional)"),
-                    html.Div(className="input-row", children=[
+                    html.Div(className="input-row nmr-filename-row", children=[
                         dcc.Input(id="nmr-reactant-filename", type="text",
                                   placeholder="Reactant file name"),
                         dcc.Input(id="nmr-product-filename", type="text",
@@ -631,16 +664,15 @@ window.autoqySaveText = (filename, text, mimeType) => {
                         ]),
                         image_export_options("include-slice-title", "include-slice-legend",
                                              "origin-slice-export", "show-slice-export-grid", "zero-slice-export-y"),
-                        html.Label("NMR-guided PSS subtraction"),
+                        html.Label("Reconstructed ε"),
                         html.Div(className="plot-download-actions", children=[
                             html.Button("Save PNG", id="save-nmr-png", className="button button-secondary compact-button"),
                             html.Button("Save SVG", id="save-nmr-svg", className="button button-secondary compact-button"),
                         ]),
                     ]),
                 ]),
-                html.Details(open=False, className="panel tool-details", children=[
-                    html.Summary([html.Span("6 · Optional", className="step-label"),
-                                  "NMR-guided PSS subtraction", info_popup(
+                html.Details(id="calibrated-reconstruction-inputs", open=False, className="nested-tool", children=[
+                    html.Summary(["Calibrated absorbance inputs", info_popup(
                                       "Load one UV–Vis dataset containing reactant and final PSS. "
                                       "After shared normalization, product ε is reconstructed as "
                                       "(PSS − x · reactant) / (1 − x), where x is the reactant fraction at PSS."
@@ -689,15 +721,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                         ]),
                         html.Div(id="nmr-processing-message", className="message"),
                     ]),
-                    html.Div(className="input-row", children=[
-                        html.Div([html.Label("Reactant in final PSS (%)"),
-                                  dcc.Input(id="nmr-reactant-percent", type="number",
-                                            value=10, min=0, max=99.999, step="any")]),
-                        html.Div([html.Label("NMR error (%)"),
-                                  dcc.Input(id="nmr-error-percent", type="number",
-                                            value=1, min=0, step="any")]),
-                    ]),
-                    html.Button("Clear NMR spectra", id="clear-nmr",
+                    html.Button("Clear UV–Vis pair", id="clear-nmr",
                                 className="button button-secondary", disabled=True),
                     html.Div(id="nmr-load-message", className="message"),
                     html.Div(id="nmr-result-message", className="warning-copy"),
@@ -723,7 +747,9 @@ window.autoqySaveText = (filename, text, mimeType) => {
                             html.Div(className="plot-option-menus", children=[
                                 html.Details(className="plot-options", children=[
                                     html.Summary("Legend options"),
-                                    html.Small("Choose Legend beside each loaded spectrum."),
+                                    dcc.Checklist(id="edit-legend", value=[], className="toggle-control",
+                                                  options=[{"label": "Enable legend editing", "value": "on"}]),
+                                    html.Small("Edit names and Show controls in Loaded spectra."),
                                     html.Div(className="legend-action-buttons", children=[
                                         html.Button(
                                             "Show all", id="show-all-legends", disabled=True,
@@ -819,7 +845,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 html.Section(id="nmr-plot-panel", className="plot-panel", style={"display": "none"},
                              children=[
                                  html.Div(className="plot-toolbar nmr-plot-toolbar", children=[
-                                     html.Strong("NMR-guided PSS subtraction"),
+                                     html.Strong("Reconstructed metastable ε"),
                                  ]),
                                  html.Div(id="nmr-image-message", className="image-export-message"),
                                  dcc.Graph(
@@ -829,11 +855,28 @@ window.autoqySaveText = (filename, text, mimeType) => {
                              ]),
                 html.Section(className="panel result-summary", children=[
                     html.Div(className="section-title-row", children=[
-                        html.H2("Result"), info_popup(
-                            "Reports whether ε can be calculated or exported and highlights "
-                            "missing concentration, preprocessing, or non-negativity requirements."
+                        html.H2("Displayed data"), info_popup(
+                            "Spreadsheet view of the curves in the selected plot, including "
+                            "current treatment, legend names, and reconstruction. Pages contain "
+                            "25 rows to keep large datasets responsive. CSV exports remain in Output."
                         ),
                     ]),
+                    dcc.Dropdown(id="data-sheet-plot", value="main", clearable=False,
+                                 options=[{"label": "Main spectra", "value": "main"},
+                                          {"label": "Wavelength slice", "value": "slice"},
+                                          {"label": "Reconstructed ε", "value": "nmr"}]),
+                    html.Div(id="data-sheet-message", className="helper-text"),
+                    dash_table.DataTable(
+                        id="displayed-data-sheet", columns=[], data=[],
+                        page_action="custom", page_current=0, page_size=25, page_count=0,
+                        style_table={"overflowX": "auto", "maxWidth": "100%"},
+                        style_cell={"fontFamily": "Consolas, monospace", "fontSize": 12,
+                                    "textAlign": "right", "padding": "6px",
+                                    "minWidth": "110px", "maxWidth": "240px",
+                                    "overflow": "hidden", "textOverflow": "ellipsis"},
+                        style_header={"fontWeight": "bold", "backgroundColor": "#f1f3f5",
+                                      "whiteSpace": "normal", "height": "auto", "overflowWrap": "anywhere"},
+                    ),
                     html.Div(id="result-message", className="helper-text"),
                 ]),
                 html.Details(open=False, className="panel tool-details error-panel", children=[
@@ -851,8 +894,10 @@ window.autoqySaveText = (filename, text, mimeType) => {
         dcc.Store(id="kinetics-start-store"),
         dcc.Store(id="epsilon-store"),
         dcc.Store(id="processed-store"),
+        dcc.Store(id="sheet-visibility-store", data={}),
         dcc.Store(id="isomer-request-store"),
         dcc.Store(id="isomer-export-ready-store"),
+        dcc.Store(id="processed-export-ready-store"),
         dcc.Store(id="nmr-export-ready-store"),
         dcc.Store(id="session-generation", data=generation),
         dcc.Location(id="session-reload", refresh=True),
@@ -871,6 +916,25 @@ window.autoqySaveText = (filename, text, mimeType) => {
             children = getattr(root, "children", None)
             if children is not None:
                 yield from components(children)
+
+    # One reconstruction panel; retain the legacy calibration route as an input mode.
+    layout_components = {getattr(item, "id", None): item for item in components(app.layout)
+                         if isinstance(getattr(item, "id", None), str)}
+    panel = layout_components["reconstruction-panel"]
+    calibrated = layout_components["calibrated-reconstruction-inputs"]
+    for item in components(app.layout):
+        if isinstance(getattr(item, "children", None), list) and calibrated in item.children:
+            item.children.remove(calibrated)
+            break
+    panel.children.append(calibrated)
+    calibrated.style = {"display": "none"}
+    result_message = layout_components["nmr-result-message"]
+    calibrated.children.remove(result_message)
+    panel.children.append(result_message)
+    reference = layout_components["isomer-reference"]
+    start = panel.children.index(reference) - 1
+    selection = panel.children[start:start + 4]
+    panel.children[start:start + 4] = [html.Div(id="absorbance-reconstruction-inputs", children=selection)]
 
     # Persist inputs and original data only; plots and derived matrices are rebuilt.
     controls = {
@@ -1213,41 +1277,82 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Output("reconstruct-isomer", "disabled"),
         Input("dataset-store", "data"),
         State("isomer-reference", "value"), State("isomer-mixture", "value"),
+        Input("reconstruction-mode", "value"), Input("nmr-spectra-store", "data"),
+        Input("epsilon-store", "data"),
     )
-    def isomer_choices(data, current_reference=None, current_mixture=None):
+    def isomer_choices(data, current_reference=None, current_mixture=None,
+                       mode="absorbance", pair=None, epsilon=None):
         labels = data.get("labels", []) if data else []
         options = [{"label": f"{i + 1} · {label}", "value": i}
                    for i, label in enumerate(labels)]
         reference = current_reference if current_reference in range(len(labels)) else (0 if labels else None)
         mixture = current_mixture if current_mixture in range(len(labels)) else (len(labels) - 1 if labels else None)
-        return options, options, reference, mixture, len(labels) < 2
+        disabled = len(labels) < 2
+        if mode == "epsilon":
+            disabled = not (pair and pair.get("reference") and pair.get("mixture"))
+        elif mode == "calibrated":
+            disabled = not (pair and "reactant_absorbance" in pair and (epsilon or pair.get("reference")))
+        return options, options, reference, mixture, disabled
+
+    @app.callback(
+        Output("absorbance-reconstruction-inputs", "style"),
+        Output("epsilon-reconstruction-inputs", "style"),
+        Output("calibrated-reconstruction-inputs", "style"),
+        Output("reconstruction-description", "children"), Input("reconstruction-mode", "value"),
+    )
+    def reconstruction_inputs(mode):
+        descriptions = {
+            "absorbance": "Same total concentration and path length are required. Current main preprocessing applies; no peak normalization.",
+            "epsilon": "Load stable and mixture/PSS AutoQY ε exports. Their concentrations may differ because each ε is already concentration-corrected. Imported means and errors are used as saved.",
+            "calibrated": "Use triplicate reference ε (uploaded below or calculated in Data), UV–Vis reactant/PSS spectra at equal total concentration and path length, and NMR composition. Reference ε and composition uncertainties are propagated; PSS measurement uncertainty is not included.",
+        }
+        return ({"display": "block" if mode == "absorbance" else "none"},
+                {"display": "block" if mode == "calibrated" else "none"},
+                {"display": "block" if mode == "calibrated" else "none"}, descriptions.get(mode, ""))
 
     @app.callback(
         Output("isomer-request-store", "data"),
         Input("reconstruct-isomer", "n_clicks"), Input("dataset-store", "data"),
         Input("isomer-reference", "value"), Input("isomer-mixture", "value"),
         Input("isomer-percent", "value"), State("isomer-request-store", "data"),
+        Input("reconstruction-mode", "value"), Input("nmr-error-percent", "value"),
+        Input("reconstruction-error-basis", "value"), Input("nmr-spectra-store", "data"),
         prevent_initial_call=True,
     )
-    def request_isomer(_, data, reference, mixture, percent, current=None):
-        if ctx.triggered_id != "reconstruct-isomer" or not data:
-            if (recovered and recovered.get("isomer_request")
-                    and data == recovered.get("dataset")):
-                saved = recovered["isomer_request"]
-                if (reference, mixture, percent) == (saved["reference"], saved["mixture"], saved["percent"]):
-                    return saved
-            if (ctx.triggered_id != "dataset-store" and current
-                    and (reference, mixture, percent) ==
-                    (current["reference"], current["mixture"], current["percent"])):
+    def request_isomer(_, data, reference, mixture, percent, current=None,
+                       mode="absorbance", error=0, basis="sd", pair=None):
+        if mode != "absorbance":
+            candidate = {"mode": mode, "percent": percent, "error_percent": error, "error_basis": basis}
+            if ctx.triggered_id == "reconstruct-isomer":
+                return candidate
+            if current == candidate and (ctx.triggered_id != "nmr-spectra-store" or
+                                         (recovered and pair == recovered.get("nmr"))):
                 return no_update
             return None
-        return {"reference": reference, "mixture": mixture, "percent": percent}
+        if ctx.triggered_id != "reconstruct-isomer" or not data:
+            if (recovered and recovered.get("isomer_request")
+                    and recovered["isomer_request"].get("mode", "absorbance") == "absorbance"
+                    and data == recovered.get("dataset")):
+                saved = recovered["isomer_request"]
+                if (reference, mixture, percent, error or 0) == (saved["reference"], saved["mixture"], saved["percent"], saved.get("error_percent", 0)):
+                    return saved
+            if (ctx.triggered_id != "dataset-store" and current
+                    and (reference, mixture, percent, error or 0) ==
+                    (current.get("reference"), current.get("mixture"), current.get("percent"), current.get("error_percent", 0))):
+                return no_update
+            return None
+        result = {"reference": reference, "mixture": mixture, "percent": percent}
+        if error:
+            result["error_percent"] = error
+        return result
 
     @app.callback(
         Output("isomer-message", "children"), Output("isomer-export-ready-store", "data"),
         Input("processed-store", "data"), Input("isomer-request-store", "data"),
     )
     def isomer_status(data, request):
+        if request and request.get("mode", "absorbance") != "absorbance":
+            return "Review the reconstructed ε plot and its uncertainty below.", False
         if not data or not request:
             return "Select two spectra, enter the mixture composition and click Reconstruct.", True
         try:
@@ -1259,6 +1364,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 message += f" Warning: {negative} negative value(s) retained; check composition and baseline."
             if float(request["percent"]) < 5:
                 message += " Warning: a small metastable fraction strongly amplifies noise."
+            if request.get("error_percent"):
+                message += " Composition-only uncertainty is shown; absorbance measurement errors are unavailable."
             return message, False
         except (ValueError, TypeError) as error:
             return f"Reconstruction unavailable: {error}", True
@@ -1368,7 +1475,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Output("epsilon-plot", "figure"), Output("result-message", "children"),
         Output("concentration-message", "children"), Output("smoothing-message", "children"),
         Output("epsilon-store", "data"), Output("processed-store", "data"),
-        Output("export-epsilon", "disabled"), Output("preview-error", "children"),
+        Output("processed-export-ready-store", "data"), Output("preview-error", "children"),
         Input("dataset-store", "data"), Input("wavelength-low", "value"),
         Input("wavelength-high", "value"), Input("baseline-enabled", "value"),
         Input("baseline-low", "value"), Input("baseline-high", "value"),
@@ -1423,6 +1530,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 legend_names, data["labels"], data.get("legend_names"),
                 legend_name_ids,
             )
+            processed_data["legend_names"] = plot_labels
             legend_visibility = _legend_visibility(
                 legend_values, len(plot_labels), data.get("legend_visibility"),
                 legend_value_ids,
@@ -1501,7 +1609,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
             return (
                 figure,
                 result_message, concentration_message, smoothing_message,
-                _pack_epsilon(result, data["labels"]), processed_data, False, "",
+                _pack_epsilon(result, plot_labels), processed_data, False, "",
             )
         except Exception as error:
             return (_empty(go, "Preview unavailable; open Python errors below."),
@@ -1609,16 +1717,58 @@ window.autoqySaveText = (filename, text, mimeType) => {
             return ("Save failed.", False, "", f"Export error: {type(error).__name__}: {error}")
 
     @app.callback(
+        Output("nmr-spectra-store", "data", allow_duplicate=True),
+        Output("epsilon-input-message", "children"),
+        Input("epsilon-reference-upload", "contents"),
+        Input("clear-epsilon-inputs", "n_clicks"),
+        State("epsilon-reference-upload", "filename"),
+        State("nmr-spectra-store", "data"), prevent_initial_call=True,
+    )
+    def load_reconstruction_epsilon(reference_content, _, reference_name, current):
+        if ctx.triggered_id == "clear-epsilon-inputs":
+            pair = deepcopy(current or {})
+            pair.pop("reference", None)
+            return pair or None, "Reference ε cleared; UV–Vis spectra retained."
+        try:
+            if not reference_content:
+                return no_update, "Choose an AutoQY ε CSV for the selected input."
+            snapshot = _load_reconstruction_epsilon(reference_content, reference_name)
+            pair = deepcopy(current or {})
+            pair["kind"] = "calibrated"
+            pair["reference"] = snapshot
+            return pair, f"Reference ε: {reference_name}. Load UV–Vis reactant/PSS spectra below."
+        except Exception as error:
+            return no_update, f"ε input could not be loaded: {error}"
+
+    @app.callback(
+        Output("export-epsilon", "disabled"), Input("csv-export-kind", "value"),
+        Input("processed-store", "data"), Input("epsilon-store", "data"),
+        Input("nmr-result-store", "data"), Input("isomer-request-store", "data"),
+        Input("wavelength-slice-store", "data"),
+    )
+    def csv_ready(kind, processed, epsilon, reconstruction, request, slice_data):
+        if kind == "isomer":
+            return not ((request and request.get("mode", "absorbance") == "absorbance" and processed)
+                        or reconstruction)
+        if kind == "nmr":
+            return not (reconstruction and (epsilon or reconstruction.get("reference_epsilon")))
+        if kind == "slice":
+            return not slice_data
+        return not processed
+
+    @app.callback(
         Output("nmr-spectra-store", "data"), Output("nmr-load-message", "children"),
         Output("nmr-upload", "contents"), Output("nmr-upload", "filename"),
         Output("clear-nmr", "disabled"), Output("nmr-error", "children"),
         Input("nmr-upload", "contents"), Input("clear-nmr", "n_clicks"),
         State("nmr-upload", "filename"),
+        State("nmr-spectra-store", "data"),
         prevent_initial_call=True,
     )
-    def load_nmr(contents, _, filenames):
+    def load_nmr(contents, _, filenames, current=None):
         if ctx.triggered_id == "clear-nmr":
-            return None, "NMR spectra cleared.", None, None, True, ""
+            retained = {"kind": "calibrated", "reference": current["reference"]} if current and current.get("reference") else None
+            return retained, "UV–Vis spectra cleared; reference ε retained.", None, None, True, ""
         try:
             if not contents:
                 return None, "Choose one dataset containing at least two spectra.", no_update, no_update, True, ""
@@ -1634,6 +1784,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
             if dataset.absorbance.shape[1] < 2:
                 raise ValueError("The NMR dataset must contain at least two spectra")
             return ({
+                "kind": "calibrated",
+                **({"reference": current["reference"]} if current and current.get("reference") else {}),
                 "filename": filenames,
                 "reactant_wavelengths": dataset.wavelengths.tolist(),
                 "reactant_absorbance": dataset.absorbance[:, 0].tolist(),
@@ -1652,24 +1804,60 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Output("nmr-export-ready-store", "data"), Output("nmr-result-message", "className"),
         Output("nmr-processing-message", "children"),
         Input("nmr-spectra-store", "data"), Input("epsilon-store", "data"),
-        Input("nmr-reactant-percent", "value"), Input("nmr-error-percent", "value"),
+        Input("isomer-percent", "value"), Input("nmr-error-percent", "value"),
         Input("nmr-baseline-enabled", "value"),
         Input("nmr-baseline-low", "value"), Input("nmr-baseline-high", "value"),
         Input("nmr-smoothing-method", "value"),
         Input("nmr-savgol-window", "value"), Input("nmr-savgol-order", "value"),
+        Input("reconstruction-mode", "value"), Input("reconstruction-error-basis", "value"),
+        Input("isomer-request-store", "data"),
+        Input("show-reconstructed-isomer", "value"),
     )
     def calculate_nmr(nmr_data, epsilon_data, reactant_percent, error_percent,
                       baseline_enabled, baseline_low, baseline_high, smoothing_method,
-                      sg_width, sg_order):
-        if not nmr_data:
+                      sg_width, sg_order, mode="calibrated", basis="sd", request=None, visible=None):
+        if mode == "absorbance" or not request or request.get("mode") != mode:
+            return (_empty(go, "Choose reconstruction inputs and click Reconstruct"), {"display": "none"},
+                    "", None, True, "status-message", "")
+        if mode == "epsilon":
+            try:
+                data = _reconstruct_epsilon_pair(nmr_data, request["percent"],
+                                                 request.get("error_percent", 0), request.get("error_basis", basis))
+                figure = _epsilon_reconstruction_figure(go, data)
+                if visible is not None and "on" not in visible:
+                    for trace in figure.data:
+                        if trace.legendgroup == "metastable":
+                            trace.visible = "legendonly"
+                message = (f"Metastable ε with propagated {data['error_basis'].upper()} and composition uncertainty; "
+                           "independent errors, first-order approximation. No peak normalization. "
+                           f"Stable: {data['reference_name']} · mixture: {data['mixture_name']}.")
+                if np.any(np.asarray(data["product"]) < 0):
+                    message += " Negative values retained; review composition and spectra."
+                if request["percent"] < 5 or request.get("error_percent", 0) > min(request["percent"], 100 - request["percent"]):
+                    message += " Caution: small fractions or boundary-reaching composition errors weaken the linear approximation."
+                return (figure, {"display": "block"}, message, data, False,
+                        "status-message status-ok", "Imported spectra and uncertainty curves are used as saved.")
+            except Exception as error:
+                return (_empty(go, "Reconstruction unavailable"), {"display": "block"},
+                        f"Reconstruction error: {error}", None, True, "status-message status-stop", "")
+        if not nmr_data or "reactant_wavelengths" not in nmr_data:
             return (_empty(go, "Load reactant and PSS spectra"), {"display": "none"},
                     "", None, True, "status-message", "Preprocessing is off.")
+        if nmr_data.get("reference"):
+            epsilon_data = nmr_data["reference"]["epsilon"]
         if not epsilon_data:
             return (_empty(go, "Calculate or reload reactant ε first"), {"display": "block"},
                     "Reactant ε is required before NMR subtraction.", None, True,
                     "status-message status-warning", "Preprocessing is waiting for reactant ε.")
         try:
             epsilon_result, _ = _unpack_epsilon(epsilon_data)
+            reference_error = np.asarray(epsilon_result.standard_error if basis == "sem"
+                                         else epsilon_result.standard_deviation, float)
+            if not np.isfinite(reference_error).all() or np.any(reference_error < 0):
+                raise ValueError(f"Reference {basis.upper()} is unavailable; load an ε export with replicate errors")
+            epsilon_result = EpsilonResult(epsilon_result.wavelengths, epsilon_result.absorbance,
+                epsilon_result.concentrations_m, epsilon_result.path_lengths_cm, epsilon_result.individual,
+                epsilon_result.mean, reference_error, epsilon_result.standard_error)
             low = max(float(np.min(nmr_data["reactant_wavelengths"])),
                       float(np.min(nmr_data["pss_wavelengths"])))
             high = min(float(np.max(nmr_data["reactant_wavelengths"])),
@@ -1693,7 +1881,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
             )
             result = reconstruct_product_from_nmr(
                 target, reactant, pss, epsilon_result,
-                reactant_percent, error_percent,
+                100 - float(request["percent"]), request.get("error_percent", error_percent),
             )
             minimum = float(np.min(result.product))
             figure = _nmr_figure(
@@ -1702,6 +1890,10 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     np.array_equal(raw_reactant, reactant) and np.array_equal(raw_pss, pss)
                 ),
             )
+            if visible is not None and "on" not in visible:
+                for trace in figure.data:
+                    if trace.name == "Product ε" or trace.legendgroup == "product-error":
+                        trace.visible = "legendonly"
             if minimum < -500:
                 message = (f"HARD STOP: reconstructed product ε reaches {minimum:.4g} M⁻¹ cm⁻¹, "
                            "below the −500 tolerance. Review baseline, smoothing, PSS composition, "
@@ -1726,14 +1918,54 @@ window.autoqySaveText = (filename, text, mimeType) => {
             else:
                 message = ("Product ε reconstructed from normalized "
                            "(PSS − x · reactant) / (1 − x). The band combines the "
-                           "reactant ε scale SD and selected NMR error through minimum and maximum values.")
+                           f"reference ε scale {basis.upper()} and NMR composition error through minimum/maximum values. "
+                           "PSS measurement uncertainty is not included.")
                 status = "status-message status-ok"
-            return (figure, {"display": "block"}, message, _pack_nmr(result), False,
+            message += f" Shared-reference {basis.upper()} and composition envelope; PSS measurement error is excluded."
+            packed = _pack_nmr(result) | {"kind": "calibrated", "reference_epsilon": epsilon_data,
+                       "error_basis": basis, "composition_error": request.get("error_percent", error_percent),
+                       "uncertainty_method": "shared-reference calibration envelope; PSS error excluded"}
+            return (figure, {"display": "block"}, message, packed, False,
                     status, processing_message)
         except Exception as error:
             return (_empty(go, "NMR reconstruction unavailable"), {"display": "block"},
                     f"NMR reconstruction error: {type(error).__name__}: {error}", None, True,
                     "status-message status-stop", "Preprocessing could not be applied.")
+
+    @app.callback(
+        Output("displayed-data-sheet", "columns"), Output("displayed-data-sheet", "data"),
+        Output("displayed-data-sheet", "page_count"), Output("data-sheet-message", "children"),
+        Output("displayed-data-sheet", "page_current"),
+        Output("sheet-visibility-store", "data"),
+        Input("data-sheet-plot", "value"), Input("displayed-data-sheet", "page_current"),
+        Input("displayed-data-sheet", "page_size"), Input("epsilon-plot", "figure"),
+        Input("wavelength-slice-plot", "figure"), Input("nmr-plot", "figure"),
+        Input("epsilon-plot", "restyleData"), Input("wavelength-slice-plot", "restyleData"),
+        Input("nmr-plot", "restyleData"), State("sheet-visibility-store", "data"),
+    )
+    def displayed_data(kind, page, size, main, slice_figure, nmr,
+                       main_restyle, slice_restyle, nmr_restyle, visibility):
+        visibility = deepcopy(visibility or {})
+        plots = {"epsilon-plot": "main", "wavelength-slice-plot": "slice", "nmr-plot": "nmr"}
+        restyles = {"main": main_restyle, "slice": slice_restyle, "nmr": nmr_restyle}
+        for prop in ctx.triggered_prop_ids:
+            identity, property_name = prop.split(".", 1)
+            target = plots.get(identity)
+            if target and property_name == "figure":
+                visibility[target] = {}
+            elif target and property_name == "restyleData":
+                restyle = restyles[target]
+                if restyle and "visible" in restyle[0]:
+                    states = restyle[0]["visible"]
+                    states = states if isinstance(states, list) else [states]
+                    if not states:
+                        continue
+                    for index, trace in enumerate(restyle[1]):
+                        visibility.setdefault(target, {})[str(trace)] = states[index % len(states)]
+        result = _figure_sheet_page({"main": main, "slice": slice_figure, "nmr": nmr}.get(kind),
+                                    page, size, visibility.get(kind))
+        current_page = min(max(0, int(page or 0)), max(0, result[2] - 1))
+        return (*result, current_page, visibility)
 
     return app
 
@@ -2192,20 +2424,179 @@ def _csv_filename(value, default):
     return value
 
 
+def _figure_sheet_page(figure, page=0, size=25, visibility=None):
+    """Return only one sheet page from the actual plotted numerical curves."""
+    if hasattr(figure, "to_plotly_json"):
+        figure = figure.to_plotly_json()
+    figure = figure or {}
+    def values(value):
+        if isinstance(value, dict) and "bdata" in value:
+            dtype = np.dtype(value["dtype"])
+            if dtype.kind not in "biuf":
+                raise ValueError("Non-numeric plot array")
+            return np.frombuffer(base64.b64decode(value["bdata"]), dtype=dtype).astype(float)
+        return np.asarray(value if value is not None else [], dtype=float).reshape(-1)
+    series = []
+    coordinates = np.array([], dtype=float)
+    names = {}
+    for trace_index, trace in enumerate(figure.get("data", [])):
+        if (visibility or {}).get(str(trace_index), trace.get("visible")) in (False, "legendonly"):
+            continue
+        x, y = values(trace.get("x")), values(trace.get("y"))
+        if not len(x) or len(x) != len(y):
+            continue
+        mask = np.isfinite(x)
+        x, y = x[mask], y[mask]
+        order = np.argsort(x, kind="stable")
+        x, y = x[order], y[order]
+        if not np.array_equal(coordinates, x):
+            coordinates = np.union1d(coordinates, x)
+        name = trace.get("name") or ("Lower uncertainty bound" if trace.get("legendgroup")
+                                      else f"Curve {len(series) + 1}")
+        axis = trace.get("yaxis", "y")
+        axis_title = figure.get("layout", {}).get("yaxis" + axis[1:], {}).get("title", {})
+        unit = axis_title.get("text") if isinstance(axis_title, dict) else axis_title
+        label = f"{name} [{unit}]" if unit else name
+        names[label] = names.get(label, 0) + 1
+        if names[label] > 1:
+            label += f" ({names[label]})"
+        series.append((label, x, y))
+    if not series:
+        return [], [], 0, "No plotted data yet."
+    title = figure.get("layout", {}).get("xaxis", {}).get("title", {})
+    x_label = (title.get("text") if isinstance(title, dict) else title) or "Wavelength (nm)"
+    columns = [{"name": x_label, "id": "x", "type": "numeric"}] + [
+        {"name": label, "id": f"c{index}", "type": "numeric",
+         "format": {"specifier": ".8g"}} for index, (label, _, _) in enumerate(series)]
+    size = max(1, min(int(size or 25), 100))
+    count = int(np.ceil(len(coordinates) / size))
+    page = min(max(0, int(page or 0)), max(0, count - 1))
+    selected = coordinates[page * size:(page + 1) * size]
+    rows = [{"x": float(coordinate)} for coordinate in selected]
+    for column, (_, x, y) in enumerate(series):
+        positions = np.searchsorted(x, selected)
+        for row, coordinate, position in zip(rows, selected, positions):
+            value = y[position] if position < len(x) and x[position] == coordinate else np.nan
+            row[f"c{column}"] = float(value) if np.isfinite(value) else None
+    return columns, rows, count, f"{len(coordinates):,} rows · {len(series)} plotted curves. CSV saving is in Output."
+
+
+def _load_reconstruction_epsilon(content, filename):
+    payload = base64.b64decode(content.split(",", 1)[1], validate=True)
+    result, labels = load_epsilon_table(payload.decode("utf-8-sig"))
+    packed = _pack_epsilon(result, labels)
+    for key in ("sd", "sem"):
+        packed[key] = [float(value) if np.isfinite(value) else None for value in packed[key]]
+    return {"filename": filename, "epsilon": packed}
+
+
+def _reconstruct_epsilon_pair(pair, percent, composition_error=0, basis="sd"):
+    if not pair or pair.get("kind") != "epsilon" or not all(pair.get(role) for role in ("reference", "mixture")):
+        raise ValueError("Load both stable and mixture/PSS AutoQY ε CSVs")
+    if basis not in ("sd", "sem"):
+        raise ValueError("Choose SD or SEM for spectral uncertainty")
+    stable = pair["reference"]["epsilon"]
+    mixture = pair["mixture"]["epsilon"]
+    for curve in (stable, mixture):
+        error = np.asarray(curve[basis], float)
+        if not np.isfinite(error).all() or np.any(error < 0):
+            raise ValueError(f"The selected {basis.upper()} is unavailable or invalid. Export replicate ε measurements; unknown errors cannot be treated as zero.")
+    stable_axis, mixture_axis = np.asarray(stable["wavelengths"]), np.asarray(mixture["wavelengths"])
+    low, high = max(stable_axis.min(), mixture_axis.min()), min(stable_axis.max(), mixture_axis.max())
+    target = np.sort(stable_axis[(stable_axis >= low) & (stable_axis <= high)])
+    if len(target) < 2:
+        raise ValueError("The ε spectra need at least two wavelengths in common; extrapolation is not allowed")
+    reference = _interpolate_to_axis(stable_axis, stable["mean"], target)
+    pss = _interpolate_to_axis(mixture_axis, mixture["mean"], target)
+    reference_error = _interpolate_to_axis(stable_axis, stable[basis], target)
+    pss_error = _interpolate_to_axis(mixture_axis, mixture[basis], target)
+    product, error = reconstruct_spectrum_with_uncertainty(
+        reference, pss, percent, reference_error, pss_error, composition_error)
+    return {"kind": "epsilon", "wavelengths": target.tolist(),
+            "reference": reference.tolist(), "mixture": pss.tolist(),
+            "reference_error": reference_error.tolist(), "mixture_error": pss_error.tolist(),
+            "product": product.tolist(), "product_error": error.tolist(),
+            "product_lower": np.maximum(product - error, 0).tolist(),
+            "product_upper": np.maximum(product + error, 0).tolist(),
+            "error_basis": basis, "percent": percent, "composition_error": composition_error,
+            "reference_name": pair["reference"]["filename"], "mixture_name": pair["mixture"]["filename"],
+            "reference_epsilon": stable}
+
+
+def _epsilon_reconstruction_figure(go, data):
+    x, product, error = data["wavelengths"], np.asarray(data["product"]), np.asarray(data["product_error"])
+    figure = go.Figure()
+    for values, name, color in ((data["reference"], f"Stable · {data['reference_name']}", PLOT_BLUE),
+                                (data["mixture"], f"Mixture · {data['mixture_name']}", PLOT_ORANGE)):
+        figure.add_trace(go.Scatter(x=x, y=values, name=name, mode="lines", line={"color": color}))
+    figure.add_trace(go.Scatter(x=x, y=product - error, name="Metastable lower uncertainty",
+                               mode="lines", line={"width": 0}, showlegend=False, legendgroup="metastable"))
+    figure.add_trace(go.Scatter(x=x, y=product + error, name="Metastable upper uncertainty",
+                               mode="lines", fill="tonexty", fillcolor="rgba(138,90,155,.2)",
+                               line={"width": 0}, showlegend=False, legendgroup="metastable"))
+    figure.add_trace(go.Scatter(x=x, y=product, name="Reconstructed metastable ε", mode="lines",
+                               line={"color": PLOT_PURPLE, "width": 3}, legendgroup="metastable"))
+    figure.update_xaxes(title_text="Wavelength (nm)")
+    figure.update_yaxes(title_text="ε (M⁻¹ cm⁻¹)")
+    return _style(figure, 520)
+
+
+def _reconstruction_epsilon_csv(data, nonnegative=False):
+    import pandas as pd
+    product = np.asarray(data["product"])
+    error = np.asarray(data["product_error"])
+    return pd.DataFrame({
+        "Wavelength_nm": data["wavelengths"],
+        "Product_epsilon_M-1_cm-1": np.maximum(product, 0) if nonnegative else product,
+        "Product_epsilon_raw_M-1_cm-1": product,
+        "Product_propagated_uncertainty_M-1_cm-1": error,
+        "Product_lower_nonnegative_M-1_cm-1": data["product_lower"],
+        "Product_upper_nonnegative_M-1_cm-1": data["product_upper"],
+        "Product_error_lower_M-1_cm-1": error, "Product_error_upper_M-1_cm-1": error,
+        "Stable_epsilon_M-1_cm-1": data["reference"], "Mixture_epsilon_M-1_cm-1": data["mixture"],
+        "Spectral_error_basis": data["error_basis"], "Metastable_percent": data["percent"],
+        "Composition_uncertainty_percentage_points": data["composition_error"],
+        "Uncertainty_assumption": "independent inputs; first-order propagation",
+    }).to_csv(index=False, float_format="%.8e", lineterminator="\n")
+
+
+def _calibrated_reconstruction_csv(data, preserve_negative):
+    import pandas as pd
+    text = export_nmr_subtraction_csv(_unpack_nmr(data), preserve_negative)
+    frame = pd.read_csv(StringIO(text), float_precision="round_trip")
+    frame["Spectral_error_basis"] = data.get("error_basis", "sd")
+    frame["Composition_uncertainty_percentage_points"] = data.get("composition_error", 1)
+    frame["PSS_measurement_uncertainty_included"] = False
+    frame["Uncertainty_method"] = "shared-reference calibration envelope"
+    return frame.to_csv(index=False, float_format="%.8e", lineterminator="\n")
+
+
 def _csv_exports(kind, epsilon_data, processed_data, requested_filename=None,
                  nonnegative=False, isomer=None, slice_data=None, nmr_data=None,
                  nmr_raw=None, reactant_filename=None, product_filename=None):
     if kind == "processed":
         name, text = _export_csv_payload(epsilon_data, processed_data, nonnegative)
     elif kind == "isomer":
+        if isomer and isomer.get("mode", "absorbance") != "absorbance":
+            if not nmr_data:
+                raise ValueError("Reconstruct the metastable ε spectrum before saving")
+            text = (_reconstruction_epsilon_csv(nmr_data, nonnegative) if nmr_data.get("kind") == "epsilon"
+                    else _calibrated_reconstruction_csv(nmr_data, not nonnegative))
+            return [(_csv_filename(requested_filename, "reconstructed-metastable-epsilon.csv"), text)]
         values = _reconstructed_isomer(processed_data, isomer)
         if nonnegative:
             values = np.maximum(values, 0)
         dataset = SpectralDataset(_unpack(processed_data).wavelengths,
                                   np.array([0.0]), values[:, None], "csv")
         name = "reconstructed-metastable-isomer.csv"
-        text = export_smoothed_text(dataset, dataset.absorbance, "csv").replace(
-            "Wavelength,0", "Wavelength,Reconstructed pure metastable isomer", 1)
+        text = export_smoothed_text(dataset, dataset.absorbance, "csv",
+                                    labels=["Reconstructed pure metastable isomer"])
+        if isomer.get("error_percent"):
+            uncertainty = _isomer_composition_error(_unpack(processed_data).absorbance, isomer)
+            combined = np.column_stack([dataset.absorbance[:, 0], uncertainty])
+            export = SpectralDataset(dataset.wavelengths, np.array([0., 1.]), combined, "csv")
+            text = export_smoothed_text(export, combined, "csv", labels=[
+                "Reconstructed pure metastable isomer", "Composition-only uncertainty (absorbance)"])
     elif kind == "slice":
         if not slice_data or not slice_data.get("values"):
             raise ValueError("Choose a wavelength before saving a slice CSV")
@@ -2225,13 +2616,19 @@ def _csv_exports(kind, epsilon_data, processed_data, requested_filename=None,
             writer.writerow(["Lifetime standard error", slice_data["lifetime_error"], slice_data["time_unit"]])
         text = stream.getvalue()
     elif kind == "nmr":
+        if nmr_data and nmr_data.get("kind") == "epsilon":
+            result, labels = _unpack_epsilon(nmr_data["reference_epsilon"])
+            return [(_csv_filename(reactant_filename, "epsilon-spectra-reactant.csv"), export_epsilon_csv(result, labels)),
+                    (_csv_filename(product_filename, "epsilon-spectra-product.csv"),
+                     _reconstruction_epsilon_csv(nmr_data, "on" not in (nmr_raw or [])))]
+        epsilon_data = epsilon_data or (nmr_data.get("reference_epsilon") if nmr_data else None)
         if not epsilon_data or not nmr_data:
             raise ValueError("Calculate reactant and NMR-derived ε before saving")
         result, labels = _unpack_epsilon(epsilon_data)
         return [(_csv_filename(reactant_filename, "epsilon-spectra-reactant.csv"),
                  export_epsilon_csv(result, labels)),
                 (_csv_filename(product_filename, "epsilon-spectra-product.csv"),
-                 export_nmr_subtraction_csv(_unpack_nmr(nmr_data), "on" in (nmr_raw or [])))]
+                 _calibrated_reconstruction_csv(nmr_data, "on" in (nmr_raw or [])))]
     else:
         raise ValueError("Select CSV content in Output")
     return [(_csv_filename(requested_filename, name), text)]
@@ -2258,7 +2655,8 @@ def _export_csv_payload(epsilon_data, processed_data, nonnegative=False):
                       if nonnegative else dataset.absorbance)
         return (
             "processed-absorbance.csv",
-            export_smoothed_text(dataset, absorbance, "csv"),
+            export_smoothed_text(dataset, absorbance, "csv", labels=_legend_names(
+                None, processed_data["labels"], processed_data.get("legend_names"))),
         )
     raise ValueError("Process spectral data before exporting")
 
@@ -2407,14 +2805,32 @@ def _reconstructed_isomer(data, request):
         _unpack(data).absorbance, request["reference"], request["mixture"], request["percent"])
 
 
+def _isomer_composition_error(values, request):
+    reference, mixture = int(request["reference"]), int(request["mixture"])
+    _, error = reconstruct_spectrum_with_uncertainty(
+        values[:, reference], values[:, mixture], request["percent"],
+        np.zeros(values.shape[0]), np.zeros(values.shape[0]), request.get("error_percent", 0))
+    return error
+
+
 def _overlay_isomer(go, figure, dataset, processed, request, visible, epsilon=False):
-    if not request or "on" not in (visible or []):
+    if not request or request.get("mode", "absorbance") != "absorbance" or "on" not in (visible or []):
         return
     try:
         values = reconstruct_isomer_absorbance(
             processed, request["reference"], request["mixture"], request["percent"])
     except (ValueError, TypeError):
         return
+    if request.get("error_percent"):
+        error = _isomer_composition_error(processed, request)
+        for bound, label, fill in ((values - error, "Composition uncertainty lower", None),
+                                   (values + error, "Composition uncertainty upper", "tonexty")):
+            band = go.Scatter(x=dataset.wavelengths, y=bound, name=label, mode="lines",
+                              fill=fill, fillcolor="rgba(138,90,155,.2)", line={"width": 0}, showlegend=False)
+            if epsilon:
+                figure.add_trace(band, row=1, col=1)
+            else:
+                figure.add_trace(band)
     trace = go.Scatter(x=dataset.wavelengths, y=values, mode="lines",
                        name="Reconstructed pure metastable isomer",
                        line={"color": PLOT_PURPLE, "width": 3, "dash": "dash"},

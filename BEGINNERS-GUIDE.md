@@ -178,6 +178,17 @@ Here you can:
 
 Changing the displayed name does **not** rename the original file.
 
+Enable name editing through **Legend options → Enable legend editing** above
+the main plot. Name and Show controls then appear in **Loaded spectra**. Saved
+CSV columns use these edited names, or the source spectrum names when unchanged,
+instead of numeric spectrum indices.
+
+The **Displayed data** panel below the plots provides a spreadsheet-like view
+of the selected main, wavelength-slice, or NMR plot. It updates with treatment
+and legend changes, includes visible reconstructed curves and fits, and pages
+through 25 rows at a time. For large sessions it follows the plot's preview
+subset; **Output → Save CSV** still exports the full selected dataset.
+
 ## Large kinetic datasets
 
 When more than 60 spectra are loaded, AutoQY keeps the browser responsive by
@@ -550,7 +561,7 @@ seven spectra. Minimal colors retains the blue initial spectrum, orange final
 spectrum, and grey intermediate curves.
 
 To overlay a pure metastable-isomer spectrum without converting to ε, expand
-**Reconstruct pure isomer**. Select the pure stable-isomer reference and a
+**Reconstruct spectrum**, choose **Loaded absorbance spectra**, and select the pure stable-isomer reference and a
 mixture/PSS spectrum, enter the **metastable** percentage (not the stable
 percentage), then click **Reconstruct**. For example, 20% stable and 80%
 metastable means you enter **80**.
@@ -559,7 +570,7 @@ Both spectra must have been measured at the same total concentration and path
 length. Do not normalize their peaks separately. The calculated curve uses
 the current baseline correction, smoothing, and wavelength range. Toggle
 **Show reconstructed isomer** to include or hide it in the plot and saved
-PNG/SVG figure. In **5 · Output**, choose **Reconstructed pure isomer (absorbance)**
+PNG/SVG figure. In **5 · Output**, choose **Reconstructed metastable spectrum**
 under **CSV content**, then click **Save CSV**. The folder, optional CSV name,
 and negative-value option are all controlled there. The measured spectra remain unchanged.
 
@@ -660,15 +671,17 @@ product_absorptivity.csv
 If irradiation produces a known PSS mixture, AutoQY can reconstruct the product spectrum using an independently measured PSS composition.
 
 <details>
-<summary><strong>NMR-guided PSS subtraction</strong></summary>
+<summary><strong>Reconstruct metastable ε using UV–Vis and NMR</strong></summary>
 
 Expand:
 
 ```text id="5z9n8a"
-6 · Optional → NMR-guided PSS subtraction
+4 · Reconstruction → Reconstruct spectrum → Reference ε + UV–Vis reactant/PSS + NMR
 ```
 
-Load a UV–Vis dataset in which:
+Upload your triplicate stable-reference ε CSV (or calculate it in Data).
+An uploaded reference takes precedence; clear it to use Data ε again.
+Load a UV–Vis irradiation dataset in which:
 
 ```text id="dz1n12"
 First spectrum = pure reactant
@@ -678,13 +691,13 @@ Last spectrum  = final PSS
 Enter:
 
 ```text id="n3kept"
-Reactant in final PSS (%)
+Metastable isomer in mixture (%)
 ```
 
 For example:
 
 ```text id="8bf35r"
-23
+77 (equivalent to 23% stable reactant)
 ```
 
 If $x$ is the reactant fraction at the PSS:
@@ -699,7 +712,9 @@ For $x=0.23$:
 P = \frac{PSS - 0.23R}{0.77}
 ```
 
-You can also enter the NMR uncertainty.
+Choose the reference replicate SD or SEM and enter optional NMR uncertainty
+in percentage points (1σ). The default is 1; enter zero to omit it. Click
+**Reconstruct**. No PSS measurement uncertainty is required or included.
 
 The resulting product ε uncertainty is generally wavelength dependent and asymmetric.
 
@@ -707,16 +722,22 @@ Small negative reconstructed ε values near a zero baseline can arise from noise
 
 Larger negative spectral features may suggest checking the PSS composition, baseline, normalization, or whether more than two species are present.
 
-The NMR panel has its own baseline and Savitzky–Golay controls. It uses the
+The calibrated-input section has baseline and Savitzky–Golay controls. It uses the
 first spectrum as reactant and the last as PSS, regardless of any intermediate
 spectra. By default, the primary product ε export is clipped at zero while a
-raw audit column is retained. In **5 · Output → NMR CSV options**, enable
+raw audit column is retained. In **5 · Output → Reconstruction ε CSV options**, enable
 **Keep negative values in product ε** only
 when negative values should remain in the primary column. Values below
 −500 M⁻¹ cm⁻¹ stop export and should be investigated. Optional reactant and
-product filenames are available there. Select **Reactant + NMR-derived product ε**
+product filenames are available there. Select **Stable + reconstructed ε (pair)**
 under **CSV content**, then click **Save CSV**. Save the NMR plot as PNG or SVG
 through **Output → Save figures**.
+
+Both UV–Vis curves share the same reference normalization and ε scale. The
+uncertainty envelope combines the triplicate ε error with NMR composition
+error; it does not add an invented PSS uncertainty. Missing reference SD/SEM
+is reported rather than assumed zero. The product export records these
+assumptions and can be loaded into Analysis with its uncertainty bounds.
 
 </details>
 

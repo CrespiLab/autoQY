@@ -69,16 +69,17 @@ series.
 ## 3. Derive product ε from the PSS composition
 
 1. Keep the calculated reactant ε loaded in Spectral Treatment.
-2. Expand **6 · Optional — NMR-guided PSS subtraction** and load
+2. Expand **4 · Reconstruction — Reconstruct spectrum**, choose
+   **Reference ε + UV–Vis reactant/PSS + NMR**, and load
    `crespi_group_inputs/source_data/reactant_pss.dat`. Its first spectrum is the pure reactant and
    its last spectrum is the final PSS.
 3. Under **Preprocess reactant and PSS**, apply the same **600–650 nm** baseline
    and **Savitzky–Golay 5 nm / order 3** settings.
-4. Enter **23** for **Reactant in final PSS (%)**.
+4. Enter **77** for **Metastable isomer in mixture (%)** (23% stable reactant).
 5. Enter the experimental NMR uncertainty. The bundled product file uses the
-   GUI default of **1%**. Change this value when a different uncertainty is
+   **1 percentage point** (the default). Enter zero to omit it. Change this value when a different uncertainty is
    justified by the composition measurement.
-6. Inspect the normalized reactant and PSS curves and the reconstructed product
+6. Click **Reconstruct**, then inspect the normalized reactant and PSS curves and the reconstructed product
    ε. The calculation is:
 
    `product = (PSS − 0.23 × reactant) / (1 − 0.23)`
@@ -87,9 +88,9 @@ series.
    −500 M⁻¹ cm⁻¹ remain visible for diagnosis; values below that threshold stop
    export. By default, the primary exported product ε is constrained to
    zero while the raw audit column is retained.
-8. In **5 · Output → NMR CSV options**, set the optional reactant and product file names to
+8. In **5 · Output → Reconstruction ε CSV options**, set the optional reactant and product file names to
    `reactant_absorptivity.csv` and `product_absorptivity.csv`, then select
-   **Reactant + NMR-derived product ε** under **CSV content**, then click **Save CSV**.
+   **Stable + reconstructed ε (pair)** under **CSV content**, then click **Save CSV**.
 
 The product bounds combine the reactant measurement SD with the selected NMR
 composition error. They are therefore asymmetric and wavelength dependent.
@@ -99,17 +100,30 @@ composition error. They are therefore asymmetric and wavelength dependent.
 For a figure-only reconstruction, load your pure stable-isomer reference and
 mixture/PSS spectra into the main Spectral Treatment dataset. Both must have
 the same total concentration and optical path length. Expand **Reconstruct
-pure isomer**, select these two spectra, enter the independently known
+spectrum**, choose **Loaded absorbance spectra**, select these two spectra, enter the independently known
 **metastable** percentage in the mixture, and click **Reconstruct**.
 
 The result is overlaid on the absorbance plot using the current preprocessing.
 **Show reconstructed isomer** controls its visibility in the preview and saved
-PNG/SVG figure. In **5 · Output**, choose **Reconstructed pure isomer (absorbance)**
+PNG/SVG figure. In **5 · Output**, choose **Reconstructed metastable spectrum**
 under **CSV content** and click **Save CSV**. This uses the Output folder and
 file-name settings, preserves negative values unless clamping is enabled,
 and asks before replacement.
 This optional route does not produce the ε files needed for the quantum-yield
 analysis below; use the preceding ε workflow for those inputs.
+
+### Reload the triplicate ε reference
+
+Instead of calculating the three references again, upload
+`generic_inputs/reactant_absorptivity.csv` directly in **Reconstruct spectrum**.
+It supplies the triplicate mean, SD, and SEM. Load `reactant_pss.dat`, apply the
+same preprocessing, choose **Replicate SD** (or SEM when scientifically justified),
+enter 77% metastable and optional 1 percentage point NMR uncertainty, and click
+**Reconstruct**. Only the reference ε error and NMR composition error are
+propagated through the retained shared-reference calibration envelope.
+No PSS measurement error is required or invented. Do not treat kinetics time
+points as replicate measurements. Export assumptions and error basis are
+recorded in the product CSV, which remains readable by Analysis.
 
 ## 4. Build the quantum-yield analysis
 

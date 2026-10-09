@@ -8,7 +8,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
-from autoqy_core.epsilon import EpsilonResult
+from autoqy_core.epsilon import EpsilonResult, calculate_epsilon_statistics, load_epsilon_table
 from autoqy_core.plot_style import COLORBLIND_TRACE_PALETTE
 from autoqy_core.smoother import SpectralDataset, reconstruct_isomer_absorbance
 from autoqy_core.tools.smoother_gui import (
@@ -23,6 +23,7 @@ from autoqy_core.tools.smoother_gui import (
     _epsilon_figure,
     _export_csv_payload,
     _fit_exponential_decay,
+    _figure_sheet_page,
     _loaded_spectrum_rows,
     _pack,
     _pack_epsilon,
@@ -94,14 +95,52 @@ class ProcessedAbsorbanceExportTests(unittest.TestCase):
     def test_processed_absorbance_has_a_csv_export_without_epsilon(self):
         filename, text = _export_csv_payload(None, self.packed)
         self.assertEqual(filename, "processed-absorbance.csv")
-        self.assertTrue(text.startswith("Wavelength,0\n"))
+        self.assertTrue(text.startswith("Wavelength,irradiation\n"))
         self.assertIn("2.00000000e-01", text)
 
     def test_negative_processed_absorbance_can_be_converted_to_zero(self):
         self.packed["absorbance"][1][0] = -0.2
         _, text = _export_csv_payload(None, self.packed, nonnegative=True)
         frame = pd.read_csv(StringIO(text))
-        np.testing.assert_array_equal(frame["0"], [0.1, 0.0, 0.3])
+        np.testing.assert_array_equal(frame["irradiation"], [0.1, 0.0, 0.3])
+
+    def test_csv_headers_use_edited_legends_and_quote_special_characters(self):
+        self.packed["legend_names"] = ['Sample, "edited"']
+        _, text = _export_csv_payload(None, self.packed)
+        frame = pd.read_csv(StringIO(text))
+        self.assertEqual(frame.columns.tolist(), ["Wavelength", 'Sample, "edited"'])
+        np.testing.assert_allclose(frame.iloc[:, 1], self.dataset.absorbance[:, 0])
+        result = calculate_epsilon_statistics(self.dataset.wavelengths, self.dataset.absorbance,
+                                             np.array([0.001]), np.array([1.]))
+        _, text = _export_csv_payload(_pack_epsilon(result, self.packed["legend_names"]), None)
+        restored, labels = load_epsilon_table(text)
+        self.assertEqual(labels, self.packed["legend_names"])
+        np.testing.assert_allclose(restored.absorbance, result.absorbance)
+
+    def test_sheet_pages_only_plotted_data_and_preserves_curve_names(self):
+        x = np.arange(105, dtype=float)
+        figure = {"data": [{"x": x, "y": x * 2, "name": "Edited legend"},
+                           {"x": x, "y": x * 3, "name": "Hidden", "visible": "legendonly"},
+                           {"x": x, "y": x * 4, "name": "Reconstructed pure isomer"}],
+                  "layout": {"xaxis": {"title": {"text": "Wavelength (nm)"}}}}
+        columns, rows, count, message = _figure_sheet_page(figure, 1, 25)
+        self.assertEqual([item["name"] for item in columns],
+                         ["Wavelength (nm)", "Edited legend", "Reconstructed pure isomer"])
+        self.assertEqual(count, 5)
+        self.assertEqual(len(rows), 25)
+        self.assertEqual(rows[0], {"x": 25, "c0": 50, "c1": 100})
+        self.assertIn("105 rows", message)
+        self.assertEqual(len(_figure_sheet_page(figure, 4, 25)[1]), 5)
+        self.assertEqual(len(_figure_sheet_page(figure, visibility={"0": "legendonly"})[0]), 2)
+
+    def test_sheet_accepts_plotly_binary_arrays_and_empty_plots(self):
+        array = np.array([400., 401.], dtype="float64")
+        encoded = {"dtype": "f8", "bdata": base64.b64encode(array.tobytes()).decode()}
+        columns, rows, _, _ = _figure_sheet_page({"data": [{"x": encoded, "y": encoded,
+                                                           "name": "sample"}]})
+        self.assertEqual(rows[1], {"x": 401., "c0": 401.})
+        self.assertEqual(columns[1]["name"], "sample")
+        self.assertEqual(_figure_sheet_page(None)[0:3], ([], [], 0))
 
     def test_negative_absorbance_and_epsilon_can_be_converted_to_zero(self):
         result = EpsilonResult(
@@ -430,6 +469,44 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertEqual(_colors(), list(COLORBLIND_TRACE_PALETTE))
         self.assertEqual(_colors()[0], "#0072B2")
         self.assertEqual(_spectrum_colors(8)[7], _colors()[0])
+
+    def test_legend_edit_toggle_is_in_legend_options_menu(self):
+        menu = next(item for item in _components(self.app.layout)
+                    if isinstance(item, html.Details) and isinstance(item.children[0], html.Summary)
+                    and item.children[0].children == "Legend options")
+        self.assertIn("edit-legend", [getattr(item, "id", None) for item in _components(menu)])
+
+    def test_preview_exports_the_current_legend_names(self):
+        data = _pack(SpectralDataset(np.array([400., 401.]), np.array([0.]),
+                                    np.array([[0.2], [0.4]]), "csv"), ["original"], ["source.csv"])
+        preview = next(value["callback"].__wrapped__ for key, value in self.app.callback_map.items()
+                       if "epsilon-plot.figure" in key)
+        args = (data, 400, 401, [], None, None, "off", 11, 2, [], None,
+                [0.001], [1], [["on"]], ["Edited name"], [], [],
+                None, None, None, [{"type": "legend-spectrum", "index": 0}],
+                [{"type": "legend-name", "index": 0}])
+        result = preview(*args)
+        self.assertEqual(result[4]["labels"], ["Edited name"])
+        self.assertEqual(result[5]["legend_names"], ["Edited name"])
+        for epsilon in (result[4], None):
+            _, text = _export_csv_payload(epsilon, result[5])
+            self.assertIn("Edited name", pd.read_csv(StringIO(text)).columns[1])
+
+    def test_sheet_tracks_legend_clicks_without_losing_previous_visibility(self):
+        callback = next(value["callback"].__wrapped__ for key, value in self.app.callback_map.items()
+                        if "displayed-data-sheet.columns" in key)
+        figure = {"data": [{"x": [400], "y": [1], "name": "First"},
+                           {"x": [400], "y": [2], "name": "Last"}]}
+        token = context_value.set(AttributeDict(triggered_inputs=[{"prop_id": "epsilon-plot.restyleData"}]))
+        try:
+            result = callback("main", 0, 25, figure, None, None,
+                              [{"visible": ["legendonly"]}, [0]], None, None, {})
+            self.assertEqual(result[0][1]["name"], "Last")
+            result = callback("main", 0, 25, figure, None, None,
+                              [{"visible": ["legendonly"]}, [1]], None, None, result[-1])
+            self.assertEqual(result[0], [])
+        finally:
+            context_value.reset(token)
 
     def test_legend_can_show_only_selected_spectrum_traces(self):
         import plotly.graph_objects as go
@@ -955,7 +1032,7 @@ class SpectralGuiTests(unittest.TestCase):
             self.assertTrue(destination.is_file())
             self.assertIn(str(destination), save_result[0])
             frame = pd.read_csv(destination)
-            self.assertEqual(frame["0"].min(), 0.0)
+            self.assertEqual(frame["Custom legend"].min(), 0.0)
 
     def test_epsilon_plot_locks_both_x_axes_to_selected_wavelengths(self):
         preview = next(

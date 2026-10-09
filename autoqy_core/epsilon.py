@@ -91,7 +91,7 @@ def export_epsilon_tsv(result, labels):
 
 
 def _export_epsilon(result, labels, separator):
-    labels = _unique_labels(labels)
+    labels = _unique_labels(labels, preserve_text=separator == ",")
     if len(labels) != result.individual.shape[1]:
         raise ValueError("Spectrum labels do not match the epsilon matrix")
     columns = {"Wavelength_nm": result.wavelengths}
@@ -285,12 +285,45 @@ def _export_nmr_subtraction(result, preserve_negative, separator):
     )
 
 
-def _unique_labels(labels):
+def reconstruct_spectrum_with_uncertainty(stable, mixture, metastable_percent,
+                                         stable_error, mixture_error, composition_error_percent=0):
+    """First-order propagation of independent spectral and composition errors.
+
+    For P=(M-(1-f)R)/f, the sensitivities are 1/f, -(1-f)/f,
+    and (R-M)/f**2. Composition uncertainty is in percentage points (1 sigma).
+    No normalization, clipping, or substitution for unknown uncertainties.
+    """
+    stable, mixture, stable_error, mixture_error = (
+        np.asarray(value, float) for value in (stable, mixture, stable_error, mixture_error))
+    if stable.ndim != 1 or any(value.shape != stable.shape for value in
+                               (mixture, stable_error, mixture_error)):
+        raise ValueError("Spectra and uncertainties must share one wavelength axis")
+    if not all(np.isfinite(value).all() for value in (stable, mixture, stable_error, mixture_error)):
+        raise ValueError("Finite spectral uncertainties are required; unknown errors are not zero")
+    if np.any(stable_error < 0) or np.any(mixture_error < 0):
+        raise ValueError("Spectral uncertainties must be non-negative")
+    fraction = float(metastable_percent) / 100
+    uncertainty = float(composition_error_percent) / 100
+    if not np.isfinite(fraction) or not 0 < fraction <= 1:
+        raise ValueError("Metastable percentage must be greater than 0 and at most 100")
+    if not np.isfinite(uncertainty) or uncertainty < 0:
+        raise ValueError("Composition uncertainty must be finite and non-negative")
+    product = (mixture - (1 - fraction) * stable) / fraction
+    error = np.sqrt((mixture_error / fraction)**2 +
+                    ((1 - fraction) * stable_error / fraction)**2 +
+                    ((stable - mixture) * uncertainty / fraction**2)**2)
+    if not np.isfinite(product).all() or not np.isfinite(error).all():
+        raise ValueError("Reconstruction overflow; review the metastable fraction")
+    return product, error
+
+
+def _unique_labels(labels, preserve_text=False):
     used = set()
     result = []
     for position, value in enumerate(labels, 1):
-        label = "".join(character if character.isalnum() or character in "-_" else "_"
-                        for character in str(value)).strip("_") or f"spectrum_{position}"
+        label = (str(value).strip() if preserve_text else
+                 "".join(character if character.isalnum() or character in "-_" else "_"
+                         for character in str(value)).strip("_")) or f"spectrum_{position}"
         candidate = label
         number = 2
         while candidate in used:
