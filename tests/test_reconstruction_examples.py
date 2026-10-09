@@ -12,11 +12,11 @@ from autoqy_core.epsilon import (
     calculate_epsilon_statistics, export_epsilon_csv, load_epsilon_table,
     reconstruct_spectrum_with_uncertainty, reconstruct_product_from_nmr,
 )
-from autoqy_core.smoother import load_spectral_bytes
+from autoqy_core.smoother import load_spectral_bytes, SpectralDataset
 from autoqy_core.tools.smoother_gui import (
     _csv_exports, _load_local_paths, _load_reconstruction_epsilon, _pack_epsilon,
     _prepare_processing, _reconstruct_epsilon_pair, create_app,
-    _interpolate_to_axis, _process_nmr_pair,
+    _interpolate_to_axis, _subset_epsilon, _pack, _unpack, _reconstruct_from_main,
 )
 from autoqy_core.tools.spectral_recovery import encode_session, decode_session
 from autoqy_core.epsilon_uncertainty import load_epsilon_envelope
@@ -37,6 +37,14 @@ class ReconstructionExamplesTests(unittest.TestCase):
             dataset.wavelengths, values, [6.82e-5, 6.87e-5, 6.80e-5], [1, 1, 1])
         self.epsilon_packed = _pack_epsilon(self.epsilon, packed["labels"])
         raw = load_spectral_bytes((source / "reactant_pss.dat").read_bytes(), "auto")
+        packed_uv = _pack(raw, [f"UV {i}" for i in range(raw.absorbance.shape[1])], ["reactant_pss.dat"])
+        treated, _, uv_values, _ = _prepare_processing(
+            packed_uv, 250, 700, ["on"], 600, 650, "savgol", 5, 3)
+        self.main = _pack(SpectralDataset(treated.wavelengths, treated.coordinates,
+                                         uv_values, treated.source_format, 0),
+                          packed_uv["labels"], packed_uv["filenames"])
+        self.request = {"reference": 0, "mixture": len(packed_uv["labels"]) - 1,
+                        "mode": "calibrated", "percent": 77, "error_percent": 1, "error_basis": "sd"}
         self.raw_pair = {"filename": "reactant_pss.dat",
                          "reactant_wavelengths": raw.wavelengths.tolist(),
                          "reactant_absorbance": raw.absorbance[:, 0].tolist(),
@@ -46,26 +54,76 @@ class ReconstructionExamplesTests(unittest.TestCase):
                               if "nmr-result-store.data" in key)
 
     def test_original_395nm_calibration_matches_bundled_product(self):
-        request = {"mode": "calibrated", "percent": 77, "error_percent": 1, "error_basis": "sd"}
-        result = self.calculate(self.raw_pair, self.epsilon_packed, 77, 1,
-                                ["on"], 600, 650, "savgol", 5, 3, "calibrated", "sd", request)
+        result = self.calculate(self.main, {"reference": {"epsilon": self.epsilon_packed}}, self.request, "sd")
         self.assertIsNotNone(result[3], result[2])
-        target = self.epsilon.wavelengths
-        reference = _interpolate_to_axis(self.raw_pair["reactant_wavelengths"], self.raw_pair["reactant_absorbance"], target)
-        mixture = _interpolate_to_axis(self.raw_pair["pss_wavelengths"], self.raw_pair["pss_absorbance"], target)
-        reference, mixture, _ = _process_nmr_pair(target, reference, mixture, ["on"], 600, 650, "savgol", 5, 3)
-        legacy = reconstruct_product_from_nmr(target, reference, mixture, self.epsilon, 23, 1)
+        treated = _unpack(self.main)
+        mask = ((self.epsilon.wavelengths >= treated.wavelengths.min()) &
+                (self.epsilon.wavelengths <= treated.wavelengths.max()))
+        epsilon = _subset_epsilon(self.epsilon, mask)
+        target = epsilon.wavelengths
+        reference = _interpolate_to_axis(treated.wavelengths, treated.absorbance[:, 0], target)
+        mixture = _interpolate_to_axis(treated.wavelengths, treated.absorbance[:, -1], target)
+        legacy = reconstruct_product_from_nmr(target, reference, mixture, epsilon, 23, 1)
         for field in ("product", "product_lower", "product_upper"):
             np.testing.assert_array_equal(result[3][field], getattr(legacy, field))
         expected = pd.read_csv(EXAMPLE / "generic_inputs" / "product_absorptivity.csv")
+        expected = expected.iloc[np.flatnonzero(mask)]
         np.testing.assert_allclose(result[3]["wavelengths"], expected["Wavelength_nm"], rtol=1e-7)
         for field, column in (("product", "Product_epsilon_raw_M-1_cm-1"),
                               ("product_lower", "Product_lower_nonnegative_M-1_cm-1"),
                               ("product_upper", "Product_upper_nonnegative_M-1_cm-1")):
-            # The bundled precomputed artifact differs slightly from the current
-            # unmodified calibration pipeline, especially near a zero baseline.
-            # Assert the absolute difference, not a relative error near zero.
-            self.assertLess(np.max(np.abs(np.asarray(result[3][field]) - expected[column])), .8)
+            # Main preprocessing now happens on the native UV grid, BEFORE
+            # interpolation, unlike the bundled legacy artifact. Require agreement
+            # within 0.1% of peak ε, without unstable relative errors near zero.
+            self.assertLess(np.max(np.abs(np.asarray(result[3][field]) - expected[column])),
+                            .001 * np.max(np.abs(expected[column])))
+
+    def test_main_selection_is_used_and_reference_does_not_replace_absorbance(self):
+        main = deepcopy(self.main)
+        values = np.asarray(main["absorbance"])
+        main["absorbance"] = np.column_stack([values[:, -1], values[:, 0], values[:, -1]]).tolist()
+        main["coordinates"] = [0, 1, 2]
+        main["labels"] = ["other", "initial", "PSS"]
+        main["legend_names"] = ["Other curve", "Edited stable", "Edited PSS"]
+        calibration = {"reference": {"epsilon": self.epsilon_packed}}
+        selected = _reconstruct_from_main(main, calibration, self.request | {"reference": 1, "mixture": 2})
+        original = _reconstruct_from_main(self.main, calibration, self.request)
+        np.testing.assert_array_equal(selected["product"], original["product"])
+        self.assertEqual(selected["stable_label"], "Edited stable")
+        self.assertEqual(selected["pss_label"], "Edited PSS")
+        with self.assertRaisesRegex(ValueError, "different spectra"):
+            _reconstruct_from_main(main, calibration, self.request | {"reference": 1, "mixture": 1})
+
+    def test_reference_errors_and_overlap_are_validated_for_main_workflow(self):
+        calibration = {"reference": {"epsilon": deepcopy(self.epsilon_packed)}}
+        calibration["reference"]["epsilon"]["sd"][0] = None
+        with self.assertRaisesRegex(ValueError, "finite, non-negative SD"):
+            _reconstruct_from_main(self.main, calibration, self.request)
+        calibration["reference"]["epsilon"] = deepcopy(self.epsilon_packed)
+        calibration["reference"]["epsilon"]["wavelengths"] = (
+            np.asarray(self.epsilon_packed["wavelengths"]) + 1000).tolist()
+        with self.assertRaisesRegex(ValueError, "overlapping wavelengths"):
+            _reconstruct_from_main(self.main, calibration, self.request)
+
+    def test_simplified_layout_and_scrollable_sheet(self):
+        def components(node):
+            if isinstance(node, (list, tuple)):
+                for child in node:
+                    yield from components(child)
+            elif hasattr(node, "to_plotly_json"):
+                yield node
+                yield from components(getattr(node, "children", None))
+        by_id = {item.id: item for item in components(self.app.layout)
+                 if isinstance(getattr(item, "id", None), str)}
+        self.assertNotIn("nmr-upload", by_id)
+        self.assertNotIn("nmr-baseline-enabled", by_id)
+        self.assertNotIn("reconstruction-mode", by_id)
+        self.assertIn("isomer-reference", by_id)
+        self.assertIn("epsilon-reference-upload", by_id)
+        table = by_id["displayed-data-sheet"]
+        self.assertEqual(table.page_action, "none")
+        self.assertTrue(table.virtualization)
+        self.assertEqual(table.fixed_rows, {"headers": True})
 
     def epsilon_pair(self):
         # A mathematical self-mixture sanity check using the real example CSV.
@@ -77,14 +135,12 @@ class ReconstructionExamplesTests(unittest.TestCase):
 
     def test_reference_triplicate_uv_pss_nmr_without_pss_errors(self):
         reference = self.epsilon_pair()["reference"]
-        pair = self.raw_pair | {"kind": "calibrated", "reference": reference}
-        request = {"mode": "calibrated", "percent": 77, "error_percent": 1, "error_basis": "sd"}
-        sd = self.calculate(pair, None, 77, 1, ["on"], 600, 650, "savgol", 5, 3,
-                            "calibrated", "sd", request)
+        pair = {"reference": reference}
+        request = self.request
+        sd = self.calculate(self.main, pair, request, "sd")
         self.assertIsNotNone(sd[3], sd[2])
         self.assertIn("PSS error excluded", sd[3]["uncertainty_method"])
-        sem = self.calculate(pair, None, 77, 1, ["on"], 600, 650, "savgol", 5, 3,
-                             "calibrated", "sem", request | {"error_basis": "sem"})
+        sem = self.calculate(self.main, pair, request | {"error_basis": "sem"}, "sem")
         self.assertIsNotNone(sem[3], sem[2])
         np.testing.assert_array_equal(sd[3]["product"], sem[3]["product"])
         self.assertTrue(np.all(np.asarray(sem[3]["product_upper"]) <= np.asarray(sd[3]["product_upper"]) + 1e-10))
@@ -97,20 +153,23 @@ class ReconstructionExamplesTests(unittest.TestCase):
             destination.write_text(text, encoding="utf-8")
             envelope = load_epsilon_envelope(destination)
             np.testing.assert_allclose(envelope.upper, sd[3]["product_upper"], rtol=1e-7)
-        snapshot = {"version": 1, "dataset": None, "nmr": pair, "isomer_request": request,
-                    "settings": {"reconstruction-mode": "calibrated", "isomer-percent": 77,
+        snapshot = {"version": 1, "dataset": self.main, "nmr": pair, "isomer_request": request,
+                    "settings": {"isomer-percent": 77,
                                  "nmr-error-percent": 1, "reconstruction-error-basis": "sd"}}
         self.assertEqual(decode_session(encode_session(snapshot)), snapshot)
 
-    def test_example_epsilon_upload_standalone_reconstruction_export_and_recovery(self):
-        pair = self.epsilon_pair()
-        request = {"mode": "epsilon", "percent": 100, "error_percent": 0, "error_basis": "sd"}
-        result = self.calculate(pair, None, 100, 0, [], None, None, "off", 5, 3,
-                                "epsilon", "sd", request)
-        self.assertIsNotNone(result[3], result[2])
-        data = result[3]
-        np.testing.assert_allclose(data["product"], pair["mixture"]["epsilon"]["mean"])
-        np.testing.assert_allclose(data["product_error"], pair["mixture"]["epsilon"]["sd"])
+    def test_example_epsilon_upload_requires_main_spectra_and_zero_nmr_error_is_respected(self):
+        pair = {"reference": self.epsilon_pair()["reference"]}
+        request = self.request | {"error_percent": 0}
+        absent = self.calculate(None, pair, request)
+        self.assertIsNone(absent[3])
+        self.assertIn("main window", absent[2])
+        original = deepcopy(self.main)
+        data = _reconstruct_from_main(self.main, pair, request)
+        self.assertEqual(self.main, original)
+        self.assertEqual(data["composition_error"], 0)
+        with_nmr = _reconstruct_from_main(self.main, pair, self.request)
+        self.assertTrue(np.all(np.asarray(data["product_upper"]) <= np.asarray(with_nmr["product_upper"]) + 1e-10))
         ready = self.app.callback_map["export-epsilon.disabled"]["callback"].__wrapped__
         self.assertFalse(ready("isomer", None, None, data, request, None))
         name, text = _csv_exports("isomer", None, None, isomer=request, nmr_data=data)[0]
@@ -118,16 +177,8 @@ class ReconstructionExamplesTests(unittest.TestCase):
         destination.write_text(text, encoding="utf-8")
         envelope = load_epsilon_envelope(destination)
         np.testing.assert_allclose(envelope.upper, data["product_upper"], rtol=1e-7)
-        for basis in ("sd", "sem"):
-            product = _reconstruct_epsilon_pair(pair, 77, 1, basis)
-            stable, mixture = np.asarray(product["reference"]), np.asarray(product["mixture"])
-            a = np.asarray(product["reference_error"])
-            b = np.asarray(product["mixture_error"])
-            expected = np.sqrt((b / .77)**2 + (.23 * a / .77)**2 +
-                               ((stable - mixture) * .01 / .77**2)**2)
-            np.testing.assert_allclose(product["product_error"], expected)
-        snapshot = {"version": 1, "dataset": None, "nmr": pair,
-                    "isomer_request": request, "settings": {"reconstruction-mode": "epsilon"}}
+        snapshot = {"version": 1, "dataset": self.main, "nmr": pair,
+                    "isomer_request": request, "settings": {"nmr-error-percent": 0}}
         self.assertEqual(decode_session(encode_session(snapshot)), snapshot)
 
     def test_missing_errors_and_nonoverlap_are_not_silently_accepted(self):

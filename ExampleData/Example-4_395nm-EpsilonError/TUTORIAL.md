@@ -68,13 +68,15 @@ series.
 
 ## 3. Derive product ε from the PSS composition
 
-1. Keep the calculated reactant ε loaded in Spectral Treatment.
-2. Expand **4 · Reconstruction — Reconstruct spectrum**, choose
-   **Reference ε + UV–Vis reactant/PSS + NMR**, and load
-   `crespi_group_inputs/source_data/reactant_pss.dat`. Its first spectrum is the pure reactant and
-   its last spectrum is the final PSS.
-3. Under **Preprocess reactant and PSS**, apply the same **600–650 nm** baseline
-   and **Savitzky–Golay 5 nm / order 3** settings.
+1. Save the triplicate reactant ε CSV from step 2. Clear the main spectra, then
+   load `crespi_group_inputs/source_data/reactant_pss.dat` in **1 · Data**.
+2. Expand **4 · Reconstruction — Reconstruct spectrum**. Select its first spectrum
+   as the initial stable isomer and its last spectrum as PSS. Drop the saved ε CSV
+   (or `generic_inputs/reactant_absorptivity.csv`) in **Stable-isomer ε reference (optional)**.
+   The ε file supplies calibration and uncertainty only; the UV spectra stay in the main window.
+3. In the main Range/preprocessing controls, use **250–700 nm**, **600–650 nm** baseline,
+   **SavGol 5 nm / order 3**, and **SVD off**. Preprocessing is applied once to the
+   main spectra, then the overlapping reference ε wavelength grid is used.
 4. Enter **77** for **Metastable isomer in mixture (%)** (23% stable reactant).
 5. Enter the experimental NMR uncertainty. The bundled product file uses the
    **1 percentage point** (the default). Enter zero to omit it. Change this value when a different uncertainty is
@@ -100,7 +102,7 @@ composition error. They are therefore asymmetric and wavelength dependent.
 For a figure-only reconstruction, load your pure stable-isomer reference and
 mixture/PSS spectra into the main Spectral Treatment dataset. Both must have
 the same total concentration and optical path length. Expand **Reconstruct
-spectrum**, choose **Loaded absorbance spectra**, select these two spectra, enter the independently known
+spectrum**, leave the optional ε reference empty, select these two spectra, enter the independently known
 **metastable** percentage in the mixture, and click **Reconstruct**.
 
 The result is overlaid on the absorbance plot using the current preprocessing.
@@ -116,8 +118,9 @@ analysis below; use the preceding ε workflow for those inputs.
 
 Instead of calculating the three references again, upload
 `generic_inputs/reactant_absorptivity.csv` directly in **Reconstruct spectrum**.
-It supplies the triplicate mean, SD, and SEM. Load `reactant_pss.dat`, apply the
-same preprocessing, choose **Replicate SD** (or SEM when scientifically justified),
+It supplies the triplicate mean, SD, and SEM. Load `reactant_pss.dat` in **1 · Data**,
+select its initial stable and PSS spectra, apply the same main preprocessing,
+choose **Replicate SD** (or SEM when scientifically justified),
 enter 77% metastable and optional 1 percentage point NMR uncertainty, and click
 **Reconstruct**. Only the reference ε error and NMR composition error are
 propagated through the retained shared-reference calibration envelope.

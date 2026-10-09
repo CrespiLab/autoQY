@@ -132,6 +132,10 @@ class ProcessedAbsorbanceExportTests(unittest.TestCase):
         self.assertIn("105 rows", message)
         self.assertEqual(len(_figure_sheet_page(figure, 4, 25)[1]), 5)
         self.assertEqual(len(_figure_sheet_page(figure, visibility={"0": "legendonly"})[0]), 2)
+        _, all_rows, count, _ = _figure_sheet_page(figure, size=None)
+        self.assertEqual(len(all_rows), 105)
+        self.assertEqual(count, 1)
+        self.assertEqual(all_rows[-1]["x"], 104)
 
     def test_sheet_accepts_plotly_binary_arrays_and_empty_plots(self):
         array = np.array([400., 401.], dtype="float64")
@@ -505,6 +509,32 @@ class SpectralGuiTests(unittest.TestCase):
             result = callback("main", 0, 25, figure, None, None,
                               [{"visible": ["legendonly"]}, [1]], None, None, result[-1])
             self.assertEqual(result[0], [])
+        finally:
+            context_value.reset(token)
+
+    def test_sheet_callback_returns_all_rows_without_pagination(self):
+        callback = next(value["callback"].__wrapped__ for key, value in self.app.callback_map.items()
+                        if "displayed-data-sheet.columns" in key)
+        figure = {"data": [{"x": list(range(305)), "y": list(range(305)), "name": "All rows"}]}
+        token = context_value.set(AttributeDict(triggered_inputs=[{"prop_id": "epsilon-plot.figure"}]))
+        try:
+            result = callback("main", 3, 25, figure, None, None, None, None, None, {})
+            self.assertEqual(len(result[1]), 305)
+            self.assertEqual(result[1][-1]["x"], 304)
+            self.assertEqual(result[4], 0)
+        finally:
+            context_value.reset(token)
+
+    def test_calibrated_request_keeps_explicit_zero_nmr_error(self):
+        callback = self.app.callback_map["isomer-request-store.data"]["callback"].__wrapped__
+        token = context_value.set(AttributeDict(triggered_inputs=[{"prop_id": "reconstruct-isomer.n_clicks"}]))
+        try:
+            request = callback(1, {"labels": ["initial", "PSS"]}, 0, 1, 77,
+                               None, 0, "sd", {"reference": {"filename": "reference.csv"}})
+            self.assertEqual(request["error_percent"], 0)
+            self.assertEqual(request["reference"], 0)
+            self.assertEqual(request["mixture"], 1)
+            self.assertEqual(request["mode"], "calibrated")
         finally:
             context_value.reset(token)
 

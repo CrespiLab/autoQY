@@ -185,8 +185,9 @@ instead of numeric spectrum indices.
 
 The **Displayed data** panel below the plots provides a spreadsheet-like view
 of the selected main, wavelength-slice, or NMR plot. It updates with treatment
-and legend changes, includes visible reconstructed curves and fits, and pages
-through 25 rows at a time. For large sessions it follows the plot's preview
+and legend changes, includes visible reconstructed curves and fits, and scrolls
+through all rows without page buttons. Virtualization keeps the visible spreadsheet
+responsive. For large sessions it follows the plot's preview
 subset; **Output → Save CSV** still exports the full selected dataset.
 
 ## Large kinetic datasets
@@ -561,7 +562,7 @@ seven spectra. Minimal colors retains the blue initial spectrum, orange final
 spectrum, and grey intermediate curves.
 
 To overlay a pure metastable-isomer spectrum without converting to ε, expand
-**Reconstruct spectrum**, choose **Loaded absorbance spectra**, and select the pure stable-isomer reference and a
+**Reconstruct spectrum**, and select the pure stable-isomer reference and a
 mixture/PSS spectrum, enter the **metastable** percentage (not the stable
 percentage), then click **Reconstruct**. For example, 20% stable and 80%
 metastable means you enter **80**.
@@ -676,12 +677,13 @@ If irradiation produces a known PSS mixture, AutoQY can reconstruct the product 
 Expand:
 
 ```text id="5z9n8a"
-4 · Reconstruction → Reconstruct spectrum → Reference ε + UV–Vis reactant/PSS + NMR
+4 · Reconstruction → Reconstruct spectrum
 ```
 
-Upload your triplicate stable-reference ε CSV (or calculate it in Data).
-An uploaded reference takes precedence; clear it to use Data ε again.
-Load a UV–Vis irradiation dataset in which:
+Drop your triplicate stable-reference ε CSV in **Stable-isomer ε reference (optional)**.
+This file supplies only the ε scale and its SD/SEM, not the UV measurement curves.
+Load the UV–Vis irradiation dataset in **1 · Data**, then select its initial stable
+and PSS spectra in Reconstruction. By default:
 
 ```text id="dz1n12"
 First spectrum = pure reactant
@@ -722,9 +724,11 @@ Small negative reconstructed ε values near a zero baseline can arise from noise
 
 Larger negative spectral features may suggest checking the PSS composition, baseline, normalization, or whether more than two species are present.
 
-The calibrated-input section has baseline and Savitzky–Golay controls. It uses the
-first spectrum as reactant and the last as PSS, regardless of any intermediate
-spectra. By default, the primary product ε export is clipped at zero while a
+Use the main Range and preprocessing controls for baseline, smoothing, and SVD.
+These apply once to the selected spectra; only the overlapping ε wavelength
+range is calibrated. No separate UV upload or preprocessing is required.
+Clear the ε reference to reconstruct absorbance without calibration.
+By default, the primary product ε export is clipped at zero while a
 raw audit column is retained. In **5 · Output → Reconstruction ε CSV options**, enable
 **Keep negative values in product ε** only
 when negative values should remain in the primary column. Values below

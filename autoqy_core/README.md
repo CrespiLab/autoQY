@@ -363,8 +363,7 @@ values to zero without changing the preview or source data.
 
 ### Unified spectrum reconstruction
 
-Expand **4 · Reconstruction → Reconstruct spectrum**, choose **Loaded absorbance
-spectra**, select a pure stable-isomer reference and
+Expand **4 · Reconstruction → Reconstruct spectrum**, select a pure stable-isomer reference and
 a mixture/PSS spectrum from the loaded dataset, then enter the **metastable**
 isomer percentage in the mixture and click **Reconstruct**. No concentrations,
 path-length inputs, or molar-absorptivity conversion are required.
@@ -391,13 +390,16 @@ exports the measured series. Negative values are preserved unless Output
 clamping is enabled. Percentages must be greater than 0 and
 at most 100; small metastable fractions amplify measurement noise.
 
-The same panel also offers **Reference ε + UV–Vis reactant/PSS + NMR**. Upload
-the triplicate stable-isomer ε CSV made by Spectral Treatment, or calculate its
-ε in Data. Load the UV–Vis irradiation dataset (first spectrum = stable reference,
-last = PSS), select its preprocessing, enter the **metastable** percentage
-(77 for 23% stable), and click **Reconstruct**. An uploaded reference takes
-precedence over calculated Data ε; clear it to use Data again. Only one ε
-reference file is needed—there is no PSS-error or second ε-file requirement.
+For ε calibration, drop the triplicate stable-isomer ε CSV into the optional
+**Stable-isomer ε reference** input in the same panel. Load the UV–Vis irradiation
+dataset in **1 · Data**, select its initial stable and PSS spectra in Reconstruction,
+enter the **metastable** percentage (77 for 23% stable), and click **Reconstruct**.
+The dropped ε file supplies only the calibration scale and reference uncertainty;
+it does not replace the measured main-window spectra. Main wavelength range,
+baseline, smoothing, and SVD apply once, before interpolation onto the overlapping
+reference ε grid. There is no separate UV uploader or preprocessing section.
+Only one ε reference is needed—there is no PSS-error or second ε-file requirement.
+Clear the ε reference to return to absorbance-only reconstruction.
 
 Choose reference **Replicate SD** (default) or **SEM of the mean**. Optional NMR
 composition uncertainty defaults to **1 percentage point (1σ)**; use zero to
@@ -511,7 +513,9 @@ The **Displayed data** panel replaces the former Result panel with a
 spreadsheet-style numerical view. Select the main spectra, wavelength slice,
 or NMR reconstruction. Its columns follow the actual plotted curves and legend
 names, including visible raw data, reconstruction, and fits; hidden curves are
-omitted. Rows are paginated to keep large datasets responsive. This view is a
+omitted. Scroll vertically through all rows and horizontally through columns,
+without pagination. Virtualization renders only the visible rows and keeps
+the header fixed while scrolling. This view is a
 preview of the plot (including the 60-spectrum preview limit), not a replacement
 for exporting the full dataset through Output.
 
@@ -521,9 +525,9 @@ suspended app window. Connection failures leave the spectral page visible.
 If AutoQY falls back to a normal browser tab, whose process it cannot track,
 a two-minute heartbeat timeout still cleans up the server after a browser crash.
 
-The calibrated ε route in **Reconstruct spectrum** loads a dataset whose first
-spectrum is reactant and last spectrum is the final PSS. It supports baseline
-and Savitzky–Golay settings, propagates reference and NMR composition errors,
+The calibrated ε route in **Reconstruct spectrum** uses the selected initial
+and PSS spectra from the treated main dataset (first and last by default).
+It propagates reference and NMR composition errors,
 and exports stable and reconstructed product ε CSV files. The primary
 product epsilon is clipped at zero by default, while a raw audit column is
 always retained; **Keep negative values in product epsilon** changes the primary
