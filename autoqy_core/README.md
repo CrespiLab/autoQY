@@ -361,6 +361,35 @@ and existing files require confirmation before replacement. Negative values are
 preserved by default; the output option can clamp saved absorbance and epsilon
 values to zero without changing the preview or source data.
 
+### Pure-isomer reconstruction in absorbance
+
+Expand **Reconstruct pure isomer**, select a pure stable-isomer reference and
+a mixture/PSS spectrum from the loaded dataset, then enter the **metastable**
+isomer percentage in the mixture and click **Reconstruct**. No concentrations,
+path-length inputs, or molar-absorptivity conversion are required.
+
+For metastable fraction `f = percentage / 100`, the calculated spectrum is
+`A_meta = (A_mixture - (1 - f) * A_stable) / f`. The reference and mixture must
+have the same total concentration and optical path length. The reference must
+be the pure stable isomer. The calculation assumes an additive two-isomer
+mixture; independently peak-normalizing the spectra would invalidate the result.
+
+The reconstructed curve is shown on the main absorbance plot, including its
+absorbance panel when ε is also calculated. **Show reconstructed isomer**
+controls its visibility in the preview and PNG/SVG export. Current baseline,
+smoothing, SVD, and wavelength-range settings apply, and preprocessing changes
+update the reconstruction. Changing the dataset, spectrum selections, or
+composition clears the reconstruction until **Reconstruct** is clicked again.
+
+**Save reconstructed isomer CSV** writes `reconstructed-metastable-isomer.csv`
+to **Save folder** and asks before overwriting an existing file. It exports only
+the calculated spectrum; the regular processed CSV continues to contain the
+measured series. Negative values are retained with a warning, even if clamping
+is enabled for the regular CSV export. Percentages must be greater than 0 and
+at most 100; small metastable fractions amplify measurement noise.
+
+### Spectral plots and exports
+
 Files dropped together are naturally ordered by name, so `sample1` precedes
 `sample2` and `sample10`. Open **Loaded spectra: order, legend, removal** to
 move individual spectra up or down, remove them, or choose exactly which trace

@@ -104,6 +104,18 @@ class _WindowsJob:
     _KILL_ON_JOB_CLOSE = 0x00002000
     _EXTENDED_LIMIT_INFORMATION = 9
 
+    class _AccountingInformation(ctypes.Structure):
+        _fields_ = [
+            ("TotalUserTime", ctypes.c_longlong),
+            ("TotalKernelTime", ctypes.c_longlong),
+            ("ThisPeriodTotalUserTime", ctypes.c_longlong),
+            ("ThisPeriodTotalKernelTime", ctypes.c_longlong),
+            ("TotalPageFaultCount", wintypes.DWORD),
+            ("TotalProcesses", wintypes.DWORD),
+            ("ActiveProcesses", wintypes.DWORD),
+            ("TotalTerminatedProcesses", wintypes.DWORD),
+        ]
+
     class _BasicLimitInformation(ctypes.Structure):
         _fields_ = [
             ("PerProcessUserTimeLimit", ctypes.c_longlong),
@@ -146,6 +158,10 @@ class _WindowsJob:
             wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD
         )
         kernel32.AssignProcessToJobObject.argtypes = (wintypes.HANDLE, wintypes.HANDLE)
+        kernel32.QueryInformationJobObject.argtypes = (
+            wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
+            ctypes.c_void_p,
+        )
         kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
         handle = kernel32.CreateJobObjectW(None, None)
         if not handle:
@@ -170,6 +186,15 @@ class _WindowsJob:
         if not assigned:
             raise ctypes.WinError(ctypes.get_last_error())
 
+    def active_processes(self):
+        """Count the browser's entire process tree, including relaunched children."""
+        information = self._AccountingInformation()
+        if not self._kernel32.QueryInformationJobObject(
+            self._handle, 1, ctypes.byref(information), ctypes.sizeof(information), None,
+        ):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return information.ActiveProcesses
+
     def close(self):
         if self._handle:
             self._kernel32.CloseHandle(self._handle)
@@ -184,6 +209,24 @@ class GuiWindowHandle:
     process: object = None
     job: object = None
     profile_directory: Path | None = None
+
+    def browser_running(self):
+        """Return None when launcher exit cannot establish whether the window closed."""
+        if self.job is not None:
+            try:
+                return self.job.active_processes() > 0
+            except OSError:
+                return None
+        if self.process is None:
+            return None
+        status = self.process.poll()
+        if status is None:
+            return True
+        # Edge can exit its initial launcher successfully while its app window
+        # continues in another process. Without a job, rely on page heartbeats.
+        if sys.platform == "win32" and status == 0:
+            return None
+        return False
 
     def close(self):
         if self.job is not None:
@@ -270,12 +313,11 @@ class GuiWindowSession:
         """Detect a killed app window even when it cannot send a close beacon."""
         with self._lock:
             handle = self._handle
-            return (handle is not None and handle.process is not None
-                    and handle.process.poll() is not None)
+            return handle is not None and handle.browser_running() is False
 
     def has_browser_process(self):
         with self._lock:
-            return self._handle is not None and self._handle.process is not None
+            return self._handle is not None and self._handle.browser_running() is not None
 
     def close(self):
         with self._lock:
@@ -327,6 +369,7 @@ def serve_gui(create_app, host, port, open_window, window_name):
             if window.browser_exited() or _window_close_due(
                 requested, now, last_heartbeat, window.has_browser_process()
             ):
+                print(f"{window_name}: shutting down after window closure.")
                 server.shutdown()
                 return
 

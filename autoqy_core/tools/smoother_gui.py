@@ -24,7 +24,7 @@ from ..plot_style import (ANALYSIS_TRACE_PALETTE, PLOT_BLUE, PLOT_ORANGE,
 from ..smoother import (SpectralDataset, analyze_svd, baseline_spectra,
                         export_smoothed_text, load_spectral_bytes,
                         savgol_window_points, select_wavelengths,
-                        smooth_reconstruction)
+                        smooth_reconstruction, reconstruct_isomer_absorbance)
 from ..version import get_project_version
 from .spectral_recovery import SpectralRecovery
 
@@ -503,6 +503,30 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     html.Div(id="concentration-parameters"),
                     html.Div(id="concentration-message", className="message"),
                 ]),
+                html.Details(open=False, className="panel tool-details", children=[
+                    html.Summary("Reconstruct pure isomer"),
+                    html.Small("Use a pure stable-isomer reference and a mixture measured "
+                               "at the same total concentration and path length. Current "
+                               "baseline, smoothing and wavelength range apply. No ε conversion "
+                               "or peak normalization is used."),
+                    html.Label("Pure stable-isomer reference"),
+                    dcc.Dropdown(id="isomer-reference", options=[], clearable=False),
+                    html.Label("Mixture / PSS spectrum"),
+                    dcc.Dropdown(id="isomer-mixture", options=[], clearable=False),
+                    html.Label("Metastable isomer in mixture (%)"),
+                    dcc.Input(id="isomer-percent", type="number", min=0, max=100,
+                              step="any", debounce=True, placeholder="e.g. 80"),
+                    html.Button("Reconstruct", id="reconstruct-isomer", disabled=True,
+                                className="button button-secondary"),
+                    dcc.Checklist(id="show-reconstructed-isomer", value=["on"],
+                                  className="toggle-control", options=[{
+                                      "label": "Show reconstructed isomer", "value": "on"}]),
+                    html.Div(id="isomer-message", className="message"),
+                    html.Button("Save reconstructed isomer CSV", id="export-isomer",
+                                disabled=True, className="button button-secondary"),
+                    html.Small("Uses Save folder in 4 · Output. Negative values are preserved."),
+                    html.Div(id="isomer-save-message", className="message"),
+                ]),
                 html.Details(open=False, className="panel tool-details export-panel", children=[
                     html.Summary([html.Span("4 · Output", className="step-label"),
                                   "Export processed dataset", info_popup(
@@ -801,6 +825,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
         dcc.Store(id="kinetics-start-store"),
         dcc.Store(id="epsilon-store"),
         dcc.Store(id="processed-store"),
+        dcc.Store(id="isomer-request-store"),
+        dcc.ConfirmDialog(id="confirm-isomer-overwrite"),
         dcc.Store(id="wavelength-slice-store"),
         dcc.Store(id="nmr-spectra-store"),
         dcc.Store(id="nmr-result-store"),
@@ -1100,6 +1126,73 @@ window.autoqySaveText = (filename, text, mimeType) => {
         return selected or no_update
 
     @app.callback(
+        Output("isomer-reference", "options"), Output("isomer-mixture", "options"),
+        Output("isomer-reference", "value"), Output("isomer-mixture", "value"),
+        Output("reconstruct-isomer", "disabled"),
+        Input("dataset-store", "data"),
+    )
+    def isomer_choices(data):
+        labels = data.get("labels", []) if data else []
+        options = [{"label": f"{i + 1} · {label}", "value": i}
+                   for i, label in enumerate(labels)]
+        return options, options, (0 if labels else None), (len(labels) - 1 if labels else None), len(labels) < 2
+
+    @app.callback(
+        Output("isomer-request-store", "data"),
+        Input("reconstruct-isomer", "n_clicks"), Input("dataset-store", "data"),
+        Input("isomer-reference", "value"), Input("isomer-mixture", "value"),
+        Input("isomer-percent", "value"), prevent_initial_call=True,
+    )
+    def request_isomer(_, data, reference, mixture, percent):
+        if ctx.triggered_id != "reconstruct-isomer" or not data:
+            return None
+        return {"reference": reference, "mixture": mixture, "percent": percent}
+
+    @app.callback(
+        Output("isomer-message", "children"), Output("export-isomer", "disabled"),
+        Input("processed-store", "data"), Input("isomer-request-store", "data"),
+    )
+    def isomer_status(data, request):
+        if not data or not request:
+            return "Select two spectra, enter the mixture composition and click Reconstruct.", True
+        try:
+            values = _reconstructed_isomer(data, request)
+            message = ("Reconstructed pure metastable isomer at the reference concentration "
+                       "and path length. Updates with preprocessing.")
+            negative = int(np.count_nonzero(values < 0))
+            if negative:
+                message += f" Warning: {negative} negative value(s) retained; check composition and baseline."
+            if float(request["percent"]) < 5:
+                message += " Warning: a small metastable fraction strongly amplifies noise."
+            return message, False
+        except (ValueError, TypeError) as error:
+            return f"Reconstruction unavailable: {error}", True
+
+    @app.callback(
+        Output("isomer-save-message", "children"),
+        Output("confirm-isomer-overwrite", "displayed"),
+        Output("confirm-isomer-overwrite", "message"),
+        Input("export-isomer", "n_clicks"),
+        Input("confirm-isomer-overwrite", "submit_n_clicks"),
+        State("processed-store", "data"), State("isomer-request-store", "data"),
+        State("save-folder", "value"), prevent_initial_call=True,
+    )
+    def save_isomer(_, __, data, request, folder):
+        try:
+            values = _reconstructed_isomer(data, request)
+            destination = _save_path(folder, "reconstructed-metastable-isomer.csv")
+            if ctx.triggered_id == "export-isomer" and destination.exists():
+                return f"Existing file: {destination}", True, f"Overwrite {destination.name}?"
+            reconstructed = SpectralDataset(_unpack(data).wavelengths,
+                                            np.array([0.0]), values[:, None], "csv")
+            text = export_smoothed_text(reconstructed, reconstructed.absorbance)
+            text = text.replace("Wavelength,0", "Wavelength,Reconstructed pure metastable isomer", 1)
+            destination.write_text(text, encoding="utf-8")
+            return f"Saved {destination}", False, ""
+        except (ValueError, TypeError, OSError) as error:
+            return f"Save failed: {error}", False, ""
+
+    @app.callback(
         Output("wavelength-low", "value"), Output("wavelength-high", "value"),
         Output("wavelength-low", "disabled"), Output("wavelength-high", "disabled"),
         Output("clear-dataset", "disabled"), Output("loaded-spectrum-manager", "children"),
@@ -1222,13 +1315,16 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Input("main-epsilon-axis-label", "value"),
         State({"type": "legend-spectrum", "index": ALL}, "id"),
         State({"type": "legend-name", "index": ALL}, "id"),
+        Input("isomer-request-store", "data"),
+        Input("show-reconstructed-isomer", "value"),
     )
     def preview(data, wavelength_low, wavelength_high, baseline_enabled,
                 baseline_low, baseline_high, method, sg_width, sg_order,
                 svd_enabled, svd_rank, concentrations, path_lengths,
                 legend_values, legend_names, minimal_colors, show_original,
                 x_axis_label, absorbance_axis_label, epsilon_axis_label,
-                legend_value_ids, legend_name_ids):
+                legend_value_ids, legend_name_ids, isomer_request=None,
+                show_isomer=None):
         if not data:
             return (_empty(go, "Load spectral data to begin"),
                     "No result yet.", "", "Smoothing is off.", None, None, True, "")
@@ -1274,7 +1370,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 else:
                     message = ("Enter the concentration and path length for every "
                                "spectrum to calculate molar absorptivity.")
-                return (_absorbance_figure(
+                figure = _absorbance_figure(
                             go, dataset, original, processed, plot_labels,
                             method, svd_enabled, svd_rank, legend_visibility,
                             use_minimal_colors,
@@ -1282,7 +1378,9 @@ window.autoqySaveText = (filename, text, mimeType) => {
                             _axis_label(absorbance_axis_label, "Absorbance"),
                             wavelength_range=plot_wavelength_range,
                             show_original="on" in (show_original or []),
-                        ),
+                        )
+                _overlay_isomer(go, figure, dataset, processed, isomer_request, show_isomer)
+                return (figure,
                         "Processed absorbance is ready to export; ε is waiting for "
                         "concentration inputs.",
                         message, smoothing_message, None, processed_data, False, "")
@@ -1318,8 +1416,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 concentration_message = "Concentrations: " + ", ".join(
                     f"{value:.6g} M" for value in concentrations
                 )
-            return (
-                _epsilon_figure(
+            figure = _epsilon_figure(
                     go, make_subplots, dataset, original, result,
                     plot_labels, method, svd_enabled, svd_rank, legend_visibility,
                     use_minimal_colors,
@@ -1327,7 +1424,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     _axis_label(absorbance_axis_label, "Absorbance"),
                     _axis_label(epsilon_axis_label, "ε (M⁻¹ cm⁻¹)"),
                     wavelength_range=plot_wavelength_range,
-                ),
+                )
+            _overlay_isomer(go, figure, dataset, processed, isomer_request, show_isomer,
+                            epsilon=True)
+            return (
+                figure,
                 result_message, concentration_message, smoothing_message,
                 _pack_epsilon(result, data["labels"]), processed_data, False, "",
             )
@@ -2215,6 +2316,32 @@ def _unpack(data):
         absorbance, data["format"],
         data.get("interpolated_values", 0),
     )
+
+
+def _reconstructed_isomer(data, request):
+    if not data or not request:
+        raise ValueError("Calculate the reconstructed isomer before saving")
+    return reconstruct_isomer_absorbance(
+        _unpack(data).absorbance, request["reference"], request["mixture"], request["percent"])
+
+
+def _overlay_isomer(go, figure, dataset, processed, request, visible, epsilon=False):
+    if not request or "on" not in (visible or []):
+        return
+    try:
+        values = reconstruct_isomer_absorbance(
+            processed, request["reference"], request["mixture"], request["percent"])
+    except (ValueError, TypeError):
+        return
+    trace = go.Scatter(x=dataset.wavelengths, y=values, mode="lines",
+                       name="Reconstructed pure metastable isomer",
+                       line={"color": PLOT_PURPLE, "width": 3, "dash": "dash"},
+                       showlegend=True)
+    if epsilon:
+        figure.add_trace(trace, row=1, col=1)
+    else:
+        figure.add_trace(trace)
+    figure.update_layout(showlegend=True)
 
 
 def _pack_epsilon(result, labels):

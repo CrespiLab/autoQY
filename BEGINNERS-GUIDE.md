@@ -521,6 +521,24 @@ The selected folder is retained when you clear spectra or load another dataset.
 
 Spectral Treatment can also prepare clean spectral figures directly.
 
+To overlay a pure metastable-isomer spectrum without converting to ε, expand
+**Reconstruct pure isomer**. Select the pure stable-isomer reference and a
+mixture/PSS spectrum, enter the **metastable** percentage (not the stable
+percentage), then click **Reconstruct**. For example, 20% stable and 80%
+metastable means you enter **80**.
+
+Both spectra must have been measured at the same total concentration and path
+length. Do not normalize their peaks separately. The calculated curve uses
+the current baseline correction, smoothing, and wavelength range. Toggle
+**Show reconstructed isomer** to include or hide it in the plot and saved
+PNG/SVG figure. Use **Save reconstructed isomer CSV** to save that curve to
+the folder selected in **4 · Output**. The measured spectra remain unchanged.
+
+Negative calculated values are retained and flagged. Check the baseline and
+mixture composition if these are substantial. Very small metastable percentages
+amplify noise. If you change the spectrum selections, composition, or loaded
+dataset, click **Reconstruct** again; preprocessing changes update it automatically.
+
 For datasets containing at most 60 spectra, you can keep all curves visible
 without showing every filename in the legend. Above 60 spectra, the figure uses
 the evenly spaced preview subset described earlier; the complete series remains

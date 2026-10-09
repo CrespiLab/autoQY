@@ -123,7 +123,9 @@ For most work, double-click:
 
 The Desktop folder also contains:
 
-- **AutoQY Spectral Treatment** — prepares spectra and calculates molar absorptivity.
+- **AutoQY Spectral Treatment** — prepares spectra, calculates molar absorptivity,
+  and reconstructs a pure metastable-isomer absorbance spectrum from a stable
+  reference and a mixture of known composition, without requiring ε conversion.
 - **AutoQY Power GUI** — treats Thorlabs optical-power traces.
 - **Uninstall AutoQY** — removes AutoQY and can optionally remove its Conda environment.
 

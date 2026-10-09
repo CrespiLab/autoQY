@@ -18,6 +18,29 @@ from autoqy_core.gui_window import (
 
 
 class GuiWindowTests(unittest.TestCase):
+    def test_browser_children_keep_server_alive_after_launcher_exits_successfully(self):
+        process = Mock()
+        process.poll.return_value = 0
+        job = Mock()
+        job.active_processes.return_value = 3
+        handle = GuiWindowHandle("app", process, job)
+        session = GuiWindowSession("http://127.0.0.1:8051", opener=lambda *_: handle)
+        session._open()
+        self.assertFalse(session.browser_exited())
+        self.assertTrue(session.has_browser_process())
+        job.active_processes.return_value = 0
+        self.assertTrue(session.browser_exited())
+
+    def test_untracked_windows_launcher_exit_uses_heartbeat_watchdog(self):
+        process = Mock()
+        process.poll.return_value = 0
+        session = GuiWindowSession("http://127.0.0.1:8051",
+                                   opener=lambda *_: GuiWindowHandle("app", process))
+        session._open()
+        with patch("autoqy_core.gui_window.sys.platform", "win32"):
+            self.assertFalse(session.browser_exited())
+            self.assertFalse(session.has_browser_process())
+
     def test_windowless_launcher_records_startup_diagnostics(self):
         with TemporaryDirectory() as directory:
             with (

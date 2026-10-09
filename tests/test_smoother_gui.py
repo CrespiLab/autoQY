@@ -1,4 +1,5 @@
 import unittest
+import base64
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -9,7 +10,7 @@ import pandas as pd
 
 from autoqy_core.epsilon import EpsilonResult
 from autoqy_core.plot_style import ANALYSIS_TRACE_PALETTE
-from autoqy_core.smoother import SpectralDataset
+from autoqy_core.smoother import SpectralDataset, reconstruct_isomer_absorbance
 from autoqy_core.tools.smoother_gui import (
     MAX_INTERACTIVE_SPECTRA,
     _append_packed,
@@ -55,6 +56,28 @@ def _components(root):
     children = getattr(root, "children", None)
     if children is not None:
         yield from _components(children)
+
+
+class IsomerReconstructionTests(unittest.TestCase):
+    def test_known_mixture_recovers_pure_isomer_without_epsilon(self):
+        stable = np.array([0.2, 0.8, 0.1])
+        metastable = np.array([0.9, 0.3, -0.02])
+        mixture = 0.25 * stable + 0.75 * metastable
+        values = np.column_stack([stable, mixture])
+        np.testing.assert_allclose(reconstruct_isomer_absorbance(values, 0, 1, 75),
+                                   metastable)
+        np.testing.assert_array_equal(values[:, 1], mixture)
+        np.testing.assert_array_equal(reconstruct_isomer_absorbance(values, 0, 1, 100),
+                                      mixture)
+
+    def test_invalid_compositions_and_spectrum_selections_are_rejected(self):
+        values = np.ones((3, 2))
+        for percent in (None, 0, -1, 101, float("nan"), float("inf")):
+            with self.subTest(percent=percent), self.assertRaises(ValueError):
+                reconstruct_isomer_absorbance(values, 0, 1, percent)
+        for reference, mixture in ((0, 0), (0, 2), (-1, 1), (None, 1)):
+            with self.subTest(reference=reference), self.assertRaises(ValueError):
+                reconstruct_isomer_absorbance(values, reference, mixture, 50)
 
 
 class ProcessedAbsorbanceExportTests(unittest.TestCase):
@@ -143,6 +166,71 @@ class SpectralGuiTests(unittest.TestCase):
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.app = create_app(Path(directory.name) / "autosave.json")
+
+    def test_isomer_overlay_uses_preprocessing_and_visibility_via_dash_endpoint(self):
+        dataset = SpectralDataset(np.array([400., 401., 402.]), np.array([0., 1.]),
+                                  np.array([[0.2, 0.5], [0.8, 0.4], [0.1, 0.1]]), "csv")
+        packed = _pack(dataset, ["stable", "PSS"], ["spectra.csv"])
+        key, callback = next((key, callback) for key, callback in self.app.callback_map.items()
+                             if "processed-store.data" in key)
+        values = {"dataset-store": packed, "wavelength-low": 400., "wavelength-high": 402.,
+                  "baseline-enabled": ["on"], "baseline-low": 401.5, "baseline-high": 402.5,
+                  "smoothing-method": "off", "savgol-window": 5, "savgol-order": 2,
+                  "svd-enabled": [], "svd-rank": 1, "minimal-spectrum-colors": [],
+                  "show-original-spectra": [], "main-x-axis-label": "Wavelength (nm)",
+                  "main-absorbance-axis-label": "Absorbance", "main-epsilon-axis-label": "ε",
+                  "isomer-request-store": {"reference": 0, "mixture": 1, "percent": 50},
+                  "show-reconstructed-isomer": ["on"]}
+        inputs = [dict(item, value=values.get(item["id"], [])) for item in callback["inputs"]]
+        state = [dict(item, value=[]) for item in callback["state"]]
+        payload = {"output": key, "outputs": [item.to_dict() for item in callback["output"]],
+                   "inputs": inputs, "state": state,
+                   "changedPropIds": ["isomer-request-store.data"]}
+        client = self.app.server.test_client()
+        response = client.post("/_dash-update-component", json=payload)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.json["response"]["preview-error"]["children"], "")
+        figure = response.json["response"]["epsilon-plot"]["figure"]
+        y = figure["data"][-1]["y"]
+        if isinstance(y, dict):
+            y = np.frombuffer(base64.b64decode(y["bdata"]), dtype=y["dtype"])
+        np.testing.assert_allclose(y, [0.7, -0.1, 0.0], atol=1e-14)
+        self.assertEqual(figure["data"][-1]["name"], "Reconstructed pure metastable isomer")
+        next(item for item in inputs if item["id"] == "show-reconstructed-isomer")["value"] = []
+        hidden = client.post("/_dash-update-component", json=payload)
+        self.assertEqual(hidden.status_code, 200, hidden.data)
+        self.assertEqual(len(hidden.json["response"]["epsilon-plot"]["figure"]["data"]), 2)
+
+    def test_isomer_export_retains_negatives_and_confirms_overwrite(self):
+        packed = _pack(SpectralDataset(np.array([400., 401.]), np.array([0., 1.]),
+                                      np.array([[0.2, 0.5], [0.8, 0.1]]), "csv"),
+                       ["stable", "PSS"], ["spectra.csv"])
+        request = {"reference": 0, "mixture": 1, "percent": 50}
+        save = next(value["callback"].__wrapped__ for key, value in self.app.callback_map.items()
+                    if "isomer-save-message.children" in key)
+        with TemporaryDirectory() as directory:
+            token = context_value.set(AttributeDict(
+                triggered_inputs=[{"prop_id": "export-isomer.n_clicks"}]))
+            try:
+                result = save(1, None, packed, request, f'"{directory}"')
+                self.assertFalse(result[1])
+                path = Path(directory) / "reconstructed-metastable-isomer.csv"
+                frame = pd.read_csv(path)
+                self.assertEqual(frame.columns[1], "Reconstructed pure metastable isomer")
+                np.testing.assert_allclose(frame.iloc[:, 1], [0.8, -0.6])
+                self.assertTrue(save(2, None, packed, request, directory)[1])
+            finally:
+                context_value.reset(token)
+
+    def test_changing_isomer_selection_or_dataset_invalidates_request(self):
+        callback = self.app.callback_map["isomer-request-store.data"]["callback"].__wrapped__
+        for trigger in ("dataset-store.data", "isomer-percent.value", "isomer-reference.value",
+                        "isomer-mixture.value"):
+            token = context_value.set(AttributeDict(triggered_inputs=[{"prop_id": trigger}]))
+            try:
+                self.assertIsNone(callback(1, {"labels": ["stable", "PSS"]}, 0, 1, 50))
+            finally:
+                context_value.reset(token)
 
     def test_only_data_panel_is_open_initially(self):
         details = []

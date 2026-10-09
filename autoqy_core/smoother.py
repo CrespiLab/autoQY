@@ -38,6 +38,29 @@ class SVDResult:
         return (self.left_vectors[:, :rank] * self.singular_values[:rank]) @ self.right_vectors[:rank]
 
 
+def reconstruct_isomer_absorbance(absorbance, reference_index, mixture_index,
+                                 metastable_percent):
+    """Recover pure-isomer absorbance at the reference concentration/path length."""
+    values = np.asarray(absorbance, float)
+    if values.ndim != 2 or not np.isfinite(values).all():
+        raise ValueError("Reconstruction requires finite wavelength-by-spectrum data")
+    for index in (reference_index, mixture_index):
+        if not isinstance(index, (int, np.integer)) or not 0 <= index < values.shape[1]:
+            raise ValueError("Select a loaded reference and mixture spectrum")
+    if reference_index == mixture_index:
+        raise ValueError("Reference and mixture must be different spectra")
+    try:
+        fraction = float(metastable_percent) / 100
+    except (TypeError, ValueError):
+        raise ValueError("Enter a metastable percentage greater than 0 and at most 100") from None
+    if not np.isfinite(fraction) or not 0 < fraction <= 1:
+        raise ValueError("Metastable percentage must be greater than 0 and at most 100")
+    result = (values[:, mixture_index] - (1 - fraction) * values[:, reference_index]) / fraction
+    if not np.isfinite(result).all():
+        raise ValueError("Reconstructed absorbance is not finite")
+    return result
+
+
 def load_spectral_dataset(path, format_name="auto"):
     path = Path(path)
     suffix = path.suffix.lower()

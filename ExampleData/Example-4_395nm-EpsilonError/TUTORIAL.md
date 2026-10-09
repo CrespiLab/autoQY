@@ -93,6 +93,21 @@ series.
 The product bounds combine the reactant measurement SD with the selected NMR
 composition error. They are therefore asymmetric and wavelength dependent.
 
+### Optional: reconstruct absorbance without ε conversion
+
+For a figure-only reconstruction, load your pure stable-isomer reference and
+mixture/PSS spectra into the main Spectral Treatment dataset. Both must have
+the same total concentration and optical path length. Expand **Reconstruct
+pure isomer**, select these two spectra, enter the independently known
+**metastable** percentage in the mixture, and click **Reconstruct**.
+
+The result is overlaid on the absorbance plot using the current preprocessing.
+**Show reconstructed isomer** controls its visibility in the preview and saved
+PNG/SVG figure. **Save reconstructed isomer CSV** exports it to **Save folder**
+in **4 · Output**, preserving negative values and asking before replacement.
+This optional route does not produce the ε files needed for the quantum-yield
+analysis below; use the preceding ε workflow for those inputs.
+
 ## 4. Build the quantum-yield analysis
 
 Return to **AutoQY Analysis**. You may load the bundled
