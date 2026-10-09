@@ -2,6 +2,10 @@
 
 from argparse import ArgumentParser
 import base64
+from copy import deepcopy
+import csv
+from io import StringIO
+from uuid import uuid4
 import json
 from pathlib import Path
 import re
@@ -19,14 +23,14 @@ from ..epsilon import (EpsilonResult, NMRSubtractionResult,
                        nonnegative_error_bounds, reconstruct_product_from_nmr)
 from ..gui_window import serve_gui
 from ..output import format_value_uncertainty
-from ..plot_style import (ANALYSIS_TRACE_PALETTE, PLOT_BLUE, PLOT_ORANGE,
+from ..plot_style import (COLORBLIND_TRACE_PALETTE, PLOT_BLUE, PLOT_ORANGE,
                           PLOT_PURPLE)
 from ..smoother import (SpectralDataset, analyze_svd, baseline_spectra,
                         export_smoothed_text, load_spectral_bytes,
                         savgol_window_points, select_wavelengths,
                         smooth_reconstruction, reconstruct_isomer_absorbance)
 from ..version import get_project_version
-from .spectral_recovery import SpectralRecovery
+from .spectral_recovery import SpectralRecovery, decode_session
 
 
 MAX_INTERACTIVE_SPECTRA = 60
@@ -34,7 +38,7 @@ MAX_INTERACTIVE_SPECTRA = 60
 
 def create_app(recovery_file=None):
     try:
-        from dash import ALL, Dash, Input, Output, State, ctx, dcc, html, no_update
+        from dash import ALL, Dash, Input, Output, State, ctx, dcc, html, no_update, set_props
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
     except ImportError as error:
@@ -42,6 +46,8 @@ def create_app(recovery_file=None):
 
     recovery = SpectralRecovery(recovery_file)
     recovered = None
+    generation = uuid4().hex
+    session_lock = Lock()
     recovery_message = "Changes are autosaved locally after a short pause."
     try:
         recovered = recovery.read()
@@ -72,7 +78,10 @@ def create_app(recovery_file=None):
         if not isinstance(snapshot, dict) or snapshot.get("version") != 1:
             return "Invalid recovery snapshot", 400
         try:
-            recovery.write(snapshot)
+            with session_lock:
+                if snapshot.get("generation", generation) != generation:
+                    return "Session replaced; reload this page.", 409
+                recovery.write(snapshot)
         except (OSError, ValueError, TypeError):
             return "Autosave failed; check available disk space and permissions.", 500
         return "", 204
@@ -381,13 +390,13 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     dcc.Upload(
                         id="upload-spectra", className="upload-box", multiple=True,
                         children=html.Div([
-                            html.Span("Drop or choose one or more spectral files"),
+                            html.Span("Drop or choose spectra or one saved session (.aqys)"),
                             html.Small(
                                 "SpectraGryph, SPECORD, Cary .DSW/.BSW, "
                                 "Avantes .Abs8, TSV, or CSV"
                             ),
                             html.Small(
-                                "Each new drop is added; files dropped together are "
+                                "Spectra are added; one .aqys session replaces the current state. Files dropped together are "
                                 "sorted naturally by name."
                             ),
                         ]),
@@ -504,7 +513,18 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     html.Div(id="concentration-message", className="message"),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
-                    html.Summary("Reconstruct pure isomer"),
+                    html.Summary([
+                        html.Span("4 · Reconstruction", className="step-label"),
+                        "Reconstruct pure isomer", info_popup(
+                            "Recover pure metastable-isomer absorbance from a pure stable-isomer "
+                            "reference and a mixture of known composition: "
+                            "A_meta = (A_mixture − (1 − f) × A_stable) / f, where f is the "
+                            "metastable fraction. Both measurements must have the same total "
+                            "concentration and path length. Current preprocessing applies; "
+                            "no ε conversion or separate peak normalization is needed. "
+                            "Negative values are retained, and small fractions amplify noise."
+                        ),
+                    ]),
                     html.Small("Use a pure stable-isomer reference and a mixture measured "
                                "at the same total concentration and path length. Current "
                                "baseline, smoothing and wavelength range apply. No ε conversion "
@@ -522,17 +542,16 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                   className="toggle-control", options=[{
                                       "label": "Show reconstructed isomer", "value": "on"}]),
                     html.Div(id="isomer-message", className="message"),
-                    html.Button("Save reconstructed isomer CSV", id="export-isomer",
-                                disabled=True, className="button button-secondary"),
-                    html.Small("Uses Save folder in 4 · Output. Negative values are preserved."),
-                    html.Div(id="isomer-save-message", className="message"),
+                    html.Small("Save this spectrum through 5 · Output → CSV content."),
                 ]),
                 html.Details(open=False, className="panel tool-details export-panel", children=[
-                    html.Summary([html.Span("4 · Output", className="step-label"),
-                                  "Export processed dataset", info_popup(
+                    html.Summary([html.Span("5 · Output", className="step-label"),
+                                  "Save data, sessions and figures", info_popup(
                                       "Processed absorbance can be saved without concentrations. "
                                       "When every concentration and path length is provided, the CSV "
-                                      "also contains individual ε spectra and their statistics."
+                                      "also contains individual ε spectra and their statistics. "
+                                      "Choose CSV content here for reconstruction, slice, or NMR exports. "
+                                      "Save a binary session to resume treatment later."
                                   )]),
                     html.Label("Save folder"),
                     html.Div(className="input-row", children=[
@@ -542,11 +561,19 @@ window.autoqySaveText = (filename, text, mimeType) => {
                         html.Button("Choose folder", id="choose-save-folder",
                                     className="button button-secondary"),
                     ]),
+                    html.Label("CSV content"),
+                    dcc.Dropdown(id="csv-export-kind", clearable=False, value="processed",
+                                 options=[
+                                     {"label": "Processed dataset / calculated ε", "value": "processed"},
+                                     {"label": "Reconstructed pure isomer (absorbance)", "value": "isomer"},
+                                     {"label": "Wavelength slice", "value": "slice"},
+                                     {"label": "Reactant + NMR-derived product ε", "value": "nmr"},
+                                 ]),
                     html.Label("CSV file name (optional)"),
                     dcc.Input(id="save-filename", type="text",
                               placeholder="Default name"),
-                    html.Small("Leave blank to use processed-absorbance.csv or "
-                               "epsilon-spectra-reactant.csv."),
+                    html.Small("Leave blank to use the default name for the selected content. "
+                               "NMR exports use the two names below."),
                     html.Div(className="export-mode-control", children=[
                         dcc.Checklist(
                             id="export-nonnegative", value=[], className="toggle-control",
@@ -558,13 +585,61 @@ window.autoqySaveText = (filename, text, mimeType) => {
                         html.Small("Default: negative values are preserved. Enable this "
                                    "option to clamp them to zero in the saved CSV."),
                     ]),
-                    html.Button("Save processed CSV", id="export-epsilon",
+                    html.Button("Save CSV", id="export-epsilon",
                                 className="button button-primary", disabled=True),
                     html.Div(id="epsilon-save-message", className="message"),
                     dcc.ConfirmDialog(id="confirm-epsilon-overwrite"),
+                    html.Details(className="nested-tool", children=[
+                        html.Summary("NMR CSV options"),
+                    html.Div(className="export-mode-control", children=[
+                        dcc.Checklist(
+                            id="nmr-export-raw", value=[], className="toggle-control",
+                            options=[{"label": "Keep negative values in product ε", "value": "on"}],
+                        ),
+                        html.Small("Default: the primary product ε column is clipped at zero. "
+                                   "The raw audit column is always preserved."),
+                    ]),
+                    html.Label("CSV file names (optional)"),
+                    html.Div(className="input-row", children=[
+                        dcc.Input(id="nmr-reactant-filename", type="text",
+                                  placeholder="Reactant file name"),
+                        dcc.Input(id="nmr-product-filename", type="text",
+                                  placeholder="Product file name"),
+                    ]),
+                    html.Small("Leave blank to use the standard reactant and product names."),
+                    ]),
+                    html.Label("Session file name (optional)"),
+                    dcc.Input(id="session-filename", type="text", placeholder="spectral-session.aqys"),
+                    html.Button("Save session (.aqys)", id="save-session",
+                                className="button button-secondary"),
+                    html.Div(id="session-save-message", className="message"),
+                    dcc.ConfirmDialog(id="confirm-session-overwrite"),
+                    html.Details(className="nested-tool", children=[
+                        html.Summary("Save figures"),
+                        html.Small("PNG/SVG exports open their own Save As dialog."),
+                        html.Label("Main spectrum / reconstructed isomer"),
+                        html.Div(className="plot-download-actions", children=[
+                            html.Button("Save PNG", id="save-epsilon-png", className="button button-secondary compact-button"),
+                            html.Button("Save SVG", id="save-epsilon-svg", className="button button-secondary compact-button"),
+                        ]),
+                        image_export_options("include-plot-title", "include-plot-legend",
+                                             "origin-epsilon-export", "show-epsilon-export-grid", "zero-epsilon-export-y"),
+                        html.Label("Wavelength slice"),
+                        html.Div(className="plot-download-actions", children=[
+                            html.Button("Save PNG", id="save-slice-png", className="button button-secondary compact-button"),
+                            html.Button("Save SVG", id="save-slice-svg", className="button button-secondary compact-button"),
+                        ]),
+                        image_export_options("include-slice-title", "include-slice-legend",
+                                             "origin-slice-export", "show-slice-export-grid", "zero-slice-export-y"),
+                        html.Label("NMR-guided PSS subtraction"),
+                        html.Div(className="plot-download-actions", children=[
+                            html.Button("Save PNG", id="save-nmr-png", className="button button-secondary compact-button"),
+                            html.Button("Save SVG", id="save-nmr-svg", className="button button-secondary compact-button"),
+                        ]),
+                    ]),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
-                    html.Summary([html.Span("5 · Optional", className="step-label"),
+                    html.Summary([html.Span("6 · Optional", className="step-label"),
                                   "NMR-guided PSS subtraction", info_popup(
                                       "Load one UV–Vis dataset containing reactant and final PSS. "
                                       "After shared normalization, product ε is reconstructed as "
@@ -626,37 +701,12 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                 className="button button-secondary", disabled=True),
                     html.Div(id="nmr-load-message", className="message"),
                     html.Div(id="nmr-result-message", className="warning-copy"),
-                    html.Div(className="export-mode-control", children=[
-                        dcc.Checklist(
-                            id="nmr-export-raw", value=[], className="toggle-control",
-                            options=[{"label": "Keep negative values in product ε", "value": "on"}],
-                        ),
-                        html.Small("Default: the primary product ε column is clipped at zero. "
-                                   "The raw audit column is always preserved."),
-                    ]),
-                    html.Label("CSV file names (optional)"),
-                    html.Div(className="input-row", children=[
-                        dcc.Input(id="nmr-reactant-filename", type="text",
-                                  placeholder="Reactant file name"),
-                        dcc.Input(id="nmr-product-filename", type="text",
-                                  placeholder="Product file name"),
-                    ]),
-                    html.Small("Leave blank to use the standard reactant and product names."),
-                    html.Button("Save reactant + NMR-derived ε CSVs", id="export-nmr",
-                                className="button button-accent", disabled=True),
-                    html.Div(id="nmr-save-message", className="message"),
-                    dcc.ConfirmDialog(id="confirm-nmr-overwrite"),
+
                 ]),
             ]),
             html.Div(className="plot-column", children=[
                 html.Section(className="plot-panel", children=[
                     html.Div(className="plot-toolbar", children=[
-                        html.Div(className="plot-download-actions", children=[
-                            html.Button("Save PNG", id="save-epsilon-png",
-                                        className="button button-secondary compact-button"),
-                            html.Button("Save SVG", id="save-epsilon-svg",
-                                        className="button button-secondary compact-button"),
-                        ]),
                         html.Div(className="plot-toolbar-controls", children=[
                             html.Div(className="plot-quick-options", children=[
                                 dcc.Checklist(
@@ -671,11 +721,6 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                 ),
                             ]),
                             html.Div(className="plot-option-menus", children=[
-                                image_export_options(
-                                    "include-plot-title", "include-plot-legend",
-                                    "origin-epsilon-export", "show-epsilon-export-grid",
-                                    "zero-epsilon-export-y",
-                                ),
                                 html.Details(className="plot-options", children=[
                                     html.Summary("Legend options"),
                                     html.Small("Choose Legend beside each loaded spectrum."),
@@ -752,14 +797,6 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                     placeholder="e.g. 30",
                                 ),
                             ]),
-                            html.Div(className="plot-download-actions", children=[
-                                html.Button("Save PNG", id="save-slice-png",
-                                            className="button button-secondary compact-button"),
-                                html.Button("Save SVG", id="save-slice-svg",
-                                            className="button button-secondary compact-button"),
-                                html.Button("Save CSV", id="save-slice-csv",
-                                            className="button button-secondary compact-button"),
-                            ]),
                             html.Div(className="plot-quick-options", children=[
                                 dcc.Checklist(
                                     id="fit-slice-exponential", value=[],
@@ -767,16 +804,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                     options=[{"label": "Fit exponential decay", "value": "on"}],
                                 ),
                             ]),
-                            image_export_options(
-                                "include-slice-title", "include-slice-legend",
-                                "origin-slice-export", "show-slice-export-grid",
-                                "zero-slice-export-y",
-                            ),
                         ]),
                         html.Div(id="slice-message", className="message"),
                         html.Div(id="slice-fit-result", className="slice-fit-result"),
                         html.Div(id="slice-image-message", className="image-export-message"),
-                        html.Div(id="slice-csv-message", className="image-export-message"),
+                        html.Small("Save the slice CSV through Output → CSV content → Wavelength slice."),
                         dcc.Graph(
                             id="wavelength-slice-plot",
                             figure=_empty(go, "Load spectra and type a wavelength"),
@@ -788,12 +820,6 @@ window.autoqySaveText = (filename, text, mimeType) => {
                              children=[
                                  html.Div(className="plot-toolbar nmr-plot-toolbar", children=[
                                      html.Strong("NMR-guided PSS subtraction"),
-                                     html.Div(className="plot-download-actions", children=[
-                                         html.Button("Save PNG", id="save-nmr-png",
-                                                     className="button button-secondary compact-button"),
-                                         html.Button("Save SVG", id="save-nmr-svg",
-                                                     className="button button-secondary compact-button"),
-                                     ]),
                                  ]),
                                  html.Div(id="nmr-image-message", className="image-export-message"),
                                  dcc.Graph(
@@ -826,7 +852,10 @@ window.autoqySaveText = (filename, text, mimeType) => {
         dcc.Store(id="epsilon-store"),
         dcc.Store(id="processed-store"),
         dcc.Store(id="isomer-request-store"),
-        dcc.ConfirmDialog(id="confirm-isomer-overwrite"),
+        dcc.Store(id="isomer-export-ready-store"),
+        dcc.Store(id="nmr-export-ready-store"),
+        dcc.Store(id="session-generation", data=generation),
+        dcc.Location(id="session-reload", refresh=True),
         dcc.Store(id="wavelength-slice-store"),
         dcc.Store(id="nmr-spectra-store"),
         dcc.Store(id="nmr-result-store"),
@@ -850,6 +879,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
         and "value" in getattr(component, "_prop_names", [])
         and component.id != "edit-legend"
     }
+    default_layout = deepcopy(app.layout)
     if recovered:
         for component in components(app.layout):
             component_id = getattr(component, "id", None)
@@ -859,9 +889,85 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 component.data = recovered.get("nmr")
             elif component_id == "source-folder-store":
                 component.data = recovered.get("source")
+            elif component_id == "isomer-request-store":
+                component.data = recovered.get("isomer_request")
         for component_id, value in recovered.get("settings", {}).items():
             if component_id in controls:
                 controls[component_id].value = value
+                if "persistence" in getattr(controls[component_id], "_prop_names", []):
+                    controls[component_id].persistence = generation
+
+    def import_session(payload):
+        nonlocal recovered, generation
+        snapshot = decode_session(payload)
+        if snapshot.get("dataset"):
+            dataset = _unpack(snapshot["dataset"])
+            count = len(snapshot["dataset"]["labels"])
+            if (dataset.absorbance.shape != (len(dataset.wavelengths), count)
+                    or len(dataset.coordinates) != count
+                    or not np.isfinite(dataset.absorbance).all()):
+                raise ValueError("Invalid session dataset")
+        with session_lock:
+            recovery.write(snapshot)
+            recovered = snapshot
+            generation = uuid4().hex
+        layout = deepcopy(default_layout)
+        for component in components(layout):
+            component_id = getattr(component, "id", None)
+            if not isinstance(component_id, str):
+                continue
+            stores = {"dataset-store": "dataset", "nmr-spectra-store": "nmr",
+                      "source-folder-store": "source", "isomer-request-store": "isomer_request"}
+            if component_id in stores:
+                component.data = snapshot.get(stores[component_id])
+            elif component_id == "session-generation":
+                component.data = generation
+            elif component_id == "autosave-message":
+                component.children = "Restored saved binary session."
+            elif component_id in snapshot.get("settings", {}) and component_id in controls:
+                component.value = snapshot["settings"][component_id]
+                if "persistence" in getattr(component, "_prop_names", []):
+                    component.persistence = generation
+        app.layout = layout
+        set_props("session-reload", {"href": f"/?session={generation}"})
+
+    @app.callback(
+        Output("session-save-message", "children"),
+        Output("confirm-session-overwrite", "displayed"),
+        Output("confirm-session-overwrite", "message"),
+        Input("save-session", "n_clicks"), Input("confirm-session-overwrite", "submit_n_clicks"),
+        State("dataset-store", "data"), State("nmr-spectra-store", "data"),
+        State("source-folder-store", "data"), State("isomer-request-store", "data"),
+        *[State(component_id, "value") for component_id in controls],
+        State({"type": "direct-concentration", "index": ALL}, "value"),
+        State({"type": "path-length", "index": ALL}, "value"),
+        State({"type": "legend-spectrum", "index": ALL}, "value"),
+        State({"type": "legend-name", "index": ALL}, "value"),
+        State({"type": "legend-spectrum", "index": ALL}, "id"),
+        State({"type": "legend-name", "index": ALL}, "id"), prevent_initial_call=True,
+    )
+    def save_session(_, __, data, nmr, source, isomer, *values):
+        try:
+            settings = dict(zip(controls, values[:len(controls)]))
+            concentrations, paths, visibility, names, visibility_ids, name_ids = values[len(controls):]
+            packed = _with_spectrum_state(data, concentrations, paths, visibility, names,
+                                          visibility_ids, name_ids)
+            snapshot = {"version": 1, "dataset": packed, "nmr": nmr, "source": source,
+                        "settings": settings, "isomer_request": isomer}
+            filename = str(settings.get("session-filename") or "spectral-session.aqys").strip()
+            if Path(filename).name != filename:
+                raise ValueError("Enter a session file name without a folder path")
+            if not Path(filename).suffix:
+                filename += ".aqys"
+            if Path(filename).suffix.lower() != ".aqys":
+                raise ValueError("Session files must use the .aqys extension")
+            destination = _save_path(settings.get("save-folder"), filename)
+            if ctx.triggered_id == "save-session" and destination.exists():
+                return f"Existing file: {destination}", True, f"Overwrite {destination.name}?"
+            SpectralRecovery(destination).write(snapshot)
+            return f"Saved session: {destination}", False, ""
+        except Exception as error:
+            return f"Session save failed: {error}", False, ""
 
     app.clientside_callback(
         "function(...args) { return window.autoqySpectralAutosave("
@@ -869,6 +975,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Output("autosave-message", "children"),
         Input("dataset-store", "data"), Input("nmr-spectra-store", "data"),
         Input("source-folder-store", "data"), Input("clear-dataset", "n_clicks"),
+        Input("isomer-request-store", "data"), Input("session-generation", "data"),
         *[Input(component_id, "value") for component_id in controls],
         Input({"type": "direct-concentration", "index": ALL}, "value"),
         Input({"type": "path-length", "index": ALL}, "value"),
@@ -924,42 +1031,6 @@ window.autoqySaveText = (filename, text, mimeType) => {
         "nmr-plot", "save-nmr-png", "save-nmr-svg", "nmr-image-message",
         "include-plot-title", "include-plot-legend", "origin-epsilon-export",
         "show-epsilon-export-grid", "zero-epsilon-export-y",
-    )
-
-    app.clientside_callback(
-        """
-        function(clicks, data) {
-          if (!clicks) return window.dash_clientside.no_update;
-          if (!data || !data.coordinates || !data.values) {
-            return 'Choose a wavelength before saving CSV.';
-          }
-          const quote = (value) => `"${String(value).replace(/"/g, '""')}"`;
-          const hasFit = Array.isArray(data.fit_values)
-            && data.fit_values.length === data.values.length;
-          const header = [data.x_label, data.y_label];
-          if (hasFit) header.push('Exponential fit');
-          const rows = [header];
-          data.coordinates.forEach((coordinate, index) => {
-            const row = [coordinate, data.values[index]];
-            if (hasFit) row.push(data.fit_values[index]);
-            rows.push(row);
-          });
-          if (hasFit) {
-            rows.push([]);
-            rows.push(['Lifetime', data.lifetime, data.time_unit]);
-            rows.push(['Lifetime standard error', data.lifetime_error, data.time_unit]);
-          }
-          const csv = rows.map((row) => row.map(quote).join(',')).join('\\n') + '\\n';
-          const wavelength = String(data.wavelength).replace(/[^0-9.-]+/g, '-');
-          return window.autoqySaveText(
-            `wavelength-slice-${wavelength}-nm.csv`, csv, 'text/csv'
-          );
-        }
-        """,
-        Output("slice-csv-message", "children"),
-        Input("save-slice-csv", "n_clicks"),
-        State("wavelength-slice-store", "data"),
-        prevent_initial_call=True,
     )
 
     @app.callback(
@@ -1054,6 +1125,12 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 if not paths:
                     return (existing_data, "File selection cancelled.", no_update,
                             no_update, "", no_update, kinetics_start)
+                sessions = [path for path in paths if Path(path).suffix.lower() == ".aqys"]
+                if sessions:
+                    if len(paths) != 1:
+                        raise ValueError("Open one session file at a time, without other spectra")
+                    import_session(Path(sessions[0]).read_bytes())
+                    return (no_update, "Restoring saved session…", None, None, "", no_update, no_update)
                 incoming, message = _load_local_paths(paths)
                 source_folder = str(Path(paths[0]).resolve().parent)
                 return finish_add(incoming, message, source_folder)
@@ -1062,6 +1139,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
                         no_update, "", no_update, kinetics_start)
             contents = contents if isinstance(contents, list) else [contents]
             filenames = filenames if isinstance(filenames, list) else [filenames]
+            if any(str(name).lower().endswith(".aqys") for name in filenames):
+                if len(contents) != 1 or len(filenames) != 1:
+                    raise ValueError("Drop one session file at a time, without other spectra")
+                import_session(base64.b64decode(contents[0].split(",", 1)[1], validate=True))
+                return (no_update, "Restoring saved session…", None, None, "", no_update, no_update)
             ordered_uploads = sorted(
                 zip(contents, filenames), key=lambda item: _natural_sort_key(item[1])
             )
@@ -1130,26 +1212,39 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Output("isomer-reference", "value"), Output("isomer-mixture", "value"),
         Output("reconstruct-isomer", "disabled"),
         Input("dataset-store", "data"),
+        State("isomer-reference", "value"), State("isomer-mixture", "value"),
     )
-    def isomer_choices(data):
+    def isomer_choices(data, current_reference=None, current_mixture=None):
         labels = data.get("labels", []) if data else []
         options = [{"label": f"{i + 1} · {label}", "value": i}
                    for i, label in enumerate(labels)]
-        return options, options, (0 if labels else None), (len(labels) - 1 if labels else None), len(labels) < 2
+        reference = current_reference if current_reference in range(len(labels)) else (0 if labels else None)
+        mixture = current_mixture if current_mixture in range(len(labels)) else (len(labels) - 1 if labels else None)
+        return options, options, reference, mixture, len(labels) < 2
 
     @app.callback(
         Output("isomer-request-store", "data"),
         Input("reconstruct-isomer", "n_clicks"), Input("dataset-store", "data"),
         Input("isomer-reference", "value"), Input("isomer-mixture", "value"),
-        Input("isomer-percent", "value"), prevent_initial_call=True,
+        Input("isomer-percent", "value"), State("isomer-request-store", "data"),
+        prevent_initial_call=True,
     )
-    def request_isomer(_, data, reference, mixture, percent):
+    def request_isomer(_, data, reference, mixture, percent, current=None):
         if ctx.triggered_id != "reconstruct-isomer" or not data:
+            if (recovered and recovered.get("isomer_request")
+                    and data == recovered.get("dataset")):
+                saved = recovered["isomer_request"]
+                if (reference, mixture, percent) == (saved["reference"], saved["mixture"], saved["percent"]):
+                    return saved
+            if (ctx.triggered_id != "dataset-store" and current
+                    and (reference, mixture, percent) ==
+                    (current["reference"], current["mixture"], current["percent"])):
+                return no_update
             return None
         return {"reference": reference, "mixture": mixture, "percent": percent}
 
     @app.callback(
-        Output("isomer-message", "children"), Output("export-isomer", "disabled"),
+        Output("isomer-message", "children"), Output("isomer-export-ready-store", "data"),
         Input("processed-store", "data"), Input("isomer-request-store", "data"),
     )
     def isomer_status(data, request):
@@ -1167,30 +1262,6 @@ window.autoqySaveText = (filename, text, mimeType) => {
             return message, False
         except (ValueError, TypeError) as error:
             return f"Reconstruction unavailable: {error}", True
-
-    @app.callback(
-        Output("isomer-save-message", "children"),
-        Output("confirm-isomer-overwrite", "displayed"),
-        Output("confirm-isomer-overwrite", "message"),
-        Input("export-isomer", "n_clicks"),
-        Input("confirm-isomer-overwrite", "submit_n_clicks"),
-        State("processed-store", "data"), State("isomer-request-store", "data"),
-        State("save-folder", "value"), prevent_initial_call=True,
-    )
-    def save_isomer(_, __, data, request, folder):
-        try:
-            values = _reconstructed_isomer(data, request)
-            destination = _save_path(folder, "reconstructed-metastable-isomer.csv")
-            if ctx.triggered_id == "export-isomer" and destination.exists():
-                return f"Existing file: {destination}", True, f"Overwrite {destination.name}?"
-            reconstructed = SpectralDataset(_unpack(data).wavelengths,
-                                            np.array([0.0]), values[:, None], "csv")
-            text = export_smoothed_text(reconstructed, reconstructed.absorbance)
-            text = text.replace("Wavelength,0", "Wavelength,Reconstructed pure metastable isomer", 1)
-            destination.write_text(text, encoding="utf-8")
-            return f"Saved {destination}", False, ""
-        except (ValueError, TypeError, OSError) as error:
-            return f"Save failed: {error}", False, ""
 
     @app.callback(
         Output("wavelength-low", "value"), Output("wavelength-high", "value"),
@@ -1511,25 +1582,31 @@ window.autoqySaveText = (filename, text, mimeType) => {
         State("epsilon-store", "data"), State("processed-store", "data"),
         State("save-folder", "value"), State("save-filename", "value"),
         State("export-nonnegative", "value"),
+        State("csv-export-kind", "value"), State("isomer-request-store", "data"),
+        State("wavelength-slice-store", "data"), State("nmr-result-store", "data"),
+        State("nmr-export-raw", "value"), State("nmr-reactant-filename", "value"),
+        State("nmr-product-filename", "value"),
         prevent_initial_call=True,
     )
     def save_epsilon(_, __, epsilon_data, processed_data, folder, requested_filename,
-                     nonnegative):
+                     nonnegative, kind="processed", isomer=None, slice_data=None,
+                     nmr_data=None, nmr_raw=None, reactant_filename=None, product_filename=None):
         try:
-            filename, csv_text = _export_csv_payload(
-                epsilon_data, processed_data, "on" in (nonnegative or [])
-            )
-            destination = _save_path(
-                folder, _csv_filename(requested_filename, filename)
-            )
-            if ctx.triggered_id == "export-epsilon" and destination.exists():
-                return (f"Existing file: {destination}", True,
-                        f"Overwrite {destination.name}?", "")
-            destination.write_text(csv_text, encoding="utf-8")
-            return f"Saved {destination}", False, "", ""
+            exports = _csv_exports(kind, epsilon_data, processed_data, requested_filename,
+                                   "on" in (nonnegative or []), isomer, slice_data, nmr_data,
+                                   nmr_raw, reactant_filename, product_filename)
+            destinations = [(_save_path(folder, name), text) for name, text in exports]
+            if len({path for path, _ in destinations}) != len(destinations):
+                raise ValueError("Export file names must be different")
+            existing = [path.name for path, _ in destinations if path.exists()]
+            if ctx.triggered_id == "export-epsilon" and existing:
+                return ("Existing file(s): " + ", ".join(existing), True,
+                        "Overwrite " + ", ".join(existing) + "?", "")
+            for destination, text in destinations:
+                destination.write_text(text, encoding="utf-8")
+            return "Saved " + ", ".join(str(path) for path, _ in destinations), False, "", ""
         except Exception as error:
-            return ("Save failed.", False, "",
-                    f"Export error: {type(error).__name__}: {error}")
+            return ("Save failed.", False, "", f"Export error: {type(error).__name__}: {error}")
 
     @app.callback(
         Output("nmr-spectra-store", "data"), Output("nmr-load-message", "children"),
@@ -1572,7 +1649,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
     @app.callback(
         Output("nmr-plot", "figure"), Output("nmr-plot-panel", "style"),
         Output("nmr-result-message", "children"), Output("nmr-result-store", "data"),
-        Output("export-nmr", "disabled"), Output("nmr-result-message", "className"),
+        Output("nmr-export-ready-store", "data"), Output("nmr-result-message", "className"),
         Output("nmr-processing-message", "children"),
         Input("nmr-spectra-store", "data"), Input("epsilon-store", "data"),
         Input("nmr-reactant-percent", "value"), Input("nmr-error-percent", "value"),
@@ -1658,46 +1735,6 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     f"NMR reconstruction error: {type(error).__name__}: {error}", None, True,
                     "status-message status-stop", "Preprocessing could not be applied.")
 
-    @app.callback(
-        Output("nmr-save-message", "children"),
-        Output("confirm-nmr-overwrite", "displayed"),
-        Output("confirm-nmr-overwrite", "message"),
-        Input("export-nmr", "n_clicks"),
-        Input("confirm-nmr-overwrite", "submit_n_clicks"),
-        State("nmr-result-store", "data"), State("epsilon-store", "data"),
-        State("nmr-export-raw", "value"), State("save-folder", "value"),
-        State("nmr-reactant-filename", "value"),
-        State("nmr-product-filename", "value"),
-        prevent_initial_call=True,
-    )
-    def save_nmr(_, __, nmr_data, epsilon_data, preserve_negative, folder,
-                 requested_reactant_filename, requested_product_filename):
-        try:
-            if not nmr_data or not epsilon_data:
-                raise ValueError("Calculate reactant and NMR-derived ε before saving")
-            reactant_path = _save_path(folder, _csv_filename(
-                requested_reactant_filename, "epsilon-spectra-reactant.csv"
-            ))
-            product_path = _save_path(folder, _csv_filename(
-                requested_product_filename, "epsilon-spectra-product.csv"
-            ))
-            if reactant_path == product_path:
-                raise ValueError("Reactant and product file names must be different")
-            existing = [path.name for path in (reactant_path, product_path) if path.exists()]
-            if ctx.triggered_id == "export-nmr" and existing:
-                return ("Existing file(s): " + ", ".join(existing), True,
-                        "Overwrite " + " and ".join(existing) + "?",)
-            epsilon_result, labels = _unpack_epsilon(epsilon_data)
-            reactant_text = export_epsilon_csv(epsilon_result, labels)
-            product_text = export_nmr_subtraction_csv(
-                _unpack_nmr(nmr_data), "on" in (preserve_negative or [])
-            )
-            reactant_path.write_text(reactant_text, encoding="utf-8")
-            product_path.write_text(product_text, encoding="utf-8")
-            return f"Saved {reactant_path.name} and {product_path.name} in {reactant_path.parent}", False, ""
-        except Exception as error:
-            return f"Save error: {type(error).__name__}: {error}", False, ""
-
     return app
 
 
@@ -1768,12 +1805,12 @@ def _loaded_spectrum_rows(html, dcc, data, edit_legend=False):
                 html.Button(
                     "↑", title="Move up", disabled=index == 0,
                     id={"type": "move-spectrum-up", "index": index},
-                    className="button button-secondary spectrum-order-button",
+                    className="button button-secondary spectrum-order-button spectrum-move-up",
                 ),
                 html.Button(
                     "↓", title="Move down", disabled=index == len(labels) - 1,
                     id={"type": "move-spectrum-down", "index": index},
-                    className="button button-secondary spectrum-order-button",
+                    className="button button-secondary spectrum-order-button spectrum-move-down",
                 ),
                 html.Button(
                     "Remove", id={"type": "remove-spectrum", "index": index},
@@ -2075,7 +2112,7 @@ def _choose_files(initial_directory=None):
         + _foreground_owner_script() +
         "$dialog = New-Object System.Windows.Forms.OpenFileDialog; "
         "$dialog.Multiselect = $true; "
-        "$dialog.Filter = 'Spectral files|*.dat;*.txt;*.tsv;*.csv;*.Abs8;*.DSW;*.BSW|All files|*.*'; "
+        "$dialog.Filter = 'Spectra and sessions|*.aqys;*.dat;*.txt;*.tsv;*.csv;*.Abs8;*.DSW;*.BSW|AutoQY sessions|*.aqys|All files|*.*'; "
         f"if ('{initial}') {{ $dialog.InitialDirectory = '{initial}' }}; "
         "$result = $dialog.ShowDialog($owner); "
         "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { "
@@ -2153,6 +2190,51 @@ def _csv_filename(value, default):
     if candidate.suffix.lower() != ".csv":
         raise ValueError("The export file name must use the .csv extension")
     return value
+
+
+def _csv_exports(kind, epsilon_data, processed_data, requested_filename=None,
+                 nonnegative=False, isomer=None, slice_data=None, nmr_data=None,
+                 nmr_raw=None, reactant_filename=None, product_filename=None):
+    if kind == "processed":
+        name, text = _export_csv_payload(epsilon_data, processed_data, nonnegative)
+    elif kind == "isomer":
+        values = _reconstructed_isomer(processed_data, isomer)
+        if nonnegative:
+            values = np.maximum(values, 0)
+        dataset = SpectralDataset(_unpack(processed_data).wavelengths,
+                                  np.array([0.0]), values[:, None], "csv")
+        name = "reconstructed-metastable-isomer.csv"
+        text = export_smoothed_text(dataset, dataset.absorbance, "csv").replace(
+            "Wavelength,0", "Wavelength,Reconstructed pure metastable isomer", 1)
+    elif kind == "slice":
+        if not slice_data or not slice_data.get("values"):
+            raise ValueError("Choose a wavelength before saving a slice CSV")
+        name = f"wavelength-slice-{slice_data['wavelength']:g}-nm.csv"
+        stream = StringIO(newline="")
+        writer = csv.writer(stream, lineterminator="\n")
+        fit = slice_data.get("fit_values")
+        has_fit = fit is not None and len(fit) == len(slice_data["values"])
+        writer.writerow([slice_data["x_label"], slice_data["y_label"]] +
+                        (["Exponential fit"] if has_fit else []))
+        for index, (coordinate, value) in enumerate(zip(slice_data["coordinates"], slice_data["values"])):
+            writer.writerow([coordinate, max(value, 0) if nonnegative else value] +
+                            ([max(fit[index], 0) if nonnegative else fit[index]] if has_fit else []))
+        if has_fit:
+            writer.writerow([])
+            writer.writerow(["Lifetime", slice_data["lifetime"], slice_data["time_unit"]])
+            writer.writerow(["Lifetime standard error", slice_data["lifetime_error"], slice_data["time_unit"]])
+        text = stream.getvalue()
+    elif kind == "nmr":
+        if not epsilon_data or not nmr_data:
+            raise ValueError("Calculate reactant and NMR-derived ε before saving")
+        result, labels = _unpack_epsilon(epsilon_data)
+        return [(_csv_filename(reactant_filename, "epsilon-spectra-reactant.csv"),
+                 export_epsilon_csv(result, labels)),
+                (_csv_filename(product_filename, "epsilon-spectra-product.csv"),
+                 export_nmr_subtraction_csv(_unpack_nmr(nmr_data), "on" in (nmr_raw or [])))]
+    else:
+        raise ValueError("Select CSV content in Output")
+    return [(_csv_filename(requested_filename, name), text)]
 
 
 def _export_csv_payload(epsilon_data, processed_data, nonnegative=False):
@@ -2857,7 +2939,7 @@ def _processing_title(method, svd_enabled=None, svd_rank=None):
 
 
 def _colors():
-    return list(ANALYSIS_TRACE_PALETTE)
+    return list(COLORBLIND_TRACE_PALETTE)
 
 
 def _spectrum_colors(count, minimal=False):

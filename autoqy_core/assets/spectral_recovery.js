@@ -17,6 +17,11 @@
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(snapshot), signal: AbortSignal.timeout(30000)
       });
+      if (response.status === 409) {
+        pending = null;
+        status('Another session was loaded. Reload this page before making changes.');
+        return;
+      }
       if (!response.ok) throw new Error('Autosave failed');
       status(pending ? 'Saving changes…'
         : 'Autosaved locally at ' + new Date().toLocaleTimeString() + '.');
@@ -32,7 +37,7 @@
     }
   };
   window.autoqySpectralAutosave = (ids, args) => {
-    const [dataset, nmr, source, clearClicks, ...rest] = args;
+    const [dataset, nmr, source, clearClicks, isomerRequest, generation, ...rest] = args;
     if (!dataset && !nmr && !hadData && !clearClicks) {
       return window.dash_clientside.no_update;
     }
@@ -57,7 +62,8 @@
         if (id.index < count) packed.legend_visibility[id.index] = (visibility[index] || []).includes('on');
       });
     }
-    pending = {version: 1, dataset: packed, nmr: nmr, source: source, settings: settings};
+    pending = {version: 1, dataset: packed, nmr: nmr, source: source,
+      settings: settings, isomer_request: isomerRequest, generation: generation};
     status('Saving changes…');
     clearTimeout(timer);
     timer = setTimeout(flush, 1000);

@@ -46,8 +46,9 @@ can then be selected in the Analysis GUI.
 7. Inspect the individual ε traces, mean, and shaded error band. Large
    structured differences between measurements should be investigated before
    export; the band is not a substitute for inspecting the spectra.
-8. Under **4 · Output**, choose the Example 4 folder, set the CSV name to
-   `reactant_absorptivity.csv`, and select **Save processed CSV**. The file
+8. Under **5 · Output**, choose the Example 4 folder, set the CSV name to
+   `reactant_absorptivity.csv`, choose **Processed dataset / calculated ε**
+   under **CSV content**, and click **Save CSV**. The file
    contains processed absorbance, individual ε curves, their mean, SD, SEM,
    and non-negative limits.
 
@@ -68,7 +69,7 @@ series.
 ## 3. Derive product ε from the PSS composition
 
 1. Keep the calculated reactant ε loaded in Spectral Treatment.
-2. Expand **5 · Optional — NMR-guided PSS subtraction** and load
+2. Expand **6 · Optional — NMR-guided PSS subtraction** and load
    `crespi_group_inputs/source_data/reactant_pss.dat`. Its first spectrum is the pure reactant and
    its last spectrum is the final PSS.
 3. Under **Preprocess reactant and PSS**, apply the same **600–650 nm** baseline
@@ -86,9 +87,9 @@ series.
    −500 M⁻¹ cm⁻¹ remain visible for diagnosis; values below that threshold stop
    export. By default, the primary exported product ε is constrained to
    zero while the raw audit column is retained.
-8. Set the optional reactant and product file names to
+8. In **5 · Output → NMR CSV options**, set the optional reactant and product file names to
    `reactant_absorptivity.csv` and `product_absorptivity.csv`, then select
-   **Save reactant + NMR-derived ε CSVs**.
+   **Reactant + NMR-derived product ε** under **CSV content**, then click **Save CSV**.
 
 The product bounds combine the reactant measurement SD with the selected NMR
 composition error. They are therefore asymmetric and wavelength dependent.
@@ -103,12 +104,20 @@ pure isomer**, select these two spectra, enter the independently known
 
 The result is overlaid on the absorbance plot using the current preprocessing.
 **Show reconstructed isomer** controls its visibility in the preview and saved
-PNG/SVG figure. **Save reconstructed isomer CSV** exports it to **Save folder**
-in **4 · Output**, preserving negative values and asking before replacement.
+PNG/SVG figure. In **5 · Output**, choose **Reconstructed pure isomer (absorbance)**
+under **CSV content** and click **Save CSV**. This uses the Output folder and
+file-name settings, preserves negative values unless clamping is enabled,
+and asks before replacement.
 This optional route does not produce the ε files needed for the quantum-yield
 analysis below; use the preceding ε workflow for those inputs.
 
 ## 4. Build the quantum-yield analysis
+
+To pause spectral preparation, use **5 · Output → Save session (.aqys)**.
+Drop the saved binary session into the main Spectral Treatment uploader to
+resume its inputs and processing settings (replacing the current session).
+Autosave uses the same compressed format. Figure save buttons and image
+options are in **Output → Save figures**.
 
 Return to **AutoQY Analysis**. You may load the bundled
 `generic_inputs/analysis.json` and

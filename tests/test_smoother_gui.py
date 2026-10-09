@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from autoqy_core.epsilon import EpsilonResult
-from autoqy_core.plot_style import ANALYSIS_TRACE_PALETTE
+from autoqy_core.plot_style import COLORBLIND_TRACE_PALETTE
 from autoqy_core.smoother import SpectralDataset, reconstruct_isomer_absorbance
 from autoqy_core.tools.smoother_gui import (
     MAX_INTERACTIVE_SPECTRA,
@@ -19,6 +19,7 @@ from autoqy_core.tools.smoother_gui import (
     _combine_loaded,
     _compact_packed,
     _csv_filename,
+    _csv_exports,
     _epsilon_figure,
     _export_csv_payload,
     _fit_exponential_decay,
@@ -207,20 +208,36 @@ class SpectralGuiTests(unittest.TestCase):
                        ["stable", "PSS"], ["spectra.csv"])
         request = {"reference": 0, "mixture": 1, "percent": 50}
         save = next(value["callback"].__wrapped__ for key, value in self.app.callback_map.items()
-                    if "isomer-save-message.children" in key)
+                    if "epsilon-save-message.children" in key)
         with TemporaryDirectory() as directory:
             token = context_value.set(AttributeDict(
-                triggered_inputs=[{"prop_id": "export-isomer.n_clicks"}]))
+                triggered_inputs=[{"prop_id": "export-epsilon.n_clicks"}]))
             try:
-                result = save(1, None, packed, request, f'"{directory}"')
+                result = save(1, None, None, packed, f'"{directory}"', None, [],
+                              "isomer", request)
                 self.assertFalse(result[1])
+                self.assertEqual(result[3], "", result)
                 path = Path(directory) / "reconstructed-metastable-isomer.csv"
                 frame = pd.read_csv(path)
                 self.assertEqual(frame.columns[1], "Reconstructed pure metastable isomer")
                 np.testing.assert_allclose(frame.iloc[:, 1], [0.8, -0.6])
-                self.assertTrue(save(2, None, packed, request, directory)[1])
+                self.assertTrue(save(2, None, None, packed, directory, None, [],
+                                     "isomer", request)[1])
             finally:
                 context_value.reset(token)
+
+    def test_slice_csv_uses_output_name_clamping_and_fit_details(self):
+        slice_data = {"wavelength": 405, "coordinates": [0, 30], "values": [0.4, -0.1],
+                      "x_label": "Time (s)", "y_label": "Absorbance", "fit_values": [0.4, -0.05],
+                      "lifetime": 12, "lifetime_error": 0.5, "time_unit": "s"}
+        name, text = _csv_exports("slice", None, None, "chosen", True,
+                                  slice_data=slice_data)[0]
+        self.assertEqual(name, "chosen.csv")
+        self.assertIn("30,0,0", text)
+        self.assertIn("Lifetime,12,s", text)
+        self.assertIn("Lifetime standard error,0.5,s", text)
+        self.assertEqual(_csv_exports("slice", None, None, slice_data=slice_data)[0][0],
+                         "wavelength-slice-405-nm.csv")
 
     def test_changing_isomer_selection_or_dataset_invalidates_request(self):
         callback = self.app.callback_map["isomer-request-store.data"]["callback"].__wrapped__
@@ -373,7 +390,7 @@ class SpectralGuiTests(unittest.TestCase):
         ]
         self.assertEqual(
             aligned_menu_labels,
-            ["Image export options", "Legend options", "Axis names"],
+            ["Legend options", "Axis names"],
         )
         self.assertTrue(any(
             getattr(component, "className", None) == "info-popup"
@@ -386,9 +403,11 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertNotIn("responsive", by_id["epsilon-plot"].config)
         for component_id in (
             "save-epsilon-png", "save-epsilon-svg", "save-slice-png",
-            "save-slice-svg", "save-slice-csv", "save-nmr-png", "save-nmr-svg",
+            "save-slice-svg", "csv-export-kind", "save-session", "save-nmr-png", "save-nmr-svg",
         ):
             self.assertIn(component_id, by_id)
+        for removed in ("save-slice-csv", "export-isomer", "export-nmr"):
+            self.assertNotIn(removed, by_id)
         self.assertIn("epsilon-image-message.children", self.app.callback_map)
         self.assertIn("nmr-image-message.children", self.app.callback_map)
         self.assertIn("window.showSaveFilePicker", self.app.index_string)
@@ -407,8 +426,10 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertIn("showgrid: includeGrid", self.app.index_string)
         self.assertIn("axis.rangemode = 'nonnegative'", self.app.index_string)
 
-    def test_main_plot_uses_the_analysis_palette(self):
-        self.assertEqual(_colors(), list(ANALYSIS_TRACE_PALETTE))
+    def test_main_plot_uses_colorblind_palette_by_default(self):
+        self.assertEqual(_colors(), list(COLORBLIND_TRACE_PALETTE))
+        self.assertEqual(_colors()[0], "#0072B2")
+        self.assertEqual(_spectrum_colors(8)[7], _colors()[0])
 
     def test_legend_can_show_only_selected_spectrum_traces(self):
         import plotly.graph_objects as go
@@ -624,7 +645,7 @@ class SpectralGuiTests(unittest.TestCase):
             ],
         )
         self.assertEqual(_spectrum_colors(7), [
-            ANALYSIS_TRACE_PALETTE[index % len(ANALYSIS_TRACE_PALETTE)]
+            COLORBLIND_TRACE_PALETTE[index % len(COLORBLIND_TRACE_PALETTE)]
             for index in range(7)
         ])
 

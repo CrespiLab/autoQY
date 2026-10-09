@@ -1,4 +1,6 @@
 from pathlib import Path
+import base64
+import json
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -6,11 +8,15 @@ from unittest.mock import patch
 import numpy as np
 try:
     from dash import dcc, html
+    from dash._callback_context import context_value
+    from dash._utils import AttributeDict
 except ImportError:
     dcc = html = None
 
 from autoqy_core.smoother import SpectralDataset
-from autoqy_core.tools.spectral_recovery import SpectralRecovery
+from autoqy_core.tools.spectral_recovery import (
+    SESSION_MAGIC, SpectralRecovery, decode_session, encode_session,
+)
 from autoqy_core.tools.smoother_gui import (
     _append_packed, _combine_loaded, _compact_packed, _loaded_spectrum_rows,
     _pack, _remove_packed, _unpack, create_app,
@@ -48,6 +54,106 @@ class SpectralRecoveryTests(unittest.TestCase):
                 store.write({"version": 1, "dataset": None})
         self.assertEqual(store.read(), snapshot)
         self.assertEqual(list(self.path.parent.glob("*.tmp")), [])
+
+    def test_binary_roundtrip_preserves_full_precision_and_compresses_arrays(self):
+        matrix = np.random.default_rng(4).random((1000, 100))
+        snapshot = {"version": 1, "dataset": {"absorbance": matrix.tolist()},
+                    "settings": {"baseline-enabled": ["on"]},
+                    "isomer_request": {"reference": 0, "mixture": 99, "percent": 42}}
+        payload = encode_session(snapshot)
+        self.assertTrue(payload.startswith(SESSION_MAGIC))
+        self.assertLess(len(payload), len(json.dumps(snapshot).encode()) / 2)
+        self.assertEqual(decode_session(payload), snapshot)
+        np.testing.assert_array_equal(decode_session(payload)["dataset"]["absorbance"], matrix)
+        with self.assertRaises(ValueError):
+            decode_session(payload[:50])
+        with self.assertRaises(ValueError):
+            encode_session({"version": 2})
+
+    def test_legacy_autosave_is_read_and_new_writes_are_binary(self):
+        legacy = self.path.parent / "autosave.json"
+        snapshot = {"version": 1, "dataset": self.data}
+        legacy.write_text(json.dumps(snapshot), encoding="utf-8")
+        store = SpectralRecovery(legacy.with_suffix(".aqys"))
+        self.assertEqual(store.read(), snapshot)
+        store.write(snapshot)
+        self.assertTrue(store.path.read_bytes().startswith(SESSION_MAGIC))
+        self.assertTrue(legacy.exists())
+
+    def test_manual_save_uses_output_and_preserves_dynamic_settings(self):
+        app = create_app(self.path)
+        by_id = {item.id: item for item in components(app.layout)
+                 if isinstance(getattr(item, "id", None), str)}
+        callback = next(value for key, value in app.callback_map.items()
+                        if "session-save-message.children" in key)
+        settings = {"save-folder": self.directory.name, "session-filename": "portable",
+                    "baseline-enabled": ["on"]}
+        values = [settings.get(item["id"], getattr(by_id[item["id"]], "value", None))
+                  for item in callback["state"][4:-6]]
+        args = (1, None, self.data, None, "source", None, *values,
+                [0.002], [0.5], [[]], ["Custom legend"],
+                [{"type": "legend-spectrum", "index": 0}],
+                [{"type": "legend-name", "index": 0}])
+        token = context_value.set(AttributeDict(triggered_inputs=[{"prop_id": "save-session.n_clicks"}]))
+        try:
+            save = callback["callback"].__wrapped__
+            result = save(*args)
+            self.assertIn("Saved session", result[0], result)
+            destination = self.path.parent / "portable.aqys"
+            snapshot = decode_session(destination.read_bytes())
+            self.assertEqual(snapshot["settings"]["baseline-enabled"], ["on"])
+            self.assertEqual(snapshot["dataset"]["legend_names"], ["Custom legend"])
+            self.assertEqual(snapshot["dataset"]["legend_visibility"], [False])
+            self.assertEqual(snapshot["dataset"]["concentrations"], [0.002])
+            self.assertEqual(snapshot["dataset"]["path_lengths"], [0.5])
+            previous = destination.read_bytes()
+            self.assertTrue(save(*args)[1])
+            self.assertEqual(destination.read_bytes(), previous)
+        finally:
+            context_value.reset(token)
+
+    def test_session_drop_replaces_data_restores_settings_and_rejects_stale_autosave(self):
+        app = create_app(self.path)
+        before = {item.id: item for item in components(app.layout)
+                  if isinstance(getattr(item, "id", None), str)}
+        old_generation = before["session-generation"].data
+        snapshot = {"version": 1, "dataset": self.data, "source": "saved-folder",
+                    "settings": {"save-folder": self.directory.name, "baseline-enabled": ["on"],
+                                 "slice-time-multiplier": 30},
+                    "isomer_request": {"reference": 0, "mixture": 0, "percent": 50}}
+        key, callback = next((key, value) for key, value in app.callback_map.items()
+                             if "dataset-store.data" in key and "load-message.children" in key)
+        overrides = {("upload-spectra", "contents"): ["data:application/octet-stream;base64," +
+                     base64.b64encode(encode_session(snapshot)).decode()],
+                     ("upload-spectra", "filename"): ["saved.aqys"]}
+        # Use the real Dash request context so the reload side-effect is exercised.
+        def dependency(item):
+            identity, prop = item["id"], item["property"]
+            value = overrides.get((identity, prop))
+            if (identity, prop) not in overrides:
+                value = getattr(before.get(identity), prop, None) if not identity.startswith("{") else []
+            return {**item, "value": value}
+        output = callback["output"]
+        client = app.server.test_client()
+        response = client.post("/_dash-update-component", json={
+            "output": key, "outputs": [{"id": item.component_id, "property": item.component_property}
+                                         for item in output],
+            "inputs": [dependency(item) for item in callback["inputs"]],
+            "state": [dependency(item) for item in callback["state"]],
+            "changedPropIds": ["upload-spectra.contents"],
+        })
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIn("session-reload", response.json["sideUpdate"])
+        after = {item.id: item for item in components(app.layout)
+                 if isinstance(getattr(item, "id", None), str)}
+        self.assertEqual(after["dataset-store"].data, self.data)
+        self.assertEqual(after["baseline-enabled"].value, ["on"])
+        self.assertEqual(after["save-folder"].value, self.directory.name)
+        self.assertEqual(after["isomer-request-store"].data, snapshot["isomer_request"])
+        stale = client.post("/_autoqy_spectral_autosave", json={
+            "version": 1, "dataset": None, "generation": old_generation})
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(SpectralRecovery(self.path).read(), snapshot)
 
     def test_saved_session_restores_original_data_and_settings_after_restart(self):
         app = create_app(self.path)

@@ -134,6 +134,29 @@ the current series. **Open files from folder** also uses that source folder as
 the initial export folder. Use **Clear all spectra** when you want to discard
 the accumulated series and restart its elapsed-time counter.
 
+## Save and resume a session
+
+In **5 · Output**, choose **Save folder**, optionally enter a session file name,
+and click **Save session (.aqys)**. The compressed binary session preserves
+the original spectra, processing settings, legends, concentrations, path
+lengths, reconstruction, NMR inputs, and Output settings without a huge JSON
+matrix. AutoQY asks before replacing an existing session file.
+
+Drop one `.aqys` file into the main uploader, or select it with **Open files
+from folder**, to replace the current session and resume the saved treatment.
+Plots and calculated results are rebuilt from the saved inputs. Do not mix
+session files and spectra in one drop.
+
+Autosave uses this same binary format and recovers the latest state at the
+next launch. Wait for the Data panel's autosave confirmation before closing.
+Older JSON autosaves can still be read. Clearing all spectra also updates
+autosave, but does not alter a session file you saved separately.
+
+All CSVs use **Output → CSV content → Save CSV**: select the processed dataset,
+reconstructed isomer, wavelength slice, or NMR ε pair. Figure buttons and image
+export options are in **Output → Save figures**; they open a separate Save As
+dialog. There are no separate CSV buttons in reconstruction or slice panels.
+
 ## Check the spectrum order
 
 For molar-absorptivity measurements, the concentrations entered later should correspond to the correct spectra.
@@ -387,13 +410,13 @@ Possible reasons for larger differences include:
 To export, open:
 
 ```text id="0jmzhf"
-4 · Output → Export processed dataset
+5 · Output → CSV content → Processed dataset / calculated ε
 ```
 
 and click:
 
 ```text id="jp9yu2"
-Save processed CSV
+Save CSV
 ```
 
 A typical filename is:
@@ -402,7 +425,7 @@ A typical filename is:
 reactant_absorptivity.csv
 ```
 
-The same **Save processed CSV** button serves two cases:
+With **Processed dataset / calculated ε** selected, **Save CSV** serves two cases:
 
 - without a complete set of concentrations and path lengths, it saves the
   processed absorbance matrix;
@@ -513,13 +536,18 @@ fitted curve and lifetime information.
 
 ---
 
-In **4 · Output**, paste your destination into **Save folder** or click
+In **5 · Output**, paste your destination into **Save folder** or click
 **Choose folder**. Paths copied with Windows **Copy as path** are accepted.
 The selected folder is retained when you clear spectra or load another dataset.
 
 # 10. Use Spectral Treatment to prepare figures
 
 Spectral Treatment can also prepare clean spectral figures directly.
+
+With **Minimal colors** off (the default), spectra use a color-blind-friendly
+Okabe–Ito palette in both the preview and saved figures. Colors repeat after
+seven spectra. Minimal colors retains the blue initial spectrum, orange final
+spectrum, and grey intermediate curves.
 
 To overlay a pure metastable-isomer spectrum without converting to ε, expand
 **Reconstruct pure isomer**. Select the pure stable-isomer reference and a
@@ -531,8 +559,9 @@ Both spectra must have been measured at the same total concentration and path
 length. Do not normalize their peaks separately. The calculated curve uses
 the current baseline correction, smoothing, and wavelength range. Toggle
 **Show reconstructed isomer** to include or hide it in the plot and saved
-PNG/SVG figure. Use **Save reconstructed isomer CSV** to save that curve to
-the folder selected in **4 · Output**. The measured spectra remain unchanged.
+PNG/SVG figure. In **5 · Output**, choose **Reconstructed pure isomer (absorbance)**
+under **CSV content**, then click **Save CSV**. The folder, optional CSV name,
+and negative-value option are all controlled there. The measured spectra remain unchanged.
 
 Negative calculated values are retained and flagged. Check the baseline and
 mixture composition if these are substantial. Very small metastable percentages
@@ -636,7 +665,7 @@ If irradiation produces a known PSS mixture, AutoQY can reconstruct the product 
 Expand:
 
 ```text id="5z9n8a"
-5 · Optional → NMR-guided PSS subtraction
+6 · Optional → NMR-guided PSS subtraction
 ```
 
 Load a UV–Vis dataset in which:
@@ -681,10 +710,13 @@ Larger negative spectral features may suggest checking the PSS composition, base
 The NMR panel has its own baseline and Savitzky–Golay controls. It uses the
 first spectrum as reactant and the last as PSS, regardless of any intermediate
 spectra. By default, the primary product ε export is clipped at zero while a
-raw audit column is retained. Enable **Keep negative values in product ε** only
+raw audit column is retained. In **5 · Output → NMR CSV options**, enable
+**Keep negative values in product ε** only
 when negative values should remain in the primary column. Values below
 −500 M⁻¹ cm⁻¹ stop export and should be investigated. Optional reactant and
-product filenames are available, and the NMR plot can be saved as PNG or SVG.
+product filenames are available there. Select **Reactant + NMR-derived product ε**
+under **CSV content**, then click **Save CSV**. Save the NMR plot as PNG or SVG
+through **Output → Save figures**.
 
 </details>
 
@@ -1283,7 +1315,7 @@ Enter path length
         ↓
 Inspect individual ε curves
         ↓
-Save processed CSV
+Save CSV
 ```
 
 </details>

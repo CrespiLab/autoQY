@@ -381,11 +381,13 @@ smoothing, SVD, and wavelength-range settings apply, and preprocessing changes
 update the reconstruction. Changing the dataset, spectrum selections, or
 composition clears the reconstruction until **Reconstruct** is clicked again.
 
-**Save reconstructed isomer CSV** writes `reconstructed-metastable-isomer.csv`
-to **Save folder** and asks before overwriting an existing file. It exports only
-the calculated spectrum; the regular processed CSV continues to contain the
-measured series. Negative values are retained with a warning, even if clamping
-is enabled for the regular CSV export. Percentages must be greater than 0 and
+In **5 · Output**, choose **Reconstructed pure isomer (absorbance)** under
+**CSV content**, then click **Save CSV**. The default file is
+`reconstructed-metastable-isomer.csv`; the Output folder, optional file name,
+negative-value option, and overwrite confirmation apply to this export too.
+It contains only the calculated curve; **Processed dataset / calculated ε**
+exports the measured series. Negative values are preserved unless Output
+clamping is enabled. Percentages must be greater than 0 and
 at most 100; small metastable fractions amplify measurement noise.
 
 ### Spectral plots and exports
@@ -398,12 +400,16 @@ name inputs and visibility checkboxes are created only when requested, and
 custom names and visibility are retained when editing is turned off. The name field beside each trace changes its legend
 text without changing the source filename. **Show all** and **Hide all** provide
 quick legend shortcuts.
+The default full-color spectrum palette uses Okabe–Ito color-blind-friendly
+colors (without yellow on the white background), cycling after seven spectra.
+The same colors are used in the absorbance and ε plots and saved figures.
 **Minimal colors** highlights the initial spectrum in blue and the final
 spectrum in orange, with intermediate spectra in grey as in the Analysis GUI.
 In the processed-absorbance preview, raw traces are hidden after preprocessing
 by default. **Show original** adds them to both the interactive plot and saved
 PNG/SVG figures without changing the processed-data export.
-PNG and SVG save buttons open a Save As dialog. Saved images contain only the
+PNG and SVG save buttons are in **5 · Output → Save figures** and open a Save As
+dialog. Image export options are there too. Saved images contain only the
 plots by default. **Title in saved image** and **Legend in saved image** can be
 enabled independently. **Origin-style export** follows the supplied Origin-like
 Python example: a 6.5:5 white figure with Arial text, boxed axes, outward major
@@ -449,11 +455,28 @@ The next launch automatically recovers the last saved session and regenerates
 its plots. The Data panel reports recovery and autosave errors; wait for the
 autosave confirmation before closing after an edit. Clear all spectra also
 updates the recovery snapshot, so cleared data does not return on restart.
-The file is `%LOCALAPPDATA%/AutoQY/spectral-treatment/autosave.json` on Windows
-and `~/.local/share/AutoQY/spectral-treatment/autosave.json` otherwise. It is
+The file is `%LOCALAPPDATA%/AutoQY/spectral-treatment/autosave.aqys` on Windows
+and `~/.local/share/AutoQY/spectral-treatment/autosave.aqys` otherwise. It is
 replaced atomically so an interrupted write leaves the previous save intact.
 One latest session is retained per OS user; concurrently opened instances
 share that recovery file.
+
+**5 · Output → Save session (.aqys)** saves a portable session in **Save folder**.
+This versioned compressed binary format stores numerical arrays without large
+JSON matrices or Python pickle. Manual saves and autosave use the same format.
+Drop one `.aqys` file into the main uploader or select it with **Open files from folder** to
+replace the current session and restore the saved spectra, preprocessing,
+per-spectrum settings, reconstruction, NMR inputs, and Output settings. Plots
+and derived results are recalculated. Loading a session also makes it the
+current recovery snapshot. Old JSON autosaves remain readable for migration.
+
+All spectral CSV exports use **Output → CSV content → Save CSV**. Choose the
+processed dataset/calculated ε, reconstructed isomer, wavelength slice, or
+reactant plus NMR-derived product ε. The latter uses the two file names and
+negative-product option under **NMR CSV options** in Output; the other modes
+use the shared CSV name and negative-value option. Every mode uses **Save folder**
+and asks before overwriting existing files. Reconstruction and slice panels
+do not have separate CSV save buttons.
 
 The dedicated browser process is monitored directly: closing or killing it
 stops the server, while a delayed browser heartbeat does not close a busy or

@@ -287,7 +287,14 @@ input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cfd1d
 .spectrum-legend-choice label { margin: 0; font-size: .7rem; }
 .loaded-spectrum-row .button { width: auto; min-width: 0; margin-top: 0; padding: 7px 8px; }
 .spectrum-order-button { font-size: 1rem; line-height: 1; }
-.spectrum-remove-button { font-size: .7rem; }
+.spectrum-move-up { grid-column: 3; }
+.spectrum-move-down { grid-column: 4; }
+.loaded-spectrum-row .spectrum-remove-button {
+  grid-column: 5;
+  min-width: max-content;
+  white-space: nowrap;
+  font-size: .7rem;
+}
 .spectrum-card { margin-top: 12px; padding: 13px; border: 1px solid #e6e2da; border-radius: 11px; background: #fcfbf8; }
 .spectrum-card h3 { overflow: hidden; margin: 0 0 9px; color: #31404a; font-size: .86rem; text-overflow: ellipsis; white-space: nowrap; }
 .spectrum-card label { margin-top: 8px; }

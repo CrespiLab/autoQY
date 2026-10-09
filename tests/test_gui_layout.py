@@ -104,20 +104,21 @@ class GuiLayoutTests(unittest.TestCase):
         app = create_spectral_app()
         self.assertEqual(_by_id(app.layout, "save-filename").placeholder, "Default name")
 
-    def test_spectral_export_buttons_precede_the_plot_options(self):
+    def test_spectral_save_controls_are_only_in_output(self):
         app = create_spectral_app()
-        toolbar = next(
+        output = next(
             component for component in _components(app.layout)
-            if getattr(component, "className", None) == "plot-toolbar"
-            and any(getattr(child, "id", None) == "save-epsilon-png"
-                    for child in _components(component))
+            if isinstance(component, html.Details)
+            and "5 · Output" in str(component.children[0])
         )
-        first_ids = [
+        output_ids = [
             getattr(component, "id", None)
-            for component in _components(toolbar.children[0])
+            for component in _components(output)
         ]
-        self.assertIn("save-epsilon-png", first_ids)
-        self.assertIn("save-epsilon-svg", first_ids)
+        for identity in ("save-epsilon-png", "save-epsilon-svg", "save-slice-png",
+                         "save-slice-svg", "save-nmr-png", "save-nmr-svg",
+                         "export-epsilon", "save-session"):
+            self.assertIn(identity, output_ids)
 
     def test_analysis_has_no_validate_button_and_explains_json_saving(self):
         app = create_analysis_app()
