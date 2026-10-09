@@ -2,6 +2,7 @@
 
 from argparse import ArgumentParser
 import base64
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -25,18 +26,36 @@ from ..smoother import (SpectralDataset, analyze_svd, baseline_spectra,
                         savgol_window_points, select_wavelengths,
                         smooth_reconstruction)
 from ..version import get_project_version
+from .spectral_recovery import SpectralRecovery
 
 
 MAX_INTERACTIVE_SPECTRA = 60
 
 
-def create_app():
+def create_app(recovery_file=None):
     try:
         from dash import ALL, Dash, Input, Output, State, ctx, dcc, html, no_update
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
     except ImportError as error:
         raise RuntimeError("The spectral treatment GUI requires the 'gui' optional dependencies") from error
+
+    recovery = SpectralRecovery(recovery_file)
+    recovered = None
+    recovery_message = "Changes are autosaved locally after a short pause."
+    try:
+        recovered = recovery.read()
+        if recovered and recovered.get("dataset"):
+            restored_dataset = _unpack(recovered["dataset"])
+            if restored_dataset.absorbance.shape != (
+                len(restored_dataset.wavelengths), len(recovered["dataset"]["labels"])
+            ) or len(restored_dataset.coordinates) != len(recovered["dataset"]["labels"]):
+                raise ValueError("Invalid recovered dataset shape")
+        if recovered and (recovered.get("dataset") or recovered.get("nmr")):
+            recovery_message = "Recovered the last autosaved spectral session."
+    except Exception as error:
+        recovered = None
+        recovery_message = f"Recovery could not be read: {error}"
 
     assets = Path(__file__).parents[1] / "assets"
     project_version = get_project_version()
@@ -45,6 +64,18 @@ def create_app():
     window_state = {"close_requested_at": None, "last_heartbeat_at": None}
     window_lock = Lock()
     app.server.config["AUTOQY_WINDOW_STATE"] = (window_state, window_lock)
+
+    @app.server.post("/_autoqy_spectral_autosave")
+    def spectral_autosave():
+        from flask import request
+        snapshot = request.get_json()
+        if not isinstance(snapshot, dict) or snapshot.get("version") != 1:
+            return "Invalid recovery snapshot", 400
+        try:
+            recovery.write(snapshot)
+        except (OSError, ValueError, TypeError):
+            return "Autosave failed; check available disk space and permissions.", 500
+        return "", 204
 
     @app.server.post("/_autoqy_heartbeat")
     def autoqy_heartbeat():
@@ -64,32 +95,28 @@ def create_app():
 <body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer>
 <script>
 (() => {
-  let heartbeatFailures = 0;
-  let closingForStoppedServer = false;
+  let heartbeatBusy = false;
   const heartbeat = async () => {
+    if (heartbeatBusy) return;
+    heartbeatBusy = true;
     try {
       const response = await fetch('/_autoqy_heartbeat', {
-        method: 'POST', keepalive: true, cache: 'no-store'
+        method: 'POST', cache: 'no-store', signal: AbortSignal.timeout(10000)
       });
       if (!response.ok) throw new Error('heartbeat failed');
-      heartbeatFailures = 0;
+      const warning = document.getElementById('connection-warning');
+      if (warning) warning.textContent = '';
     } catch (_) {
-      heartbeatFailures += 1;
-      if (heartbeatFailures >= 3 && !closingForStoppedServer) {
-        closingForStoppedServer = true;
-        window.close();
-        window.setTimeout(() => {
-          document.body.innerHTML = '<main style="font-family:Segoe UI,sans-serif;padding:2rem">'
-            + '<h1>AutoQY GUI stopped</h1><p>The terminal has been closed. Close this webpage and restart the AutoQY GUI to continue.</p></main>';
-        }, 150);
-      }
+      const warning = document.getElementById('connection-warning');
+      if (warning) warning.textContent = 'Connection interrupted. Keep this window open while AutoQY reconnects. If the terminal stopped, restart AutoQY to recover the last autosave.';
+    } finally {
+      heartbeatBusy = false;
     }
   };
   heartbeat();
-  const heartbeatTimer = window.setInterval(heartbeat, 1000);
+  window.setInterval(heartbeat, 1000);
   window.addEventListener('pageshow', heartbeat);
   window.addEventListener('pagehide', () => {
-    window.clearInterval(heartbeatTimer);
     navigator.sendBeacon('/_autoqy_window_closed');
   });
   document.addEventListener('click', (event) => {
@@ -369,6 +396,27 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                 className="button button-secondary"),
                     html.Button("Clear all spectra", id="clear-dataset",
                                 className="button button-secondary", disabled=True),
+                    html.Div(id="connection-warning", role="status", className="message"),
+                    html.Div(id="autosave-message", children=recovery_message,
+                             role="status", className="helper-text"),
+                    html.Div(id="recovery-notice", className="helper-text",
+                             children=("Recovered the last autosaved spectral session."
+                                       if recovered and (recovered.get("dataset")
+                                                         or recovered.get("nmr")) else "")),
+                    html.Details(className="nested-tool", children=[
+                        html.Summary("Session recovery"),
+                        html.Small(
+                            "The latest session is kept after normal closure or a crash "
+                            "and recovered automatically on the next launch. Changes are "
+                            "saved after a short pause; wait for the autosave confirmation "
+                            "before closing. Clear all spectra also clears those spectra "
+                            "from recovery. This file is not in temporary storage."
+                        ),
+                        html.Div(str(recovery.path), className="helper-text",
+                                 style={"overflowWrap": "anywhere"}),
+                    ]),
+                    dcc.Checklist(id="edit-legend", value=[], className="toggle-control",
+                                  options=[{"label": "Enable legend editing", "value": "on"}]),
                     html.Details(className="nested-tool loaded-spectra-tool", children=[
                         html.Summary("Loaded spectra: order, legend, removal"),
                         html.Small(
@@ -608,11 +656,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                     html.Small("Choose Legend beside each loaded spectrum."),
                                     html.Div(className="legend-action-buttons", children=[
                                         html.Button(
-                                            "Show all", id="show-all-legends",
+                                            "Show all", id="show-all-legends", disabled=True,
                                             className="button button-secondary compact-button",
                                         ),
                                         html.Button(
-                                            "Hide all", id="hide-all-legends",
+                                            "Hide all", id="hide-all-legends", disabled=True,
                                             className="button button-secondary compact-button",
                                         ),
                                     ]),
@@ -757,6 +805,52 @@ window.autoqySaveText = (filename, text, mimeType) => {
         dcc.Store(id="nmr-result-store"),
         dcc.Store(id="source-folder-store"),
     ])
+
+    def components(root):
+        if isinstance(root, (list, tuple)):
+            for child in root:
+                yield from components(child)
+        else:
+            yield root
+            children = getattr(root, "children", None)
+            if children is not None:
+                yield from components(children)
+
+    # Persist inputs and original data only; plots and derived matrices are rebuilt.
+    controls = {
+        component.id: component for component in components(app.layout)
+        if isinstance(getattr(component, "id", None), str)
+        and "value" in getattr(component, "_prop_names", [])
+        and component.id != "edit-legend"
+    }
+    if recovered:
+        for component in components(app.layout):
+            component_id = getattr(component, "id", None)
+            if component_id == "dataset-store":
+                component.data = recovered.get("dataset")
+            elif component_id == "nmr-spectra-store":
+                component.data = recovered.get("nmr")
+            elif component_id == "source-folder-store":
+                component.data = recovered.get("source")
+        for component_id, value in recovered.get("settings", {}).items():
+            if component_id in controls:
+                controls[component_id].value = value
+
+    app.clientside_callback(
+        "function(...args) { return window.autoqySpectralAutosave("
+        + json.dumps(list(controls)) + ", args); }",
+        Output("autosave-message", "children"),
+        Input("dataset-store", "data"), Input("nmr-spectra-store", "data"),
+        Input("source-folder-store", "data"), Input("clear-dataset", "n_clicks"),
+        *[Input(component_id, "value") for component_id in controls],
+        Input({"type": "direct-concentration", "index": ALL}, "value"),
+        Input({"type": "path-length", "index": ALL}, "value"),
+        Input({"type": "legend-spectrum", "index": ALL}, "value"),
+        Input({"type": "legend-name", "index": ALL}, "value"),
+        State({"type": "legend-spectrum", "index": ALL}, "id"),
+        State({"type": "legend-name", "index": ALL}, "id"),
+        prevent_initial_call=True,
+    )
 
     def register_image_download(graph_id, png_button, svg_button, message_id,
                                 title_option, legend_option, origin_option, grid_option,
@@ -916,7 +1010,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 existing_data, concentrations, path_lengths, legend_values,
                 legend_names, legend_value_ids, legend_name_ids,
             )
-            merged = _append_packed(current, incoming, now - start)
+            merged = _append_packed(current, incoming)
             if existing_data:
                 added = len(incoming["labels"])
                 message = (f"Added {_count_text(added, 'spectrum', 'spectra')}; "
@@ -1014,8 +1108,9 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Input("dataset-store", "data"),
         State("wavelength-low", "value"), State("wavelength-high", "value"),
         State("slice-wavelength", "value"),
+        State("edit-legend", "value"),
     )
-    def dataset_controls(data, current_low, current_high, current_slice):
+    def dataset_controls(data, current_low, current_high, current_slice, edit_legend=None):
         if not data:
             return None, None, True, True, True, [], [], None, None, None
         wavelengths = np.asarray(data["wavelengths"], float)
@@ -1029,10 +1124,29 @@ window.autoqySaveText = (filename, text, mimeType) => {
             float(wavelengths[len(wavelengths) // 2]),
         )
         return (selected_low, selected_high, False, False, False,
-                _loaded_spectrum_rows(html, dcc, data),
+                _loaded_spectrum_rows(html, dcc, data, "on" in (edit_legend or [])),
                 _parameter_cards(html, dcc, data["labels"],
                                  data.get("concentrations"), data.get("path_lengths")),
                 available_low, available_high, selected_slice)
+
+    @app.callback(
+        Output("dataset-store", "data", allow_duplicate=True),
+        Output("show-all-legends", "disabled"), Output("hide-all-legends", "disabled"),
+        Input("edit-legend", "value"), State("dataset-store", "data"),
+        State({"type": "direct-concentration", "index": ALL}, "value"),
+        State({"type": "path-length", "index": ALL}, "value"),
+        State({"type": "legend-spectrum", "index": ALL}, "value"),
+        State({"type": "legend-name", "index": ALL}, "value"),
+        State({"type": "legend-spectrum", "index": ALL}, "id"),
+        State({"type": "legend-name", "index": ALL}, "id"),
+        prevent_initial_call=True,
+    )
+    def toggle_legend_editing(enabled, data, concentrations, paths, values, names,
+                              value_ids, name_ids):
+        disabled = "on" not in (enabled or [])
+        updated = _with_spectrum_state(data, concentrations, paths, values, names,
+                                       value_ids, name_ids)
+        return updated, disabled, disabled
 
     @app.callback(
         Output({"type": "legend-spectrum", "index": ALL}, "value"),
@@ -1054,10 +1168,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Input("baseline-low", "value"), Input("baseline-high", "value"),
         Input("smoothing-method", "value"), Input("savgol-window", "value"),
         Input("savgol-order", "value"), Input("svd-enabled", "value"),
+        State("svd-rank", "value"),
     )
     def configure_svd(data, wavelength_low, wavelength_high, baseline_enabled,
                       baseline_low, baseline_high, method, sg_width, sg_order,
-                      svd_enabled):
+                      svd_enabled, current_rank=None):
         if not data:
             return [], None, True, "SVD is off.", ""
         if "on" not in (svd_enabled or []):
@@ -1078,7 +1193,9 @@ window.autoqySaveText = (filename, text, mimeType) => {
             retained = 100 * analysis.cumulative_weights[proposed - 1]
             message = (f"Proposed: {proposed} component(s), retaining {retained:.6g}% of "
                        "squared singular-value weight. Inspect the result yourself.")
-            return options, proposed, "on" not in (svd_enabled or []), message, ""
+            selected = (int(current_rank) if current_rank is not None
+                        and 1 <= int(current_rank) <= maximum else proposed)
+            return options, selected, "on" not in (svd_enabled or []), message, ""
         except Exception as error:
             return [], None, True, "SVD rank unavailable.", f"SVD error: {type(error).__name__}: {error}"
 
@@ -1513,7 +1630,7 @@ def _parameter_cards(html, dcc, labels, concentrations=None, path_lengths=None):
     return cards
 
 
-def _loaded_spectrum_rows(html, dcc, data):
+def _loaded_spectrum_rows(html, dcc, data, edit_legend=False):
     labels = data.get("labels", [])
     legend_names = data.get("legend_names", labels)
     if len(legend_names) != len(labels):
@@ -1528,19 +1645,22 @@ def _loaded_spectrum_rows(html, dcc, data):
         label = labels[index]
         children = [
             html.Span(f"{index + 1}. {label}", className="loaded-spectrum-name"),
-            dcc.Input(
-                id={"type": "legend-name", "index": index},
-                type="text", value=legend_names[index], debounce=True,
-                placeholder="Legend name",
-                className="spectrum-legend-name",
-            ),
-            dcc.Checklist(
-                id={"type": "legend-spectrum", "index": index},
-                options=[{"label": "Show", "value": "on"}],
-                value=["on"] if legend_visibility[index] else [],
-                className="toggle-control spectrum-legend-choice",
-            ),
         ]
+        if edit_legend:
+            children.extend([
+                dcc.Input(
+                    id={"type": "legend-name", "index": index},
+                    type="text", value=legend_names[index], debounce=True,
+                    placeholder="Legend name",
+                    className="spectrum-legend-name",
+                ),
+                dcc.Checklist(
+                    id={"type": "legend-spectrum", "index": index},
+                    options=[{"label": "Show", "value": "on"}],
+                    value=["on"] if legend_visibility[index] else [],
+                    className="toggle-control spectrum-legend-choice",
+                ),
+            ])
         if not sparse:
             children.extend([
                 html.Button(
@@ -1603,13 +1723,17 @@ def _combine_loaded(loaded):
             resampled += int(not exact)
     combined_coordinates = (np.asarray(coordinates, dtype=float) if len(loaded) == 1
                             else np.arange(len(columns), dtype=float))
+    source_format = "sequence" if len(loaded) > 1 or len(columns) == 1 else "combined"
     combined = SpectralDataset(target, combined_coordinates,
-                               np.column_stack(columns), "combined", 0)
+                               np.column_stack(columns), source_format, 0)
     return combined, _display_unique(labels), resampled
 
 
 def _append_packed(existing_data, incoming_data, elapsed_seconds=None):
-    """Append newly loaded spectra while retaining the existing plot history."""
+    """Append on the data axis; upload wall-clock delays never set coordinates.
+
+    elapsed_seconds is accepted for compatibility but deliberately ignored.
+    """
     if not existing_data:
         return incoming_data
 
@@ -1638,16 +1762,16 @@ def _append_packed(existing_data, incoming_data, elapsed_seconds=None):
     existing_coordinates = np.asarray(existing.coordinates, float)
     incoming_coordinates = np.asarray(incoming.coordinates, float)
     last_coordinate = float(np.max(existing_coordinates))
-    elapsed = float(elapsed_seconds) if elapsed_seconds is not None else None
-    if len(incoming_coordinates) == 1 and elapsed is not None and elapsed > last_coordinate:
-        appended_coordinates = np.array([elapsed])
-    elif (len(incoming_coordinates) > 1 and np.all(np.diff(incoming_coordinates) > 0)
-          and incoming_coordinates[0] > last_coordinate):
+    if (existing.source_format != "sequence"
+            and len(incoming_coordinates) > 1
+            and np.all(np.diff(incoming_coordinates) > 0)
+            and incoming_coordinates[0] > last_coordinate):
         appended_coordinates = incoming_coordinates
     else:
-        differences = np.abs(np.diff(existing_coordinates))
+        differences = np.diff(np.unique(existing_coordinates))
         positive = differences[differences > 0]
-        step = float(np.median(positive)) if len(positive) else 1.0
+        step = (1.0 if existing.source_format == "sequence" else
+                float(np.median(positive)) if len(positive) else 1.0)
         appended_coordinates = last_coordinate + step * np.arange(
             1, len(incoming_coordinates) + 1, dtype=float
         )
@@ -1660,7 +1784,7 @@ def _append_packed(existing_data, incoming_data, elapsed_seconds=None):
         target,
         np.concatenate([existing_coordinates, appended_coordinates]),
         np.column_stack([existing_values, incoming_values]),
-        "combined",
+        existing.source_format,
         existing.interpolated_values + incoming.interpolated_values,
     )
     packed = _pack(combined, labels, filenames)

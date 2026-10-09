@@ -1,5 +1,6 @@
 import tomllib
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import numpy as np
@@ -50,6 +51,12 @@ class ProjectVersionTests(unittest.TestCase):
 
 @unittest.skipUnless(html is not None, "Dash GUI dependencies are not installed")
 class GuiLayoutTests(unittest.TestCase):
+    def setUp(self):
+        recovery = patch("autoqy_core.tools.spectral_recovery.SpectralRecovery.read",
+                         return_value=None)
+        recovery.start()
+        self.addCleanup(recovery.stop)
+
     def test_every_gui_displays_the_project_version(self):
         expected = f"Version {get_project_version()}"
         for app in (create_power_app(), create_spectral_app(), create_analysis_app()):
@@ -61,12 +68,18 @@ class GuiLayoutTests(unittest.TestCase):
             self.assertIn(expected, visible_text)
             self.assertNotIn("AUTOQY CORE", visible_text.upper())
 
-    def test_every_gui_closes_its_page_when_the_terminal_stops(self):
-        for app in (create_power_app(), create_spectral_app(), create_analysis_app()):
+    def test_power_and_analysis_close_their_page_when_the_terminal_stops(self):
+        for app in (create_power_app(), create_analysis_app()):
             self.assertIn("window.setInterval(heartbeat, 1000)", app.index_string)
             self.assertIn("window.close()", app.index_string)
             self.assertIn("AutoQY GUI stopped", app.index_string)
             self.assertIn("restart the AutoQY GUI to continue", app.index_string)
+
+    def test_spectral_connection_failures_keep_the_page_available_for_recovery(self):
+        app = create_spectral_app()
+        self.assertNotIn("window.close()", app.index_string)
+        self.assertNotIn("document.body.innerHTML", app.index_string)
+        self.assertIn("Connection interrupted", app.index_string)
 
     def test_power_gui_stops_its_server_when_the_browser_closes(self):
         app = create_power_app()

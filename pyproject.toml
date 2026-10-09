@@ -48,6 +48,7 @@ packages = ["autoqy_core", "autoqy_core.tools"]
 
 [tool.setuptools.package-data]
 autoqy_core = [
+  "assets/*.js",
   "assets/*.css",
   "assets/*.png",
   "assets/*.svg",

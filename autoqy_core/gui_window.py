@@ -266,6 +266,17 @@ class GuiWindowSession:
             else:
                 self._handle = handle
 
+    def browser_exited(self):
+        """Detect a killed app window even when it cannot send a close beacon."""
+        with self._lock:
+            handle = self._handle
+            return (handle is not None and handle.process is not None
+                    and handle.process.poll() is not None)
+
+    def has_browser_process(self):
+        with self._lock:
+            return self._handle is not None and self._handle.process is not None
+
     def close(self):
         with self._lock:
             self._closed = True
@@ -277,6 +288,14 @@ class GuiWindowSession:
             handle.close()
 
 
+def _window_close_due(requested, now, last_heartbeat=None, tracked_browser=True):
+    """Allow reloads; use a generous timeout only for untracked browser tabs."""
+    if requested is not None and now - requested >= 30:
+        return True
+    return (not tracked_browser and last_heartbeat is not None
+            and now - last_heartbeat >= 120)
+
+
 def serve_gui(create_app, host, port, open_window, window_name):
     """Serve a Dash GUI and keep its dedicated window lifecycle synchronized."""
     from werkzeug.serving import make_server
@@ -284,6 +303,7 @@ def serve_gui(create_app, host, port, open_window, window_name):
     app = create_app()
     server = make_server(host, port, app.server, threaded=True)
     window_state, window_lock = app.server.config["AUTOQY_WINDOW_STATE"]
+    window = GuiWindowSession(_local_gui_url(host, port), window_name)
 
     def close_after_window():
         while True:
@@ -292,14 +312,13 @@ def serve_gui(create_app, host, port, open_window, window_name):
                 requested = window_state["close_requested_at"]
                 last_heartbeat = window_state["last_heartbeat_at"]
             now = time.monotonic()
-            close_requested = requested is not None and now - requested >= 3
-            heartbeat_expired = last_heartbeat is not None and now - last_heartbeat >= 5
-            if close_requested or heartbeat_expired:
+            if window.browser_exited() or _window_close_due(
+                requested, now, last_heartbeat, window.has_browser_process()
+            ):
                 server.shutdown()
                 return
 
     Thread(target=close_after_window, daemon=True).start()
-    window = GuiWindowSession(_local_gui_url(host, port), window_name)
     if open_window:
         window.open_after()
         _minimize_console_window()

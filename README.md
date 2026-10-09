@@ -97,6 +97,10 @@ branch name such as `develop` or `feature/my-change`. Accept the Windows prompt
 if one appears, answer the remaining questions, and wait for the installation
 to finish. It can take several minutes.
 
+The BAT launcher downloads its PowerShell installer into a temporary folder
+and removes that download when it finishes, including after a failed install.
+An existing `Install-AutoQY.ps1` beside the BAT file is left untouched.
+
 Advanced users running the PowerShell installer directly can select a branch
 without an interactive prompt:
 

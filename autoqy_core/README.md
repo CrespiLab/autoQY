@@ -341,7 +341,7 @@ For datasets above 60 spectra, the Plotly preview contains at most 60 evenly
 spaced spectra and always includes indices zero and the final index. The full
 matrix remains available to preprocessing, SVD, wavelength slicing, and
 processed-data export. Only the first and last spectra receive loaded-spectrum
-legend controls, only those two can create spectrum legend entries, and the
+legend controls when editing is enabled, only those two can create spectrum legend entries, and the
 per-spectrum concentration/path-length cards are replaced by an explanatory
 message. Browser stores use a compressed representation of the absorbance
 matrix to reduce callback traffic; this does not change exported numerical
@@ -358,7 +358,9 @@ values to zero without changing the preview or source data.
 Files dropped together are naturally ordered by name, so `sample1` precedes
 `sample2` and `sample10`. Open **Loaded spectra: order, legend, removal** to
 move individual spectra up or down, remove them, or choose exactly which trace
-names appear in the legend. The name field beside each trace changes its legend
+names appear in the legend. **Enable legend editing** is off by default: the
+name inputs and visibility checkboxes are created only when requested, and
+custom names and visibility are retained when editing is turned off. The name field beside each trace changes its legend
 text without changing the source filename. **Show all** and **Hide all** provide
 quick legend shortcuts.
 **Minimal colors** highlights the initial spectrum in blue and the final
@@ -397,12 +399,32 @@ retain the wavelength bounds selected in **Wavelengths**; if a new file
 has a smaller overlap, the bounds are clipped only to that available range.
 Active baseline and Savitzky–Golay settings are reapplied to the complete raw
 series after every addition, so newly appended spectra receive the same
-preprocessing as earlier spectra. Repeated single-spectrum drops use elapsed
-seconds from the first drop. The uploader is
+preprocessing as earlier spectra. Separate-file sequences advance by one
+coordinate per added spectrum, independent of delays between uploads; the
+**Seconds per timestamp** multiplier applies to the whole series. An existing
+time-series file retains its numerical axis and uses its typical spacing for
+added single spectra. The uploader is
 reset after every addition, allowing the same filename to be reused. Removing a
 loaded spectrum updates both plots without changing the remaining time
-coordinates. **Clear all spectra** resets the whole accumulated series and
-timer.
+coordinates. **Clear all spectra** resets the whole accumulated series.
+
+Original spectra, per-spectrum settings, processing controls, time multiplier,
+and NMR inputs are autosaved locally about one second after changes settle.
+The next launch automatically recovers the last saved session and regenerates
+its plots. The Data panel reports recovery and autosave errors; wait for the
+autosave confirmation before closing after an edit. Clear all spectra also
+updates the recovery snapshot, so cleared data does not return on restart.
+The file is `%LOCALAPPDATA%/AutoQY/spectral-treatment/autosave.json` on Windows
+and `~/.local/share/AutoQY/spectral-treatment/autosave.json` otherwise. It is
+replaced atomically so an interrupted write leaves the previous save intact.
+One latest session is retained per OS user; concurrently opened instances
+share that recovery file.
+
+The dedicated browser process is monitored directly: closing or killing it
+stops the server, while a delayed browser heartbeat does not close a busy or
+suspended app window. Connection failures leave the spectral page visible.
+If AutoQY falls back to a normal browser tab, whose process it cannot track,
+a two-minute heartbeat timeout still cleans up the server after a browser crash.
 
 The optional NMR-guided PSS workflow loads a dataset whose first spectrum is
 reactant and last spectrum is the final PSS. It supports its own baseline and

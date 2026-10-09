@@ -134,7 +134,9 @@ class ProcessedAbsorbanceExportTests(unittest.TestCase):
 @unittest.skipUnless(html is not None, "Dash GUI dependencies are not installed")
 class SpectralGuiTests(unittest.TestCase):
     def setUp(self):
-        self.app = create_app()
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.app = create_app(Path(directory.name) / "autosave.json")
 
     def test_only_data_panel_is_open_initially(self):
         details = []
@@ -349,7 +351,8 @@ class SpectralGuiTests(unittest.TestCase):
             np.array([[1.0, 2.0], [1.5, 2.5]]), source_format="csv",
         )
         rows = _loaded_spectrum_rows(
-            html, dcc, _pack(dataset, ["one", "two"], ["one.csv", "two.csv"])
+            html, dcc, _pack(dataset, ["one", "two"], ["one.csv", "two.csv"]),
+            edit_legend=True,
         )
         components = list(_components(rows))
         legend_inputs = [
@@ -368,7 +371,7 @@ class SpectralGuiTests(unittest.TestCase):
         )
         labels = [f"spectrum {index}" for index in range(count)]
         rows = _loaded_spectrum_rows(
-            html, dcc, _pack(dataset, labels, ["series.csv"])
+            html, dcc, _pack(dataset, labels, ["series.csv"]), edit_legend=True,
         )
         component_ids = [
             component.id for component in _components(rows)
@@ -543,7 +546,7 @@ class SpectralGuiTests(unittest.TestCase):
             combined.absorbance[0], [1.0, 2.0, 10.0, 3.0, 4.0]
         )
 
-    def test_repeated_single_spectrum_drops_append_in_elapsed_time(self):
+    def test_repeated_single_spectrum_drops_ignore_elapsed_time(self):
         first = SpectralDataset(
             np.array([400.0, 410.0]), np.array([0.0]),
             np.array([[1.0], [2.0]]), source_format="csv",
@@ -558,7 +561,7 @@ class SpectralGuiTests(unittest.TestCase):
             elapsed_seconds=2.5,
         )
         self.assertEqual(combined["labels"], ["spectrum", "spectrum (2)"])
-        self.assertEqual(combined["coordinates"], [0.0, 2.5])
+        self.assertEqual(combined["coordinates"], [0.0, 1.0])
         np.testing.assert_array_equal(
             np.asarray(combined["absorbance"]),
             np.array([[1.0, 3.0], [2.0, 4.0]]),
