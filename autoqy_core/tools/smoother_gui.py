@@ -513,7 +513,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     html.Label("Save folder"),
                     html.Div(className="input-row", children=[
                         dcc.Input(id="save-folder", type="text",
-                                  placeholder="Choose a save folder"),
+                                  placeholder="Paste a folder path or choose a folder",
+                                  persistence=True, persistence_type="local"),
                         html.Button("Choose folder", id="choose-save-folder",
                                     className="button button-secondary"),
                     ]),
@@ -1094,7 +1095,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
     )
     def select_save_folder(source_folder, _, current_folder):
         if ctx.triggered_id == "source-folder-store":
-            return source_folder
+            return source_folder if source_folder and not current_folder else no_update
         selected = _choose_folder(current_folder or source_folder)
         return selected or no_update
 
@@ -2030,8 +2031,9 @@ def _powershell_quote(value):
 
 
 def _save_path(folder, filename):
+    folder = str(folder or "").strip().strip('"').strip()
     if not folder:
-        raise ValueError("Choose a save folder")
+        raise ValueError("Paste a save folder path or choose a folder")
     directory = Path(folder).expanduser()
     if not directory.is_dir():
         raise ValueError(f"Save folder does not exist: {directory}")

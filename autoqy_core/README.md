@@ -44,7 +44,10 @@ tab in the user's main browser. The default browser is used when app-window
 mode is unavailable. All pages and uploaded data remain on the local computer.
 
 The GUI window and Python server monitor each other. Closing the app window
-stops its server, and closing the terminal or Python process closes the browser
+stops its server. On Windows, the dedicated GUI commands and installer-created
+Desktop shortcuts run without a terminal window. Diagnostic logs for these
+launchers are saved under `%LOCALAPPDATA%\AutoQY\logs`. Running through
+`autoqy-core` still uses the terminal; closing that process closes the browser
 process tree. A normal browser tab that cannot close itself instead displays a
 message telling the user to close the page and restart the GUI. Pass
 `--no-open` to run a GUI server without opening a window.
@@ -350,7 +353,10 @@ precision.
 Processed absorbance can be exported without concentration values. When every
 solution concentration and path length is supplied, the same workflow exports
 individual molar-absorptivity spectra and their wavelength-resolved statistics.
-The save folder and CSV name are editable, missing `.csv` extensions are added,
+The save folder accepts a pasted path (including Windows **Copy as path**
+quotes) or **Choose folder**. It is remembered across clearing spectra and
+loading another dataset; the source folder is used only when no save folder
+has been set. The CSV name is editable, missing `.csv` extensions are added,
 and existing files require confirmation before replacement. Negative values are
 preserved by default; the output option can clamp saved absorbance and epsilon
 values to zero without changing the preview or source data.

@@ -18,6 +18,26 @@ from autoqy_core.gui_window import (
 
 
 class GuiWindowTests(unittest.TestCase):
+    def test_windowless_launcher_records_startup_diagnostics(self):
+        with TemporaryDirectory() as directory:
+            with (
+                patch("autoqy_core.gui_window.os.environ", {"LOCALAPPDATA": directory}),
+                patch("autoqy_core.gui_window.sys.stdout", None),
+                patch("autoqy_core.gui_window.sys.stderr", None),
+            ):
+                import sys
+                def failing_app():
+                    print("Startup diagnostic", file=sys.stderr)
+                    raise RuntimeError("Startup failed")
+                try:
+                    with self.assertRaisesRegex(RuntimeError, "Startup failed"):
+                        serve_gui(failing_app, "127.0.0.1", 8051, True, "Spectral Treatment")
+                    log = Path(directory) / "AutoQY" / "logs" / "spectral-treatment.log"
+                    self.assertIn("Startup diagnostic", log.read_text(encoding="utf-8"))
+                finally:
+                    if sys.stderr is not None:
+                        sys.stderr.close()
+
     def test_server_survives_stale_heartbeat_then_exits_when_browser_is_killed(self):
         from threading import Lock
         app = Mock()

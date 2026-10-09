@@ -110,6 +110,10 @@ without an interactive prompt:
 
 When installation is complete, open the new **AutoQY** folder on your **Desktop**.
 
+The GUI shortcuts run without a terminal window on Windows. After updating
+an existing installation, rerun the installer to refresh these shortcuts.
+Diagnostic logs are saved in `%LOCALAPPDATA%\AutoQY\logs`.
+
 
 ## Start here after installation
 

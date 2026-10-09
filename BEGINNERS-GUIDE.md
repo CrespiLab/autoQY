@@ -513,6 +513,10 @@ fitted curve and lifetime information.
 
 ---
 
+In **4 · Output**, paste your destination into **Save folder** or click
+**Choose folder**. Paths copied with Windows **Copy as path** are accepted.
+The selected folder is retained when you clear spectra or load another dataset.
+
 # 10. Use Spectral Treatment to prepare figures
 
 Spectral Treatment can also prepare clean spectral figures directly.

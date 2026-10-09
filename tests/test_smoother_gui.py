@@ -30,6 +30,7 @@ from autoqy_core.tools.smoother_gui import (
     _remove_packed,
     _reorder_packed,
     _spectrum_colors,
+    _save_path,
     _unpack,
     _with_spectrum_state,
     _wavelength_slice,
@@ -109,6 +110,11 @@ class ProcessedAbsorbanceExportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "must use the .csv extension"):
             _csv_filename("treated.tsv", "default.csv")
 
+    def test_pasted_save_folder_accepts_copy_as_path_and_whitespace(self):
+        with TemporaryDirectory(prefix="AutoQY output ") as directory:
+            self.assertEqual(_save_path(f'  "{directory}"  ', "output.csv"),
+                             Path(directory) / "output.csv")
+
     def test_large_plot_selection_is_even_and_includes_both_endpoints(self):
         selected = _plotted_spectrum_indices(571)
         self.assertEqual(len(selected), MAX_INTERACTIVE_SPECTRA)
@@ -171,6 +177,29 @@ class SpectralGuiTests(unittest.TestCase):
             "savgol-window", "savgol-order",
         ):
             self.assertTrue(components[component_id].debounce, component_id)
+
+    def test_save_folder_survives_clear_and_new_dataset_and_accepts_dialog_changes(self):
+        from dash import no_update
+        callback = self.app.callback_map["save-folder.value"]["callback"].__wrapped__
+        for source, current, expected in (
+            (None, "C:/saved output", no_update),
+            ("C:/new input", "C:/saved output", no_update),
+            ("C:/first input", None, "C:/first input"),
+        ):
+            token = context_value.set(AttributeDict(
+                triggered_inputs=[{"prop_id": "source-folder-store.data"}]))
+            try:
+                self.assertEqual(callback(source, None, current), expected)
+            finally:
+                context_value.reset(token)
+        token = context_value.set(AttributeDict(
+            triggered_inputs=[{"prop_id": "choose-save-folder.n_clicks"}]))
+        try:
+            with patch("autoqy_core.tools.smoother_gui._choose_folder",
+                       return_value="C:/chosen output"):
+                self.assertEqual(callback(None, 1, "C:/saved output"), "C:/chosen output")
+        finally:
+            context_value.reset(token)
 
     def test_svd_analysis_is_skipped_while_svd_is_off(self):
         callback = next(

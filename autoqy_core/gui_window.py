@@ -298,6 +298,18 @@ def _window_close_due(requested, now, last_heartbeat=None, tracked_browser=True)
 
 def serve_gui(create_app, host, port, open_window, window_name):
     """Serve a Dash GUI and keep its dedicated window lifecycle synchronized."""
+    # Windows GUI launchers have no console streams. Keep server diagnostics
+    # available without requiring a terminal to remain open.
+    if sys.stdout is None or sys.stderr is None:
+        log_root = os.environ.get("LOCALAPPDATA") or str(Path.home())
+        log_directory = Path(log_root) / "AutoQY" / "logs"
+        log_directory.mkdir(parents=True, exist_ok=True)
+        log_name = "".join(c if c.isalnum() else "-" for c in window_name).lower()
+        stream = (log_directory / f"{log_name}.log").open("a", encoding="utf-8", buffering=1)
+        if sys.stdout is None:
+            sys.stdout = stream
+        if sys.stderr is None:
+            sys.stderr = stream
     from werkzeug.serving import make_server
 
     app = create_app()
