@@ -190,6 +190,13 @@ through all rows without page buttons. Virtualization keeps the visible spreadsh
 responsive. For large sessions it follows the plot's preview
 subset; **Output → Save CSV** still exports the full selected dataset.
 
+To copy whole rows or columns, tick their checkboxes and click **Copy selection**.
+If you tick both rows and columns, only their intersection is copied. For a cell
+range, click its first cell and Shift-click its last, then use **Copy selection**
+or Ctrl+C. **Copy all** copies the entire displayed sheet, including off-screen
+rows. Paste into Excel or another spreadsheet with Ctrl+V. Column headings are
+included; the AutoQY sheet remains read-only.
+
 ## Large kinetic datasets
 
 When more than 60 spectra are loaded, AutoQY keeps the browser responsive by

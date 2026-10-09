@@ -379,6 +379,15 @@ window.autoqySaveText = (filename, text, mimeType) => {
             ]),
         ])
 
+    def sheet_copy_control(identity, label, title):
+        props = {"id": identity, "content": "", "title": title,
+                 "className": "button button-secondary"}
+        if "children" in dcc.Clipboard()._prop_names:
+            return dcc.Clipboard(**props, children=label, copied_children="Copied")
+        # Dash 2.x/early 3.x support only an icon; keep its label visible too.
+        return html.Div([html.Span(label + " "), dcc.Clipboard(**props)],
+                        className="sheet-copy-control")
+
     app.layout = html.Div(className="app-shell", children=[
         html.Header(className="app-header", children=[html.Div([
             html.P("AUTOQY", className="eyebrow"),
@@ -807,8 +816,22 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                           {"label": "Wavelength slice", "value": "slice"},
                                           {"label": "Reconstructed ε", "value": "nmr"}]),
                     html.Div(id="data-sheet-message", className="helper-text"),
+                    html.Div(className="interaction-bar", children=[
+                        sheet_copy_control("copy-sheet-selection", "Copy selection",
+                                           "Copy checked rows/columns or selected cells, with column headings"),
+                        sheet_copy_control("copy-sheet-all", "Copy all",
+                                           "Copy every row and column in this sheet, including rows outside the viewport"),
+                    ]),
+                    html.Small("Check row or column selectors to copy whole rows or columns. If both are checked, "
+                               "Copy selection copies their intersection; otherwise it copies the selected cell range. "
+                               "Use Shift-click for a cell range and Ctrl+C to copy cells. "
+                               "Paste into Excel with Ctrl+V. The source data are read-only."),
                     dash_table.DataTable(
                         id="displayed-data-sheet", columns=[], data=[],
+                        cell_selectable=True, editable=False, selected_cells=[],
+                        row_selectable="multi", column_selectable="multi",
+                        selected_rows=[], selected_columns=[],
+                        include_headers_on_copy_paste=True,
                         page_action="none", page_current=0, page_size=25, page_count=0,
                         virtualization=True, fixed_rows={"headers": True},
                         style_table={"overflowX": "auto", "overflowY": "auto",
@@ -957,6 +980,21 @@ window.autoqySaveText = (filename, text, mimeType) => {
             return f"Saved session: {destination}", False, ""
         except Exception as error:
             return f"Session save failed: {error}", False, ""
+
+    app.clientside_callback(
+        "function(clicks, cells, columns, rows, selectedRows, selectedColumns) { "
+        "return window.autoqySheetClipboard(columns, rows, cells, false, selectedRows, selectedColumns); }",
+        Output("copy-sheet-selection", "content"), Input("copy-sheet-selection", "n_clicks"),
+        State("displayed-data-sheet", "selected_cells"), State("displayed-data-sheet", "columns"),
+        State("displayed-data-sheet", "data"), State("displayed-data-sheet", "selected_rows"),
+        State("displayed-data-sheet", "selected_columns"), prevent_initial_call=True,
+    )
+    app.clientside_callback(
+        "function(clicks, columns, rows) { return window.autoqySheetClipboard(columns, rows, [], true); }",
+        Output("copy-sheet-all", "content"), Input("copy-sheet-all", "n_clicks"),
+        State("displayed-data-sheet", "columns"), State("displayed-data-sheet", "data"),
+        prevent_initial_call=True,
+    )
 
     app.clientside_callback(
         "function(...args) { return window.autoqySpectralAutosave("
@@ -2209,8 +2247,8 @@ def _figure_sheet_page(figure, page=0, size=25, visibility=None):
         return [], [], 0, "No plotted data yet."
     title = figure.get("layout", {}).get("xaxis", {}).get("title", {})
     x_label = (title.get("text") if isinstance(title, dict) else title) or "Wavelength (nm)"
-    columns = [{"name": x_label, "id": "x", "type": "numeric"}] + [
-        {"name": label, "id": f"c{index}", "type": "numeric",
+    columns = [{"name": x_label, "id": "x", "type": "numeric", "selectable": True}] + [
+        {"name": label, "id": f"c{index}", "type": "numeric", "selectable": True,
          "format": {"specifier": ".8g"}} for index, (label, _, _) in enumerate(series)]
     size = max(1, len(coordinates)) if size is None else max(1, min(int(size or 25), 100))
     count = int(np.ceil(len(coordinates) / size))

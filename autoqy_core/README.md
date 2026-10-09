@@ -519,6 +519,13 @@ the header fixed while scrolling. This view is a
 preview of the plot (including the 60-spectrum preview limit), not a replacement
 for exporting the full dataset through Output.
 
+Select cell ranges with Shift-click and use Ctrl+C, then Ctrl+V in another
+spreadsheet. Row and column checkboxes select whole rows/columns for **Copy selection**;
+checking both copies their intersection. **Copy all** includes every row in the
+displayed sheet, even outside the scroll viewport. Copies include column headings
+and tab-separated, full-precision values. The sheet is read-only; pasting elsewhere
+does not change the source spectra.
+
 The dedicated browser process is monitored directly: closing or killing it
 stops the server, while a delayed browser heartbeat does not close a busy or
 suspended app window. Connection failures leave the spectral page visible.

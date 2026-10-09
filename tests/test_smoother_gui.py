@@ -136,6 +136,7 @@ class ProcessedAbsorbanceExportTests(unittest.TestCase):
         self.assertEqual(len(all_rows), 105)
         self.assertEqual(count, 1)
         self.assertEqual(all_rows[-1]["x"], 104)
+        self.assertTrue(all(column["selectable"] for column in columns))
 
     def test_sheet_accepts_plotly_binary_arrays_and_empty_plots(self):
         array = np.array([400., 401.], dtype="float64")
@@ -524,6 +525,18 @@ class SpectralGuiTests(unittest.TestCase):
             self.assertEqual(result[4], 0)
         finally:
             context_value.reset(token)
+
+    def test_sheet_has_whole_row_column_and_cell_copy_controls(self):
+        by_id = {item.id: item for item in _components(self.app.layout)
+                 if isinstance(getattr(item, "id", None), str)}
+        sheet = by_id["displayed-data-sheet"]
+        self.assertEqual(sheet.row_selectable, "multi")
+        self.assertEqual(sheet.column_selectable, "multi")
+        self.assertTrue(sheet.cell_selectable)
+        self.assertTrue(sheet.include_headers_on_copy_paste)
+        self.assertFalse(sheet.editable)
+        self.assertIn("copy-sheet-selection", by_id)
+        self.assertIn("copy-sheet-all", by_id)
 
     def test_calibrated_request_keeps_explicit_zero_nmr_error(self):
         callback = self.app.callback_map["isomer-request-store.data"]["callback"].__wrapped__
