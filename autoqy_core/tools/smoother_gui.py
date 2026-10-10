@@ -588,7 +588,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     html.Div(id="isomer-message", className="message"),
                     html.Div(id="nmr-result-message", className="warning-copy"),
                     html.Div(id="nmr-processing-message", className="message"),
-                    html.Small("Save this spectrum through 5 · Output → CSV content."),
+                    html.Small("Save this spectrum through 5 · Output → Content to save."),
                 ]),
                 html.Details(open=False, className="panel tool-details export-panel", children=[
                     html.Summary([html.Span("5 · Output", className="step-label"),
@@ -599,15 +599,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                       "Choose CSV content here for reconstruction, slice, or NMR exports. "
                                       "Save a binary session to resume treatment later."
                                   )]),
-                    html.Label("Save folder"),
-                    html.Div(className="input-row", children=[
-                        dcc.Input(id="save-folder", type="text",
-                                  placeholder="Paste a folder path or choose a folder",
-                                  persistence=True, persistence_type="local"),
-                        html.Button("Choose folder", id="choose-save-folder",
-                                    className="button button-secondary"),
-                    ]),
-                    html.Label("CSV content"),
+                    html.Label("Content to save"),
                     dcc.Dropdown(id="csv-export-kind", clearable=False, value="processed",
                                  options=[
                                      {"label": "Processed dataset / calculated ε", "value": "processed"},
@@ -615,11 +607,6 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                      {"label": "Wavelength slice", "value": "slice"},
                                      {"label": "Stable + reconstructed ε (pair)", "value": "nmr"},
                                  ]),
-                    html.Label("CSV file name (optional)"),
-                    dcc.Input(id="save-filename", type="text",
-                              placeholder="Default name"),
-                    html.Small("Leave blank to use the default name for the selected content. "
-                               "NMR exports use the two names below."),
                     html.Div(className="export-mode-control", children=[
                         dcc.Checklist(
                             id="export-nonnegative", value=[], className="toggle-control",
@@ -634,51 +621,18 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     html.Button("Save CSV", id="export-epsilon",
                                 className="button button-primary", disabled=True),
                     html.Div(id="epsilon-save-message", className="message"),
-                    dcc.ConfirmDialog(id="confirm-epsilon-overwrite"),
-                    html.Details(className="nested-tool", children=[
-                        html.Summary("Reconstruction ε CSV options"),
-                    html.Div(className="export-mode-control", children=[
-                        dcc.Checklist(
-                            id="nmr-export-raw", value=[], className="toggle-control",
-                            options=[{"label": "Keep negative values in product ε", "value": "on"}],
-                        ),
-                        html.Small("Default: the primary product ε column is clipped at zero. "
-                                   "The raw audit column is always preserved."),
-                    ]),
-                    html.Label("CSV file names (optional)"),
-                    html.Div(className="input-row nmr-filename-row", children=[
-                        dcc.Input(id="nmr-reactant-filename", type="text",
-                                  placeholder="Reactant file name"),
-                        dcc.Input(id="nmr-product-filename", type="text",
-                                  placeholder="Product file name"),
-                    ]),
-                    html.Small("Leave blank to use the standard reactant and product names."),
-                    ]),
-                    html.Label("Session file name (optional)"),
-                    dcc.Input(id="session-filename", type="text", placeholder="spectral-session.aqys"),
+                    html.Small("Save opens a dialog to choose the folder and file name. The CSV pair opens two dialogs."),
                     html.Button("Save session (.aqys)", id="save-session",
                                 className="button button-secondary"),
                     html.Div(id="session-save-message", className="message"),
-                    dcc.ConfirmDialog(id="confirm-session-overwrite"),
                     html.Details(className="nested-tool", children=[
                         html.Summary("Save figures"),
-                        html.Small("PNG/SVG exports open their own Save As dialog. The options below apply to all three plots."),
+                        html.Small("Save the selected content as PNG or SVG. Options apply to both formats."),
                         image_export_options("include-plot-title", "include-plot-legend",
                                              "origin-epsilon-export", "show-epsilon-export-grid", "zero-epsilon-export-y"),
-                        html.Label("Main spectrum / reconstructed isomer"),
                         html.Div(className="plot-download-actions", children=[
                             html.Button("Save PNG", id="save-epsilon-png", className="button button-secondary compact-button"),
                             html.Button("Save SVG", id="save-epsilon-svg", className="button button-secondary compact-button"),
-                        ]),
-                        html.Label("Wavelength slice"),
-                        html.Div(className="plot-download-actions", children=[
-                            html.Button("Save PNG", id="save-slice-png", className="button button-secondary compact-button"),
-                            html.Button("Save SVG", id="save-slice-svg", className="button button-secondary compact-button"),
-                        ]),
-                        html.Label("Reconstructed ε"),
-                        html.Div(className="plot-download-actions", children=[
-                            html.Button("Save PNG", id="save-nmr-png", className="button button-secondary compact-button"),
-                            html.Button("Save SVG", id="save-nmr-svg", className="button button-secondary compact-button"),
                         ]),
                     ]),
                 ]),
@@ -949,11 +903,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
         app.layout = layout
         set_props("session-reload", {"href": f"/?session={generation}"})
 
+    save_state = {"folder": None}
+
     @app.callback(
         Output("session-save-message", "children"),
-        Output("confirm-session-overwrite", "displayed"),
-        Output("confirm-session-overwrite", "message"),
-        Input("save-session", "n_clicks"), Input("confirm-session-overwrite", "submit_n_clicks"),
+        Input("save-session", "n_clicks"),
         State("dataset-store", "data"), State("nmr-spectra-store", "data"),
         State("source-folder-store", "data"), State("isomer-request-store", "data"),
         *[State(component_id, "value") for component_id in controls],
@@ -964,7 +918,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
         State({"type": "legend-spectrum", "index": ALL}, "id"),
         State({"type": "legend-name", "index": ALL}, "id"), prevent_initial_call=True,
     )
-    def save_session(_, __, data, nmr, source, isomer, *values):
+    def save_session(_, data, nmr, source, isomer, *values):
         try:
             settings = dict(zip(controls, values[:len(controls)]))
             concentrations, paths, visibility, names, visibility_ids, name_ids = values[len(controls):]
@@ -972,20 +926,15 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                           visibility_ids, name_ids)
             snapshot = {"version": 1, "dataset": packed, "nmr": nmr, "source": source,
                         "settings": settings, "isomer_request": isomer}
-            filename = str(settings.get("session-filename") or "spectral-session.aqys").strip()
-            if Path(filename).name != filename:
-                raise ValueError("Enter a session file name without a folder path")
-            if not Path(filename).suffix:
-                filename += ".aqys"
-            if Path(filename).suffix.lower() != ".aqys":
-                raise ValueError("Session files must use the .aqys extension")
-            destination = _save_path(settings.get("save-folder"), filename)
-            if ctx.triggered_id == "save-session" and destination.exists():
-                return f"Existing file: {destination}", True, f"Overwrite {destination.name}?"
+            selected = _choose_save_file("spectral-session.aqys", save_state["folder"] or source)
+            if not selected:
+                return "Session save cancelled."
+            destination = Path(selected)
             SpectralRecovery(destination).write(snapshot)
-            return f"Saved session: {destination}", False, ""
+            save_state["folder"] = str(destination.parent)
+            return f"Saved session: {destination}"
         except Exception as error:
-            return f"Session save failed: {error}", False, ""
+            return f"Session save failed: {error}"
 
     app.clientside_callback(
         "function(clicks, cells, columns, rows, selectedRows, selectedColumns) { "
@@ -1019,52 +968,46 @@ window.autoqySaveText = (filename, text, mimeType) => {
         prevent_initial_call=True,
     )
 
-    def register_image_download(graph_id, png_button, svg_button, message_id,
-                                title_option, legend_option, origin_option, grid_option,
-                                zero_y_option):
-        app.clientside_callback(
-            """
-            function(pngClicks, svgClicks, figure, includeTitle, includeLegend,
-                     originStyle, exportGrid, startYAtZero, includeAxisLabels) {
-              const context = window.dash_clientside.callback_context;
-              if (!context.triggered || !context.triggered.length) {
-                return window.dash_clientside.no_update;
-              }
-              const trigger = context.triggered[0].prop_id.split('.')[0];
-              const format = trigger.endsWith('svg') ? 'svg' : 'png';
-              return window.autoqyDownloadPlot(
-                GRAPH_ID, figure, format, includeTitle, includeLegend,
-                originStyle, exportGrid, startYAtZero, includeAxisLabels
-              );
-            }
-            """.replace("GRAPH_ID", repr(graph_id)),
-            Output(message_id, "children"),
-            Input(png_button, "n_clicks"),
-            Input(svg_button, "n_clicks"),
-            State(graph_id, "figure"),
-            State(title_option, "value"),
-            State(legend_option, "value"),
-            State(origin_option, "value"),
-            State(grid_option, "value"),
-            State(zero_y_option, "value"),
-            State("include-export-axis-labels", "value"),
-            prevent_initial_call=True,
-        )
-
-    register_image_download(
-        "epsilon-plot", "save-epsilon-png", "save-epsilon-svg",
-        "epsilon-image-message", "include-plot-title", "include-plot-legend",
-        "origin-epsilon-export", "show-epsilon-export-grid", "zero-epsilon-export-y",
-    )
-    register_image_download(
-        "wavelength-slice-plot", "save-slice-png", "save-slice-svg",
-        "slice-image-message", "include-plot-title", "include-plot-legend",
-        "origin-epsilon-export", "show-epsilon-export-grid", "zero-epsilon-export-y",
-    )
-    register_image_download(
-        "nmr-plot", "save-nmr-png", "save-nmr-svg", "nmr-image-message",
-        "include-plot-title", "include-plot-legend", "origin-epsilon-export",
-        "show-epsilon-export-grid", "zero-epsilon-export-y",
+    app.clientside_callback(
+        """
+        function(pngClicks, svgClicks, kind, main, slice, reconstruction, request,
+                 includeTitle, includeLegend, originStyle, exportGrid, startYAtZero, includeAxisLabels) {
+          const context = window.dash_clientside.callback_context;
+          if (!context.triggered || !context.triggered.length) return window.dash_clientside.no_update;
+          const format = context.triggered[0].prop_id.includes('svg') ? 'svg' : 'png';
+          let graphId = 'epsilon-plot', figure = main;
+          if (kind === 'slice') { graphId = 'wavelength-slice-plot'; figure = slice; }
+          else if (kind === 'nmr' || (kind === 'isomer' && request?.mode === 'calibrated')) {
+            graphId = 'nmr-plot'; figure = reconstruction;
+          } else if (kind === 'isomer') {
+            figure = JSON.parse(JSON.stringify(main || {}));
+            figure.data = (figure.data || []).filter(trace =>
+              trace.name === 'Reconstructed pure metastable isomer' ||
+              (trace.name || '').startsWith('Composition uncertainty'));
+            const layout = figure.layout || {};
+            const xTitle = layout.xaxis2?.title || layout.xaxis?.title;
+            delete layout.xaxis2; delete layout.yaxis2; delete layout.grid;
+            layout.annotations = [];
+            layout.title = {text: 'Reconstructed pure metastable isomer'};
+            layout.xaxis = Object.assign({}, layout.xaxis || {}, {domain: [0, 1], anchor: 'y', title: xTitle});
+            layout.yaxis = Object.assign({}, layout.yaxis || {}, {domain: [0, 1], anchor: 'x'});
+            figure.layout = layout;
+            figure.data.forEach(trace => {delete trace.xaxis; delete trace.yaxis;});
+          }
+          if (!figure?.data?.length) return 'No figure available for the selected content.';
+          return window.autoqyDownloadPlot(graphId, figure, format, includeTitle, includeLegend,
+            originStyle, exportGrid, startYAtZero, includeAxisLabels);
+        }
+        """,
+        Output("epsilon-image-message", "children"),
+        Input("save-epsilon-png", "n_clicks"), Input("save-epsilon-svg", "n_clicks"),
+        State("csv-export-kind", "value"), State("epsilon-plot", "figure"),
+        State("wavelength-slice-plot", "figure"), State("nmr-plot", "figure"),
+        State("isomer-request-store", "data"),
+        State("include-plot-title", "value"), State("include-plot-legend", "value"),
+        State("origin-epsilon-export", "value"), State("show-epsilon-export-grid", "value"),
+        State("zero-epsilon-export-y", "value"), State("include-export-axis-labels", "value"),
+        prevent_initial_call=True,
     )
 
     @app.callback(
@@ -1229,17 +1172,6 @@ window.autoqySaveText = (filename, text, mimeType) => {
             return (existing_data, "Could not add the selected files.", None, None,
                     f"Load error: {type(error).__name__}: {error}", no_update,
                     kinetics_start)
-
-    @app.callback(
-        Output("save-folder", "value"),
-        Input("source-folder-store", "data"), Input("choose-save-folder", "n_clicks"),
-        State("save-folder", "value"), prevent_initial_call=True,
-    )
-    def select_save_folder(source_folder, _, current_folder):
-        if ctx.triggered_id == "source-folder-store":
-            return source_folder if source_folder and not current_folder else no_update
-        selected = _choose_folder(current_folder or source_folder)
-        return selected or no_update
 
     @app.callback(
         Output("isomer-reference", "options"), Output("isomer-mixture", "options"),
@@ -1491,7 +1423,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
                             wavelength_range=plot_wavelength_range,
                             show_original="on" in (show_original or []),
                         )
-                _overlay_isomer(go, figure, dataset, processed, isomer_request, show_isomer)
+                _overlay_isomer(go, figure, dataset, processed, isomer_request, show_isomer,
+                                minimal_colors=use_minimal_colors)
                 return (figure,
                         "Processed absorbance is ready to export; ε is waiting for "
                         "concentration inputs.",
@@ -1538,7 +1471,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     wavelength_range=plot_wavelength_range,
                 )
             _overlay_isomer(go, figure, dataset, processed, isomer_request, show_isomer,
-                            epsilon=True)
+                            epsilon=True, minimal_colors=use_minimal_colors)
             return (
                 figure,
                 result_message, concentration_message, smoothing_message,
@@ -1558,9 +1491,10 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Input("processed-store", "data"), Input("slice-wavelength", "value"),
         Input("slice-x-axis-label", "value"), Input("slice-y-axis-label", "value"),
         Input("slice-time-multiplier", "value"), Input("fit-slice-exponential", "value"),
+        Input("minimal-spectrum-colors", "value"),
     )
     def wavelength_slice(processed_data, wavelength, x_axis_label, y_axis_label,
-                         time_multiplier, fit_exponential):
+                         time_multiplier, fit_exponential, minimal_colors=None):
         if not processed_data:
             return (_empty(go, "Load spectra and type a wavelength"), None, "", "",
                     "slice-fit-result")
@@ -1605,7 +1539,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     "lifetime_error": fit["lifetime_error"],
                 })
             figure = _wavelength_slice_figure(
-                go, scaled_coordinates, values, selected, x_label, y_label, fit
+                go, scaled_coordinates, values, selected, x_label, y_label, fit,
+                minimal_colors="on" in (minimal_colors or [])
             )
             return figure, data, "", fit_message, fit_class
         except Exception as error:
@@ -1614,40 +1549,37 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     "slice-fit-result")
 
     @app.callback(
-        Output("epsilon-save-message", "children"),
-        Output("confirm-epsilon-overwrite", "displayed"),
-        Output("confirm-epsilon-overwrite", "message"),
-        Output("export-error", "children"),
+        Output("epsilon-save-message", "children"), Output("export-error", "children"),
         Input("export-epsilon", "n_clicks"),
-        Input("confirm-epsilon-overwrite", "submit_n_clicks"),
         State("epsilon-store", "data"), State("processed-store", "data"),
-        State("save-folder", "value"), State("save-filename", "value"),
-        State("export-nonnegative", "value"),
-        State("csv-export-kind", "value"), State("isomer-request-store", "data"),
-        State("wavelength-slice-store", "data"), State("nmr-result-store", "data"),
-        State("nmr-export-raw", "value"), State("nmr-reactant-filename", "value"),
-        State("nmr-product-filename", "value"),
+        State("export-nonnegative", "value"), State("csv-export-kind", "value"),
+        State("isomer-request-store", "data"), State("wavelength-slice-store", "data"),
+        State("nmr-result-store", "data"), State("source-folder-store", "data"),
         prevent_initial_call=True,
     )
-    def save_epsilon(_, __, epsilon_data, processed_data, folder, requested_filename,
-                     nonnegative, kind="processed", isomer=None, slice_data=None,
-                     nmr_data=None, nmr_raw=None, reactant_filename=None, product_filename=None):
+    def save_epsilon(_, epsilon_data, processed_data, nonnegative, kind="processed",
+                     isomer=None, slice_data=None, nmr_data=None, source=None):
+        saved = []
         try:
-            exports = _csv_exports(kind, epsilon_data, processed_data, requested_filename,
-                                   "on" in (nonnegative or []), isomer, slice_data, nmr_data,
-                                   nmr_raw, reactant_filename, product_filename)
-            destinations = [(_save_path(folder, name), text) for name, text in exports]
-            if len({path for path, _ in destinations}) != len(destinations):
-                raise ValueError("Export file names must be different")
-            existing = [path.name for path, _ in destinations if path.exists()]
-            if ctx.triggered_id == "export-epsilon" and existing:
-                return ("Existing file(s): " + ", ".join(existing), True,
-                        "Overwrite " + ", ".join(existing) + "?", "")
-            for destination, text in destinations:
+            clamp = "on" in (nonnegative or [])
+            exports = _csv_exports(kind, epsilon_data, processed_data,
+                                   nonnegative=clamp, isomer=isomer, slice_data=slice_data,
+                                   nmr_data=nmr_data, nmr_raw=[] if clamp else ["on"])
+            for name, text in exports:
+                selected = _choose_save_file(name, save_state["folder"] or source)
+                if not selected:
+                    suffix = " Already saved: " + ", ".join(saved) if saved else ""
+                    return "CSV save cancelled." + suffix, ""
+                destination = Path(selected)
+                if str(destination) in saved:
+                    raise ValueError("Choose different files for the stable and metastable CSVs")
                 destination.write_text(text, encoding="utf-8")
-            return "Saved " + ", ".join(str(path) for path, _ in destinations), False, "", ""
+                save_state["folder"] = str(destination.parent)
+                saved.append(str(destination))
+            return "Saved " + ", ".join(saved), ""
         except Exception as error:
-            return ("Save failed.", False, "", f"Export error: {type(error).__name__}: {error}")
+            suffix = " Already saved: " + ", ".join(saved) if saved else ""
+            return "Save failed." + suffix, f"Export error: {type(error).__name__}: {error}"
 
     @app.callback(
         Output("nmr-spectra-store", "data", allow_duplicate=True),
@@ -2154,6 +2086,27 @@ def _input_format_from_name(filename):
     return "auto"
 
 
+def _choose_save_file(filename, initial_directory=None):
+    """Native Save As handles folder/name choice and overwrite confirmation."""
+    initial = _powershell_quote(str(initial_directory or ""))
+    name = _powershell_quote(filename)
+    extension = _powershell_quote(Path(filename).suffix.lstrip("."))
+    script = (
+        "Add-Type -AssemblyName System.Windows.Forms; "
+        + _foreground_owner_script() +
+        "$dialog = New-Object System.Windows.Forms.SaveFileDialog; "
+        f"$dialog.FileName = '{name}'; $dialog.DefaultExt = '{extension}'; "
+        f"$dialog.Filter = '{extension.upper()} file|*.{extension}'; "
+        "$dialog.AddExtension = $true; $dialog.OverwritePrompt = $true; "
+        f"if ('{initial}') {{ $dialog.InitialDirectory = '{initial}' }}; "
+        "$result = $dialog.ShowDialog($owner); "
+        "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { "
+        "Write-Output $dialog.FileName }; $dialog.Dispose(); $owner.Close(); $owner.Dispose()"
+    )
+    selected = _run_powershell_dialog(script)
+    return selected[0] if selected else None
+
+
 def _choose_folder(initial_directory=None):
     initial = _powershell_quote(str(initial_directory or ""))
     script = (
@@ -2417,7 +2370,7 @@ def _csv_exports(kind, epsilon_data, processed_data, requested_filename=None,
             raise ValueError("Calculate reactant and NMR-derived ε before saving")
         result, labels = _unpack_epsilon(epsilon_data)
         return [(_csv_filename(reactant_filename, "epsilon-spectra-reactant.csv"),
-                 export_epsilon_csv(result, labels)),
+                 _export_csv_payload(epsilon_data, None, nonnegative)[1]),
                 (_csv_filename(product_filename, "epsilon-spectra-product.csv"),
                  _calibrated_reconstruction_csv(nmr_data, "on" in (nmr_raw or [])))]
     else:
@@ -2604,7 +2557,7 @@ def _isomer_composition_error(values, request):
     return error
 
 
-def _overlay_isomer(go, figure, dataset, processed, request, visible, epsilon=False):
+def _overlay_isomer(go, figure, dataset, processed, request, visible, epsilon=False, minimal_colors=False):
     if not request or request.get("mode", "absorbance") not in ("absorbance", "calibrated") or "on" not in (visible or []):
         return
     try:
@@ -2617,14 +2570,15 @@ def _overlay_isomer(go, figure, dataset, processed, request, visible, epsilon=Fa
         for bound, label, fill in ((values - error, "Composition uncertainty lower", None),
                                    (values + error, "Composition uncertainty upper", "tonexty")):
             band = go.Scatter(x=dataset.wavelengths, y=bound, name=label, mode="lines",
-                              fill=fill, fillcolor="rgba(138,90,155,.2)", line={"width": 0}, showlegend=False)
+                              fill=fill, fillcolor="rgba(176,176,176,.25)" if minimal_colors else "rgba(138,90,155,.2)",
+                              line={"width": 0}, showlegend=False)
             if epsilon:
                 figure.add_trace(band, row=1, col=1)
             else:
                 figure.add_trace(band)
     trace = go.Scatter(x=dataset.wavelengths, y=values, mode="lines",
                        name="Reconstructed pure metastable isomer",
-                       line={"color": PLOT_PURPLE, "width": 3, "dash": "dash"},
+                       line={"color": "#000000" if minimal_colors else PLOT_PURPLE, "width": 3, "dash": "dash"},
                        showlegend=True)
     if epsilon:
         figure.add_trace(trace, row=1, col=1)
@@ -2975,7 +2929,7 @@ def _decay_fit_message(fit):
 
 def _wavelength_slice_figure(go, coordinates, values, wavelength,
                              x_axis_label="Time", y_axis_label="Absorbance",
-                             fit=None):
+                             fit=None, minimal_colors=False):
     figure = go.Figure()
     figure.add_trace(go.Scatter(
         x=coordinates, y=values, mode="lines+markers", name=f"{wavelength:g} nm",
@@ -2986,7 +2940,7 @@ def _wavelength_slice_figure(go, coordinates, values, wavelength,
         figure.add_trace(go.Scatter(
             x=fit["fit_coordinates"], y=fit["fit_values"], mode="lines",
             name=f"Exponential fit · τ={fit['lifetime']:.4g} s",
-            line={"color": PLOT_PURPLE, "width": 2.5, "dash": "dash"},
+            line={"color": "#000000" if minimal_colors else PLOT_PURPLE, "width": 2.5, "dash": "dash"},
         ))
     figure.update_xaxes(title_text=x_axis_label)
     figure.update_yaxes(title_text=y_axis_label)
@@ -3093,7 +3047,7 @@ def _epsilon_figure(go, make_subplots, dataset, original, result, labels, method
         ), row=2, col=1)
     figure.add_trace(go.Scatter(
         x=dataset.wavelengths, y=result.mean, mode="lines",
-        line={"color": PLOT_PURPLE, "width": 2.4}, name="Mean ε",
+        line={"color": PLOT_ORANGE if minimal_colors else PLOT_PURPLE, "width": 2.4}, name="Mean ε",
     ), row=2, col=1)
     figure.update_yaxes(title_text=absorbance_axis_label, row=1, col=1)
     figure.update_yaxes(title_text=epsilon_axis_label, row=2, col=1)

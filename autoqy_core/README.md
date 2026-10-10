@@ -353,11 +353,10 @@ precision.
 Processed absorbance can be exported without concentration values. When every
 solution concentration and path length is supplied, the same workflow exports
 individual molar-absorptivity spectra and their wavelength-resolved statistics.
-The save folder accepts a pasted path (including Windows **Copy as path**
-quotes) or **Choose folder**. It is remembered across clearing spectra and
-loading another dataset; the source folder is used only when no save folder
-has been set. The CSV name is editable, missing `.csv` extensions are added,
-and existing files require confirmation before replacement. Negative values are
+**Save CSV** opens Save As to choose the folder and file name, with a suggested
+name and automatic `.csv` extension. The most recently saved folder is remembered;
+otherwise the source folder is suggested when available. The dialog confirms
+overwriting existing files. There are no separate folder or file-name fields. Negative values are
 preserved by default; the output option can clamp saved absorbance and epsilon
 values to zero without changing the preview or source data.
 
@@ -382,9 +381,9 @@ update the reconstruction. Changing the dataset, spectrum selections, or
 composition clears the reconstruction until **Reconstruct** is clicked again.
 
 In **5 · Output**, choose **Reconstructed metastable spectrum** under
-**CSV content**, then click **Save CSV**. The default file is
-`reconstructed-metastable-isomer.csv`; the Output folder, optional file name,
-negative-value option, and overwrite confirmation apply to this export too.
+**Content to save**, then click **Save CSV**. The default file is
+`reconstructed-metastable-isomer.csv`; choose the destination in Save As.
+The shared negative-value option and native overwrite confirmation apply too.
 It contains only the calculated curve; **Processed dataset / calculated ε**
 exports the measured series. Negative values are preserved unless Output
 clamping is enabled. Percentages must be greater than 0 and
@@ -496,7 +495,7 @@ replaced atomically so an interrupted write leaves the previous save intact.
 One latest session is retained per OS user; concurrently opened instances
 share that recovery file.
 
-**5 · Output → Save session (.aqys)** saves a portable session in **Save folder**.
+**5 · Output → Save session (.aqys)** opens Save As for a portable binary session.
 This versioned compressed binary format stores numerical arrays without large
 JSON matrices or Python pickle. Manual saves and autosave use the same format.
 Drop one `.aqys` file into the main uploader or select it with **Open files from folder** to
@@ -505,12 +504,11 @@ per-spectrum settings, reconstruction, NMR inputs, and Output settings. Plots
 and derived results are recalculated. Loading a session also makes it the
 current recovery snapshot. Old JSON autosaves remain readable for migration.
 
-All spectral CSV exports use **Output → CSV content → Save CSV**. Choose the
+All spectral CSV exports use **Output → Content to save → Save CSV**. Choose the
 processed dataset/calculated ε, reconstructed isomer, wavelength slice, or
-**Stable + reconstructed ε (pair)**. The latter uses the two file names and
-negative-product option under **Reconstruction ε CSV options** in Output; the other modes
-use the shared CSV name and negative-value option. Every mode uses **Save folder**
-and asks before overwriting existing files. Reconstruction and slice panels
+**Stable + reconstructed ε (pair)**. The pair opens two Save As dialogs, one for
+each CSV. All modes share one negative-value option; negatives are preserved
+unless conversion to zero is enabled. Reconstruction and slice panels
 do not have separate CSV save buttons.
 
 The **Displayed data** panel replaces the former Result panel with a
@@ -540,9 +538,9 @@ The calibrated ε route in **Reconstruct spectrum** uses the selected initial
 and PSS spectra from the treated main dataset (first and last by default).
 It propagates reference and NMR composition errors,
 and exports stable and reconstructed product ε CSV files. The primary
-product epsilon is clipped at zero by default, while a raw audit column is
-always retained; **Keep negative values in product epsilon** changes the primary
-export behavior.
+product epsilon retains negative values by default, while a raw audit column is
+always retained. The shared **Convert negative absorbance and ε values to 0**
+option clamps the primary export columns without changing the plot.
 
 ## Power-treatment GUI
 

@@ -46,9 +46,9 @@ can then be selected in the Analysis GUI.
 7. Inspect the individual ε traces, mean, and shaded error band. Large
    structured differences between measurements should be investigated before
    export; the band is not a substitute for inspecting the spectra.
-8. Under **5 · Output**, choose the Example 4 folder, set the CSV name to
-   `reactant_absorptivity.csv`, choose **Processed dataset / calculated ε**
-   under **CSV content**, and click **Save CSV**. The file
+8. Under **5 · Output**, choose **Processed dataset / calculated ε** under
+   **Content to save** and click **Save CSV**. In Save As, choose the Example 4
+   folder and name the file `reactant_absorptivity.csv`. The file
    contains processed absorbance, individual ε curves, their mean, SD, SEM,
    and non-negative limits.
 
@@ -89,11 +89,13 @@ series.
 
 7. Review any negative-value warning. Small negative results down to
    −500 M⁻¹ cm⁻¹ remain visible for diagnosis; values below that threshold stop
-   export. By default, the primary exported product ε is constrained to
-   zero while the raw audit column is retained.
-8. In **5 · Output → Reconstruction ε CSV options**, set the optional reactant and product file names to
-   `reactant_absorptivity.csv` and `product_absorptivity.csv`, then select
-   **Stable + reconstructed ε (pair)** under **CSV content**, then click **Save CSV**.
+   export. Negative values are preserved by default; enable **Convert negative
+   absorbance and ε values to 0** to constrain the primary column. The raw audit
+   column is always retained.
+8. Select **Stable + reconstructed ε (pair)** under **Content to save**, then click
+   **Save CSV**. In the two Save As dialogs, choose `reactant_absorptivity.csv`
+   and `product_absorptivity.csv`. Use **Save PNG** or **Save SVG** for the same
+   selected reconstruction plot; no separate spectrum chooser is needed.
 
 The product bounds combine the reactant measurement SD with the selected NMR
 composition error. They are therefore asymmetric and wavelength dependent.
@@ -109,8 +111,8 @@ spectrum**, leave the optional ε reference empty, select these two spectra, ent
 The result is overlaid on the absorbance plot using the current preprocessing.
 **Show reconstructed isomer** controls its visibility in the preview and saved
 PNG/SVG figure. In **5 · Output**, choose **Reconstructed metastable spectrum**
-under **CSV content** and click **Save CSV**. This uses the Output folder and
-file-name settings, preserves negative values unless clamping is enabled,
+under **Content to save** and click **Save CSV**. Choose the folder and file name
+in Save As. This preserves negative values unless clamping is enabled,
 and asks before replacement.
 This optional route does not produce the ε files needed for the quantum-yield
 analysis below; use the preceding ε workflow for those inputs.

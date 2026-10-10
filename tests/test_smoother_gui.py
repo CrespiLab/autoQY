@@ -248,7 +248,7 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertEqual(hidden.status_code, 200, hidden.data)
         self.assertEqual(len(hidden.json["response"]["epsilon-plot"]["figure"]["data"]), 2)
 
-    def test_isomer_export_retains_negatives_and_confirms_overwrite(self):
+    def test_isomer_export_retains_negatives_and_uses_save_as(self):
         packed = _pack(SpectralDataset(np.array([400., 401.]), np.array([0., 1.]),
                                       np.array([[0.2, 0.5], [0.8, 0.1]]), "csv"),
                        ["stable", "PSS"], ["spectra.csv"])
@@ -259,16 +259,15 @@ class SpectralGuiTests(unittest.TestCase):
             token = context_value.set(AttributeDict(
                 triggered_inputs=[{"prop_id": "export-epsilon.n_clicks"}]))
             try:
-                result = save(1, None, None, packed, f'"{directory}"', None, [],
-                              "isomer", request)
-                self.assertFalse(result[1])
-                self.assertEqual(result[3], "", result)
                 path = Path(directory) / "reconstructed-metastable-isomer.csv"
+                with patch("autoqy_core.tools.smoother_gui._choose_save_file", return_value=str(path)):
+                    result = save(1, None, packed, [], "isomer", request)
+                self.assertEqual(result[1], "", result)
                 frame = pd.read_csv(path)
                 self.assertEqual(frame.columns[1], "Reconstructed pure metastable isomer")
                 np.testing.assert_allclose(frame.iloc[:, 1], [0.8, -0.6])
-                self.assertTrue(save(2, None, None, packed, directory, None, [],
-                                     "isomer", request)[1])
+                with patch("autoqy_core.tools.smoother_gui._choose_save_file", return_value=None):
+                    self.assertIn("cancelled", save(2, None, packed, [], "isomer", request)[0])
             finally:
                 context_value.reset(token)
 
@@ -329,28 +328,25 @@ class SpectralGuiTests(unittest.TestCase):
         ):
             self.assertTrue(components[component_id].debounce, component_id)
 
-    def test_save_folder_survives_clear_and_new_dataset_and_accepts_dialog_changes(self):
-        from dash import no_update
-        callback = self.app.callback_map["save-folder.value"]["callback"].__wrapped__
-        for source, current, expected in (
-            (None, "C:/saved output", no_update),
-            ("C:/new input", "C:/saved output", no_update),
-            ("C:/first input", None, "C:/first input"),
-        ):
-            token = context_value.set(AttributeDict(
-                triggered_inputs=[{"prop_id": "source-folder-store.data"}]))
-            try:
-                self.assertEqual(callback(source, None, current), expected)
-            finally:
-                context_value.reset(token)
-        token = context_value.set(AttributeDict(
-            triggered_inputs=[{"prop_id": "choose-save-folder.n_clicks"}]))
-        try:
-            with patch("autoqy_core.tools.smoother_gui._choose_folder",
-                       return_value="C:/chosen output"):
-                self.assertEqual(callback(None, 1, "C:/saved output"), "C:/chosen output")
-        finally:
-            context_value.reset(token)
+    def test_native_save_dialog_has_extension_overwrite_prompt_and_remembers_folder(self):
+        from autoqy_core.tools.smoother_gui import _choose_save_file
+        with patch("autoqy_core.tools.smoother_gui._run_powershell_dialog", return_value=["C:/chosen.csv"]) as dialog:
+            self.assertEqual(_choose_save_file("suggested.csv", "C:/source"), "C:/chosen.csv")
+            script = dialog.call_args.args[0]
+            self.assertIn("SaveFileDialog", script)
+            self.assertIn("OverwritePrompt = $true", script)
+            self.assertIn("DefaultExt = 'csv'", script)
+        save = next(value["callback"].__wrapped__ for key, value in self.app.callback_map.items()
+                    if "epsilon-save-message.children" in key)
+        with TemporaryDirectory() as directory:
+            data = _pack(SpectralDataset(np.array([400., 401.]), np.array([0.]),
+                                         np.array([[.2], [.3]]), "csv"), ["stable"], ["input.csv"])
+            path = str(Path(directory) / "chosen.csv")
+            with patch("autoqy_core.tools.smoother_gui._choose_save_file", return_value=path):
+                self.assertIn("Saved", save(1, None, data, [], source="C:/input")[0])
+            with patch("autoqy_core.tools.smoother_gui._choose_save_file", return_value=None) as dialog:
+                self.assertIn("cancelled", save(2, None, data, [], source="C:/other")[0])
+                self.assertEqual(dialog.call_args.args[1], directory)
 
     def test_svd_analysis_is_skipped_while_svd_is_off(self):
         callback = next(
@@ -412,9 +408,10 @@ class SpectralGuiTests(unittest.TestCase):
             "origin-epsilon-export", "show-epsilon-export-grid",
             "zero-epsilon-export-y", "include-export-axis-labels",
         }, menu_ids)
-        for message in ("epsilon-image-message", "slice-image-message", "nmr-image-message"):
+        for message in ("epsilon-image-message",):
             state_ids = {state["id"] for state in self.app.callback_map[message + ".children"]["state"]}
             self.assertTrue(menu_ids[0].issubset(state_ids))
+            self.assertIn("csv-export-kind", state_ids)
         self.assertFalse(any(
             {"minimal-spectrum-colors", "fit-slice-exponential"} & ids
             for ids in menu_ids
@@ -444,14 +441,15 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertFalse(by_id["wavelength-slice-panel"].open)
         self.assertNotIn("responsive", by_id["epsilon-plot"].config)
         for component_id in (
-            "save-epsilon-png", "save-epsilon-svg", "save-slice-png",
-            "save-slice-svg", "csv-export-kind", "save-session", "save-nmr-png", "save-nmr-svg",
+            "save-epsilon-png", "save-epsilon-svg", "csv-export-kind", "save-session",
         ):
             self.assertIn(component_id, by_id)
-        for removed in ("save-slice-csv", "export-isomer", "export-nmr"):
+        for removed in ("save-slice-csv", "export-isomer", "export-nmr", "save-folder", "choose-save-folder",
+                        "save-filename", "session-filename", "nmr-reactant-filename", "nmr-product-filename",
+                        "nmr-export-raw", "save-slice-png", "save-nmr-png"):
             self.assertNotIn(removed, by_id)
         self.assertIn("epsilon-image-message.children", self.app.callback_map)
-        self.assertIn("nmr-image-message.children", self.app.callback_map)
+        self.assertNotIn("nmr-image-message.children", self.app.callback_map)
 
     @unittest.skipUnless(shutil.which("node"), "Node is needed to exercise browser export code")
     def test_image_export_can_hide_title_legend_and_axis_labels_without_changing_preview(self):
@@ -790,6 +788,56 @@ global.window = {Plotly: {
             [labels[0], labels[-1]],
         )
 
+    @unittest.skipUnless(shutil.which("node"), "Node is needed to exercise figure selection")
+    def test_two_figure_buttons_use_the_csv_content_selection(self):
+        script = next(text for text in self.app._inline_scripts if "function(pngClicks, svgClicks, kind," in text)
+        body = script.split("function(pngClicks, svgClicks, kind,", 1)[1].split("\n        }", 1)[0]
+        function = "function(pngClicks, svgClicks, kind," + body + "\n        }"
+        program = """
+const assert = require('node:assert/strict');
+let exported;
+global.window = {
+  dash_clientside: {callback_context: {triggered: [{prop_id: 'save-epsilon-png.n_clicks'}]}},
+  autoqyDownloadPlot: (id, figure, format) => {exported = {id, figure, format}; return 'ok';}
+};
+const save = (""" + function + """ );
+const main = {data: [{name: 'Measured'}, {name: 'Reconstructed pure metastable isomer'}],
+  layout: {xaxis: {}, yaxis: {}, xaxis2: {title: {text: 'Wavelength'}}, yaxis2: {}}};
+const slice = {data: [{name: 'Slice'}]}, epsilon = {data: [{name: 'Product ε'}]};
+for (const [kind, request, expected] of [['processed', null, 'epsilon-plot'],
+    ['slice', null, 'wavelength-slice-plot'], ['isomer', {mode: 'calibrated'}, 'nmr-plot'],
+    ['nmr', null, 'nmr-plot']]) {
+  assert.equal(save(1, 0, kind, main, slice, epsilon, request), 'ok');
+  assert.equal(exported.id, expected);
+}
+save(1, 0, 'isomer', main, slice, epsilon, {});
+assert.equal(exported.figure.data.length, 1);
+assert.equal(exported.figure.layout.yaxis2, undefined);
+assert.equal(main.data.length, 2);
+window.dash_clientside.callback_context.triggered = [{prop_id: 'save-epsilon-svg.n_clicks'}];
+save(0, 1, 'slice', main, slice, epsilon, null);
+assert.equal(exported.format, 'svg');
+"""
+        result = subprocess.run([shutil.which("node"), "-"], input=program,
+                                text=True, encoding="utf-8", capture_output=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_main_minimal_palette_includes_mean_and_isomer_without_purple(self):
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        from autoqy_core.tools.smoother_gui import _overlay_isomer
+        data = SpectralDataset(np.array([400., 401.]), np.array([0., 1.]),
+                               np.array([[.2, .5], [.8, .4]]), "csv")
+        result = calculate_epsilon_statistics(data.wavelengths, data.absorbance, [.001, .001], [1, 1])
+        figure = _epsilon_figure(go, make_subplots, data, data.absorbance, result, ["stable", "PSS"], "off", minimal_colors=True)
+        request = {"reference": 0, "mixture": 1, "percent": 80, "error_percent": 1}
+        _overlay_isomer(go, figure, data, data.absorbance, request, ["on"], epsilon=True, minimal_colors=True)
+        traces = {trace.name: trace for trace in figure.data}
+        self.assertEqual(traces["Mean ε"].line.color, "#d67b36")
+        self.assertEqual(traces["Reconstructed pure metastable isomer"].line.color, "#000000")
+        self.assertFalse(any(trace.line.color == "#8a5a9b" or "138,90,155" in (trace.fillcolor or "")
+                             for trace in figure.data))
+
     def test_minimal_palette_marks_initial_intermediate_and_final_spectra(self):
         self.assertEqual(_spectrum_colors(1, True), ["#2d6f8e"])
         self.assertEqual(
@@ -1102,10 +1150,9 @@ global.window = {Plotly: {
                 triggered_inputs=[{"prop_id": "export-epsilon.n_clicks"}]
             ))
             try:
-                save_result = save(
-                    1, None, None, preview_result[5], temporary,
-                    "my-treated-irradiation", ["on"],
-                )
+                with patch("autoqy_core.tools.smoother_gui._choose_save_file",
+                           return_value=str(Path(temporary) / "my-treated-irradiation.csv")):
+                    save_result = save(1, None, preview_result[5], ["on"])
             finally:
                 context_value.reset(token)
             destination = Path(temporary) / "my-treated-irradiation.csv"

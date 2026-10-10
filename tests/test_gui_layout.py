@@ -102,7 +102,7 @@ class GuiLayoutTests(unittest.TestCase):
 
     def test_spectral_default_filename_copy_is_short(self):
         app = create_spectral_app()
-        self.assertEqual(_by_id(app.layout, "save-filename").placeholder, "Default name")
+        self.assertFalse(any(getattr(component, "id", None) == "save-filename" for component in _components(app.layout)))
 
     def test_spectral_save_controls_are_only_in_output(self):
         app = create_spectral_app()
@@ -115,10 +115,11 @@ class GuiLayoutTests(unittest.TestCase):
             getattr(component, "id", None)
             for component in _components(output)
         ]
-        for identity in ("save-epsilon-png", "save-epsilon-svg", "save-slice-png",
-                         "save-slice-svg", "save-nmr-png", "save-nmr-svg",
-                         "export-epsilon", "save-session"):
+        for identity in ("save-epsilon-png", "save-epsilon-svg", "export-epsilon", "save-session"):
             self.assertIn(identity, output_ids)
+        for removed in ("save-slice-png", "save-slice-svg", "save-nmr-png", "save-nmr-svg",
+                        "save-folder", "save-filename", "session-filename"):
+            self.assertNotIn(removed, output_ids)
 
     def test_analysis_has_no_validate_button_and_explains_json_saving(self):
         app = create_analysis_app()

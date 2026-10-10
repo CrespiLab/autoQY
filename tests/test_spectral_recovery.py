@@ -86,20 +86,20 @@ class SpectralRecoveryTests(unittest.TestCase):
                  if isinstance(getattr(item, "id", None), str)}
         callback = next(value for key, value in app.callback_map.items()
                         if "session-save-message.children" in key)
-        settings = {"save-folder": self.directory.name, "session-filename": "portable",
-                    "baseline-enabled": ["on"]}
+        settings = {"baseline-enabled": ["on"]}
         values = [settings.get(item["id"], getattr(by_id[item["id"]], "value", None))
                   for item in callback["state"][4:-6]]
-        args = (1, None, self.data, None, "source", None, *values,
+        args = (1, self.data, None, "source", None, *values,
                 [0.002], [0.5], [[]], ["Custom legend"],
                 [{"type": "legend-spectrum", "index": 0}],
                 [{"type": "legend-name", "index": 0}])
         token = context_value.set(AttributeDict(triggered_inputs=[{"prop_id": "save-session.n_clicks"}]))
         try:
             save = callback["callback"].__wrapped__
-            result = save(*args)
-            self.assertIn("Saved session", result[0], result)
             destination = self.path.parent / "portable.aqys"
+            with patch("autoqy_core.tools.smoother_gui._choose_save_file", return_value=str(destination)):
+                result = save(*args)
+            self.assertIn("Saved session", result)
             snapshot = decode_session(destination.read_bytes())
             self.assertEqual(snapshot["settings"]["baseline-enabled"], ["on"])
             self.assertEqual(snapshot["dataset"]["legend_names"], ["Custom legend"])
@@ -107,7 +107,8 @@ class SpectralRecoveryTests(unittest.TestCase):
             self.assertEqual(snapshot["dataset"]["concentrations"], [0.002])
             self.assertEqual(snapshot["dataset"]["path_lengths"], [0.5])
             previous = destination.read_bytes()
-            self.assertTrue(save(*args)[1])
+            with patch("autoqy_core.tools.smoother_gui._choose_save_file", return_value=None):
+                self.assertIn("cancelled", save(*args))
             self.assertEqual(destination.read_bytes(), previous)
         finally:
             context_value.reset(token)
@@ -148,7 +149,7 @@ class SpectralRecoveryTests(unittest.TestCase):
                  if isinstance(getattr(item, "id", None), str)}
         self.assertEqual(after["dataset-store"].data, self.data)
         self.assertEqual(after["baseline-enabled"].value, ["on"])
-        self.assertEqual(after["save-folder"].value, self.directory.name)
+        self.assertNotIn("save-folder", after)
         self.assertEqual(after["isomer-request-store"].data, snapshot["isomer_request"])
         stale = client.post("/_autoqy_spectral_autosave", json={
             "version": 1, "dataset": None, "generation": old_generation})

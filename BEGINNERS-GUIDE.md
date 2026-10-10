@@ -136,8 +136,8 @@ the accumulated series and restart its elapsed-time counter.
 
 ## Save and resume a session
 
-In **5 · Output**, choose **Save folder**, optionally enter a session file name,
-and click **Save session (.aqys)**. The compressed binary session preserves
+In **5 · Output**, click **Save session (.aqys)** and choose the folder and file
+name in Save As. The compressed binary session preserves
 the original spectra, processing settings, legends, concentrations, path
 lengths, reconstruction, NMR inputs, and Output settings without a huge JSON
 matrix. AutoQY asks before replacing an existing session file.
@@ -152,7 +152,7 @@ next launch. Wait for the Data panel's autosave confirmation before closing.
 Older JSON autosaves can still be read. Clearing all spectra also updates
 autosave, but does not alter a session file you saved separately.
 
-All CSVs use **Output → CSV content → Save CSV**: select the processed dataset,
+All CSVs use **Output → Content to save → Save CSV**: select the processed dataset,
 reconstructed isomer, wavelength slice, or NMR ε pair. Figure buttons and image
 export options are in **Output → Save figures**; they open a separate Save As
 dialog. There are no separate CSV buttons in reconstruction or slice panels.
@@ -429,7 +429,7 @@ Possible reasons for larger differences include:
 To export, open:
 
 ```text id="0jmzhf"
-5 · Output → CSV content → Processed dataset / calculated ε
+5 · Output → Content to save → Processed dataset / calculated ε
 ```
 
 and click:
@@ -451,8 +451,8 @@ With **Processed dataset / calculated ε** selected, **Save CSV** serves two cas
 - with every Beer–Lambert value present, it also saves individual ε spectra,
   their mean, SD, SEM, and non-negative uncertainty bounds.
 
-The save folder and optional CSV name can be changed. A missing `.csv`
-extension is added automatically, and AutoQY asks before replacing an existing
+Choose the folder and CSV name in Save As. A missing `.csv`
+extension is added automatically, and the dialog asks before replacing an existing
 file. Negative absorbance and ε values are preserved by default. Enable
 **Convert negative absorbance and ε values to 0** only when the saved CSV—not
 the preview or uploaded source—should be clamped.
@@ -555,9 +555,9 @@ fitted curve and lifetime information.
 
 ---
 
-In **5 · Output**, paste your destination into **Save folder** or click
-**Choose folder**. Paths copied with Windows **Copy as path** are accepted.
-The selected folder is retained when you clear spectra or load another dataset.
+Choose **Content to save**, then click **Save CSV**, **Save PNG**, or **Save SVG**.
+Choose the destination in Save As. The most recently saved CSV/session folder
+is remembered internally, even when spectra are cleared or another dataset is loaded.
 
 # 10. Use Spectral Treatment to prepare figures
 
@@ -579,8 +579,8 @@ length. Do not normalize their peaks separately. The calculated curve uses
 the current baseline correction, smoothing, and wavelength range. Toggle
 **Show reconstructed isomer** to include or hide it in the plot and saved
 PNG/SVG figure. In **5 · Output**, choose **Reconstructed metastable spectrum**
-under **CSV content**, then click **Save CSV**. The folder, optional CSV name,
-and negative-value option are all controlled there. The measured spectra remain unchanged.
+under **Content to save**, then click **Save CSV** and choose the destination in
+Save As. The shared negative-value option applies. The measured spectra remain unchanged.
 
 Negative calculated values are retained and flagged. Check the baseline and
 mixture composition if these are substantial. Very small metastable percentages
@@ -740,14 +740,14 @@ Use the main Range and preprocessing controls for baseline, smoothing, and SVD.
 These apply once to the selected spectra; only the overlapping ε wavelength
 range is calibrated. No separate UV upload or preprocessing is required.
 Clear the ε reference to reconstruct absorbance without calibration.
-By default, the primary product ε export is clipped at zero while a
-raw audit column is retained. In **5 · Output → Reconstruction ε CSV options**, enable
-**Keep negative values in product ε** only
-when negative values should remain in the primary column. Values below
-−500 M⁻¹ cm⁻¹ stop export and should be investigated. Optional reactant and
-product filenames are available there. Select **Stable + reconstructed ε (pair)**
-under **CSV content**, then click **Save CSV**. Save the NMR plot as PNG or SVG
-through **Output → Save figures**.
+By default, the primary product ε export retains negative values and a raw audit
+column. Enable **Convert negative absorbance and ε values to 0** to clamp the
+primary column. Values below −500 M⁻¹ cm⁻¹ stop export and should be investigated.
+Select **Stable + reconstructed ε (pair)**
+under **Content to save**, then click **Save CSV**. Save the NMR plot as PNG or SVG
+through the same **Content to save** selection and **Output → Save figures**.
+The CSV pair opens two Save As dialogs, one for each file; figures use just
+**Save PNG** or **Save SVG** for the selected content.
 
 Both UV–Vis curves share the same reference normalization and ε scale. The
 uncertainty envelope combines the triplicate ε error with NMR composition
