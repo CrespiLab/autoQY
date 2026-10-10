@@ -148,7 +148,7 @@ def create_app(recovery_file=None):
 })();
 window.autoqyDownloadPlot = (
   graphId, figure, format, includeTitle, includeLegend, originStyle, exportGrid,
-  startYAtZero
+  startYAtZero, includeAxisLabels
 ) => {
   const graph = document.querySelector(`#${graphId} .js-plotly-plot`);
   if (!graph || !window.Plotly) return 'Plot export is unavailable.';
@@ -251,6 +251,9 @@ window.autoqyDownloadPlot = (
       delete axis.range;
       axis.autorange = true;
       axis.rangemode = 'nonnegative';
+    }
+    if (Array.isArray(includeAxisLabels) && !includeAxisLabels.includes('on')) {
+      axis.title = {text: ''};
     }
     exportLayout[key] = axis;
   });
@@ -361,6 +364,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     id=legend_id, value=["on"],
                     className="toggle-control plot-option-toggle",
                     options=[{"label": "Legend in saved image", "value": "on"}],
+                ),
+                dcc.Checklist(
+                    id="include-export-axis-labels", value=["on"],
+                    className="toggle-control plot-option-toggle",
+                    options=[{"label": "Axis labels in saved image", "value": "on"}],
                 ),
                 dcc.Checklist(
                     id=origin_id, value=["on"],
@@ -654,21 +662,19 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     dcc.ConfirmDialog(id="confirm-session-overwrite"),
                     html.Details(className="nested-tool", children=[
                         html.Summary("Save figures"),
-                        html.Small("PNG/SVG exports open their own Save As dialog."),
+                        html.Small("PNG/SVG exports open their own Save As dialog. The options below apply to all three plots."),
+                        image_export_options("include-plot-title", "include-plot-legend",
+                                             "origin-epsilon-export", "show-epsilon-export-grid", "zero-epsilon-export-y"),
                         html.Label("Main spectrum / reconstructed isomer"),
                         html.Div(className="plot-download-actions", children=[
                             html.Button("Save PNG", id="save-epsilon-png", className="button button-secondary compact-button"),
                             html.Button("Save SVG", id="save-epsilon-svg", className="button button-secondary compact-button"),
                         ]),
-                        image_export_options("include-plot-title", "include-plot-legend",
-                                             "origin-epsilon-export", "show-epsilon-export-grid", "zero-epsilon-export-y"),
                         html.Label("Wavelength slice"),
                         html.Div(className="plot-download-actions", children=[
                             html.Button("Save PNG", id="save-slice-png", className="button button-secondary compact-button"),
                             html.Button("Save SVG", id="save-slice-svg", className="button button-secondary compact-button"),
                         ]),
-                        image_export_options("include-slice-title", "include-slice-legend",
-                                             "origin-slice-export", "show-slice-export-grid", "zero-slice-export-y"),
                         html.Label("Reconstructed ε"),
                         html.Div(className="plot-download-actions", children=[
                             html.Button("Save PNG", id="save-nmr-png", className="button button-secondary compact-button"),
@@ -1019,7 +1025,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
         app.clientside_callback(
             """
             function(pngClicks, svgClicks, figure, includeTitle, includeLegend,
-                     originStyle, exportGrid, startYAtZero) {
+                     originStyle, exportGrid, startYAtZero, includeAxisLabels) {
               const context = window.dash_clientside.callback_context;
               if (!context.triggered || !context.triggered.length) {
                 return window.dash_clientside.no_update;
@@ -1028,7 +1034,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
               const format = trigger.endsWith('svg') ? 'svg' : 'png';
               return window.autoqyDownloadPlot(
                 GRAPH_ID, figure, format, includeTitle, includeLegend,
-                originStyle, exportGrid, startYAtZero
+                originStyle, exportGrid, startYAtZero, includeAxisLabels
               );
             }
             """.replace("GRAPH_ID", repr(graph_id)),
@@ -1041,6 +1047,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
             State(origin_option, "value"),
             State(grid_option, "value"),
             State(zero_y_option, "value"),
+            State("include-export-axis-labels", "value"),
             prevent_initial_call=True,
         )
 
@@ -1051,8 +1058,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
     )
     register_image_download(
         "wavelength-slice-plot", "save-slice-png", "save-slice-svg",
-        "slice-image-message", "include-slice-title", "include-slice-legend",
-        "origin-slice-export", "show-slice-export-grid", "zero-slice-export-y",
+        "slice-image-message", "include-plot-title", "include-plot-legend",
+        "origin-epsilon-export", "show-epsilon-export-grid", "zero-epsilon-export-y",
     )
     register_image_download(
         "nmr-plot", "save-nmr-png", "save-nmr-svg", "nmr-image-message",
@@ -1685,15 +1692,17 @@ window.autoqySaveText = (filename, text, mimeType) => {
         Input("processed-store", "data"), Input("nmr-spectra-store", "data"),
         Input("isomer-request-store", "data"), Input("reconstruction-error-basis", "value"),
         Input("show-reconstructed-isomer", "value"),
+        Input("minimal-spectrum-colors", "value"),
     )
-    def calculate_nmr(processed, calibration, request, basis="sd", visible=None):
+    def calculate_nmr(processed, calibration, request, basis="sd", visible=None, minimal_colors=None):
         if not request or not calibration or not calibration.get("reference"):
             return (_empty(go, "Drop a reference ε file to calibrate the main spectra"),
                     {"display": "none"}, "", None, True, "status-message", "")
         try:
             packed = _reconstruct_from_main(processed, calibration, request, basis)
             result = _unpack_nmr(packed)
-            figure = _nmr_figure(go, make_subplots, result)
+            figure = _nmr_figure(go, make_subplots, result,
+                                 minimal_colors="on" in (minimal_colors or []), error_basis=basis)
             if visible is not None and "on" not in visible:
                 for trace in figure.data:
                     if trace.name == "Product ε" or trace.legendgroup == "product-error":
@@ -3110,60 +3119,40 @@ def _lock_wavelength_axis(figure, wavelength_range):
 
 
 def _nmr_figure(go, make_subplots, result, raw_reactant=None, raw_pss=None,
-                preprocessing_changed=False):
-    figure = make_subplots(
-        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
-        row_heights=[0.34, 0.66],
-        subplot_titles=("Normalized UV–Vis inputs", "NMR-derived product absorptivity"),
-    )
-    if preprocessing_changed:
-        raw_peak = float(np.max(raw_reactant))
-        if raw_peak > 0:
-            figure.add_trace(go.Scatter(
-                x=result.wavelengths, y=np.asarray(raw_reactant) / raw_peak,
-                mode="lines", name="Reactant raw", hoverinfo="skip",
-                line={"color": "rgba(45,111,142,.25)", "width": 1}), row=1, col=1)
-            figure.add_trace(go.Scatter(
-                x=result.wavelengths, y=np.asarray(raw_pss) / raw_peak,
-                mode="lines", name="PSS raw", hoverinfo="skip",
-                line={"color": "rgba(214,123,54,.25)", "width": 1}), row=1, col=1)
-    figure.add_trace(go.Scatter(
-        x=result.wavelengths, y=result.normalized_reactant, mode="lines",
-        name="Reactant processed", line={"color": PLOT_BLUE}), row=1, col=1)
-    figure.add_trace(go.Scatter(
-        x=result.wavelengths, y=result.normalized_pss, mode="lines",
-        name="PSS processed", line={"color": PLOT_ORANGE}), row=1, col=1)
-    figure.add_trace(go.Scatter(
-        x=result.wavelengths, y=result.reactant_lower, mode="lines",
-        line={"width": 0}, hoverinfo="skip", showlegend=False,
-        legendgroup="reactant-error"), row=2, col=1)
-    figure.add_trace(go.Scatter(
-        x=result.wavelengths, y=result.reactant_upper, mode="lines", fill="tonexty",
-        fillcolor="rgba(45,111,142,.20)", line={"width": 0},
-        name="Reactant ε SD envelope", legendgroup="reactant-error"), row=2, col=1)
-    figure.add_trace(go.Scatter(
-        x=result.wavelengths, y=result.product_lower, mode="lines",
-        line={"width": 0}, hoverinfo="skip", showlegend=False,
-        legendgroup="product-error"), row=2, col=1)
-    figure.add_trace(go.Scatter(
-        x=result.wavelengths, y=result.product_upper, mode="lines", fill="tonexty",
-        fillcolor="rgba(138,90,155,.24)", line={"width": 0},
-        name="Product propagation envelope", legendgroup="product-error"), row=2, col=1)
+                preprocessing_changed=False, minimal_colors=False, error_basis="sd"):
+    """Show calibrated ε only; normalized inputs remain calculation diagnostics."""
+    figure = go.Figure()
+    stable_color, product_color, pss_color = (
+        (PLOT_BLUE, PLOT_ORANGE, "#000000") if minimal_colors
+        else (COLORBLIND_TRACE_PALETTE[0], COLORBLIND_TRACE_PALETTE[1],
+              COLORBLIND_TRACE_PALETTE[2]))
+    product_fill = "rgba(214,123,54,.24)" if minimal_colors else "rgba(230,159,0,.24)"
+    stable_fill = "rgba(45,111,142,.20)" if minimal_colors else "rgba(0,114,178,.20)"
+    for lower, upper, group, name, fill in (
+        (result.reactant_lower, result.reactant_upper, "reactant-error",
+         f"Stable ε {error_basis.upper()} envelope", stable_fill),
+        (result.product_lower, result.product_upper, "product-error",
+         "Metastable propagation envelope", product_fill),
+    ):
+        figure.add_trace(go.Scatter(x=result.wavelengths, y=lower, mode="lines",
+                                   line={"width": 0}, hoverinfo="skip", showlegend=False,
+                                   legendgroup=group))
+        figure.add_trace(go.Scatter(x=result.wavelengths, y=upper, mode="lines", fill="tonexty",
+                                   fillcolor=fill, line={"width": 0}, name=name, legendgroup=group))
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.reconstructed_reactant, mode="lines",
-        name="Reactant ε", line={"color": PLOT_BLUE, "dash": "dot"}), row=2, col=1)
+        name="Stable ε", line={"color": stable_color, "dash": "dot"}))
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.reconstructed_pss, mode="lines",
-        name="PSS reconstructed ε", line={"color": PLOT_ORANGE, "dash": "dash"}), row=2, col=1)
+        name="PSS reconstructed ε", line={"color": pss_color, "dash": "dash"}))
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.product, mode="lines",
-        name="Product ε", line={"color": PLOT_PURPLE, "width": 2.4}), row=2, col=1)
-    figure.add_hline(y=0, line={"color": "#b85c4a", "dash": "dash", "width": 1}, row=2, col=1)
-    figure.update_yaxes(title_text="Normalized absorbance", row=1, col=1)
-    figure.update_yaxes(title_text="ε (M⁻¹ cm⁻¹)", row=2, col=1)
-    figure.update_xaxes(title_text="Wavelength (nm)", row=2, col=1)
-    figure.update_layout(title={"text": "Weighted PSS subtraction", "x": 0.02})
-    return _style(figure, 650)
+        name="Product ε", line={"color": product_color, "width": 2.4}))
+    figure.add_hline(y=0, line={"color": "#b0b0b0", "dash": "dash", "width": 1})
+    figure.update_yaxes(title_text="ε (M⁻¹ cm⁻¹)")
+    figure.update_xaxes(title_text="Wavelength (nm)")
+    figure.update_layout(title={"text": "Reconstructed metastable ε", "x": 0.02})
+    return _style(figure, 500)
 
 
 def _processing_title(method, svd_enabled=None, svd_rank=None):

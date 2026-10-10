@@ -94,6 +94,24 @@ class ReconstructionExamplesTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "different spectra"):
             _reconstruct_from_main(main, calibration, self.request | {"reference": 1, "mixture": 1})
 
+    def test_reconstruction_plot_only_has_epsilon_and_respects_minimal_colors(self):
+        calibration = {"reference": {"epsilon": self.epsilon_packed}}
+        result = self.calculate(self.main, calibration, self.request, "sem", ["on"], ["on"])
+        self.assertIsNotNone(result[3], result[2])
+        figure = result[0]
+        traces = {trace.name: trace for trace in figure.data if trace.name}
+        self.assertNotIn("yaxis2", figure.layout.to_plotly_json())
+        self.assertFalse(any("normalized" in (trace.name or "").lower() or
+                             "processed" in (trace.name or "").lower() for trace in figure.data))
+        self.assertEqual(traces["Stable ε"].line.color, "#2d6f8e")
+        self.assertEqual(traces["Product ε"].line.color, "#d67b36")
+        self.assertEqual(traces["PSS reconstructed ε"].line.color, "#000000")
+        self.assertIn("Stable ε SEM envelope", traces)
+        self.assertFalse(any(trace.line.color == "#8a5a9b" for trace in figure.data))
+        hidden = self.calculate(self.main, calibration, self.request, "sd", [], ["on"])[0]
+        self.assertTrue(all(trace.visible == "legendonly" for trace in hidden.data
+                            if trace.name == "Product ε" or trace.legendgroup == "product-error"))
+
     def test_reference_errors_and_overlap_are_validated_for_main_workflow(self):
         calibration = {"reference": {"epsilon": deepcopy(self.epsilon_packed)}}
         calibration["reference"]["epsilon"]["sd"][0] = None

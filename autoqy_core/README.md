@@ -442,14 +442,18 @@ PNG/SVG figures without changing the processed-data export.
 PNG and SVG save buttons are in **5 · Output → Save figures** and open a Save As
 dialog. Image export options are there too. Saved images contain only the
 plots by default. **Title in saved image** and **Legend in saved image** can be
-enabled independently. **Origin-style export** follows the supplied Origin-like
+enabled independently, as can **Axis labels in saved image**. One shared options
+menu applies to the main plot, wavelength slice, and reconstructed ε without
+duplicated settings. **Origin-style export** follows the supplied Origin-like
 Python example: a 6.5:5 white figure with Arial text, boxed axes, outward major
 and minor ticks, thick high-contrast curves, larger text, tight margins, and no
 grid by default. Its optional legend is placed inside the plot frame, and PNGs
 are rendered at 1950 × 1500 pixels (300 dpi at 6.5 × 5 inches); SVG remains
 resolution-independent.
-**Grid in saved image** can be switched on independently for the main and
-wavelength-slice exports.
+**Grid in saved image** applies to all three exports. The reconstructed ε plot
+and its PNG/SVG exports contain only calibrated ε and uncertainty envelopes,
+not normalized input spectra. Its minimal palette uses blue for stable ε,
+orange for metastable ε, black for PSS ε, and light-grey reference lines.
 
 Open **Wavelength slice over time** below the main plot and type a wavelength
 to graph the interpolated absorbance across the spectrum coordinates. For a

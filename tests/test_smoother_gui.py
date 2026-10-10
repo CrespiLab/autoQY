@@ -7,6 +7,8 @@ from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
+import shutil
+import subprocess
 
 from autoqy_core.epsilon import EpsilonResult, calculate_epsilon_statistics, load_epsilon_table
 from autoqy_core.plot_style import COLORBLIND_TRACE_PALETTE
@@ -383,14 +385,12 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertEqual(by_id["show-original-spectra"].value, [])
         self.assertEqual(by_id["include-plot-title"].value, [])
         self.assertEqual(by_id["include-plot-legend"].value, ["on"])
-        self.assertEqual(by_id["include-slice-title"].value, [])
-        self.assertEqual(by_id["include-slice-legend"].value, ["on"])
+        self.assertEqual(by_id["include-export-axis-labels"].value, ["on"])
         self.assertEqual(by_id["origin-epsilon-export"].value, ["on"])
-        self.assertEqual(by_id["origin-slice-export"].value, ["on"])
         self.assertEqual(by_id["show-epsilon-export-grid"].value, [])
-        self.assertEqual(by_id["show-slice-export-grid"].value, [])
         self.assertEqual(by_id["zero-epsilon-export-y"].value, ["on"])
-        self.assertEqual(by_id["zero-slice-export-y"].value, ["on"])
+        self.assertNotIn("include-slice-title", by_id)
+        self.assertNotIn("origin-slice-export", by_id)
         self.assertEqual(by_id["slice-time-multiplier"].value, 1)
         self.assertEqual(by_id["slice-time-multiplier"].type, "number")
         self.assertEqual(by_id["fit-slice-exponential"].value, [])
@@ -399,7 +399,7 @@ class SpectralGuiTests(unittest.TestCase):
             if isinstance(component, html.Details)
             and "image-export-options" in (getattr(component, "className", "") or "")
         ]
-        self.assertEqual(len(image_export_menus), 2)
+        self.assertEqual(len(image_export_menus), 1)
         menu_ids = [
             {
                 component.id for component in _components(menu)
@@ -410,13 +410,11 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertIn({
             "include-plot-title", "include-plot-legend",
             "origin-epsilon-export", "show-epsilon-export-grid",
-            "zero-epsilon-export-y",
+            "zero-epsilon-export-y", "include-export-axis-labels",
         }, menu_ids)
-        self.assertIn({
-            "include-slice-title", "include-slice-legend",
-            "origin-slice-export", "show-slice-export-grid",
-            "zero-slice-export-y",
-        }, menu_ids)
+        for message in ("epsilon-image-message", "slice-image-message", "nmr-image-message"):
+            state_ids = {state["id"] for state in self.app.callback_map[message + ".children"]["state"]}
+            self.assertTrue(menu_ids[0].issubset(state_ids))
         self.assertFalse(any(
             {"minimal-spectrum-colors", "fit-slice-exponential"} & ids
             for ids in menu_ids
@@ -454,6 +452,45 @@ class SpectralGuiTests(unittest.TestCase):
             self.assertNotIn(removed, by_id)
         self.assertIn("epsilon-image-message.children", self.app.callback_map)
         self.assertIn("nmr-image-message.children", self.app.callback_map)
+
+    @unittest.skipUnless(shutil.which("node"), "Node is needed to exercise browser export code")
+    def test_image_export_can_hide_title_legend_and_axis_labels_without_changing_preview(self):
+        script = self.app.index_string.split("window.autoqyDownloadPlot =", 1)[1].split("window.autoqySaveText =", 1)[0]
+        program = """
+const assert = require('node:assert/strict');
+let captured;
+global.document = {
+  querySelector: () => ({_fullLayout: {width: 1000, height: 600}}),
+  createElement: () => ({style: {}, remove() {}, click() {}}),
+  body: {appendChild() {}}
+};
+global.window = {Plotly: {
+  newPlot: (holder, data, layout) => {captured = {data, layout}; return Promise.resolve();},
+  toImage: () => Promise.resolve('data:image/png;base64,'), purge() {}
+}};
+""" + "window.autoqyDownloadPlot =" + script + """
+(async () => {
+  const figure = {data: [{name: 'Metastable ε', x: [400], y: [100], line: {color: '#d67b36'}}],
+    layout: {title: {text: 'Reconstructed ε'}, xaxis: {title: {text: 'Wavelength'}},
+      yaxis: {title: {text: 'ε'}}, showlegend: true}};
+  const original = JSON.stringify(figure);
+  const message = await window.autoqyDownloadPlot('nmr-plot', figure, 'png', [], [], ['on'], [], ['on'], []);
+  assert.equal(message, 'PNG download started.');
+  assert.equal(captured.layout.title, null);
+  assert.equal(captured.layout.showlegend, false);
+  assert.equal(captured.layout.xaxis.title.text, '');
+  assert.equal(captured.layout.yaxis.title.text, '');
+  assert.equal(captured.data.length, 1);
+  assert.equal(JSON.stringify(figure), original);
+  await window.autoqyDownloadPlot('nmr-plot', figure, 'svg', ['on'], ['on'], [], [], [], ['on']);
+  assert.equal(captured.layout.title.text, 'Reconstructed ε');
+  assert.equal(captured.layout.showlegend, true);
+  assert.equal(captured.layout.yaxis.title.text, 'ε');
+})().catch(error => {console.error(error); process.exitCode = 1;});
+"""
+        result = subprocess.run([shutil.which("node"), "-"], input=program,
+                                text=True, encoding="utf-8", capture_output=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("window.showSaveFilePicker", self.app.index_string)
         self.assertIn("exportLayout.showlegend = keepLegend", self.app.index_string)
         self.assertIn("exportLayout.title = null", self.app.index_string)

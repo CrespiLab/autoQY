@@ -628,14 +628,19 @@ to highlight the initial and final spectra while keeping intermediate traces vis
 ## Image and axis options
 
 **Axis names** changes the labels used by the main and wavelength-slice plots.
-The main plot and slice have separate **Image export options**. For each saved
-image you can independently include the title and legend, use the
+All three plots share one **Image export options** menu under **Output → Save figures**.
+For saved images you can independently include the title, legend, and axis labels, use the
 publication-oriented **Origin-style export**, add a grid, and decide whether
 the y axis starts at zero. With Origin-style export enabled, PNG output is
 1950 × 1500 pixels; SVG remains vector based.
 
 The defaults are: title excluded, legend included, Origin style enabled, grid
 excluded, and y axis starting at zero.
+
+The reconstructed metastable ε plot shows calibrated ε curves and uncertainty
+envelopes only, not normalized absorbance inputs. **Minimal colors** also applies
+here: stable ε is blue, metastable ε orange, and PSS ε black, with light-grey
+reference lines. PNG and SVG contain the same ε-only plot.
 
 <details>
 <summary><strong>Example workflow for a publication-style spectral figure</strong></summary>

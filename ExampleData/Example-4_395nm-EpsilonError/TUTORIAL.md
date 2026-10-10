@@ -81,8 +81,9 @@ series.
 5. Enter the experimental NMR uncertainty. The bundled product file uses the
    **1 percentage point** (the default). Enter zero to omit it. Change this value when a different uncertainty is
    justified by the composition measurement.
-6. Click **Reconstruct**, then inspect the normalized reactant and PSS curves and the reconstructed product
-   ε. The calculation is:
+6. Click **Reconstruct**, then inspect the calibrated stable, PSS, and reconstructed
+   product ε curves and their uncertainty envelopes. Normalized absorbance inputs
+   are not plotted or included in figure exports. The calculation is:
 
    `product = (PSS − 0.23 × reactant) / (1 − 0.23)`
 
