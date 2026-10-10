@@ -106,6 +106,12 @@ class ReconstructionExamplesTests(unittest.TestCase):
         self.assertEqual(traces["Stable ε"].line.color, "#2d6f8e")
         self.assertEqual(traces["Product ε"].line.color, "#d67b36")
         self.assertEqual(traces["PSS reconstructed ε"].line.color, "#000000")
+        for name in ("Stable ε", "PSS reconstructed ε", "Product ε"):
+            self.assertEqual(traces[name].line.dash, "solid")
+        self.assertTrue(all(shape.line.dash == "solid" for shape in figure.layout.shapes))
+        self.assertTrue(result[2].startswith("Metastable ε ready."))
+        self.assertNotIn("calibration", result[2])
+        self.assertEqual(result[6], "")
         self.assertIn("Stable ε SEM envelope", traces)
         self.assertFalse(any(trace.line.color == "#8a5a9b" for trace in figure.data))
         hidden = self.calculate(self.main, calibration, self.request, "sd", [], ["on"])[0]

@@ -76,12 +76,12 @@ measured by NMR. Enter the metastable percentage in Reconstruction.
 3. Keep the same settings: **250–700 nm**, baseline **600–650 nm**,
    **SavGol 5 nm / order 3**, and **SVD off**.
 4. Open **4 · Reconstruction → Reconstruct spectrum**.
-5. Select the first spectrum as **Initial stable-isomer spectrum** and the last
+5. Select the first spectrum as **Stable spectrum** and the last
    as **PSS spectrum**.
 6. Drop your saved `reactant_absorptivity.csv` into
-   **Stable-isomer ε reference (optional)**.
+   **Stable ε reference (optional)**.
    You can use `generic_inputs/reactant_absorptivity.csv` instead.
-7. Enter **77** for **Metastable isomer in mixture (%)**.
+7. Enter **77** for **Metastable (%)**.
 8. Leave composition uncertainty at **1** percentage point and choose
    **Replicate SD**. Use zero only if you want to leave the NMR error out.
 9. Click **Reconstruct**.

@@ -326,7 +326,7 @@ The TXT and results JSON distinguish two endpoint values:
 Run `autoqy-core smoother-gui` (or `autoqy-smoother-gui`) to load
 SpectraGryph text, SPECORD WinASPECT `.dat`, Agilent/Varian Cary `.DSW/.BSW`,
 Avantes `.Abs8`, wavelength-by-row TSV, or CSV data. File types are detected
-automatically. **Open files from folder** also makes the
+automatically. **Choose files** also makes the
 source directory the default export location, and a loading indicator remains
 visible while large groups of spectra are parsed.
 
@@ -390,7 +390,7 @@ clamping is enabled. Percentages must be greater than 0 and
 at most 100; small metastable fractions amplify measurement noise.
 
 For ε calibration, drop the triplicate stable-isomer ε CSV into the optional
-**Stable-isomer ε reference** input in the same panel. Load the UV–Vis irradiation
+**Stable ε reference** input in the same panel. Load the UV–Vis irradiation
 dataset in **1 · Data**, select its initial stable and PSS spectra in Reconstruction,
 enter the **metastable** percentage (77 for 23% stable), and click **Reconstruct**.
 The dropped ε file supplies only the calibration scale and reference uncertainty;
@@ -421,7 +421,7 @@ all through Output. The product CSV remains compatible with Analysis.
 ### Spectral plots and exports
 
 Files dropped together are naturally ordered by name, so `sample1` precedes
-`sample2` and `sample10`. Open **Loaded spectra: order, legend, removal** to
+`sample2` and `sample10`. Open **Loaded spectra** to
 move individual spectra up or down, remove them, or choose exactly which trace
 names appear in the legend. **Legend options → Enable legend editing** is off by default: the
 name inputs and visibility checkboxes are created only when requested, and
@@ -498,7 +498,7 @@ share that recovery file.
 **5 · Output → Save session (.aqys)** opens Save As for a portable binary session.
 This versioned compressed binary format stores numerical arrays without large
 JSON matrices or Python pickle. Manual saves and autosave use the same format.
-Drop one `.aqys` file into the main uploader or select it with **Open files from folder** to
+Drop one `.aqys` file into the main uploader or select it with **Choose files** to
 replace the current session and restore the saved spectra, preprocessing,
 per-spectrum settings, reconstruction, NMR inputs, and Output settings. Plots
 and derived results are recalculated. Loading a session also makes it the

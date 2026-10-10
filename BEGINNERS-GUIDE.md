@@ -8,6 +8,8 @@ AutoQY has two windows:
 - **Spectral Treatment**: clean spectra, calculate ε, reconstruct a spectrum, and save data or figures.
 - **Analysis**: calculate quantum yields from your measurements.
 
+Click an **ⓘ** button for help with the control beside it. Press Escape to close it.
+
 ## A few terms used in the buttons
 
 - **Absorbance**: the value measured by your UV–Vis instrument.
@@ -28,7 +30,7 @@ Double-click **AutoQY Analysis GUI**. In **1 · Project**, click
 ## 2. Load and check your spectra
 
 In Spectral Treatment, open **1 · Data**. Drop your files into the upload box,
-click the box to choose files, or use **Open files from folder**.
+click the box to choose files, or use **Choose files**.
 
 AutoQY reads SpectraGryph text and SPECORD binary `.dat`, Cary `.DSW/.BSW`,
 Avantes `.Abs8`, CSV, and TSV files.
@@ -37,7 +39,7 @@ Files loaded together are sorted by name: `sample2` comes before `sample10`.
 Loading more files adds them to the current set. **Clear all spectra** removes
 the current set from the window; it does not delete your files.
 
-Open **Loaded spectra: order, legend, removal**:
+Open **Loaded spectra**:
 
 - For a time series, put the spectra in measurement order.
 - For separate samples, check which spectrum belongs to each concentration.
@@ -131,9 +133,9 @@ the same height before using it.
 1. Load the UV–Vis series in **1 · Data**.
 2. Set the range, baseline, and smoothing in the main controls.
 3. Open **4 · Reconstruction → Reconstruct spectrum**.
-4. Select **Initial stable-isomer spectrum** and **PSS spectrum**.
+4. Select **Stable spectrum** and **PSS spectrum**.
    The first and last spectra are selected by default; check them.
-5. Enter **Metastable isomer in mixture (%)**.
+5. Enter **Metastable (%)**.
    If NMR gives 23% stable and 77% metastable, enter **77**, not 23.
 6. Enter the composition error in percentage points.
    The default `1` means ±1 percentage point, not 1% of the entered value.
@@ -146,7 +148,7 @@ Use **Show reconstructed isomer** to show or hide it.
 ### If you also need metastable ε and its error
 
 Before clicking **Reconstruct**, drop the stable-isomer ε CSV into
-**Stable-isomer ε reference (optional)**. Use an AutoQY export from your repeated
+**Stable ε reference (optional)**. Use an AutoQY export from your repeated
 stable-isomer measurements.
 
 The dropped file supplies the known ε values and their errors.
@@ -254,7 +256,7 @@ Click **Save session (.aqys)** and choose a name in Save As.
 This saves the spectra and settings, not just the plot.
 
 To reopen it, drop one `.aqys` file into **1 · Data**, or choose it with
-**Open files from folder**. It replaces the current session. Do not drop a session
+**Choose files**. It replaces the current session. Do not drop a session
 and spectra together.
 
 AutoQY also saves the latest state automatically. Wait for the autosave message

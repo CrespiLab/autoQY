@@ -140,11 +140,38 @@ def create_app(recovery_file=None):
     if (popup) {
       event.preventDefault();
       event.stopPropagation();
+      const wasOpen = popup.classList.contains('info-popup-open');
+      document.querySelectorAll('.info-popup-open').forEach((item) => {
+        item.classList.remove('info-popup-open');
+      });
+      popup.classList.toggle('info-popup-dismissed', wasOpen);
+      if (!wasOpen) popup.classList.add('info-popup-open');
       popup.focus();
     } else if (document.activeElement?.classList.contains('info-popup')) {
+      document.activeElement.classList.remove('info-popup-open');
       document.activeElement.blur();
     }
   }, true);
+  document.addEventListener('keydown', (event) => {
+    const popup = event.target.closest('.info-popup');
+    if (popup && event.key === 'Escape') {
+      popup.classList.remove('info-popup-open');
+      popup.classList.add('info-popup-dismissed');
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  });
+  document.addEventListener('focusin', (event) => {
+    if (event.target.classList.contains('info-popup')) {
+      event.target.classList.remove('info-popup-dismissed');
+    }
+  });
+  document.addEventListener('mouseover', (event) => {
+    const popup = event.target.closest('.info-popup');
+    if (popup && !popup.contains(event.relatedTarget)) {
+      popup.classList.remove('info-popup-dismissed');
+    }
+  });
 })();
 window.autoqyDownloadPlot = (
   graphId, figure, format, includeTitle, includeLegend, originStyle, exportGrid,
@@ -346,11 +373,15 @@ window.autoqySaveText = (filename, text, mimeType) => {
 };
 </script></body></html>"""
 
-    def info_popup(text):
-        return html.Span(className="info-popup", tabIndex=0, children=[
+    def info_popup(text, topic="More information"):
+        tooltip_id = f"spectral-help-{uuid4().hex}"
+        return html.Button(type="button", className="info-popup", children=[
             html.Span("i", className="info-popup-icon", **{"aria-hidden": "true"}),
-            html.Span(text, className="info-popup-content"),
-        ])
+            html.Span(text, id=tooltip_id, role="tooltip", className="info-popup-content"),
+        ], **{"aria-label": f"Help: {topic}", "aria-describedby": tooltip_id})
+
+    def control_with_info(control, text, topic):
+        return html.Div([control, info_popup(text, topic)], className="control-with-info")
 
     def image_export_options(title_id, legend_id, origin_id, grid_id, zero_y_id):
         return html.Details(className="plot-options image-export-options", children=[
@@ -400,7 +431,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
         html.Header(className="app-header", children=[html.Div([
             html.P("AUTOQY", className="eyebrow"),
             html.H1("Spectral treatment"),
-            html.P("Prepare wavelength-resolved data and calculate molar absorptivity.",
+            html.P("Clean spectra, calculate ε, and save your results.",
                    className="subtitle"),
         ]), html.Div(f"Version {project_version}", className="local-badge")]),
         html.Main(className="workspace epsilon-workspace", children=[
@@ -411,21 +442,13 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                       "Load one or more spectra. File types are detected automatically; "
                                       "folder loading also makes the source folder the default export location."
                                   )]),
-                    dcc.Upload(
+                    control_with_info(dcc.Upload(
                         id="upload-spectra", className="upload-box", multiple=True,
-                        children=html.Div([
-                            html.Span("Drop or choose spectra or one saved session (.aqys)"),
-                            html.Small(
-                                "SpectraGryph, SPECORD, Cary .DSW/.BSW, "
-                                "Avantes .Abs8, TSV, or CSV"
-                            ),
-                            html.Small(
-                                "Spectra are added; one .aqys session replaces the current state. Files dropped together are "
-                                "sorted naturally by name."
-                            ),
-                        ]),
-                    ),
-                    html.Button("Open files from folder", id="open-local-spectra",
+                        children=html.Div("Drop spectra or a saved session"),
+                    ), "Click to choose files. Supports SpectraGryph, SPECORD, Cary .DSW/.BSW, "
+                       "Avantes .Abs8, TSV and CSV. Spectra are added in natural filename order. "
+                       "One .aqys session replaces the current session; load it on its own.", "Load files"),
+                    html.Button("Choose files", id="open-local-spectra",
                                 className="button button-secondary"),
                     html.Button("Clear all spectra", id="clear-dataset",
                                 className="button button-secondary", disabled=True),
@@ -449,11 +472,9 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                  style={"overflowWrap": "anywhere"}),
                     ]),
                     html.Details(className="nested-tool loaded-spectra-tool", children=[
-                        html.Summary("Loaded spectra: order, legend, removal"),
-                        html.Small(
-                            "Use the arrows to change plot order. Legend controls "
-                            "which trace names are shown."
-                        ),
+                        html.Summary(["Loaded spectra", info_popup(
+                            "Use the arrows to change plot order. Edit names here and choose "
+                            "which names appear in the legend. Remove deletes one spectrum.", "Manage spectra")]),
                         html.Div(id="loaded-spectrum-manager"),
                     ]),
                     dcc.Loading(
@@ -529,7 +550,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     html.Summary([html.Span("3 · Beer–Lambert", className="step-label"),
                                   "Concentrations", info_popup(
                                       "Enter each measured solution concentration directly in mol/L "
-                                      "and its optical path length in centimetres."
+                                      "and its cuvette path length in cm. With repeated samples, the ε plot "
+                                      "shows the average and ±1 SD; CSV also includes SEM. At least two "
+                                      "independently prepared samples are needed to estimate an error. "
+                                      "Negative ε values are kept; error-band limits below zero are set to zero.",
+                                      "Calculate ε"
                                   )]),
                     html.Div(id="concentration-parameters"),
                     html.Div(id="concentration-message", className="message"),
@@ -538,57 +563,63 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     html.Summary([
                         html.Span("4 · Reconstruction", className="step-label"),
                         "Reconstruct spectrum", info_popup(
-                            "Recover pure metastable-isomer absorbance from a pure stable-isomer "
-                            "reference and a mixture of known composition: "
-                            "A_meta = (A_mixture − (1 − f) × A_stable) / f, where f is the "
-                            "metastable fraction. Both measurements must have the same total "
-                            "concentration and path length. Current preprocessing applies; "
-                            "no ε conversion or separate peak normalization is needed. "
-                            "Negative values are retained, and small fractions amplify noise. "
-                            "The ε route combines a triplicate reference with UV–Vis reactant/PSS "
-                            "spectra and NMR composition. Its shared-reference uncertainty envelope "
-                            "uses reference SD/SEM and optional NMR error (default 1 percentage point), "
-                            "without a separate PSS measurement-error input."
-                        ),
+                            "Recover the pure metastable spectrum from a stable spectrum and a "
+                            "mixture of known composition. Add a stable ε reference if you want "
+                            "molar absorptivity instead of absorbance.", "Reconstruction"),
                     ]),
-                    html.Small("Select the initial stable-isomer and PSS spectra from the main dataset. "
-                               "Main preprocessing applies. An optional ε reference supplies calibration and uncertainty only."),
-                    html.Label("Initial stable-isomer spectrum"),
+                    html.Label(["Stable spectrum", info_popup(
+                        "Select the pure stable-isomer spectrum from the loaded data. "
+                        "Stable and PSS measurements must have the same total concentration "
+                        "and path length.", "Stable spectrum")], htmlFor="isomer-reference"),
                     dcc.Dropdown(id="isomer-reference", options=[], clearable=False),
-                    html.Label("PSS spectrum"),
+                    html.Label(["PSS spectrum", info_popup(
+                        "Select the measured mixture after irradiation (photostationary state). "
+                        "Use its metastable percentage below.", "PSS spectrum")], htmlFor="isomer-mixture"),
                     dcc.Dropdown(id="isomer-mixture", options=[], clearable=False),
-                    html.Label("Metastable isomer in mixture (%)"),
+                    html.Label(["Metastable (%)", info_popup(
+                        "Enter the metastable percentage, not the stable percentage. "
+                        "Example: 20% stable means 80% metastable. Small percentages amplify noise.",
+                        "Metastable percentage")], htmlFor="isomer-percent"),
                     dcc.Input(id="isomer-percent", type="number", min=0, max=100,
                               step="any", debounce=True, placeholder="e.g. 80"),
-                    html.Label("Composition uncertainty (percentage points, 1σ)"),
+                    html.Label(["Composition error (± percentage points)", info_popup(
+                        "The NMR composition error, given as one standard deviation (SD). "
+                        "80% ± 1 percentage point means 79–81%. Default: 1; enter 0 to omit it. "
+                        "Without an ε reference, the shaded band uses composition error only. "
+                        "It does not include absorbance measurement errors.", "Composition error")],
+                        htmlFor="nmr-error-percent"),
                     dcc.Input(id="nmr-error-percent", type="number", value=1, min=0,
                               step="any", debounce=True),
-                    html.Small("Enter the metastable fraction: 20% stable means 80% metastable. "
-                               "For absorbance, only composition uncertainty is available."),
                     html.Div(id="epsilon-reconstruction-inputs", children=[
-                        html.Label("Stable-isomer ε reference (optional)"),
-                        dcc.Upload(id="epsilon-reference-upload", className="upload-box compact-upload",
-                                   children=html.Div("Drop / choose stable ε export"), multiple=False),
+                        html.Label("Stable ε reference (optional)"),
+                        control_with_info(dcc.Upload(id="epsilon-reference-upload", className="upload-box compact-upload",
+                                   children=html.Div("Drop / choose ε reference"), multiple=False),
+                            "Load an AutoQY ε CSV from triplicate stable-isomer measurements. "
+                            "It converts the selected UV spectra to ε using one scale from the stable peak. "
+                            "Only wavelengths found in both files are used. Main treatment is applied once.", "ε reference"),
                         html.Div(id="epsilon-input-message", className="message"),
-                        html.Button("Clear ε inputs", id="clear-epsilon-inputs", className="button button-secondary"),
-                        html.Label("Spectral uncertainty to propagate"),
+                        html.Button("Clear ε reference", id="clear-epsilon-inputs", className="button button-secondary"),
+                        html.Label(["Reference error", info_popup(
+                            "SD describes variation between reference measurements; SEM describes "
+                            "error in their average. The shaded bands combine the reference error "
+                            "with composition error. They do not include PSS measurement error.",
+                            "Reference error")], htmlFor="reconstruction-error-basis"),
                         dcc.Dropdown(id="reconstruction-error-basis", value="sd", clearable=False,
                                      options=[{"label": "Replicate SD", "value": "sd"},
                                               {"label": "SEM of the mean", "value": "sem"}]),
-                        html.Small("Drop a triplicate reference ε export to calibrate the selected main spectra. "
-                                   "The UV–Vis PSS measurement needs no uncertainty input. "
-                                   "The shared-reference calibration envelope propagates reference "
-                                   "SD/SEM and optional NMR composition uncertainty (default 1 percentage point)."),
                     ]),
-                    html.Button("Reconstruct", id="reconstruct-isomer", disabled=True,
+                    control_with_info(html.Button("Reconstruct", id="reconstruct-isomer", disabled=True,
                                 className="button button-secondary"),
+                        "A_meta = (A_PSS − (1 − f) × A_stable) / f, where f is the metastable "
+                        "fraction. The result uses the stable measurement's concentration and path length "
+                        "and updates with preprocessing. Negative values are kept. "
+                        "To save, choose Reconstructed metastable spectrum in Output.", "Reconstruct"),
                     dcc.Checklist(id="show-reconstructed-isomer", value=["on"],
                                   className="toggle-control", options=[{
                                       "label": "Show reconstructed isomer", "value": "on"}]),
                     html.Div(id="isomer-message", className="message"),
                     html.Div(id="nmr-result-message", className="warning-copy"),
                     html.Div(id="nmr-processing-message", className="message"),
-                    html.Small("Save this spectrum through 5 · Output → Content to save."),
                 ]),
                 html.Details(open=False, className="panel tool-details export-panel", children=[
                     html.Summary([html.Span("5 · Output", className="step-label"),
@@ -615,19 +646,21 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                 "value": "on",
                             }],
                         ),
-                        html.Small("Default: negative values are preserved. Enable this "
-                                   "option to clamp them to zero in the saved CSV."),
+                        info_popup("By default, negative values are kept. This option changes them "
+                                   "to zero in the saved CSV only.", "Negative values in CSV"),
                     ]),
-                    html.Button("Save CSV", id="export-epsilon",
+                    control_with_info(html.Button("Save CSV", id="export-epsilon",
                                 className="button button-primary", disabled=True),
+                        "Choose a folder and filename in the save dialog. Stable + reconstructed ε "
+                        "saves two files, with one dialog for each.", "Save CSV"),
                     html.Div(id="epsilon-save-message", className="message"),
-                    html.Small("Save opens a dialog to choose the folder and file name. The CSV pair opens two dialogs."),
                     html.Button("Save session (.aqys)", id="save-session",
                                 className="button button-secondary"),
                     html.Div(id="session-save-message", className="message"),
                     html.Details(className="nested-tool", children=[
-                        html.Summary("Save figures"),
-                        html.Small("Save the selected content as PNG or SVG. Options apply to both formats."),
+                        html.Summary(["Save figures", info_popup(
+                            "Save the Content to save selection as PNG or SVG. Image export options "
+                            "apply to both formats.", "Save figures")]),
                         image_export_options("include-plot-title", "include-plot-legend",
                                              "origin-epsilon-export", "show-epsilon-export-grid", "zero-epsilon-export-y"),
                         html.Div(className="plot-download-actions", children=[
@@ -743,7 +776,6 @@ window.autoqySaveText = (filename, text, mimeType) => {
                         html.Div(id="slice-message", className="message"),
                         html.Div(id="slice-fit-result", className="slice-fit-result"),
                         html.Div(id="slice-image-message", className="image-export-message"),
-                        html.Small("Save the slice CSV through Output → CSV content → Wavelength slice."),
                         dcc.Graph(
                             id="wavelength-slice-plot",
                             figure=_empty(go, "Load spectra and type a wavelength"),
@@ -753,9 +785,6 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 ),
                 html.Section(id="nmr-plot-panel", className="plot-panel", style={"display": "none"},
                              children=[
-                                 html.Div(className="plot-toolbar nmr-plot-toolbar", children=[
-                                     html.Strong("Reconstructed metastable ε"),
-                                 ]),
                                  html.Div(id="nmr-image-message", className="image-export-message"),
                                  dcc.Graph(
                                      id="nmr-plot", figure=_empty(go, "Load NMR spectra"),
@@ -766,9 +795,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     html.Div(className="section-title-row", children=[
                         html.H2("Displayed data"), info_popup(
                             "Spreadsheet view of the curves in the selected plot, including "
-                            "current treatment, legend names, and reconstruction. Scroll through "
-                            "all rows without pagination; virtualization keeps the view responsive. "
-                            "CSV exports remain in Output."
+                            "preprocessing and reconstruction. Values are read-only. "
+                            "Use Output to save a CSV.", "Displayed data"
                         ),
                     ]),
                     dcc.Dropdown(id="data-sheet-plot", value="main", clearable=False,
@@ -779,13 +807,12 @@ window.autoqySaveText = (filename, text, mimeType) => {
                     html.Div(className="interaction-bar", children=[
                         sheet_copy_control("copy-sheet-selection", "Copy selection",
                                            "Copy checked rows/columns or selected cells, with column headings"),
+                        info_popup("Check rows or columns, or Shift-click a cell range. "
+                                   "If both rows and columns are checked, only their intersection is copied. "
+                                   "Ctrl+C also copies cells; paste into Excel with Ctrl+V.", "Copy selection"),
                         sheet_copy_control("copy-sheet-all", "Copy all",
                                            "Copy every row and column in this sheet, including rows outside the viewport"),
                     ]),
-                    html.Small("Check row or column selectors to copy whole rows or columns. If both are checked, "
-                               "Copy selection copies their intersection; otherwise it copies the selected cell range. "
-                               "Use Shift-click for a cell range and Ctrl+C to copy cells. "
-                               "Paste into Excel with Ctrl+V. The source data are read-only."),
                     dash_table.DataTable(
                         id="displayed-data-sheet", columns=[], data=[],
                         cell_selectable=True, editable=False, selected_cells=[],
@@ -1219,18 +1246,18 @@ window.autoqySaveText = (filename, text, mimeType) => {
     )
     def isomer_status(data, request):
         if not data or not request:
-            return "Select two spectra, enter the mixture composition and click Reconstruct.", True
+            return "Choose spectra, enter Metastable (%), then Reconstruct.", True
+        if request.get("mode") == "calibrated":
+            # The calibrated callback owns its result and warnings.
+            return "", True
         try:
             values = _reconstructed_isomer(data, request)
-            message = ("Reconstructed pure metastable isomer at the reference concentration "
-                       "and path length. Updates with preprocessing.")
+            message = "Metastable absorbance ready."
             negative = int(np.count_nonzero(values < 0))
             if negative:
-                message += f" Warning: {negative} negative value(s) retained; check composition and baseline."
+                message += f" Warning: {_count_text(negative, 'negative value')}. Check composition and baseline."
             if float(request["percent"]) < 5:
-                message += " Warning: a small metastable fraction strongly amplifies noise."
-            if request.get("error_percent"):
-                message += " Composition-only uncertainty is shown; absorbance measurement errors are unavailable."
+                message += " Warning: below 5% metastable, noise is amplified."
             return message, False
         except (ValueError, TypeError) as error:
             return f"Reconstruction unavailable: {error}", True
@@ -1327,9 +1354,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
             options = [{"label": f"{rank} component{'s' if rank != 1 else ''}",
                         "value": rank} for rank in range(1, maximum + 1)]
             proposed = min(max(analysis.proposed_rank, 2), maximum)
-            retained = 100 * analysis.cumulative_weights[proposed - 1]
-            message = (f"Proposed: {proposed} component(s), retaining {retained:.6g}% of "
-                       "squared singular-value weight. Inspect the result yourself.")
+            message = f"Suggested: {proposed} components. Compare with SVD off."
             selected = (int(current_rank) if current_rank is not None
                         and 1 <= int(current_rank) <= maximum else proposed)
             return options, selected, "on" not in (svd_enabled or []), message, ""
@@ -1412,8 +1437,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                         "still be exported."
                     )
                 else:
-                    message = ("Enter the concentration and path length for every "
-                               "spectrum to calculate molar absorptivity.")
+                    message = "Enter each concentration and path length to calculate ε."
                 figure = _absorbance_figure(
                             go, dataset, original, processed, plot_labels,
                             method, svd_enabled, svd_rank, legend_visibility,
@@ -1426,8 +1450,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 _overlay_isomer(go, figure, dataset, processed, isomer_request, show_isomer,
                                 minimal_colors=use_minimal_colors)
                 return (figure,
-                        "Processed absorbance is ready to export; ε is waiting for "
-                        "concentration inputs.",
+                        "Absorbance ready. Enter concentrations to calculate ε.",
                         message, smoothing_message, None, processed_data, False, "")
             concentrations, paths = concentration_data
             result = calculate_epsilon_statistics(
@@ -1435,12 +1458,9 @@ window.autoqySaveText = (filename, text, mimeType) => {
             )
             count = len(concentrations)
             if count > 1:
-                result_message = (f"Mean molar absorptivity from {count} independent spectra; "
-                                  "the shaded region is ±1 sample SD at each wavelength. "
-                                  "SEM is also included in the export.")
+                result_message = f"ε from {count} spectra. Shading: ±1 SD."
             else:
-                result_message = ("One ε spectrum calculated. At least two independent "
-                                  "spectra are required to estimate wavelength-resolved SD.")
+                result_message = "One ε spectrum. Load repeated samples to estimate the error."
             negative_mean = int(np.count_nonzero(result.mean < 0))
             if count > 1:
                 raw_lower = result.mean - np.abs(result.standard_deviation)
@@ -1450,8 +1470,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
             if negative_mean or negative_error:
                 result_message += (f" Warning: {negative_mean} mean value(s) and "
                                    f"{negative_error} lower error bound(s) are negative. "
-                                   "Negative means remain visible; plotted/exported error "
-                                   "bounds are constrained to zero.")
+                                   "Check baseline. Error-band limits start at zero.")
             if count > MAX_INTERACTIVE_SPECTRA:
                 concentration_message = (
                     f"Loaded {count} concentrations; first {concentrations[0]:.6g} M, "
@@ -1591,12 +1610,12 @@ window.autoqySaveText = (filename, text, mimeType) => {
     )
     def load_reconstruction_epsilon(reference_content, _, reference_name, current):
         if ctx.triggered_id == "clear-epsilon-inputs":
-            return None, "Reference ε cleared; main-window spectra retained."
+            return None, "ε reference cleared."
         try:
             if not reference_content:
-                return no_update, "Choose an AutoQY ε CSV for the selected input."
+                return no_update, "Choose an AutoQY ε CSV."
             snapshot = _load_reconstruction_epsilon(reference_content, reference_name)
-            return {"reference": snapshot}, f"Reference ε: {reference_name}. Calibration uses the selected main-window spectra."
+            return {"reference": snapshot}, f"Reference loaded: {reference_name}"
         except Exception as error:
             return no_update, f"ε input could not be loaded: {error}"
 
@@ -1642,16 +1661,17 @@ window.autoqySaveText = (filename, text, mimeType) => {
             minimum = float(np.min(result.product))
             if minimum < -500:
                 return (figure, {"display": "block"},
-                        f"Reconstructed ε reaches {minimum:.4g} M⁻¹ cm⁻¹, below the −500 tolerance. Review spectra and composition.",
+                        f"ε reaches {minimum:.4g} M⁻¹ cm⁻¹ (limit: −500). Check spectra and composition.",
                         None, True, "status-message status-stop", "")
-            message = ("Calibrated the selected main-window spectra using the stable ε reference. "
-                       f"Reference {basis.upper()} and NMR composition uncertainty form a shared-calibration envelope. "
-                       "PSS measurement error is excluded.")
+            message = "Metastable ε ready."
             if minimum < 0:
-                message += " Negative values retained for inspection."
+                negative = int(np.count_nonzero(result.product < 0))
+                message += f" Warning: {_count_text(negative, 'negative value')}. Check composition and baseline."
+            small_fraction = float(request["percent"]) < 5
+            if small_fraction:
+                message += " Warning: below 5% metastable, noise is amplified."
             return (figure, {"display": "block"}, message, packed, False,
-                    "status-message status-warning" if minimum < 0 else "status-message status-ok",
-                    "Main preprocessing applied once; only the overlapping wavelength range is calibrated.")
+                    "status-message status-warning" if minimum < 0 or small_fraction else "status-message status-ok", "")
         except Exception as error:
             return (_empty(go, "Reconstruction unavailable"), {"display": "block"},
                     f"Reconstruction error: {error}", None, True, "status-message status-stop", "")
@@ -2222,7 +2242,7 @@ def _figure_sheet_page(figure, page=0, size=25, visibility=None):
         for row, coordinate, position in zip(rows, selected, positions):
             value = y[position] if position < len(x) and x[position] == coordinate else np.nan
             row[f"c{column}"] = float(value) if np.isfinite(value) else None
-    return columns, rows, count, f"{len(coordinates):,} rows · {len(series)} plotted curves. CSV saving is in Output."
+    return columns, rows, count, f"{len(coordinates):,} rows · {len(series)} curves"
 
 
 def _load_reconstruction_epsilon(content, filename):
@@ -2434,15 +2454,13 @@ def _prepare_processing(data, wavelength_low, wavelength_high, baseline_enabled,
         selected.absorbance, method, savgol_window=sg_points,
         savgol_order=sg_order,
     )
-    rms = float(np.sqrt(np.mean((processed - selected.absorbance) ** 2)))
     if method == "savgol":
         spacing = float(np.median(np.abs(np.diff(selected.wavelengths))))
-        message = (f"Savitzky–Golay: {sg_points} points "
-                   f"(~{sg_points * spacing:.3g} nm); smoothing RMS {rms:.4g} absorbance.")
+        message = f"SavGol: {sg_points} points (~{sg_points * spacing:.3g} nm)."
     else:
         message = "Smoothing is off."
     if "on" in (baseline_enabled or []):
-        message = "Baseline correction applied independently. " + message
+        message = "Baseline applied. " + message
     if "on" in (svd_enabled or []):
         if svd_rank is None:
             raise ValueError("Select an SVD component count")
@@ -2451,9 +2469,7 @@ def _prepare_processing(data, wavelength_low, wavelength_high, baseline_enabled,
             selected.source_format, selected.interpolated_values,
         ))
         processed = analysis.reconstruct(int(svd_rank))
-        retained = 100 * analysis.cumulative_weights[int(svd_rank) - 1]
-        message += (f" SVD rank {int(svd_rank)} retains {retained:.6g}% of squared "
-                    "singular-value weight.")
+        message += f" SVD: {int(svd_rank)} components."
     else:
         message += " SVD is off."
     return selected, original.absorbance, processed, message
@@ -2578,7 +2594,7 @@ def _overlay_isomer(go, figure, dataset, processed, request, visible, epsilon=Fa
                 figure.add_trace(band)
     trace = go.Scatter(x=dataset.wavelengths, y=values, mode="lines",
                        name="Reconstructed pure metastable isomer",
-                       line={"color": "#000000" if minimal_colors else PLOT_PURPLE, "width": 3, "dash": "dash"},
+                       line={"color": "#000000" if minimal_colors else PLOT_PURPLE, "width": 3, "dash": "dot"},
                        showlegend=True)
     if epsilon:
         figure.add_trace(trace, row=1, col=1)
@@ -2940,7 +2956,7 @@ def _wavelength_slice_figure(go, coordinates, values, wavelength,
         figure.add_trace(go.Scatter(
             x=fit["fit_coordinates"], y=fit["fit_values"], mode="lines",
             name=f"Exponential fit · τ={fit['lifetime']:.4g} s",
-            line={"color": "#000000" if minimal_colors else PLOT_PURPLE, "width": 2.5, "dash": "dash"},
+            line={"color": "#000000" if minimal_colors else PLOT_PURPLE, "width": 2.5, "dash": "dot"},
         ))
     figure.update_xaxes(title_text=x_axis_label)
     figure.update_yaxes(title_text=y_axis_label)
@@ -3095,14 +3111,14 @@ def _nmr_figure(go, make_subplots, result, raw_reactant=None, raw_pss=None,
                                    fillcolor=fill, line={"width": 0}, name=name, legendgroup=group))
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.reconstructed_reactant, mode="lines",
-        name="Stable ε", line={"color": stable_color, "dash": "dot"}))
+        name="Stable ε", line={"color": stable_color, "dash": "solid"}))
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.reconstructed_pss, mode="lines",
-        name="PSS reconstructed ε", line={"color": pss_color, "dash": "dash"}))
+        name="PSS reconstructed ε", line={"color": pss_color, "dash": "solid"}))
     figure.add_trace(go.Scatter(
         x=result.wavelengths, y=result.product, mode="lines",
-        name="Product ε", line={"color": product_color, "width": 2.4}))
-    figure.add_hline(y=0, line={"color": "#b0b0b0", "dash": "dash", "width": 1})
+        name="Product ε", line={"color": product_color, "width": 2.4, "dash": "solid"}))
+    figure.add_hline(y=0, line={"color": "#b0b0b0", "dash": "solid", "width": 1})
     figure.update_yaxes(title_text="ε (M⁻¹ cm⁻¹)")
     figure.update_xaxes(title_text="Wavelength (nm)")
     figure.update_layout(title={"text": "Reconstructed metastable ε", "x": 0.02})

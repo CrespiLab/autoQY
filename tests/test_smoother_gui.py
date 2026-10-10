@@ -243,10 +243,63 @@ class SpectralGuiTests(unittest.TestCase):
             y = np.frombuffer(base64.b64decode(y["bdata"]), dtype=y["dtype"])
         np.testing.assert_allclose(y, [0.7, -0.1, 0.0], atol=1e-14)
         self.assertEqual(figure["data"][-1]["name"], "Reconstructed pure metastable isomer")
+        self.assertEqual(figure["data"][-1]["line"]["dash"], "dot")
         next(item for item in inputs if item["id"] == "show-reconstructed-isomer")["value"] = []
         hidden = client.post("/_dash-update-component", json=payload)
         self.assertEqual(hidden.status_code, 200, hidden.data)
         self.assertEqual(len(hidden.json["response"]["epsilon-plot"]["figure"]["data"]), 2)
+
+    def test_reconstruction_has_short_copy_and_nearby_accessible_help(self):
+        components = list(_components(self.app.layout))
+        by_id = {item.id: item for item in components if isinstance(getattr(item, "id", None), str)}
+        self.assertEqual(by_id["upload-spectra"].children.children, "Drop spectra or a saved session")
+        helpers = [item for item in components if getattr(item, "className", None) == "info-popup"]
+        topics = {item.to_plotly_json()["props"]["aria-label"]: item for item in helpers}
+        for topic in ("Load files", "Stable spectrum", "PSS spectrum", "Metastable percentage",
+                      "Composition error", "ε reference", "Reference error", "Reconstruct", "Copy selection"):
+            helper = topics[f"Help: {topic}"]
+            self.assertIsInstance(helper, html.Button)
+            self.assertEqual(helper.type, "button")
+            tooltip = helper.children[1]
+            self.assertEqual(tooltip.role, "tooltip")
+            self.assertEqual(helper.to_plotly_json()["props"]["aria-describedby"], tooltip.id)
+        self.assertEqual(len({item.children[1].id for item in helpers}), len(helpers))
+        help_text = " ".join(str(item.children[1].children) for item in helpers)
+        self.assertIn("same total concentration and path length", help_text)
+        self.assertIn("They do not include PSS measurement error", help_text)
+        self.assertIn("1; enter 0", help_text)
+
+        def visible_text(node):
+            if isinstance(node, str):
+                return node
+            if isinstance(node, (list, tuple)):
+                return " ".join(visible_text(child) for child in node)
+            if getattr(node, "className", None) == "info-popup":
+                return ""
+            return visible_text(getattr(node, "children", "")) if node else ""
+
+        reconstruction_copy = visible_text(by_id["reconstruction-panel"])
+        self.assertNotIn("envelope", reconstruction_copy)
+        self.assertNotIn("preprocessing", reconstruction_copy)
+        self.assertNotIn("Drop a triplicate", reconstruction_copy)
+        self.assertIn("Metastable (%)", reconstruction_copy)
+        self.assertLess(len(reconstruction_copy.split()), 50)
+
+    def test_isomer_status_is_short_keeps_warnings_and_defers_calibrated_status(self):
+        status = next(value["callback"].__wrapped__ for key, value in self.app.callback_map.items()
+                      if "isomer-message.children" in key)
+        packed = _pack(SpectralDataset(np.array([400., 401.]), np.array([0., 1.]),
+                                       np.array([[.2, .5], [.8, .1]]), "csv"),
+                       ["stable", "PSS"], ["spectra.csv"])
+        request = {"reference": 0, "mixture": 1, "percent": 50, "error_percent": 1}
+        message, disabled = status(packed, request)
+        self.assertFalse(disabled)
+        self.assertTrue(message.startswith("Metastable absorbance ready."))
+        self.assertIn("1 negative value", message)
+        self.assertIn("Check composition and baseline", message)
+        self.assertNotIn("uncertainty", message)
+        self.assertIn("below 5%", status(packed, request | {"percent": 2})[0])
+        self.assertEqual(status(packed, request | {"mode": "calibrated"}), ("", True))
 
     def test_isomer_export_retains_negatives_and_uses_save_as(self):
         packed = _pack(SpectralDataset(np.array([400., 401.]), np.array([0., 1.]),
@@ -835,6 +888,7 @@ assert.equal(exported.format, 'svg');
         traces = {trace.name: trace for trace in figure.data}
         self.assertEqual(traces["Mean ε"].line.color, "#d67b36")
         self.assertEqual(traces["Reconstructed pure metastable isomer"].line.color, "#000000")
+        self.assertEqual(traces["Reconstructed pure metastable isomer"].line.dash, "dot")
         self.assertFalse(any(trace.line.color == "#8a5a9b" or "138,90,155" in (trace.fillcolor or "")
                              for trace in figure.data))
 
@@ -1056,6 +1110,9 @@ assert.equal(exported.format, 'svg');
         self.assertGreaterEqual(fit["lifetime_error"], 0.0)
         self.assertLess(fit["lifetime_error"], 0.1)
         self.assertGreater(fit["duration"], fit["lifetime"])
+        import plotly.graph_objects as go
+        figure = _wavelength_slice_figure(go, coordinates, values, 450, fit=fit)
+        self.assertEqual(figure.data[-1].line.dash, "dot")
 
     def test_slice_callback_scales_time_before_exponential_fit(self):
         callback = next(
