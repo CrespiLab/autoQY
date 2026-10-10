@@ -1,1407 +1,379 @@
-# AutoQY Spectral Treatment and Analysis GUI
+# AutoQY beginner guide
 
-## Beginner guide: from UV–Vis spectra to spectral treatment, simple kinetics, and quantum-yield analysis
+Use this guide for your own data. To practise with the included files, follow the
+[395 nm tutorial](ExampleData/Example-4_395nm-EpsilonError/TUTORIAL.md).
 
-AutoQY contains two main graphical interfaces:
+AutoQY has two windows:
 
-- **Spectral Treatment** — for preparing UV–Vis spectra, calculating molar absorptivity, inspecting kinetic traces, fitting simple exponential lifetimes, and exporting figures.
-- **Analysis GUI** — for combining spectral evolution, molar absorptivities, irradiation times, LED emission, optical power, and experimental parameters to calculate photoisomerization quantum yields.
+- **Spectral Treatment**: clean spectra, calculate ε, reconstruct a spectrum, and save data or figures.
+- **Analysis**: calculate quantum yields from your measurements.
 
-A typical quantum-yield workflow is:
+## A few terms used in the buttons
 
-```text id="o290th"
-Reference UV–Vis spectra
-        ↓
-Spectral Treatment
-        ↓
-Reactant ε + Product ε
-        ↓
-Analysis GUI
-        ↓
-Φ(R→P) + Φ(P→R)
-```
+- **Absorbance**: the value measured by your UV–Vis instrument.
+- **ε** (epsilon, or molar absorptivity): absorbance divided by concentration and cuvette path length. This lets you compare how strongly compounds absorb light.
+- **Reactant / stable isomer (R)**: the compound you start with.
+- **Product / metastable isomer (P)**: the form made by irradiation.
+- **PSS**: the mixture reached when continued irradiation no longer changes its composition.
+- **Quantum yield (Φ)**: how many molecules change per absorbed photon (a particle of light). A value of 0.25 means 25%.
+- **SD**: how much repeated measurements differ from each other.
+- **SEM**: the error estimated for their average. It is smaller than SD; do not choose it just to get a smaller error.
 
-Spectral Treatment can also be used independently for routine UV–Vis work, including:
+## 1. Open AutoQY
 
-- baseline correction;
-- smoothing;
-- comparing spectral series;
-- calculating molar absorptivity;
-- estimating uncertainty from replicate ε measurements;
-- reconstructing a photoproduct spectrum from an NMR-characterized PSS;
-- following absorbance at one wavelength through a kinetic series;
-- fitting a simple exponential lifetime;
-- preparing spectral figures;
-- simplifying legends;
-- exporting PNG or SVG figures.
+After installing, open the **AutoQY** folder on your Desktop.
+Double-click **AutoQY Analysis GUI**. In **1 · Project**, click
+**Open Spectral Treatment**. A second window opens.
 
-In most cases, the complete workflow can be performed directly from the GUIs without manually editing Python code.
+## 2. Load and check your spectra
 
----
+In Spectral Treatment, open **1 · Data**. Drop your files into the upload box,
+click the box to choose files, or use **Open files from folder**.
 
-# 1. What do I need for a quantum-yield experiment?
+AutoQY reads SpectraGryph text and SPECORD binary `.dat`, Cary `.DSW/.BSW`,
+Avantes `.Abs8`, CSV, and TSV files.
 
-For a two-state photochemical reaction:
+Files loaded together are sorted by name: `sample2` comes before `sample10`.
+Loading more files adds them to the current set. **Clear all spectra** removes
+the current set from the window; it does not delete your files.
 
-```math id="5dp8j1"
-R \rightleftharpoons P
-```
+Open **Loaded spectra: order, legend, removal**:
 
-the analysis normally requires:
+- For a time series, put the spectra in measurement order.
+- For separate samples, check which spectrum belongs to each concentration.
+- Use the move or remove buttons to fix mistakes.
 
-| Input | Meaning |
-|---|---|
-| Measurement spectra | UV–Vis spectra recorded during irradiation |
-| Reactant ε | Molar absorptivity spectrum of R |
-| Product ε | Molar absorptivity spectrum of P |
-| LED spectrum | Measured emission spectrum of the irradiation LED |
-| Irradiation timestamps | Irradiation time corresponding to every spectrum |
+With more than 60 spectra, the plot shows only 60 spread across the series,
+including the first and last. All spectra are still used for treatment, time
+slices, and CSV export. Only the first and last legend controls are shown.
+Sort a large series before loading it.
 
-You will also need:
+## 3. Choose a range and clean the spectra
 
-- sample volume;
-- optical path length;
-- irradiation power;
-- uncertainty in irradiation power;
-- thermal R → P rate, if relevant;
-- thermal P → R rate, if relevant.
+Open **2 · Range**. Enter the wavelength limits you want to keep.
+For example, enter `250` and `700` for 250–700 nm. Press Enter after typing a
+number, or click outside the field.
 
-With optical-power input, the irradiation wavelength is mainly metadata and a
-consistency marker. The photon-flux calculation uses the **complete processed
-LED emission spectrum**, rather than treating the LED as perfectly
-monochromatic.
+Open **Preprocess spectra**. You do not have to turn everything on.
 
-If the photon flux was measured with a chemical actinometer, enable **Use
-photon flux from a chemical actinometer** instead. Enter the flux in mol
-photons/s and its uncertainty. An LED file is then unnecessary, and the
-irradiation wavelength is mandatory because AutoQY uses it as the exact
-monochromatic wavelength.
+### Baseline
 
----
+Use this if the spectrum sits above or below zero where there should be no absorption.
 
-# 2. Starting AutoQY
+1. Choose a wavelength interval with no real absorption.
+2. Enter its start and end.
+3. Turn **Baseline** on.
 
-After installation, open:
+For some samples, 600–650 nm works. Check your own spectrum first.
+Do not use an interval containing a real absorption band: you would subtract
+part of the signal.
 
-```text id="7vfmmg"
-AutoQY Analysis
-```
+### Smoothing
 
-Inside the Analysis GUI, expand:
+Use **SavGol** to reduce small, jagged changes caused by noise.
+Try a **5 nm** window and polynomial order **3** as a starting point.
 
-```text id="946y1g"
-1 · Project
-```
+Compare smoothing on and off. If a peak moves or changes shape, use a smaller
+window or turn smoothing off. AutoQY shows how many detector points the window uses;
+the polynomial order must be smaller than that number.
 
-and click:
+### SVD
 
-```text id="gfncp9"
-Open Spectral Treatment
-```
+Leave **SVD off** when comparing separately prepared samples to calculate ε.
+SVD can hide differences between those samples.
 
-Spectral Treatment opens in a separate window.
+For a time series, SVD can reduce noise. If you try it, compare the result with
+SVD off. The suggested component count is not a guarantee that the result is right.
 
----
+Original spectra are hidden by default in the treated-absorbance plot.
+Use **Show original** to compare them with the treated curves. This also affects
+the saved absorbance figure. It does not change your source files.
 
-# 3. Spectral Treatment: loading spectra
+## 4. Calculate ε
 
-Open:
+You need the concentration and cuvette path length for each sample.
 
-```text id="pes0i0"
-1 · Data → Spectral data
-```
+1. Load the spectra of the separately prepared samples.
+2. Set their range and treatment as above. Leave SVD off.
+3. Open **3 · Beer–Lambert**.
+4. Enter each concentration in **mol/L** and each path length in **cm**.
 
-You can:
+For example, `6.82e-5` means 0.0000682 mol/L. A standard 1 cm cuvette needs `1`
+in the path-length field.
 
-- drag and drop spectra;
-- choose individual files;
-- use **Open files from folder**.
+AutoQY calculates ε = absorbance / (concentration × path length).
+With several samples, it also shows the average, SD, and SEM.
 
-Supported formats include:
+Check the individual ε curves before saving. If one is very different, check
+its concentration, dilution, cuvette, and baseline. Do not hide the difference
+by adding more smoothing.
 
-- SpectraGryph text `.dat`;
-- Analytik Jena SPECORD WinASPECT binary `.dat`;
-- Agilent/Varian Cary 50 and 60 `.DSW` and `.BSW`;
-- Avantes `.Abs8`;
-- TSV;
-- CSV.
+Concentration fields are not shown for sets larger than 60 spectra.
+Calculate ε from a smaller, separate set of known-concentration samples.
 
-Multiple spectra can be loaded together.
+## 5. Reconstruct the pure metastable spectrum
 
-Files selected in one operation are sorted naturally, so `sample2` comes
-before `sample10`. A later drop or selection is appended instead of replacing
-the current series. **Open files from folder** also uses that source folder as
-the initial export folder. Use **Clear all spectra** when you want to discard
-the accumulated series and restart its elapsed-time counter.
+If you can measure the pure metastable form, calculate its ε as in step 4.
+You do not need reconstruction.
 
-## Save and resume a session
+Use this when you have a pure stable-isomer spectrum and a PSS mixture, but
+cannot measure the pure metastable form.
 
-In **5 · Output**, click **Save session (.aqys)** and choose the folder and file
-name in Save As. The compressed binary session preserves
-the original spectra, processing settings, legends, concentrations, path
-lengths, reconstruction, NMR inputs, and Output settings without a huge JSON
-matrix. AutoQY asks before replacing an existing session file.
+You need:
 
-Drop one `.aqys` file into the main uploader, or select it with **Open files
-from folder**, to replace the current session and resume the saved treatment.
-Plots and calculated results are rebuilt from the saved inputs. Do not mix
-session files and spectra in one drop.
+- the initial stable and PSS absorbance spectra;
+- the percentage of metastable isomer in the PSS, measured separately, for example by NMR.
 
-Autosave uses this same binary format and recovers the latest state at the
-next launch. Wait for the Data panel's autosave confirmation before closing.
-Older JSON autosaves can still be read. Clearing all spectra also updates
-autosave, but does not alter a session file you saved separately.
+Both UV–Vis measurements must use the same total concentration and path length.
+This calculation assumes only two absorbing forms. Do not scale each peak to
+the same height before using it.
 
-All CSVs use **Output → Content to save → Save CSV**: select the processed dataset,
-reconstructed isomer, wavelength slice, or NMR ε pair. Figure buttons and image
-export options are in **Output → Save figures**; they open a separate Save As
-dialog. There are no separate CSV buttons in reconstruction or slice panels.
+1. Load the UV–Vis series in **1 · Data**.
+2. Set the range, baseline, and smoothing in the main controls.
+3. Open **4 · Reconstruction → Reconstruct spectrum**.
+4. Select **Initial stable-isomer spectrum** and **PSS spectrum**.
+   The first and last spectra are selected by default; check them.
+5. Enter **Metastable isomer in mixture (%)**.
+   If NMR gives 23% stable and 77% metastable, enter **77**, not 23.
+6. Enter the composition error in percentage points.
+   The default `1` means ±1 percentage point, not 1% of the entered value.
+   Use `0` to leave this error out.
+7. Click **Reconstruct**.
 
-## Check the spectrum order
+Without an ε reference, the result is an absorbance spectrum.
+Use **Show reconstructed isomer** to show or hide it.
 
-For molar-absorptivity measurements, the concentrations entered later should correspond to the correct spectra.
+### If you also need metastable ε and its error
 
-For kinetic measurements, the spectra should normally be arranged in chronological order.
+Before clicking **Reconstruct**, drop the stable-isomer ε CSV into
+**Stable-isomer ε reference (optional)**. Use an AutoQY export from your repeated
+stable-isomer measurements.
 
-Expand:
+The dropped file supplies the known ε values and their errors.
+The initial and PSS absorbance curves still come from the main window.
 
-```text id="qfkwcj"
-Loaded spectra: order, legend, removal
-```
+Choose **Replicate SD** or **SEM of the mean**. The reference file must contain
+the error type you choose. AutoQY uses that error and the NMR composition error
+to calculate the metastable ε limits. It does not add a PSS measurement error.
 
-Here you can:
+Both UV curves use the same scale: the stable absorbance peak is matched to
+the reference ε peak. Only wavelengths shared by the UV and ε files are used.
+The plot shows ε curves and error bands, not normalized absorbance curves.
 
-- move individual spectra up or down;
-- remove spectra;
-- choose which traces appear in the legend;
-- rename displayed legend labels.
+Clear the ε reference to return to absorbance-only reconstruction.
 
-Changing the displayed name does **not** rename the original file.
+### Check the result
 
-Enable name editing through **Legend options → Enable legend editing** above
-the main plot. Name and Show controls then appear in **Loaded spectra**. Saved
-CSV columns use these edited names, or the source spectrum names when unchanged,
-instead of numeric spectrum indices.
+Small negative values near zero can come from noise. Large negative peaks are
+a reason to check the spectra, baseline, and PSS percentage. ε values below
+−500 M⁻¹ cm⁻¹ stop export.
 
-The **Displayed data** panel below the plots provides a spreadsheet-like view
-of the selected main, wavelength-slice, or NMR plot. It updates with treatment
-and legend changes, includes visible reconstructed curves and fits, and scrolls
-through all rows without page buttons. Virtualization keeps the visible spreadsheet
-responsive. For large sessions it follows the plot's preview
-subset; **Output → Save CSV** still exports the full selected dataset.
+A very small metastable percentage makes the subtraction sensitive to noise.
+Changing the data, spectrum choices, or composition requires another click on
+**Reconstruct**. Changing the main treatment updates the result automatically.
 
-To copy whole rows or columns, tick their checkboxes and click **Copy selection**.
-If you tick both rows and columns, only their intersection is copied. For a cell
-range, click its first cell and Shift-click its last, then use **Copy selection**
-or Ctrl+C. **Copy all** copies the entire displayed sheet, including off-screen
-rows. Paste into Excel or another spreadsheet with Ctrl+V. Column headings are
-included; the AutoQY sheet remains read-only.
+## 6. Look at one wavelength over time
 
-## Large kinetic datasets
+1. Load a time-ordered series.
+2. Open **Wavelength slice over time** below the main plot.
+3. Enter a wavelength, for example `450` nm.
+4. Set **Seconds per timestamp**.
 
-When more than 60 spectra are loaded, AutoQY keeps the browser responsive by
-showing at most 60 evenly spaced spectra in the interactive plot. The first and
-last spectra are always included. This is only a preview limit: baseline
-correction, smoothing, SVD, wavelength slices, and processed-data export still
-use every loaded spectrum.
+Leave the multiplier at `1` if the timestamps are already in seconds.
+If the points are numbered 0, 1, 2… and you measured every 30 seconds, enter `30`.
 
-For these large datasets, **Loaded spectra** shows only the first and last
-legend-name and **Show** controls. Intermediate order and removal controls are
-not created, and only the endpoint spectra can appear in the legend. If the
-order needs correcting, arrange the source data before loading it.
+**Fit exponential decay** fits a simple exponential and reports a lifetime, τ.
+This is not a quantum-yield calculation. A lifetime is not a half-life:
+for a first-order process, half-life = 0.693 × τ.
 
----
+Check that the fitted line follows the data. If the measurement ends before
+one lifetime, the lifetime and final plateau can be poorly determined.
 
-# 4. Select the wavelength range
+## 7. Change names and colors
 
-Open:
+Above the main plot:
 
-```text id="ow7t7b"
-2 · Range → Wavelengths
-```
+- **Legend options → Enable legend editing** lets you edit names in **Loaded spectra**.
+- **Hide all** hides legend entries, not the curves. Use the **Show** controls to restore the entries you want.
+- **Axis names** changes the main and time-slice axis titles.
+- **Minimal colors** uses blue, orange, black, and grey. It also covers mean ε, reconstructed curves, and fits.
 
-Choose the spectral range that is useful for the experiment.
+Without minimal colors, AutoQY uses a color-blind-friendly palette.
+Colors repeat after seven spectra.
 
-For example:
+Edited names are used in saved CSV column headings. Your original files are
+not renamed.
 
-```text id="arh3g5"
-250–700 nm
-```
+## 8. Read or copy the numbers
 
-It is usually useful to exclude detector regions that contain little information or are particularly noisy.
+Open **Displayed data** below the plots. Choose the plot you want to inspect,
+then scroll through its rows and columns.
 
-The selected range is used for:
+- Check rows or columns and click **Copy selection**.
+- If both are checked, only the cells where they meet are copied.
+- For a block of cells, click the first cell and Shift-click the last.
+  Use **Copy selection** or Ctrl+C.
+- **Copy all** copies the whole displayed sheet, including rows below the screen.
+- Paste into Excel with Ctrl+V.
 
-- displayed spectra;
-- molar-absorptivity calculations;
-- uncertainty calculations;
-- exported data.
+The sheet cannot be edited. It follows the plotted curves, so hidden curves
+and spectra left out of a large-series preview are not shown here.
 
----
+## 9. Save data, figures, or a session
 
-# 5. Preprocess the spectra
+CSV saves the numbers in a file you can open in Excel. PNG and SVG save pictures.
 
-Inside **2 · Range**, expand:
+Open **5 · Output**. Choose **Content to save** once:
 
-```text id="235zlr"
-Preprocess spectra
-```
+| Choice | What is saved |
+| --- | --- |
+| Processed dataset / calculated ε | Treated absorbance; also ε and its errors when all concentrations and path lengths are entered |
+| Reconstructed metastable spectrum | The reconstructed absorbance or ε result |
+| Wavelength slice | The chosen time trace; its CSV also includes the fit, if enabled |
+| Stable + reconstructed ε (pair) | Two ε CSVs; the figure shows the ε reconstruction |
 
-## Baseline correction
+Click **Save CSV**, or open **Save figures** and click **Save PNG** or **Save SVG**.
+Choose the folder and name in Save As. The CSV pair asks for two file names.
+The dialog asks before replacing an existing file.
 
-Enable:
+CSV export includes the full treated dataset, even when the plot shows only
+60 spectra. It can also include errors and other values not drawn in the figure.
 
-```text id="hmudvw"
-Baseline
-```
+Negative values are kept by default. **Convert negative absorbance and ε values
+to 0** changes the saved CSV, not the plot. The reconstructed ε CSV keeps a
+separate column with the original calculated values.
 
-and select a wavelength interval where the compound is expected to have little or no absorbance.
+There is one **Image export options** menu for all figures. It controls titles,
+legends, axis labels, the grid, and whether the y axis starts at zero.
+**Origin-style export** makes larger text and thicker lines on a white background.
+PNG is a fixed-size image; SVG stays sharp when resized.
 
-For example:
+### Save your work so you can continue later
 
-```text id="y6krpc"
-600–650 nm
-```
+Click **Save session (.aqys)** and choose a name in Save As.
+This saves the spectra and settings, not just the plot.
 
-if that region is appropriate for the molecule being studied.
+To reopen it, drop one `.aqys` file into **1 · Data**, or choose it with
+**Open files from folder**. It replaces the current session. Do not drop a session
+and spectra together.
 
-The main wavelength-range, baseline, and Savitzky–Golay number fields are
-applied when you press **Enter** or move to another control. This prevents a
-large spectrum file from being recalculated once for every digit typed.
+AutoQY also saves the latest state automatically. Wait for the autosave message
+before closing. Clearing the spectra clears the autosaved state, but does not
+delete a session file you saved yourself.
 
-After baseline correction or smoothing, the processed-absorbance preview shows
-only the processed spectra by default. Before supplying a complete set of
-Beer–Lambert values, enable **Show original** above the plot to compare the raw
-and processed curves. Leave it disabled for a cleaner absorbance figure; the
-same choice is used by PNG and SVG export.
+## 10. Set up a quantum-yield analysis
 
-## Savitzky–Golay smoothing
+Return to **AutoQY Analysis**. Work through its sections in order.
 
-Enable:
+### 1 · Project
 
-```text id="fwxfnu"
-SavGol
-```
+Set **JSON base folder** to your experiment folder.
+A JSON file is a settings file: it records the files and numbers used for a run.
 
-A reasonable starting point for ordinary UV–Vis spectra is:
+If you already have `analysis.json`, load it instead of filling everything again.
+Keep related input files in the same experiment folder.
 
-```text id="h8r0po"
-Window: 5 nm
-Polynomial order: 3
-```
+### 2 · Identity and data
 
-The window is entered in nanometres. AutoQY converts it to a valid odd number
-of detector points and reports the resulting point count below the controls.
-The polynomial order must be smaller than that point count.
+Give the analysis a name, then choose:
 
-A useful check is to compare the spectrum with smoothing turned on and off. The aim is to reduce noise without noticeably changing the underlying band shape.
+1. Measurement spectra: the UV–Vis series recorded during irradiation.
+2. Reactant ε file.
+3. Product ε file.
+4. LED emission file, unless using an actinometer.
+5. Irradiation timestamps.
 
-<details>
-<summary><strong>More about baseline correction and smoothing</strong></summary>
+The times must match the spectra in order. Use the correct file-format setting;
+**Generic CSV** is suitable for the AutoQY CSV exports.
 
-A baseline interval should ideally correspond to a region in which the compound has negligible absorbance.
+You need both ε files. An absorbance-only reconstruction is not a replacement
+for the product ε file.
 
-If the selected baseline interval contains a real absorption band, subtraction can distort the spectrum.
+For the LED file, open **Processing**. Check the wavelength range, smoothing,
+and baseline against your measured LED curve. These controls treat the LED,
+not the absorbance spectra. The smoothing window here is in detector points,
+not nm. The tutorial gives settings for its example LED.
 
-Similarly, smoothing should normally remove high-frequency noise rather than alter peak positions or broad band shapes.
+### 3 · Experiment
 
-If changing the Savitzky–Golay settings visibly changes the molecular absorption profile, it is worth using a smaller window or leaving smoothing off.
+Enter your measured values, with the units shown beside each field:
 
-</details>
+- sample volume in µL;
+- cuvette path length in cm;
+- power and power error in mW;
+- irradiation wavelength in nm;
+- thermal reaction rates in s⁻¹.
 
----
+Thermal rates describe reactions without light. For a first-order reaction,
+rate = 0.693 / half-life, with the half-life in seconds.
+Do not enter a half-life into a rate field.
 
-# 6. What about SVD?
+With power input, AutoQY uses the full LED spectrum to calculate the number of
+photons. The wavelength field does not replace the LED file.
 
-For independently prepared molar-absorptivity measurements, it is usually preferable to leave SVD off.
+If a chemical actinometer measured your photon flux, tick **Use photon flux
+from a chemical actinometer**. Enter flux and its error in **mol photons/s**,
+and the irradiation wavelength. This mode uses one wavelength and does not
+need an LED file.
 
-```text id="5x7u4y"
-Independent replicate solutions
-        ↓
-SVD usually OFF
-```
+### 4 · Fit
 
-```text id="qaefce"
-Ordered spectral time series
-        ↓
-SVD may be useful
-```
+Start with **Regularized concentrations**. This finds the amounts of reactant
+and product at each time, discourages jumps between nearby points, then fits
+the reaction rates to calculate quantum yields.
 
-<details>
-<summary><strong>Why is SVD usually avoided for independent ε replicates?</strong></summary>
+Compare it with **Full-spectrum ODE absorbance**, which fits the changing
+spectra directly to the reaction model.
 
-Independent preparations contain useful information about experimental reproducibility.
+The two legacy methods are kept for older analyses. You do not need them to
+follow the tutorial.
 
-Applying SVD across those spectra can reduce the apparent variability between replicates.
+Leave **Expert optimizer settings** at their defaults to start:
+initial yields `0.5` and bounds `0–1`. These are starting guesses, not results.
+Under **Method-specific controls**, the regularization strength starts at `1`.
+If you measured PSS by NMR, enter the **stable/reactant** percentage in
+**Expected reactant at PSS (%)**. This is the opposite percentage to the
+metastable input used in Spectral Treatment.
 
-For time-series data, SVD can instead be useful for reducing noise because the spectra belong to the same evolving experiment.
+**Compare fit methods** compares results without ε errors and does not save
+result files. It does not replace your final analysis with uncertainty enabled.
 
-It is still useful to inspect the untreated spectra first.
+### 5 · Uncertainty
 
-</details>
+Choose **ε range** if both ε files contain AutoQY error values.
+Choose **Standard deviation (SD)** to use the differences between repeated
+samples. Use SEM only if you want the error on their average.
 
-When **SVD** is enabled, AutoQY proposes a component count from the currently
-processed series and enables the rank selector. The proposal is a starting
-point, not an automatic scientific decision; inspect the reconstructed spectra
-and compare them with SVD off.
+AutoQY repeats the calculation with lower, central, and upper ε values.
+Reconstructed product files can have different upper and lower errors.
+The results list the fit/power error, ε error, and combined error separately.
 
----
+### 6 · Output and 7 · Analyze
 
-# 7. Calculate molar absorptivity
+Choose where to save the analysis results and which files to write.
+These Analysis settings are separate from Spectral Treatment's Save As buttons.
 
-Open:
+Click **Save JSON** to save your settings, then **Run analysis**.
+Running does not save `analysis.json` for you.
+Only enable overwrite when you want to replace an earlier run.
 
-```text id="3uvumb"
-3 · Beer–Lambert → Concentrations
-```
+## 11. Check the results before using them
 
-For each spectrum enter:
+A small reported error does not prove the analysis is right.
 
-- concentration in mol/L;
-- optical path length in cm.
+Check these plots:
 
-For example:
+- **Concentrations**: do the amounts change sensibly over time?
+- **Preprocessing**: does the LED emit where the compounds absorb?
+- **Endpoint reconstruction**: does the calculated final spectrum match the measured one?
+- **Absorbance residuals**: these are measured minus fitted absorbance.
+  Clear bands or patterns can point to wrong references, a bad baseline, or another absorbing compound.
 
-| Spectrum | Concentration | Path length |
-|---|---:|---:|
-| 1 | 6.82e-5 M | 1 cm |
-| 2 | 6.87e-5 M | 1 cm |
-| 3 | 6.80e-5 M | 1 cm |
+The regularized method uses a simple exponential to keep concentration points
+from jumping around. That exponential is not the photochemical model.
+Small patterns in its **Fraction residual** plot can occur for this reason.
+Check them alongside the other plots, not on their own.
 
-AutoQY applies:
-
-```math id="1zybv5"
-\varepsilon_i(\lambda) = \frac{A_i(\lambda)}{c_i l_i}
-```
-
-where:
-
-- $A_i$ is absorbance;
-- $c_i$ is concentration;
-- $l_i$ is optical path length.
-
-AutoQY then calculates:
-
-- each individual ε spectrum;
-- mean ε;
-- standard deviation;
-- standard error of the mean.
-
-For $n>1$:
-
-```math id="cy4d0k"
-SEM = \frac{SD}{\sqrt{n}}
-```
-
-Per-spectrum concentration and path-length fields are hidden when a dataset has
-more than 60 spectra. Large time series can still be processed and exported,
-but molar absorptivity should be calculated from a separate set containing at
-most 60 known-concentration spectra.
-
----
-
-# 8. Inspect and export ε
-
-Before exporting, inspect the individual ε curves.
-
-Independent preparations should usually give reasonably similar spectra.
-
-For example:
-
-```text id="woq28u"
-Sample 1: εmax = 18,000 M⁻¹ cm⁻¹
-Sample 2: εmax = 18,300 M⁻¹ cm⁻¹
-Sample 3: εmax = 25,000 M⁻¹ cm⁻¹
-```
-
-would be worth checking more closely.
-
-Possible reasons for larger differences include:
-
-- concentration uncertainty;
-- dilution error;
-- baseline differences;
-- cuvette differences;
-- aggregation;
-- decomposition;
-- instrumental variation.
-
-To export, open:
-
-```text id="0jmzhf"
-5 · Output → Content to save → Processed dataset / calculated ε
-```
-
-and click:
-
-```text id="jp9yu2"
-Save CSV
-```
-
-A typical filename is:
-
-```text id="tx4gu6"
-reactant_absorptivity.csv
-```
-
-With **Processed dataset / calculated ε** selected, **Save CSV** serves two cases:
-
-- without a complete set of concentrations and path lengths, it saves the
-  processed absorbance matrix;
-- with every Beer–Lambert value present, it also saves individual ε spectra,
-  their mean, SD, SEM, and non-negative uncertainty bounds.
-
-Choose the folder and CSV name in Save As. A missing `.csv`
-extension is added automatically, and the dialog asks before replacing an existing
-file. Negative absorbance and ε values are preserved by default. Enable
-**Convert negative absorbance and ε values to 0** only when the saved CSV—not
-the preview or uploaded source—should be clamped.
-
----
-
-# 9. Use Spectral Treatment for simple kinetics
-
-Spectral Treatment can also be used independently of the quantum-yield workflow.
-
-Load a time-ordered spectral series, expand **Wavelength slice over time** below
-the main plot, and select a wavelength of interest.
-
-For example:
-
-```text id="4eccpq"
-450 nm
-```
-
-Spectral Treatment extracts:
-
-```math id="ykd4km"
-A(450\ \mathrm{nm},t)
-```
-
-from every spectrum and plots the resulting kinetic trace.
-
-If the selected wavelength lies between two detector points, the value is interpolated.
-
-## Set the time axis
-
-Use:
-
-```text id="2k1vmc"
-Seconds per timestamp
-```
-
-If the coordinates are already seconds, leave it at:
-
-```text id="u19bpp"
-1
-```
-
-If the spectra are numbered `0, 1, 2, 3...` and one spectrum was recorded every 30 s, enter:
-
-```text id="nayb5p"
-30
-```
-
-## Fit an exponential lifetime
-
-Enable:
-
-```text id="gfh0n8"
-Fit exponential decay
-```
-
-AutoQY fits:
-
-```math id="gmv9yp"
-A(t) = A_{\infty} + \Delta A\,e^{-t/\tau}
-```
-
-and reports the lifetime with its fit uncertainty.
-
-<details>
-<summary><strong>Lifetime, half-life, and measurement duration</strong></summary>
-
-The fitted lifetime is:
-
-```math id="jdf1g1"
-\tau = \frac{1}{k}
-```
-
-For a first-order process:
-
-```math id="6o1elj"
-t_{1/2} = \tau \ln 2
-```
-
-or:
-
-```math id="nh90sm"
-k = \frac{\ln 2}{t_{1/2}}
-```
-
-So lifetime and half-life are related, but are not the same quantity.
-
-AutoQY also checks whether the measured time span extends beyond approximately one fitted lifetime.
-
-A shorter measurement can still be fitted, but the plateau and lifetime may be less well constrained.
-
-The simple exponential fit is most appropriate for traces that are reasonably close to single-exponential behaviour.
-
-</details>
-
-The wavelength slice can be saved as PNG, SVG, or CSV. Its CSV contains the
-scaled time coordinates and absorbance values and, when a fit is enabled, the
-fitted curve and lifetime information.
-
----
-
-Choose **Content to save**, then click **Save CSV**, **Save PNG**, or **Save SVG**.
-Choose the destination in Save As. The most recently saved CSV/session folder
-is remembered internally, even when spectra are cleared or another dataset is loaded.
-
-# 10. Use Spectral Treatment to prepare figures
-
-Spectral Treatment can also prepare clean spectral figures directly.
-
-With **Minimal colors** off (the default), spectra use a color-blind-friendly
-Okabe–Ito palette in both the preview and saved figures. Colors repeat after
-seven spectra. Minimal colors retains the blue initial spectrum, orange final
-spectrum, and grey intermediate curves.
-
-To overlay a pure metastable-isomer spectrum without converting to ε, expand
-**Reconstruct spectrum**, and select the pure stable-isomer reference and a
-mixture/PSS spectrum, enter the **metastable** percentage (not the stable
-percentage), then click **Reconstruct**. For example, 20% stable and 80%
-metastable means you enter **80**.
-
-Both spectra must have been measured at the same total concentration and path
-length. Do not normalize their peaks separately. The calculated curve uses
-the current baseline correction, smoothing, and wavelength range. Toggle
-**Show reconstructed isomer** to include or hide it in the plot and saved
-PNG/SVG figure. In **5 · Output**, choose **Reconstructed metastable spectrum**
-under **Content to save**, then click **Save CSV** and choose the destination in
-Save As. The shared negative-value option applies. The measured spectra remain unchanged.
-
-Negative calculated values are retained and flagged. Check the baseline and
-mixture composition if these are substantial. Very small metastable percentages
-amplify noise. If you change the spectrum selections, composition, or loaded
-dataset, click **Reconstruct** again; preprocessing changes update it automatically.
-
-For datasets containing at most 60 spectra, you can keep all curves visible
-without showing every filename in the legend. Above 60 spectra, the figure uses
-the evenly spaced preview subset described earlier; the complete series remains
-in the processed CSV export.
-
-Expand **Legend options** above the main plot and click:
-
-```text id="6mdvgj"
-Hide all
-```
-
-to hide the legend entries without removing the traces.
-
-Then expand **Loaded spectra: order, legend, removal** and re-enable only the
-important spectra, for example:
-
-```text id="zpbzu8"
-First spectrum
-Last spectrum
-```
-
-You can also rename the displayed labels, for example:
-
-```text id="0cunoy"
-E
-PSS
-```
-
-## Minimal colors
-
-Enable:
-
-```text id="wfmcxi"
-Minimal colors
-```
-
-to highlight the initial and final spectra while keeping intermediate traces visually quieter.
-
-## Image and axis options
-
-**Axis names** changes the labels used by the main and wavelength-slice plots.
-All three plots share one **Image export options** menu under **Output → Save figures**.
-For saved images you can independently include the title, legend, and axis labels, use the
-publication-oriented **Origin-style export**, add a grid, and decide whether
-the y axis starts at zero. With Origin-style export enabled, PNG output is
-1950 × 1500 pixels; SVG remains vector based.
-
-The defaults are: title excluded, legend included, Origin style enabled, grid
-excluded, and y axis starting at zero.
-
-The reconstructed metastable ε plot shows calibrated ε curves and uncertainty
-envelopes only, not normalized absorbance inputs. **Minimal colors** also applies
-here: stable ε is blue, metastable ε orange, and PSS ε black, with light-grey
-reference lines. PNG and SVG contain the same ε-only plot.
-
-<details>
-<summary><strong>Example workflow for a publication-style spectral figure</strong></summary>
-
-For a 30-spectrum irradiation series:
-
-1. Load all spectra.
-2. Put them in chronological order.
-3. Select the useful wavelength range.
-4. Apply preprocessing if needed.
-5. Enable **Minimal colors**.
-6. Click **Hide all**.
-7. Re-enable only the first and final spectra in the legend.
-8. Rename them, for example, `E` and `PSS`.
-9. Leave **Title in saved image** disabled if the title is unnecessary.
-10. Enable **Origin-style export**.
-11. Save as SVG or PNG.
-
-SVG is useful when a vector format is preferred.
-
-</details>
-
----
-
-# 11. Obtain the product molar absorptivity
-
-There are two common cases.
-
-## Case A — Pure product is available
-
-Prepare pure P at known concentration and repeat the same procedure used for the reactant.
-
-Export, for example:
-
-```text id="ksvehe"
-product_absorptivity.csv
-```
-
-## Case B — The product cannot be isolated
-
-If irradiation produces a known PSS mixture, AutoQY can reconstruct the product spectrum using an independently measured PSS composition.
-
-<details>
-<summary><strong>Reconstruct metastable ε using UV–Vis and NMR</strong></summary>
-
-Expand:
-
-```text id="5z9n8a"
-4 · Reconstruction → Reconstruct spectrum
-```
-
-Drop your triplicate stable-reference ε CSV in **Stable-isomer ε reference (optional)**.
-This file supplies only the ε scale and its SD/SEM, not the UV measurement curves.
-Load the UV–Vis irradiation dataset in **1 · Data**, then select its initial stable
-and PSS spectra in Reconstruction. By default:
-
-```text id="dz1n12"
-First spectrum = pure reactant
-Last spectrum  = final PSS
-```
-
-Enter:
-
-```text id="n3kept"
-Metastable isomer in mixture (%)
-```
-
-For example:
-
-```text id="8bf35r"
-77 (equivalent to 23% stable reactant)
-```
-
-If $x$ is the reactant fraction at the PSS:
-
-```math id="cfyh3c"
-P = \frac{PSS - xR}{1-x}
-```
-
-For $x=0.23$:
-
-```math id="hg7qtu"
-P = \frac{PSS - 0.23R}{0.77}
-```
-
-Choose the reference replicate SD or SEM and enter optional NMR uncertainty
-in percentage points (1σ). The default is 1; enter zero to omit it. Click
-**Reconstruct**. No PSS measurement uncertainty is required or included.
-
-The resulting product ε uncertainty is generally wavelength dependent and asymmetric.
-
-Small negative reconstructed ε values near a zero baseline can arise from noise or subtraction uncertainty.
-
-Larger negative spectral features may suggest checking the PSS composition, baseline, normalization, or whether more than two species are present.
-
-Use the main Range and preprocessing controls for baseline, smoothing, and SVD.
-These apply once to the selected spectra; only the overlapping ε wavelength
-range is calibrated. No separate UV upload or preprocessing is required.
-Clear the ε reference to reconstruct absorbance without calibration.
-By default, the primary product ε export retains negative values and a raw audit
-column. Enable **Convert negative absorbance and ε values to 0** to clamp the
-primary column. Values below −500 M⁻¹ cm⁻¹ stop export and should be investigated.
-Select **Stable + reconstructed ε (pair)**
-under **Content to save**, then click **Save CSV**. Save the NMR plot as PNG or SVG
-through the same **Content to save** selection and **Output → Save figures**.
-The CSV pair opens two Save As dialogs, one for each file; figures use just
-**Save PNG** or **Save SVG** for the selected content.
-
-Both UV–Vis curves share the same reference normalization and ε scale. The
-uncertainty envelope combines the triplicate ε error with NMR composition
-error; it does not add an invented PSS uncertainty. Missing reference SD/SEM
-is reported rather than assumed zero. The product export records these
-assumptions and can be loaded into Analysis with its uncertainty bounds.
-
-</details>
-
----
-
-# 12. Open the Analysis GUI
-
-The Analysis GUI contains:
-
-```text id="k2vbwm"
-1 · Project
-2 · Identity and data
-3 · Experiment
-4 · Fit
-5 · Uncertainty
-6 · Output
-7 · Analyze
-```
-
-Working through them in order is usually the easiest approach.
-
----
-
-# 13. Project
-
-Expand:
-
-```text id="tocxcd"
-1 · Project → JSON and tools
-```
-
-Choose the folder containing your experiment.
-
-For example:
-
-```text id="it3xt1"
-MyExperiment/
-├── measurement_spectra.csv
-├── reactant_absorptivity.csv
-├── product_absorptivity.csv
-├── led_emission.csv
-└── timestamps.csv
-```
-
-`analysis.json` stores the configuration used for the analysis, including:
-
-- input files;
-- experimental parameters;
-- fitting method;
-- uncertainty treatment;
-- output settings.
-
----
-
-# 14. Identity and data
-
-Expand:
-
-```text id="t1fm3u"
-2 · Identity and data → Experiment files
-```
-
-Choose a meaningful analysis ID, for example:
-
-```text id="3aehoy"
-compound1_395nm
-```
-
-and an output stem such as:
-
-```text id="zbx30h"
-compound1_395nm_results
-```
-
-You can also replace generic names such as `reactant` and `product` with labels such as `E` and `Z`.
-
-Select:
-
-1. **Measurement spectra**
-2. **Reactant molar absorptivity**
-3. **Product molar absorptivity**
-4. **LED emission** (unless chemical-actinometer mode is used)
-5. **Irradiation timestamps**
-
-For new data, use **Generic CSV** where possible.
-
----
-
-# 15. LED processing
-
-Inside the LED section expand:
-
-```text id="a7vqmg"
-Processing
-```
-
-A reasonable starting point is:
-
-```text id="xznvda"
-Wavelength start:              250 nm
-Wavelength end:                800 nm
-Savitzky–Golay window:         12 points
-Polynomial order:              3
-Baseline correction:           ON
-Baseline exclusion multiplier: 10
-```
-
-These settings apply only to the **LED emission spectrum**.
-
-They do not preprocess the experimental absorbance spectra.
-
-They are ignored when chemical-actinometer photon flux is selected.
-
----
-
-# 16. Experimental parameters
-
-Expand:
-
-```text id="u8b47c"
-3 · Experiment → Physical parameters
-```
-
-Enter the experimental values.
-
-For example:
-
-```text id="2exvvs"
-Sample volume:          1995 µL
-Path length:            1 cm
-Power:                  1.46 mW
-Power error:            0.03 mW
-Irradiation wavelength: 395 nm
-Thermal R→P:            0 s⁻¹
-Thermal P→R:            6.3e-5 s⁻¹
-```
-
-For a chemical actinometer, select **Use photon flux from a chemical
-actinometer** and enter **Photon flux (mol photons/s)** instead of power. The
-LED file and LED-processing settings are then ignored. The irradiation
-wavelength is required and represents the actual monochromatic wavelength.
-
-AutoQY expects thermal rate constants in $\mathrm{s^{-1}}$.
-
-For a first-order process:
-
-```math id="gmsv6h"
-k = \frac{\ln 2}{t_{1/2}}
-```
-
----
-
-# 17. Choose the fitting method
-
-Expand:
-
-```text id="llqnp3"
-4 · Fit → Kinetic model
-```
-
-The available methods are:
-
-- **Regularized concentrations**
-- **Full-spectrum ODE absorbance**
-- **Concentrations — legacy pure NNLS**
-- **Emission — legacy**
-
-For a new experiment, it can be useful to compare:
-
-```text id="v2m2ar"
-Regularized concentrations
-vs.
-Full-spectrum ODE absorbance
-```
-
-## Regularized concentrations
-
-This is the recommended concentration-based route.
-
-Each timestamp retains an independently adjustable reactant fraction, but the fractions are softly regularized toward an exponential envelope.
-
-> **The exponential envelope is a regularizer. It is not the photochemical quantum-yield model.**
-
-The resulting concentration trajectory is then fitted using the photochemical kinetic equations to obtain the quantum yields.
-
-<details>
-<summary><strong>More about the fitting methods</strong></summary>
-
-### Regularized concentrations
-
-The method fits all spectra together while using a conserved total concentration.
-
-The regularizer reduces unrealistic point-to-point fluctuations.
-
-`Concentration regularization strength` controls how strongly the fractions are encouraged to follow the smooth envelope.
-
-The default is:
-
-```text id="i4s1yh"
-1
-```
-
-### Full-spectrum ODE absorbance
-
-This method directly fits the complete wavelength × time absorbance matrix to the photochemical kinetic model.
-
-It jointly fits:
-
-- quantum yields;
-- total concentration;
-- initial composition;
-- spectral evolution.
-
-Optional per-spectrum baseline corrections and robust loss can help accommodate small baseline differences or isolated problematic wavelengths.
-
-### Concentrations — legacy pure NNLS
-
-This method independently decomposes every spectrum into reactant and product using non-negative least squares and then fits the resulting concentration trajectory.
-
-It is simple and fast, but does not use temporal information during spectral decomposition.
-
-### Emission — legacy
-
-This method uses absorbance information mainly inside the active LED-emission region.
-
-It is retained for compatibility with older AutoQY analyses.
-
-</details>
-
----
-
-# 18. Optimizer settings and expected PSS
-
-Under:
-
-```text id="54a7on"
-Expert optimizer settings
-```
-
-the default initial values are:
-
-```text id="jsn1p7"
-Initial Φ R→P: 0.5
-Initial Φ P→R: 0.5
-
-Lower bound: 0
-Upper bound: 1
-```
-
-These are numerical starting guesses rather than expected physical values.
-
-If you have independently measured the PSS composition, enter:
-
-```text id="qkhvda"
-Expected reactant at PSS (%)
-```
-
-This provides an additional comparison between the fit and an independent experiment.
-
----
-
-# 19. Compare fit methods
-
-Click:
-
-```text id="7lgauh"
-Compare fit methods
-```
-
-For example:
-
-| Method | Φ R→P |
-|---|---:|
-| Regularized concentrations | 0.25 |
-| Full-spectrum ODE | 0.24 |
-| Legacy NNLS | 0.26 |
-
-shows good agreement.
-
-If the methods differ substantially, it can be useful to inspect the spectra, reference data, and fitting assumptions.
-
-Long method names wrap within the comparison table. On a narrow window, scroll
-the table horizontally to inspect all columns. Quantum-yield values, PSS values,
-and fit-status text also wrap inside their result cards rather than being cut
-off.
-
----
-
-# 20. Residuals and diagnostics
-
-Residuals can be useful diagnostics, but their interpretation depends on the fitting method.
-
-## Regularized-concentration fraction residuals
-
-Some structure in the fraction residuals is not necessarily problematic.
-
-The concentration recovery itself contains a soft temporal regularizer, so these residuals should not be interpreted in exactly the same way as residuals from a direct kinetic fit.
-
-## Full-spectrum ODE absorbance residuals
-
-The wavelength-resolved absorbance residuals provide a more direct view of how well the spectral/kinetic model reproduces the measured spectra.
-
-<details>
-<summary><strong>How to interpret the residual plots</strong></summary>
-
-### Fraction residuals
-
-The regularized concentration method encourages the recovered concentration points to follow a smooth exponential envelope.
-
-Real photochemical kinetics can differ somewhat from that envelope, especially when:
-
-- both photochemical directions are active;
-- thermal reactions compete with photochemistry;
-- absorption changes as composition changes.
-
-Small structured fraction residuals can therefore occur even when the overall analysis is reasonable.
-
-### Wavelength-resolved absorbance residuals
-
-A coherent wavelength-dependent residual may suggest:
-
-- differences between the reference and experimental spectra;
-- an additional absorbing species;
-- photodecomposition;
-- spectral drift;
-- concentration changes;
-- baseline differences;
-- limitations of the two-state model.
-
-It is usually most useful to consider the residuals together with:
-
-- method comparison;
-- endpoint reconstruction;
-- expected PSS;
-- concentration evolution.
-
-</details>
-
----
-
-# 21. ε uncertainty
-
-Expand:
-
-```text id="6xpjgx"
-5 · Uncertainty
-```
-
-If your ε reference files were produced from replicate measurements in Spectral Treatment, select:
-
-```text id="0qv3q8"
-ε range
-```
-
-You can choose:
-
-- **Standard deviation**
-- **Standard error**
-
-For independently prepared samples, SD describes the observed variability between preparations.
-
-SEM describes uncertainty in the estimated mean:
-
-```math id="f67jvv"
-SEM = \frac{SD}{\sqrt{n}}
-```
-
-The appropriate choice depends on which type of uncertainty you want to represent.
-
----
-
-# 22. Output and run the analysis
-
-Expand:
-
-```text id="egh2t8"
-6 · Output
-```
-
-Available outputs include:
-
-- TXT summary;
-- PNG figures;
-- SVG figures;
-- result JSON;
-- configuration snapshot;
-- detailed CSV data.
-
-Then click:
-
-```text id="7ow8dk"
-Save JSON
-```
-
-to save the editable:
-
-```text id="8wsv44"
-analysis.json
-```
-
-and finally:
-
-```text id="6qam4p"
-Run analysis
-```
-
-A convenient reproducible workflow is:
-
-```text id="7dx7kt"
-Save JSON
-    ↓
-Run analysis
-```
-
----
-
-# 23. Inspect the results
-
-After running the analysis, inspect:
-
-- **Concentrations**
-- **Fraction residual**
-- **Preprocessing**
-- **Endpoint reconstruction**
-- **Absorbance residuals**
-
-## Concentrations
-
-For a simple R → P experiment, the reactant and product fractions will normally evolve reasonably smoothly.
-
-## Preprocessing
-
-Check the relationship between:
-
-- experimental spectral evolution;
-- reference ε spectra;
-- LED emission.
-
-One useful question is whether the LED emission overlaps sufficiently with the absorption spectrum.
-
-## Endpoint reconstruction
-
-This compares the measured endpoint with a spectrum reconstructed from the supplied reactant and product references.
-
-Differences may arise from:
-
-- reference-spectrum mismatch;
-- baseline effects;
-- decomposition;
-- aggregation;
-- concentration changes;
-- additional species.
-
-## Absorbance residuals
-
-Persistent wavelength-dependent residual features can help identify spectral behaviour not fully captured by the model.
-
----
-
-# 24. What should I look for in a final analysis?
-
-A useful final check is whether the different parts of the analysis give a consistent picture.
-
-For example:
-
-1. Reactant ε replicate measurements are reasonably consistent.
-2. Product ε has a plausible spectral shape.
-3. The starting spectrum is compatible with the reference spectra.
-4. Endpoint reconstruction is reasonable.
-5. Concentration evolution is chemically plausible.
-6. Regularized and full-spectrum ODE analyses give similar quantum yields.
-7. Wavelength-resolved residuals do not contain large unexplained features.
-8. Calculated PSS is reasonably consistent with an independent PSS measurement when available.
-9. Small changes in preprocessing or regularization do not strongly change the result.
-
-The different diagnostics are intended to show how sensitive the result is to the assumptions used in the analysis.
-
----
-
-<details>
-<summary><strong>Worked example: Example 4 — 395 nm with ε uncertainty</strong></summary>
-
-AutoQY contains:
-
-```text id="2cqivz"
-ExampleData/Example-4_395nm-EpsilonError
-```
-
-The example uses three independently prepared reactant solutions:
-
-```text id="q3tgqj"
-6.82 × 10⁻⁵ M
-6.87 × 10⁻⁵ M
-6.80 × 10⁻⁵ M
-```
-
-with:
-
-```text id="khcjwt"
-Path length:             1 cm
-Reactant at PSS:         23%
-NMR composition error:   1%
-Sample volume:           1995 µL
-Power:                   1.46 ± 0.03 mW
-Irradiation wavelength:  395 nm
-Thermal P→R rate:        6.3 × 10⁻⁵ s⁻¹
-```
-
-The expected result is approximately:
-
-```math id="6p5tqq"
-\Phi_{R\rightarrow P} = 25.0 \pm 1.2\%
-```
-
-```math id="kmt79q"
-\Phi_{P\rightarrow R} = 21 \pm 3\%
-```
-
-with an extrapolated PSS of approximately:
-
-```math id="830jpu"
-23.3\%\,R
-```
-
-Small differences can occur if preprocessing or uncertainty settings are changed.
-
-</details>
-
----
-
-# Quick workflows
-
-<details>
-<summary><strong>Make a spectral figure</strong></summary>
-
-```text id="8qqugo"
-Load spectra
-        ↓
-Choose wavelength range
-        ↓
-Baseline if useful
-        ↓
-SavGol if needed
-        ↓
-Minimal colors
-        ↓
-Hide all legend entries
-        ↓
-Enable only important traces
-        ↓
-Rename them
-        ↓
-Origin-style export
-        ↓
-Save SVG or PNG
-```
-
-</details>
-
-<details>
-<summary><strong>Measure a simple lifetime</strong></summary>
-
-```text id="e61c0k"
-Load time-ordered spectra
-        ↓
-Choose wavelength slice
-        ↓
-Set Seconds per timestamp
-        ↓
-Enable Fit exponential decay
-        ↓
-Read τ ± error
-        ↓
-Check measurement duration
-```
-
-</details>
-
-<details>
-<summary><strong>Calculate ε</strong></summary>
-
-```text id="em9wn3"
-Load independent replicate spectra
-        ↓
-Choose wavelength range
-        ↓
-Baseline if needed
-        ↓
-SavGol if useful
-        ↓
-SVD usually OFF
-        ↓
-Enter concentration
-        ↓
-Enter path length
-        ↓
-Inspect individual ε curves
-        ↓
-Save CSV
-```
-
-</details>
-
-<details>
-<summary><strong>Determine a quantum yield</strong></summary>
-
-```text id="gsjo3s"
-Prepare reactant ε
-        ↓
-Prepare or reconstruct product ε
-        ↓
-Open Analysis GUI
-        ↓
-Load measurement spectra
-        ↓
-Load εR and εP
-        ↓
-Load LED spectrum
-        ↓
-Load timestamps
-        ↓
-Enter volume, path length, power, thermal rates
-        ↓
-Run Regularized concentrations
-        ↓
-Compare with Full-spectrum ODE
-        ↓
-Inspect diagnostics
-        ↓
-Apply ε uncertainty if appropriate
-        ↓
-Save JSON
-        ↓
-Run final analysis
-```
-
-</details>
-
----
-
-# A few practical points
-
-- For independent ε measurements, keeping the replicate variability visible is usually preferable to reducing it with SVD.
-- The exponential in **Regularized concentrations** is a soft regularizer, not the quantum-yield kinetic model.
-- Small structured fraction residuals from the regularized method can occur and should be interpreted together with the other diagnostics.
-- Wavelength-resolved residuals from the full-spectrum ODE method can be useful for identifying spectral features not captured by the model.
-- Comparing more than one fitting approach is a useful way to assess how sensitive the result is to the analysis method.
-- For lifetime measurements, a longer time window generally gives a better estimate of both $\tau$ and the plateau.
-- For spectral figures, intermediate traces can remain visible even if only the first and last spectra are shown in the legend.
-- For files above 60 spectra, the displayed intermediate traces are an evenly
-  spaced preview; processing and CSV export still include the full series.
+Compare the two main fit methods and the fitted PSS with your NMR result.
+If they disagree badly, or small changes in treatment cause large changes in
+quantum yield, investigate before reporting the result.
