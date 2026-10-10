@@ -131,6 +131,8 @@ The Desktop folder also contains:
   CSV content, names, destination, and all save buttons are managed in **Output**.
 - **AutoQY Power GUI** — treats Thorlabs optical-power traces.
 - **Uninstall AutoQY** — removes AutoQY and can optionally remove its Conda environment.
+  If AutoQY is open, save your work and close its windows first. Uninstall waits
+  until they are closed; you can type `cancel` without deleting anything.
 
 </details>
 

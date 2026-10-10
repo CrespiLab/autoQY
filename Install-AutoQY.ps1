@@ -399,6 +399,7 @@ function Write-LauncherFiles {
         "-ProjectRoot `"$ProjectRoot`" " +
         "-EnvironmentName `"$EnvironmentName`" " +
         "-CondaCommand `"$CondaCommand`" " +
+        "-EnvironmentPath `"$EnvironmentPath`" " +
         "-ShortcutDirectory `"$shortcutDirectory`""
     )
     $uninstallShortcut.WorkingDirectory = $desktop
