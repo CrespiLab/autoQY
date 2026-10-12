@@ -16,6 +16,7 @@ import zlib
 
 import numpy as np
 from scipy.optimize import curve_fit
+from scipy.signal import find_peaks
 
 from ..epsilon import (EpsilonResult, NMRSubtractionResult,
                        calculate_epsilon_statistics, export_epsilon_csv,
@@ -494,6 +495,24 @@ window.autoqySaveText = (filename, text, mimeType) => {
                         dcc.Input(id="wavelength-high", type="number", placeholder="End (nm)",
                                   disabled=True, debounce=True),
                     ], className="input-row"),
+                    html.Details(id="peak-picking-panel", className="nested-tool", children=[
+                        html.Summary(["Peak picking", info_popup(
+                            "Labels maxima of displayed main spectra after treatment. "
+                            "Prominence is relative to each curve's signal range. "
+                            "Lower values detect weaker or closer peaks. "
+                            "Wavelengths use measured points; endpoints are excluded.", "Peak picking")]),
+                        dcc.Checklist(id="peak-picking-enabled", value=[],
+                                      className="toggle-control",
+                                      options=[{"label": "Pick wavelength maxima", "value": "on"}]),
+                        html.Label("Minimum prominence (%) / separation (nm)"),
+                        html.Div(className="input-row", children=[
+                            dcc.Input(id="peak-prominence", type="number", value=5,
+                                      min=0, max=100, step="any", debounce=True),
+                            dcc.Input(id="peak-separation", type="number", value=5,
+                                      min=0, step="any", debounce=True),
+                        ]),
+                        html.Div(id="peak-picking-message", className="helper-text", role="status"),
+                    ]),
                     html.Details(open=False, className="nested-tool", children=[
                         html.Summary(["Preprocess spectra", info_popup(
                             "Baseline and Savitzky–Golay operate on each spectrum independently. "
@@ -1385,6 +1404,8 @@ window.autoqySaveText = (filename, text, mimeType) => {
         State({"type": "legend-name", "index": ALL}, "id"),
         Input("isomer-request-store", "data"),
         Input("show-reconstructed-isomer", "value"),
+        Input("peak-picking-enabled", "value"),
+        Input("peak-prominence", "value"), Input("peak-separation", "value"),
     )
     def preview(data, wavelength_low, wavelength_high, baseline_enabled,
                 baseline_low, baseline_high, method, sg_width, sg_order,
@@ -1392,7 +1413,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 legend_values, legend_names, minimal_colors, show_original,
                 x_axis_label, absorbance_axis_label, epsilon_axis_label,
                 legend_value_ids, legend_name_ids, isomer_request=None,
-                show_isomer=None):
+                show_isomer=None, peak_enabled=None, peak_prominence=5, peak_separation=5):
         if not data:
             return (_empty(go, "Load spectral data to begin"),
                     "No result yet.", "", "Smoothing is off.", None, None, True, "")
@@ -1449,6 +1470,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                         )
                 _overlay_isomer(go, figure, dataset, processed, isomer_request, show_isomer,
                                 minimal_colors=use_minimal_colors)
+                _overlay_peaks(go, figure, peak_enabled, peak_prominence, peak_separation)
                 return (figure,
                         "Absorbance ready. Enter concentrations to calculate ε.",
                         message, smoothing_message, None, processed_data, False, "")
@@ -1491,6 +1513,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 )
             _overlay_isomer(go, figure, dataset, processed, isomer_request, show_isomer,
                             epsilon=True, minimal_colors=use_minimal_colors)
+            _overlay_peaks(go, figure, peak_enabled, peak_prominence, peak_separation)
             return (
                 figure,
                 result_message, concentration_message, smoothing_message,
@@ -1709,6 +1732,10 @@ window.autoqySaveText = (filename, text, mimeType) => {
         result = _figure_sheet_page({"main": main, "slice": slice_figure, "nmr": nmr}.get(kind),
                                     0, None, visibility.get(kind))
         return (*result, 0, visibility)
+
+    @app.callback(Output("peak-picking-message", "children"), Input("epsilon-plot", "figure"))
+    def peak_message(figure):
+        return ((figure or {}).get("layout", {}).get("meta") or {}).get("peak_message", "")
 
     return app
 
@@ -2188,6 +2215,71 @@ def _csv_filename(value, default):
     return value
 
 
+def _wavelength_peaks(wavelengths, values, prominence=5, separation=5):
+    """Find sample maxima, filtering prominence and distance in physical units."""
+    prominence, separation = float(prominence), float(separation)
+    if not np.isfinite(prominence) or not 0 <= prominence <= 100:
+        raise ValueError("Enter a minimum prominence between 0 and 100%")
+    if not np.isfinite(separation) or separation < 0:
+        raise ValueError("Enter a finite, nonnegative peak separation in nm")
+    x, y = np.asarray(wavelengths, float), np.asarray(values, float)
+    if x.ndim != 1 or y.ndim != 1 or len(x) != len(y):
+        raise ValueError("Peak search requires matching wavelength and signal arrays")
+    order = np.argsort(x, kind="stable")
+    x, y = x[order], y[order]
+    if np.any(np.diff(x[np.isfinite(x)]) <= 0):
+        raise ValueError("Peak search requires distinct wavelengths")
+    finite = np.isfinite(x) & np.isfinite(y)
+    if np.count_nonzero(finite) < 3:
+        return np.array([], dtype=int)
+    threshold = np.ptp(y[finite]) * prominence / 100
+    # Missing values break a spectrum; do not create a peak across a gap.
+    boundaries = np.flatnonzero(np.diff(np.r_[False, finite, False]))
+    candidates = []
+    for start, stop in boundaries.reshape(-1, 2):
+        peaks, properties = find_peaks(y[start:stop], prominence=threshold)
+        candidates.extend((int(start + peak), float(strength))
+                          for peak, strength in zip(peaks, properties["prominences"]))
+    chosen = []
+    for index, strength in sorted(candidates, key=lambda item: (-item[1], -y[item[0]], x[item[0]])):
+        if all(abs(x[index] - x[other]) >= separation for other in chosen):
+            chosen.append(index)
+    return order[np.array(sorted(chosen), dtype=int)]
+
+
+def _overlay_peaks(go, figure, enabled, prominence=5, separation=5):
+    if "on" not in (enabled or []):
+        return
+    count = 0
+    try:
+        # Validate even when there are no curves and leave the preview usable on error.
+        _wavelength_peaks([], [], prominence, separation)
+        for index, trace in enumerate(tuple(figure.data)):
+            if (trace.visible in (False, "legendonly") or trace.hoverinfo == "skip"
+                    or trace.line.width == 0 or "lines" not in (trace.mode or "lines")):
+                continue
+            peaks = _wavelength_peaks(trace.x, trace.y, prominence, separation)
+            if not len(peaks):
+                continue
+            count += len(peaks)
+            group = trace.legendgroup or f"peak-curve-{index}"
+            trace.legendgroup = group
+            x, y = np.asarray(trace.x)[peaks], np.asarray(trace.y)[peaks]
+            figure.add_trace(go.Scatter(
+                x=x, y=y, xaxis=trace.xaxis, yaxis=trace.yaxis,
+                mode="markers+text", text=[f"{value:g} nm" for value in x],
+                textposition="top center", textfont={"color": trace.line.color},
+                marker={"color": trace.line.color, "size": 7, "symbol": "diamond"},
+                name=f"Maxima · {trace.name}", legendgroup=group, showlegend=False,
+                meta={"peak_picking": True},
+                hovertemplate="λmax: %{x:g} nm<br>Signal: %{y:.6g}<extra>%{fullData.name}</extra>",
+            ))
+        message = f"{count} wavelength maxima labelled in the main plot."
+    except (ValueError, TypeError) as error:
+        message = f"Peak picking: {error}."
+    figure.update_layout(meta={**(figure.layout.meta or {}), "peak_message": message})
+
+
 def _figure_sheet_page(figure, page=0, size=25, visibility=None):
     """Return plotted numerical curves; size=None supplies all rows for scrolling."""
     if hasattr(figure, "to_plotly_json"):
@@ -2204,6 +2296,8 @@ def _figure_sheet_page(figure, page=0, size=25, visibility=None):
     coordinates = np.array([], dtype=float)
     names = {}
     for trace_index, trace in enumerate(figure.get("data", [])):
+        if isinstance(trace.get("meta"), dict) and trace["meta"].get("peak_picking"):
+            continue
         if (visibility or {}).get(str(trace_index), trace.get("visible")) in (False, "legendonly"):
             continue
         x, y = values(trace.get("x")), values(trace.get("y"))
