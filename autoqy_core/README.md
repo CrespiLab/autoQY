@@ -560,3 +560,10 @@ GUI when needed.
 For portable scripted input, set `"format": "generic_csv"` in
 `power_analysis.json` and provide one `power_mw` column. The legacy
 `thorlabs_opm_csv` format remains available for original instrument exports.
+
+Infinite and missing power readings are automatically excluded from baseline
+fits, signal averages, and uncertainties. Their sample positions remain as gaps
+so region boundaries retain their meaning. Upload messages report the number
+excluded per file, and scripted CSV imports issue a warning. Each baseline
+region must retain a finite reading, with more total baseline readings than the
+polynomial degree; each signal region must retain at least two finite readings.

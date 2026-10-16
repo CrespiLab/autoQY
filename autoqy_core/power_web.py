@@ -224,11 +224,20 @@ def create_app():
                         raise ValueError(f"{filename} contains fewer than 12 samples")
                     loaded.append({
                         "id": str(uuid4()), "name": filename,
-                        "values_mw": values.tolist(),
+                        "values_mw": [float(value) if np.isfinite(value) else None
+                                      for value in values],
                         "regions": _initial_regions(len(values)), "result": None,
                     })
                 store["datasets"].extend(loaded)
-                return store, f"Loaded {len(loaded)} measurement(s)."
+                message = f"Loaded {len(loaded)} measurement(s)."
+                exclusions = [
+                    f"{item['name']}: {item['values_mw'].count(None)}"
+                    for item in loaded if None in item["values_mw"]
+                ]
+                if exclusions:
+                    message += (" Excluded non-finite readings (" + "; ".join(exclusions)
+                                + "). Sample positions are preserved.")
+                return store, message
 
             dataset = _selected_dataset(store, selected)
             if trigger == "raw-plot":
@@ -432,7 +441,7 @@ def _empty_figure(message):
 def _raw_figure(dataset):
     import plotly.graph_objects as go
 
-    values = np.asarray(dataset["values_mw"])
+    values = np.asarray(dataset["values_mw"], dtype=float)
     x = np.arange(len(values))
     figure = go.Figure(go.Scatter(x=x, y=values, mode="lines", name="Power",
                                   line={"color": "#20242c", "width": 1.5}))
