@@ -235,3 +235,10 @@ button.info-popup { padding: 0; margin: 0; vertical-align: middle; }
   .analysis-controls .input-row { grid-template-columns: 1fr; }
   .diagnostic-item { gap: 8px; }
 }
+
+/* Keep diagnostic explanations visible and allow long messages to wrap. */
+.diagnostic-content { min-width: 0; overflow-wrap: anywhere; }
+.diagnostic-message { margin-top: 4px; }
+.diagnostic-content details { margin-top: 6px; color: #505661; }
+.diagnostic-content summary { cursor: pointer; }
+.diagnostic-item { align-items: flex-start; }

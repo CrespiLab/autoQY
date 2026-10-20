@@ -293,7 +293,7 @@ class GuiWindowSession:
         self._handle = None
         self._closed = False
 
-    def open_after(self, delay=1.0):
+    def open_after(self, delay=0.0):
         with self._lock:
             if self._closed:
                 return

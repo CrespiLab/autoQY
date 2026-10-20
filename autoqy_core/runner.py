@@ -12,7 +12,6 @@ from .epsilon_uncertainty import (load_epsilon_envelope, load_epsilon_nominal,
 from .io import load_spectra, load_spectrum, load_timestamps
 from .output import result_summary, write_detailed_data, write_results
 from .pipeline import AnalysisInput, run_analysis_pipeline
-from .plotting import write_figure
 from .spectra import monochromatic_emission
 
 
@@ -143,6 +142,8 @@ def _write_outputs(config, data, result, output_directory):
     if output["write_text"]:
         write_results(stem.with_suffix(".txt"), result, data, wavelength)
     if output["write_figures"]:
+        from .plotting import write_figure
+
         write_figure(stem, result, data, values["plots"]["absorbance_residual_percentile"])
     if output["write_json"]:
         summary = result_summary(result, data, wavelength)

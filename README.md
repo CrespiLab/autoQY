@@ -165,3 +165,22 @@ Software citation metadata is provided in [CITATION.cff](CITATION.cff).
 ## Disclaimer
 
 AutoQY is a research tool and may produce incorrect or unsuitable results if the inputs or settings are inappropriate. Users are responsible for checking their data, settings, assumptions, uncertainties, and outputs before reporting or publishing results. The developers accept no responsibility for errors, data loss, or consequences arising from use of the software.
+
+
+## Analysis composition and fit warnings
+
+In Analysis → Fit → Method-specific controls, enter the **expected metastable
+photoproduct at PSS (%)**. For example, enter **77** for 77% photoproduct and
+23% remaining stable reactant. Leave it blank if unknown. This is a diagnostic
+reference and does not constrain the fitted quantum yields.
+
+Existing schema-v1 JSON files still store `analysis.expected_pss_reactant_percent`.
+The GUI converts with `reactant_percent = 100 - product_percent` when saving and
+converts back when loading. Do not change existing JSON values to product percent.
+
+Fit checks now explain the problem and what to check directly in the diagnostics
+panel. **Review** asks for inspection; **Red flag** means the result may be unreliable.
+Jacobian and spectral condition numbers remain under **Technical details**.
+The numerical checks and thresholds have not changed.
+
+For startup profiling and validation details, see [the startup notes](docs/startup-2.4.1.md).

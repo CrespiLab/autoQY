@@ -22,8 +22,6 @@ from ..output import (format_scientific_value_uncertainty,
                       format_value_uncertainty, result_summary)
 from ..plot_style import (PLOT_BLUE, PLOT_BROWN, PLOT_NEUTRAL,
                           PLOT_ORANGE, PLOT_PURPLE)
-from ..runner import run_analysis
-from ..spectra import monochromatic_emission, process_led
 from ..version import get_project_version
 
 
@@ -323,7 +321,9 @@ def create_app():
                         html.Summary(["Method-specific controls", info_popup(
                             "Emission threshold applies to the legacy emission fit; regularization strength "
                             "applies to regularized concentrations; baseline order and robust-loss scale apply "
-                            "to the full-spectrum ODE fit. Expected PSS is an optional diagnostic reference."
+                            "to the full-spectrum ODE fit. Expected PSS is an optional diagnostic reference: "
+                            "enter the metastable photoproduct percentage, with 100% meaning all product. "
+                            "It does not constrain the fit."
                         )]),
                         html.Label("Emission threshold fraction"),
                         number("emission_threshold", 0.01, min=0, max=1, step="any"),
@@ -333,9 +333,9 @@ def create_app():
                              dropdown("absorbance_baseline_order",
                                       ((-1, "None"), (0, "Constant"), (1, "Linear")), 1),
                              "Robust-loss scale", number("robust_loss_scale", 0.02, min=0, step="any")),
-                        html.Label("Expected reactant at PSS (%) · optional"),
-                        number("expected_pss_reactant_percent", None, min=0, max=100,
-                               step="any", placeholder="e.g. 23"),
+                        html.Label("Expected metastable photoproduct at PSS (%) · optional"),
+                        number("expected_pss_product_percent", None, min=0, max=100,
+                               step="any", placeholder="e.g. 77"),
                     ]),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
@@ -424,15 +424,9 @@ def create_app():
                     html.Summary([
                         "Preprocessing and fit diagnostics",
                         info_popup(
-                        "Green means no automatic threshold was crossed; amber asks for inspection; "
-                        "red indicates invalid inputs or a strongly unstable fit. Thresholds: volume "
-                        "amber below 50 µL; missing alignment or overlap red; either thermal rate amber when "
-                        "its half-life is shorter than one interval or one tenth of the experiment; "
-                        "spectral condition number amber 10–30 and red above 30; initial product amber "
-                        "above 2%; fraction, absorbance, or conservation error amber above 2% and red "
-                        "above 5%; parameter sensitivity amber at 10⁶–10⁸ or a yield bound and red "
-                        "above 10⁸ or optimizer failure; response time amber beyond two intervals or "
-                        "25%; expected PSS amber beyond 5 percentage points."
+                        "OK means no automatic issue was detected. Review means check the inputs "
+                        "or plots before using the result. Red flag means the result may be unreliable. "
+                        "Each message explains what to check; numerical fit details are available below it."
                         ),
                     ]),
                     html.Div("Save JSON or run analysis to inspect the inputs.", id="diagnostic-checks",
@@ -658,7 +652,7 @@ def create_app():
             input_checks.extend({
                 "level": "warning",
                 "title": "Input processing warning",
-                "body": f"{item.category.__name__}: {item.message}",
+                "body": str(item.message),
             } for item in input_warnings)
             diagnostics = _render_checks(html, input_checks)
             diagnostics_open = (True if any(
@@ -698,6 +692,8 @@ def create_app():
 
             with warnings.catch_warnings(record=True) as caught_warnings:
                 warnings.simplefilter("always")
+                from ..runner import run_analysis
+
                 output = run_analysis(config)
             summary = result_summary(
                 output.result, output.data,
@@ -754,6 +750,18 @@ def create_app():
     return app
 
 
+def _complement_percent(value):
+    """Translate GUI product percent to schema-v1 reactant percent and back."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError("PSS composition must be a percentage from 0 to 100")
+    value = float(value)
+    if not 0 <= value <= 100:
+        raise ValueError("PSS composition must be a percentage from 0 to 100")
+    return 100.0 - value
+
+
 def _configuration(values):
     use_actinometer = _on(values, "chemical_actinometer")
     configured_inputs = tuple(
@@ -776,7 +784,9 @@ def _configuration(values):
             "id": values.get("analysis_id") or "",
             "reactant_name": values.get("reactant_name") or "",
             "product_name": values.get("product_name") or "",
-            "expected_pss_reactant_percent": values.get("expected_pss_reactant_percent"),
+            "expected_pss_reactant_percent": _complement_percent(
+                values.get("expected_pss_product_percent")
+            ),
         },
         "inputs": {
             **{name: values.get(name) or "" for name, _ in configured_inputs},
@@ -866,8 +876,8 @@ def _form_values(document):
         "regularization_strength": fit.get("regularization_strength", 1),
         "absorbance_baseline_order": fit.get("absorbance_baseline_order", 1),
         "robust_loss_scale": fit.get("robust_loss_scale", 0.02),
-        "expected_pss_reactant_percent": document["analysis"].get(
-            "expected_pss_reactant_percent"
+        "expected_pss_product_percent": _complement_percent(
+            document["analysis"].get("expected_pss_reactant_percent")
         ),
         "initial_rp": fit["initial_quantum_yields"]["R_to_P"],
         "initial_pr": fit["initial_quantum_yields"]["P_to_R"],
@@ -960,6 +970,8 @@ def _physical_parameter_preview(values):
 
 
 def _preprocessing_figure(go, make_subplots, config):
+    from ..spectra import monochromatic_emission, process_led
+
     values = config.values
     processing = values["processing"]
     wavelengths, absorbance = load_spectra(
@@ -1074,6 +1086,8 @@ def _spectra_led_figure(go, make_subplots, wavelengths, absorbance,
 
 
 def _input_checks(config):
+    from ..spectra import process_led
+
     values = config.values
     experiment, processing = values["experiment"], values["processing"]
     checks = []
@@ -1195,11 +1209,15 @@ def _input_checks(config):
         level = "stop" if condition > 30 else "warning" if condition >= 10 else "ok"
         checks.append(_check(
             level, "Reactant/product spectral distinguishability",
-            f"shape condition number {condition:.3g}. It measures how independently the "
-            "normalized reactant and product ε shapes determine two concentrations: 1 is "
-            "best; green <10, amber 10–30, red >30. Large values mean small spectral "
-            "errors can cause large concentration errors",
+            ("The two reference spectra are different enough to separate their contributions."
+             if level == "ok" else
+             "The two reference spectra look too similar for a reliable separation. "
+             "Check that the correct references and wavelength range are selected."),
         ))
+        checks[-1]["details"] = (
+            f"Normalized spectral condition number: {condition:.3g}. "
+            "Review from 10 to 30; red above 30."
+        )
     return checks
 
 
@@ -1221,9 +1239,9 @@ def _fit_diagnostic_checks(result, data, document):
     checks.append(_check(
         "warning" if initial_product > 0.02 else "ok", "Initial product",
         f"{initial_product:.2%} of total concentration" +
-        ("; amber above 2% because independent NNLS is then more sensitive to reference "
-         "or baseline mismatch. Keep the value if a mixed starting state is physically real"
-         if initial_product > 0.02 else "; green at or below 2%"),
+        ("; product is already present before irradiation. Check the baseline and reference "
+         "spectra. This is acceptable if the starting sample really is a mixture"
+         if initial_product > 0.02 else "; little or no product is present initially"),
     ))
 
     measured_fraction = result.concentration_fit.fractions[:, 0]
@@ -1235,10 +1253,11 @@ def _fit_diagnostic_checks(result, data, document):
     fraction_max = float(np.max(np.abs(fraction_residual)))
     fraction_level = "stop" if fraction_rmse > 0.05 else "warning" if fraction_rmse > 0.02 else "ok"
     checks.append(_check(
-        fraction_level, "Kinetic fraction residual",
-        f"RMSE {fraction_rmse:.4g}; maximum |data − fit| {fraction_max:.4g}. "
-        "This compares the recovered reactant fraction with the kinetic model over time; "
-        "green ≤2%, amber 2–5%, red >5% RMSE",
+        fraction_level, "Does the model follow the measured composition?",
+        f"Typical composition mismatch: {100 * fraction_rmse:.2f} percentage points; "
+        f"largest mismatch: {100 * fraction_max:.2f}. "
+        "Above 2 points, inspect the concentration plot. Above 5 points, the model "
+        "may not describe the experiment well; check the spectra and reaction model.",
     ))
 
     epsilon = np.vstack((result.epsilon_r, result.epsilon_p))
@@ -1252,32 +1271,21 @@ def _fit_diagnostic_checks(result, data, document):
     absorbance_level = "stop" if relative_rmse > 0.05 else "warning" if relative_rmse > 0.02 else "ok"
     checks.append(_check(
         absorbance_level, "Full-spectrum reconstruction",
-        f"absorbance RMSE {absorbance_rmse:.4g} ({relative_rmse:.2%} of maximum absorbance). "
-        "This compares every measured wavelength and time with the fitted reconstruction; "
-        "green ≤2%, amber 2–5%, red >5% of maximum absorbance",
+        f"Typical spectrum mismatch: {relative_rmse:.2%} of the strongest absorbance "
+        f"(absorbance error {absorbance_rmse:.4g}). Above 2%, inspect the spectrum residuals. "
+        "Above 5%, check the baseline, reference spectra, and whether other species are present.",
     ))
 
     total_cv = float(np.std(totals) / np.mean(totals)) if np.mean(totals) else np.inf
     total_level = "stop" if total_cv > 0.05 else "warning" if total_cv > 0.02 else "ok"
     checks.append(_check(
         total_level, "Concentration conservation",
-        f"total-concentration coefficient of variation {total_cv:.3%}; "
-        "green ≤2%, amber 2–5%, red >5%",
+        f"The estimated total concentration varies by {total_cv:.2%} around its mean. "
+        "Above 2%, check the baseline and reference spectra; above 5%, also check "
+        "for sample loss or additional reactions.",
     ))
 
-    fit = result.yield_fit
-    condition = float(fit.jacobian_condition)
-    optimizer_level = ("stop" if not fit.optimizer_success or
-                       not np.isfinite(condition) or condition > 1e8 else
-                       "warning" if condition > 1e6 or any(fit.active_bounds) else "ok")
-    bound_text = "; at least one quantum yield touches its configured bound" if any(fit.active_bounds) else ""
-    checks.append(_check(
-        optimizer_level, "Quantum-yield parameter sensitivity",
-        f"local optimizer-Jacobian condition number {condition:.3g}{bound_text}. "
-        "This measures whether small changes in the residual can produce large changes in "
-        "the fitted quantum yields: green <10⁶ with no bound hit, amber 10⁶–10⁸ or a "
-        "bound hit, red above 10⁸ or when the optimizer fails",
-    ))
+    checks.append(_yield_reliability_check(result.yield_fit))
 
     model_time = _transition_time(np.asarray(data.timestamps), 1 - fitted_fraction)
     data_time = _transition_time(np.asarray(data.timestamps),
@@ -1287,30 +1295,34 @@ def _fit_diagnostic_checks(result, data, document):
         mismatch = abs(model_time - data_time) > max(2 * interval, 0.25 * max(data_time, interval))
         checks.append(_check(
             "warning" if mismatch else "ok", "Observed versus fitted response time",
-            f"time to reach 95% of each trace's observed total composition change—not 95% "
-            f"absolute conversion: fit {model_time:.4g} s; data {data_time:.4g} s. Amber "
-            "when the difference exceeds two sampling intervals or 25% of the observed time",
+            f"The model reaches its plateau in {model_time:.4g} s; the measured trace takes "
+            f"{data_time:.4g} s. A large difference suggests the model misses the reaction speed. "
+            "Check the timestamps and concentration plot. Each time marks 95% of that "
+            "trace's observed composition change, not 95% conversion to product.",
         ))
 
     expected = document["analysis"].get("expected_pss_reactant_percent")
-    fitted_pss = float(result.extrapolated_pss[0] / np.sum(result.extrapolated_pss) * 100)
+    fitted_pss = float(result.extrapolated_pss[1] / np.sum(result.extrapolated_pss) * 100)
+    expected = _complement_percent(expected)
     if expected is None:
         checks.append(_check(
-            "ok", "Extrapolated PSS", f"reactant {fitted_pss:.2f}% (no expected value entered)"
+            "ok", "Extrapolated PSS", f"metastable photoproduct {fitted_pss:.2f}% (no expected value entered)"
         ))
     else:
         difference = abs(fitted_pss - float(expected))
         checks.append(_check(
             "warning" if difference > 5 else "ok", "Expected versus fitted PSS",
-            f"reactant expected {float(expected):.2f}%; fitted {fitted_pss:.2f}%. "
-            "Amber when the difference exceeds 5 percentage points",
+            f"metastable photoproduct expected {float(expected):.2f}%; fitted {fitted_pss:.2f}%. "
+            "If the difference exceeds 5 percentage points, check the entered composition "
+            "and whether the experiment reached PSS.",
         ))
 
     errors = np.asarray(result.yield_errors, float)
     if np.any(~np.isfinite(errors)) or np.any(errors >= 1):
         checks.append(_check(
             "stop", "Quantum-yield uncertainty",
-            "uncertainty is at least 100 percentage points; treat the fit as unidentifiable",
+            "The uncertainty is too large or could not be calculated. These data do not "
+            "support reliable quantum-yield values. Check the spectra and time series.",
         ))
     uncertainty = result.epsilon_uncertainty
     if uncertainty is not None and len(uncertainty.bound_labels):
@@ -1318,12 +1330,51 @@ def _fit_diagnostic_checks(result, data, document):
         worst_errors = uncertainty.bound_optimizer_errors[worst] * 100
         level = "stop" if np.max(worst_errors) >= 100 else "warning" if np.max(worst_errors) >= 25 else "ok"
         checks.append(_check(
-            level, "Most uncertain ε-bound combination",
-            f"{uncertainty.bound_labels[worst]}: optimizer errors "
-            f"{worst_errors[0]:.3g}% and {worst_errors[1]:.3g}%; "
-            "green below 25%, amber 25–100%, red at or above 100%",
+            level, "Uncertainty when reference spectra are varied",
+            f"For the least certain tested reference spectra, the quantum-yield errors "
+            f"are {worst_errors[0]:.3g} and {worst_errors[1]:.3g} percentage points. "
+            "Above 25 points, treat the values with caution; at 100 points or more, "
+            "these data do not support reliable yields. Check the reference-spectrum uncertainties.",
         ))
+        checks[-1]["details"] = f"Reference-spectrum combination: {uncertainty.bound_labels[worst]}"
     return checks
+
+
+def _yield_reliability_check(fit):
+    """Explain the existing optimizer checks without requiring numerical jargon."""
+    condition = float(fit.jacobian_condition)
+    at_limit = any(fit.active_bounds)
+    if not fit.optimizer_success:
+        level, body = "stop", (
+            "The fit did not finish successfully. Do not rely on these quantum yields. "
+            "Check the input spectra, starting values, and allowed yield range, then run again."
+        )
+    elif not np.isfinite(condition) or condition > 1e8:
+        level, body = "stop", (
+            "These data cannot reliably separate the two quantum yields. Very different "
+            "yield values may fit almost equally well. Check the reference spectra and "
+            "collect a clearer or longer time series before relying on the values."
+        )
+    elif condition > 1e6:
+        level, body = "warning", (
+            "The quantum yields are sensitive to small measurement errors. Treat the "
+            "values with caution and check the reference spectra and time-series quality."
+        )
+    else:
+        level, body = "ok", "The fit passed the automatic checks for quantum-yield stability."
+    if at_limit:
+        if level == "ok":
+            level, body = "warning", "A quantum yield reached the allowed minimum or maximum."
+        else:
+            body += " A quantum yield also reached the allowed minimum or maximum."
+        body += " Check the inputs and whether the allowed range is appropriate."
+    check = _check(level, "Can I trust the quantum yields?", body)
+    check["details"] = (
+        f"Optimizer success: {fit.optimizer_success}; Jacobian condition number: {condition:.3g}; "
+        f"yield at a bound: {at_limit}. Review above 10⁶ or at a bound; red above 10⁸, "
+        "for a non-finite condition number, or if the optimizer fails."
+    )
+    return check
 
 
 def _transition_time(times, values, fraction=0.95):
@@ -1337,6 +1388,8 @@ def _transition_time(times, values, fraction=0.95):
 
 
 def _compare_fit_methods(config):
+    from ..runner import run_analysis
+
     methods = ("regularized_concentrations", "ode_absorbance", "concentrations")
     rows = []
     with TemporaryDirectory(prefix="autoqy-method-comparison-") as temporary:
@@ -1380,20 +1433,20 @@ def _compare_fit_methods(config):
 
 def _render_comparison(html, rows, selected_method):
     headings = ("Method", "Φ R→P", "Φ P→R", "Fraction RMSE", "Absorbance RMSE",
-                "Automatic fit flags")
+                "Fit reliability")
     body = []
     for row in rows:
         condition = float(row["jacobian_condition"])
         if not row["optimizer_success"]:
-            flags = "Optimizer did not converge"
+            flags = "Fit did not finish successfully; check inputs and starting values"
         elif not np.isfinite(condition) or condition > 1e8:
-            flags = "Very weak parameter sensitivity"
+            flags = "Data cannot reliably separate the two quantum yields"
         elif row["active_bounds"]:
-            flags = "Quantum yield at configured bound"
+            flags = "A quantum yield reached the allowed minimum or maximum"
         elif condition > 1e6:
-            flags = "High parameter sensitivity"
+            flags = "Quantum yields are sensitive to measurement errors"
         else:
-            flags = "No automatic optimizer flags"
+            flags = "Passed automatic fit-stability checks"
         forward = format_value_uncertainty(
             row["values"][0], row["errors"][0], two_digit_threshold=2
         )
@@ -1424,7 +1477,7 @@ def _yield_card(html, label, summary, name):
     error = float(summary["quantum_yield_error_percent"][name])
     if not np.isfinite(error) or error >= 100:
         return [html.Span(label), html.Strong(f"Nominal {value:.3g}%"),
-                html.Small("Unidentifiable uncertainty · inspect fit diagnostics")]
+                html.Small("Uncertainty too large · review fit checks")]
     formatted = summary["quantum_yield_formatted_percent"][name]
     return [html.Span(label),
             html.Strong(f"{formatted['value']} ± {formatted['error']}%"),
@@ -1458,12 +1511,12 @@ def _check(level, title, body):
 def _render_checks(html, checks):
     labels = {"ok": "OK", "warning": "Review", "stop": "Red flag"}
     return [html.Div(className=f"diagnostic-item diagnostic-{item['level']}", children=[
-        html.Div(className="diagnostic-title-row", children=[
+        html.Div(className="diagnostic-content", children=[
             html.Strong(item["title"]),
-            html.Span(className="info-popup", tabIndex=0, children=[
-                html.Span("i", className="info-popup-icon", **{"aria-hidden": "true"}),
-                html.Span(item["body"], className="info-popup-content"),
-            ]),
+            html.Div(item["body"], className="diagnostic-message"),
+            *([html.Details([
+                html.Summary("Technical details"), html.Div(item["details"]),
+            ])] if item.get("details") else []),
         ]),
         html.Span(labels[item["level"]], className="diagnostic-level"),
     ]) for item in checks]
@@ -1471,6 +1524,8 @@ def _render_checks(html, checks):
 
 def _interactive_figures(go, make_subplots, result, data, residual_percentile,
                          irradiation_wavelength):
+    from ..spectra import process_led
+
     times = np.asarray(data.timestamps)
     measured = result.concentration_fit.concentrations
     fitted = result.yield_fit.concentrations
@@ -1597,9 +1652,21 @@ def _style_figure(figure, title, x_title, y_title):
 
 
 def _empty_figure(go, message):
-    figure = go.Figure()
-    figure.add_annotation(text=message, showarrow=False, font={"color": PLOT_NEUTRAL})
-    return _style_figure(figure, "Analysis result", "", "")
+    # Dash accepts figure dictionaries. Avoid loading Plotly's full validator
+    # and template tree five times just to display empty startup placeholders.
+    return {"data": [], "layout": {
+        "template": "plotly_white", "height": 740,
+        "title": {"text": "Analysis result", "x": 0.02, "y": 0.98,
+                  "yanchor": "top", "yref": "container"},
+        "margin": {"l": 72, "r": 34, "t": 205, "b": 60},
+        "hovermode": "closest",
+        "legend": {"orientation": "h", "y": 1.06, "yanchor": "bottom", "x": 0,
+                   "xanchor": "left", "bgcolor": "rgba(255,255,255,.9)"},
+        "xaxis": {"title": {"text": ""}, "showgrid": False},
+        "yaxis": {"title": {"text": ""}, "gridcolor": "rgba(32,36,44,.10)"},
+        "annotations": [{"text": message, "showarrow": False,
+                         "font": {"color": PLOT_NEUTRAL}}],
+    }}
 
 
 def _method_label(method):
