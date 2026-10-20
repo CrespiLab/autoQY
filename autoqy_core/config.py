@@ -3,6 +3,16 @@
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import base64
+import binascii
+from copy import deepcopy
+from functools import cached_property
+import hashlib
+from tempfile import TemporaryDirectory
+
+
+ANALYSIS_INPUTS = ("measurement_spectra", "reactant_absorptivity",
+                   "product_absorptivity", "timestamps", "led_emission")
 
 
 class ConfigError(ValueError):
@@ -20,7 +30,60 @@ class AnalysisConfig:
         return path if path.is_absolute() else self.base_directory / path
 
     def input_path(self, name):
-        return self.resolve(self.values["inputs"][name])
+        value = self.values["inputs"][name]
+        if not isinstance(value, dict):
+            return self.resolve(value)
+        payload = _embedded_bytes(value, name)
+        # Use a private directory and generated names; never trust a supplied path.
+        suffix = Path(value["filename"]).suffix
+        path = Path(self._embedded_files.name) / (name + suffix)
+        if not path.exists() or path.read_bytes() != payload:
+            path.write_bytes(payload)
+        return path
+
+    @cached_property
+    def _embedded_files(self):
+        return TemporaryDirectory(prefix="autoqy-inputs-")
+
+
+def _embedded_bytes(value, name):
+    if not isinstance(value.get("filename"), str) or not value["filename"]:
+        raise ConfigError(f"Embedded input {name} needs a filename")
+    if value.get("encoding") != "base64" or not isinstance(value.get("data"), str):
+        raise ConfigError(f"Embedded input {name} must contain base64 data")
+    try:
+        payload = base64.b64decode(value["data"], validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise ConfigError(f"Embedded input {name} contains invalid data") from error
+    if hashlib.sha256(payload).hexdigest() != value.get("sha256"):
+        raise ConfigError(f"Embedded input {name} failed its integrity check")
+    return payload
+
+
+def self_contained_document(config):
+    """Losslessly include each required input, including binary formats and ε errors."""
+    document = deepcopy(config.values)
+    for name in ANALYSIS_INPUTS:
+        if name not in document["inputs"]:
+            continue
+        if (name == "led_emission" and document["experiment"].get("irradiation_source")
+                == "chemical_actinometer"):
+            document["inputs"].pop(name)
+            continue
+        value = document["inputs"][name]
+        if isinstance(value, dict):
+            _embedded_bytes(value, name)
+            continue
+        path = config.input_path(name)
+        payload = path.read_bytes()
+        document["inputs"][name] = {
+            "filename": path.name, "encoding": "base64",
+            "data": base64.b64encode(payload).decode("ascii"),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    document["schema_version"] = 2
+    document["outputs"]["embed_inputs"] = True
+    return document
 
 
 def load_config(path):
@@ -29,6 +92,9 @@ def load_config(path):
         values = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise ConfigError(f"Cannot load {path}: {error}") from error
+    # Result JSON may carry its complete rerunnable configuration as well.
+    if isinstance(values, dict) and "inputs" not in values and "configuration" in values:
+        values = values["configuration"]
     config = AnalysisConfig(values, path.parent, path)
     validate_config(config)
     return config
@@ -47,8 +113,8 @@ def input_format(config, name):
 def validate_config(config):
     values = config.values
     errors = []
-    if values.get("schema_version") != 1:
-        errors.append("schema_version must be 1")
+    if values.get("schema_version") not in (1, 2):
+        errors.append("schema_version must be 1 or 2")
 
     required = {
         "analysis": ("id", "reactant_name", "product_name"),
@@ -93,14 +159,10 @@ def validate_config(config):
     if formats and not isinstance(formats, dict):
         errors.append("inputs.formats must be an object")
     for name in required["inputs"]:
-        if not config.input_path(name).is_file():
-            errors.append(f"inputs.{name} does not exist: {config.input_path(name)}")
+        _validate_input(config, name, errors)
         _validate_format(input_format(config, name), name, errors)
     if irradiation_source == "optical_power" and "led_emission" in inputs:
-        if not config.input_path("led_emission").is_file():
-            errors.append(
-                f"inputs.led_emission does not exist: {config.input_path('led_emission')}"
-            )
+        _validate_input(config, "led_emission", errors)
         _validate_format(input_format(config, "led_emission"), "led_emission", errors)
 
     uncertainty = values.get("uncertainty", {})
@@ -194,13 +256,28 @@ def validate_config(config):
     if not output["stem"] or Path(output["stem"]).name != output["stem"]:
         errors.append("outputs.stem must be a filename stem, not a path")
     for name in ("write_text", "write_figures", "write_json", "write_config",
-                 "write_detailed_data", "overwrite"):
+                 "write_detailed_data", "overwrite", "embed_inputs"):
         if name in output and not isinstance(output[name], bool):
             errors.append(f"outputs.{name} must be true or false")
 
     if errors:
         raise ConfigError("Invalid configuration:\n- " + "\n- ".join(errors))
     return config
+
+
+def _validate_input(config, name, errors):
+    value = config.values["inputs"][name]
+    if isinstance(value, dict):
+        if config.values.get("schema_version") != 2:
+            errors.append(f"inputs.{name}: embedded data requires schema_version 2")
+        try:
+            _embedded_bytes(value, name)
+        except ConfigError as error:
+            errors.append(str(error))
+    elif not isinstance(value, str) or not value:
+        errors.append(f"inputs.{name} must be a file path or embedded input")
+    elif not config.input_path(name).is_file():
+        errors.append(f"inputs.{name} does not exist: {config.input_path(name)}")
 
 
 def _validate_format(value, name, errors):

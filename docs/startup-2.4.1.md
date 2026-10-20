@@ -90,4 +90,6 @@ Its fitted yields were 0.2501211870 and 0.2112826573 (fractions).
 
 The tests used the local Python 3.12.10 runtime with NumPy 2.5.3, SciPy 1.18.1,
 pandas 3.0.5, Matplotlib 3.11.2, Dash 3.4.0, and Plotly 6.9.0. No dependency
-versions were changed. The package remains version 2.4.1; no installer was rebuilt.
+versions were changed during this profiling work. These measurements were made
+on the 2.4.1 development branch; its changes are included in release 2.5.0.
+No installer was rebuilt during profiling.

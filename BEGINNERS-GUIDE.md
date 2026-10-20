@@ -270,7 +270,9 @@ Return to **AutoQY Analysis**. Work through its sections in order.
 ### 1 · Project
 
 Set **JSON base folder** to your experiment folder.
-A JSON file is a settings file: it records the files and numbers used for a run.
+A JSON file records the settings and, with **Include all input data in JSON**
+enabled, the complete input data. You can send that single file to another person
+without also sending the original spectra, reference files, or timestamps.
 
 If you already have `analysis.json`, load it instead of filling everything again.
 Keep related input files in the same experiment folder.
@@ -333,9 +335,10 @@ follow the tutorial.
 Leave **Expert optimizer settings** at their defaults to start:
 initial yields `0.5` and bounds `0–1`. These are starting guesses, not results.
 Under **Method-specific controls**, the regularization strength starts at `1`.
-If you measured PSS by NMR, enter the **stable/reactant** percentage in
-**Expected reactant at PSS (%)**. This is the opposite percentage to the
-metastable input used in Spectral Treatment.
+If you measured PSS by NMR, enter the **metastable photoproduct** percentage in
+**Expected metastable photoproduct at PSS (%)**. For 23% stable reactant and
+77% metastable product, enter **77**. This uses the same percentage as Spectral
+Treatment and is an optional diagnostic reference, not a fitting constraint.
 
 **Compare fit methods** compares results without ε errors and does not save
 result files. It does not replace your final analysis with uncertainty enabled.
@@ -355,7 +358,11 @@ The results list the fit/power error, ε error, and combined error separately.
 Choose where to save the analysis results and which files to write.
 These Analysis settings are separate from Spectral Treatment's Save As buttons.
 
-Click **Save JSON** to save your settings, then **Run analysis**.
+Leave **Include all input data in JSON (recommended)** enabled for a portable
+experiment. Click **Save JSON**, then **Run analysis**. To recover or share the
+experiment, load that JSON on any computer with this AutoQY build, choose a local
+results directory, and run. The original input files are not needed. Disable the
+option if you prefer the older file-link format.
 Running does not save `analysis.json` for you.
 Only enable overwrite when you want to replace an earlier run.
 

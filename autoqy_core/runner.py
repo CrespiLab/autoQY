@@ -6,7 +6,8 @@ from pathlib import Path
 
 import numpy as np
 
-from .config import AnalysisConfig, input_format, load_config, validate_config
+from .config import (AnalysisConfig, input_format, load_config, validate_config,
+                     self_contained_document)
 from .epsilon_uncertainty import (load_epsilon_envelope, load_epsilon_nominal,
                                   run_with_epsilon_uncertainty)
 from .io import load_spectra, load_spectrum, load_timestamps
@@ -139,6 +140,8 @@ def _write_outputs(config, data, result, output_directory):
 
     directory.mkdir(parents=True, exist_ok=True)
     wavelength = values["experiment"]["irradiation_wavelength_nm"]
+    snapshot = (self_contained_document(config) if output.get("embed_inputs", False)
+                and (output["write_json"] or output["write_config"]) else values)
     if output["write_text"]:
         write_results(stem.with_suffix(".txt"), result, data, wavelength)
     if output["write_figures"]:
@@ -147,12 +150,14 @@ def _write_outputs(config, data, result, output_directory):
         write_figure(stem, result, data, values["plots"]["absorbance_residual_percentile"])
     if output["write_json"]:
         summary = result_summary(result, data, wavelength)
+        if output.get("embed_inputs", False):
+            summary["configuration"] = snapshot
         (directory / f"{output['stem']}_results.json").write_text(
             json.dumps(summary, indent=2) + "\n", encoding="utf-8"
         )
     if output["write_config"]:
         (directory / f"{output['stem']}_config.json").write_text(
-            json.dumps(values, indent=2) + "\n", encoding="utf-8"
+            json.dumps(snapshot, indent=2) + "\n", encoding="utf-8"
         )
     if output.get("write_detailed_data", False):
         write_detailed_data(stem, result, data)

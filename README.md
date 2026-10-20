@@ -6,6 +6,8 @@
 
 AutoQY calculates photoisomerization quantum yields and helps prepare optical-power and spectral data.
 
+**Version 2.5.0** — see [what changed since the previous main release](RELEASE-NOTES-2.5.0.md).
+
 If you want to use the program on Windows, follow the quickstart below. 
 <details>
 <summary><strong>Advanced: manual installation on Windows, Linux, or macOS — click to expand</strong></summary>
@@ -184,3 +186,24 @@ Jacobian and spectral condition numbers remain under **Technical details**.
 The numerical checks and thresholds have not changed.
 
 For startup profiling and validation details, see [the startup notes](docs/startup-2.4.1.md).
+
+## Share a complete experiment as one JSON file
+
+In Analysis → Output, leave **Include all input data in JSON (recommended)**
+enabled and click **Save JSON**. The saved file includes the exact measurement
+spectra, both absorptivity references (including uncertainty columns), LED data
+when needed, timestamps, and analysis settings. You can move or send this one
+file without the original input files. Choose **Load existing analysis.json**
+on the receiving computer and select a local results directory before running.
+
+With this option enabled, result JSON and configuration snapshots written during
+a run also include the complete experiment. A result JSON can be opened with the
+same load button or passed to `autoqy-core run`. TXT/CSV/image outputs are still
+separate exports; they are not required to rerun the experiment.
+
+Disable the option to save file links for newly selected inputs. Data loaded from
+a self-contained file stays embedded unless you replace it using **Browse**.
+Existing path-based JSON remains supported. Self-contained files use schema
+version 2 and need this AutoQY 2.5.0 build or later; older builds cannot open them.
+Embedded files use lossless base64 data and SHA-256 integrity checks. This preserves
+binary formats and all numerical precision, at the cost of larger JSON files.

@@ -197,7 +197,7 @@ Leave the initial yields at **0.5** and the bounds at **0–1** under
 Under **Method-specific controls**, use:
 
 - concentration regularization strength: **1**;
-- expected reactant at PSS: **23%**.
+- expected metastable photoproduct at PSS: **77%** (equivalent to 23% remaining stable reactant).
 
 Notice the difference: Analysis asks for **23% reactant**;
 Reconstruction asked for **77% metastable**.

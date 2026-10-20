@@ -14,7 +14,8 @@ import warnings
 
 import numpy as np
 
-from ..config import AnalysisConfig, input_format, load_config, validate_config
+from ..config import (AnalysisConfig, input_format, load_config, validate_config,
+                      self_contained_document)
 from ..epsilon_uncertainty import load_epsilon_nominal
 from ..gui_window import serve_gui
 from ..io import load_spectra, load_spectrum, load_timestamps
@@ -183,6 +184,7 @@ def create_app():
             style={"height": f"{height}px", "minHeight": f"{height}px"},
         )
     app.layout = html.Div(className="app-shell analysis-app", children=[
+        dcc.Store(id="analysis-embedded-inputs", data={}),
         html.Header(className="app-header", children=[
             html.Div(className="analysis-header-brand", children=[
                 html.Img(src="/assets/autoqy-logo.svg", alt="AutoQY",
@@ -372,6 +374,9 @@ def create_app():
                     toggle("write_config", "Write configuration snapshot", True),
                     toggle("write_detailed", "Write detailed CSV data", True),
                     toggle("overwrite", "Allow replacing existing results", False),
+                    toggle("embed_inputs", "Include all input data in JSON (recommended)", True),
+                    html.Small("Share one JSON without the original files. Loaded embedded data "
+                               "stays included unless replaced using Browse.", className="helper-text"),
                     toggle("relative_paths", "Save absolute inputs as paths relative to JSON", True),
                 ]),
                 html.Section(className="panel action-panel", children=[
@@ -469,7 +474,9 @@ def create_app():
                              className="helper-text output-file-list"),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
-                    html.Summary("Live analysis.json preview"),
+                    html.Summary("Settings preview"),
+                    html.Small("Input data is omitted from this preview. With Include all input data "
+                               "enabled, Save JSON includes the complete data.", className="helper-text"),
                     dcc.Textarea(id="analysis-json-preview", readOnly=True,
                                  className="json-preview"),
                 ]),
@@ -509,14 +516,17 @@ def create_app():
     @app.callback(
         Output({"type": "analysis-field", "name": ALL}, "value"),
         Output("load-analysis-message", "children"),
+        Output("analysis-embedded-inputs", "data"),
         Input("load-analysis-json", "n_clicks"),
         Input("choose-analysis-folder", "n_clicks"),
         Input({"type": "browse-analysis-file", "name": ALL}, "n_clicks"),
         State({"type": "analysis-field", "name": ALL}, "value"),
         State({"type": "analysis-field", "name": ALL}, "id"),
+        State("analysis-embedded-inputs", "data"),
         prevent_initial_call=True,
     )
-    def select_paths(_, __, ___, current_values, field_ids):
+    def select_paths(_, __, ___, current_values, field_ids, embedded):
+        embedded = dict(embedded or {})
         values = dict(zip((item["name"] for item in field_ids), current_values))
         triggered = ctx.triggered_id
         message = ""
@@ -526,6 +536,7 @@ def create_app():
                 if selected:
                     config = load_config(selected)
                     values.update(_form_values(config.values))
+                    embedded = _embedded_form_inputs(config.values)
                     values["config_folder"] = str(config.base_directory)
                     message = f"Loaded {selected}"
             elif triggered == "choose-analysis-folder":
@@ -537,21 +548,27 @@ def create_app():
                 name = triggered["name"]
                 selected = _choose_file(values.get("config_folder"), _file_filter(name))
                 if selected:
+                    embedded.pop(name, None)
                     values[name] = selected
                     message = f"Selected {Path(selected).name}"
         except Exception as error:
             message = f"Could not select or load the file: {error}"
-        return [values.get(item["name"]) for item in field_ids], message
+        return [values.get(item["name"]) for item in field_ids], message, embedded
 
     @app.callback(
         Output("analysis-json-preview", "value"),
         Input({"type": "analysis-field", "name": ALL}, "value"),
         State({"type": "analysis-field", "name": ALL}, "id"),
+        State("analysis-embedded-inputs", "data"),
     )
-    def preview_json(current_values, field_ids):
+    def preview_json(current_values, field_ids, embedded):
         try:
             values = dict(zip((item["name"] for item in field_ids), current_values))
-            return json.dumps(_configuration(values), indent=2) + "\n"
+            document = _configuration(values, embedded)
+            for name, value in document["inputs"].items():
+                if isinstance(value, dict) and "data" in value:
+                    value["data"] = "<included in saved JSON; omitted from preview>"
+            return json.dumps(document, indent=2) + "\n"
         except Exception as error:
             return f"Cannot build JSON preview: {error}"
 
@@ -569,12 +586,13 @@ def create_app():
         Output("spectra-figure", "figure", allow_duplicate=True),
         Input({"type": "analysis-field", "name": ALL}, "value"),
         State({"type": "analysis-field", "name": ALL}, "id"),
+        State("analysis-embedded-inputs", "data"),
         prevent_initial_call=True,
     )
-    def preview_preprocessing(current_values, field_ids):
+    def preview_preprocessing(current_values, field_ids, embedded):
         values = dict(zip((item["name"] for item in field_ids), current_values))
         try:
-            document = _configuration(values)
+            document = _configuration(values, embedded)
             base = Path(values.get("config_folder") or Path.cwd()).expanduser().resolve()
             return _preprocessing_figure(
                 go, make_subplots, AnalysisConfig(document, base)
@@ -625,9 +643,10 @@ def create_app():
         Input("compare-fit-methods", "n_clicks"),
         State({"type": "analysis-field", "name": ALL}, "value"),
         State({"type": "analysis-field", "name": ALL}, "id"),
+        State("analysis-embedded-inputs", "data"),
         prevent_initial_call=True,
     )
-    def analyze(_, __, ___, current_values, field_ids):
+    def analyze(_, __, ___, current_values, field_ids, embedded):
         values = dict(zip((item["name"] for item in field_ids), current_values))
         blank_card = [html.Span("R → P"), html.Strong("—"), html.Small("Quantum yield")]
         blank_back = [html.Span("P → R"), html.Strong("—"), html.Small("Quantum yield")]
@@ -642,7 +661,7 @@ def create_app():
         ]
         blank_comparison = ""
         try:
-            document = _configuration(values)
+            document = _configuration(values, embedded)
             base = Path(values.get("config_folder") or Path.cwd()).expanduser().resolve()
             config = AnalysisConfig(document, base)
             validate_config(config)
@@ -667,7 +686,9 @@ def create_app():
                             *blank_figures, diagnostics, diagnostics_open, blank_comparison,
                             "No analysis was run.", "")
                 target = Path(selected)
-                saved = _portable_document(document, target.parent) if _on(values, "relative_paths") else document
+                saved = (self_contained_document(config) if _on(values, "embed_inputs")
+                         else _portable_document(document, target.parent, base)
+                         if _on(values, "relative_paths") else document)
                 validate_config(AnalysisConfig(saved, target.parent))
                 target.write_text(json.dumps(saved, indent=2) + "\n", encoding="utf-8")
                 return (f"Saved and validated {target}", "message status-message status-ok",
@@ -762,7 +783,7 @@ def _complement_percent(value):
     return 100.0 - value
 
 
-def _configuration(values):
+def _configuration(values, embedded=None):
     use_actinometer = _on(values, "chemical_actinometer")
     configured_inputs = tuple(
         item for item in (*SPECTRAL_INPUTS, TIMESTAMP_INPUT)
@@ -778,7 +799,7 @@ def _configuration(values):
                 header=_on(values, f"header_{name}"),
             )
         formats[name] = specification
-    return {
+    document = {
         "schema_version": 1,
         "analysis": {
             "id": values.get("analysis_id") or "",
@@ -838,8 +859,18 @@ def _configuration(values):
             "write_config": _on(values, "write_config"),
             "write_detailed_data": _on(values, "write_detailed"),
             "overwrite": _on(values, "overwrite"),
+            "embed_inputs": _on(values, "embed_inputs"),
         },
     }
+    for name, item in (embedded or {}).items():
+        if name in document["inputs"] and values.get(name) == item["label"]:
+            document["inputs"][name] = deepcopy(item["input"])
+            if document["inputs"]["formats"][name]["type"] == item["format"].get("type"):
+                document["inputs"]["formats"][name] = {
+                    **item["format"], **document["inputs"]["formats"][name],
+                }
+            document["schema_version"] = 2
+    return document
 
 
 def _form_values(document):
@@ -894,10 +925,12 @@ def _form_values(document):
         "write_detailed": _toggle_value(output.get("write_detailed_data", False)),
         "overwrite": _toggle_value(output["overwrite"]),
         "relative_paths": ["on"],
+        "embed_inputs": _toggle_value(output.get("embed_inputs", True)),
     }
     formats = inputs.get("formats", {})
     for name, _ in (*SPECTRAL_INPUTS, TIMESTAMP_INPUT):
-        values[name] = inputs.get(name, "")
+        value = inputs.get(name, "")
+        values[name] = (f"Embedded: {value['filename']}" if isinstance(value, dict) else value)
         spec = formats.get(name, "ahk_csv" if name == "timestamps" else "spectragryph_tsv")
         spec = {"type": spec} if isinstance(spec, str) else spec
         values[f"format_{name}"] = spec.get("type")
@@ -906,12 +939,29 @@ def _form_values(document):
     return values
 
 
-def _portable_document(document, folder):
+def _embedded_form_inputs(document):
+    values = _form_values(document)
+    config = AnalysisConfig(document, Path.cwd())
+    result = {}
+    for name, _ in (*SPECTRAL_INPUTS, TIMESTAMP_INPUT):
+        value = document["inputs"].get(name)
+        if isinstance(value, dict):
+            spec = input_format(config, name)
+            result[name] = {"label": values[name], "input": deepcopy(value),
+                            "format": {"type": spec} if isinstance(spec, str) else deepcopy(spec)}
+    return result
+
+
+def _portable_document(document, folder, base=None):
     copied = json.loads(json.dumps(document))
     for name, _ in (*SPECTRAL_INPUTS, TIMESTAMP_INPUT):
         if name not in copied["inputs"]:
             continue
+        if isinstance(copied["inputs"][name], dict):
+            continue
         path = Path(copied["inputs"][name]).expanduser()
+        if base is not None and not path.is_absolute():
+            path = (Path(base) / path).resolve()
         if path.is_absolute():
             try:
                 copied["inputs"][name] = str(path.relative_to(folder))

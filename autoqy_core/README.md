@@ -1,6 +1,6 @@
 # AutoQY Core configuration
 
-One `analysis.json` contains every input path, unit-bearing experimental value,
+One `analysis.json` contains every embedded input or input path, unit-bearing experimental value,
 processing choice, fit setting, plot setting, and output instruction required
 for a reproducible quantum-yield run. Relative paths are resolved from the JSON
 file location.
@@ -10,7 +10,20 @@ Power-monitor processing is intentionally separate; see
 
 ## Minimal files for one analysis
 
-A run needs the installed `autoqy_core` package and six experiment files:
+A self-contained run needs the installed `autoqy_core` package and one analysis
+JSON file. Schema version 2 stores input contents directly in `inputs` as objects
+with `filename`, `encoding: "base64"`, `data`, and `sha256`. Formats remain in
+`inputs.formats`. Exact source bytes retain binary formats and uncertainty columns.
+The loader checks integrity and gives the existing readers private temporary
+copies; there is no dependency on the sender's folders or original files.
+
+The Python helper `self_contained_document(config)` creates this document from a
+validated `AnalysisConfig`. `outputs.embed_inputs: true` includes it in saved
+configuration snapshots and under `configuration` in result JSON. `load_config`
+also accepts those result JSON files. Existing schema version 1 file paths remain
+supported; older AutoQY builds cannot read embedded schema version 2 inputs.
+
+For the older path-based format, a run uses six experiment files:
 
 - `analysis.json`;
 - time-series absorbance spectra;
@@ -58,14 +71,16 @@ Run `autoqy-core analysis-gui` to build a complete `analysis.json`, load an
 existing configuration, or run an analysis. Its six control panels cover the
 project location and files, experiment, fit, uncertainty, and output settings.
 Native file and folder selectors are available for local paths, and the live
-JSON preview shows the configuration being constructed.
+settings preview omits embedded data to keep the preview responsive.
 
 Both **Save JSON** and **Run analysis** validate every referenced file and
 setting. There is no separate validation button. **Run analysis** does not save
 the editable `analysis.json`; **Save JSON** does. The
 `outputs.write_config` option independently controls the configuration snapshot
-written beside analysis results. Portable JSON can store input paths relative
-to the saved JSON file.
+written beside analysis results. **Include all input data in JSON** is enabled
+by default for new GUI saves. Disable it to retain file links; linked absolute
+paths can be made relative to the saved JSON file. Already embedded inputs stay
+embedded until replaced using Browse.
 
 As soon as the four spectral inputs are loaded, **Preprocessing** shows the
 reactant/product epsilon spectra with the processed LED above the measured
