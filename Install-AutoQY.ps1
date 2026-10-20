@@ -360,8 +360,8 @@ function Write-LauncherFiles {
 
     $guiShortcutPath = Join-Path $shortcutDirectory "AutoQY Power GUI.lnk"
     $guiShortcut = $shell.CreateShortcut($guiShortcutPath)
-    $guiShortcut.TargetPath = $coreCommand
-    $guiShortcut.Arguments = "power-gui"
+    $guiShortcut.TargetPath = Join-Path $EnvironmentPath "Scripts\autoqy-power-gui.exe"
+    $guiShortcut.Arguments = ""
     $guiShortcut.WorkingDirectory = $ProjectRoot
     $guiShortcut.Description = "Open the AutoQY power-treatment GUI"
     $guiShortcut.IconLocation = "$guiIcon,0"
@@ -369,8 +369,8 @@ function Write-LauncherFiles {
 
     $smootherShortcutPath = Join-Path $shortcutDirectory "AutoQY Spectral Treatment.lnk"
     $smootherShortcut = $shell.CreateShortcut($smootherShortcutPath)
-    $smootherShortcut.TargetPath = $coreCommand
-    $smootherShortcut.Arguments = "smoother-gui"
+    $smootherShortcut.TargetPath = Join-Path $EnvironmentPath "Scripts\autoqy-smoother-gui.exe"
+    $smootherShortcut.Arguments = ""
     $smootherShortcut.WorkingDirectory = $ProjectRoot
     $smootherShortcut.Description = "Open the AutoQY spectral treatment GUI"
     $smootherShortcut.IconLocation = "$smootherIcon,0"
@@ -378,8 +378,8 @@ function Write-LauncherFiles {
 
     $analysisShortcutPath = Join-Path $shortcutDirectory "AutoQY Analysis GUI.lnk"
     $analysisShortcut = $shell.CreateShortcut($analysisShortcutPath)
-    $analysisShortcut.TargetPath = $coreCommand
-    $analysisShortcut.Arguments = "analysis-gui"
+    $analysisShortcut.TargetPath = Join-Path $EnvironmentPath "Scripts\autoqy-analysis-gui.exe"
+    $analysisShortcut.Arguments = ""
     $analysisShortcut.WorkingDirectory = $ProjectRoot
     $analysisShortcut.Description = "Build, save, run, and inspect AutoQY analyses"
     $analysisShortcut.IconLocation = "$analysisIcon,0"
@@ -399,6 +399,7 @@ function Write-LauncherFiles {
         "-ProjectRoot `"$ProjectRoot`" " +
         "-EnvironmentName `"$EnvironmentName`" " +
         "-CondaCommand `"$CondaCommand`" " +
+        "-EnvironmentPath `"$EnvironmentPath`" " +
         "-ShortcutDirectory `"$shortcutDirectory`""
     )
     $uninstallShortcut.WorkingDirectory = $desktop

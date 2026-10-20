@@ -1,5 +1,6 @@
 import tomllib
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import numpy as np
@@ -50,6 +51,12 @@ class ProjectVersionTests(unittest.TestCase):
 
 @unittest.skipUnless(html is not None, "Dash GUI dependencies are not installed")
 class GuiLayoutTests(unittest.TestCase):
+    def setUp(self):
+        recovery = patch("autoqy_core.tools.spectral_recovery.SpectralRecovery.read",
+                         return_value=None)
+        recovery.start()
+        self.addCleanup(recovery.stop)
+
     def test_every_gui_displays_the_project_version(self):
         expected = f"Version {get_project_version()}"
         for app in (create_power_app(), create_spectral_app(), create_analysis_app()):
@@ -61,12 +68,18 @@ class GuiLayoutTests(unittest.TestCase):
             self.assertIn(expected, visible_text)
             self.assertNotIn("AUTOQY CORE", visible_text.upper())
 
-    def test_every_gui_closes_its_page_when_the_terminal_stops(self):
-        for app in (create_power_app(), create_spectral_app(), create_analysis_app()):
+    def test_power_and_analysis_close_their_page_when_the_terminal_stops(self):
+        for app in (create_power_app(), create_analysis_app()):
             self.assertIn("window.setInterval(heartbeat, 1000)", app.index_string)
             self.assertIn("window.close()", app.index_string)
             self.assertIn("AutoQY GUI stopped", app.index_string)
             self.assertIn("restart the AutoQY GUI to continue", app.index_string)
+
+    def test_spectral_connection_failures_keep_the_page_available_for_recovery(self):
+        app = create_spectral_app()
+        self.assertNotIn("window.close()", app.index_string)
+        self.assertNotIn("document.body.innerHTML", app.index_string)
+        self.assertIn("Connection interrupted", app.index_string)
 
     def test_power_gui_stops_its_server_when_the_browser_closes(self):
         app = create_power_app()
@@ -89,22 +102,24 @@ class GuiLayoutTests(unittest.TestCase):
 
     def test_spectral_default_filename_copy_is_short(self):
         app = create_spectral_app()
-        self.assertEqual(_by_id(app.layout, "save-filename").placeholder, "Default name")
+        self.assertFalse(any(getattr(component, "id", None) == "save-filename" for component in _components(app.layout)))
 
-    def test_spectral_export_buttons_precede_the_plot_options(self):
+    def test_spectral_save_controls_are_only_in_output(self):
         app = create_spectral_app()
-        toolbar = next(
+        output = next(
             component for component in _components(app.layout)
-            if getattr(component, "className", None) == "plot-toolbar"
-            and any(getattr(child, "id", None) == "save-epsilon-png"
-                    for child in _components(component))
+            if isinstance(component, html.Details)
+            and "5 · Output" in str(component.children[0])
         )
-        first_ids = [
+        output_ids = [
             getattr(component, "id", None)
-            for component in _components(toolbar.children[0])
+            for component in _components(output)
         ]
-        self.assertIn("save-epsilon-png", first_ids)
-        self.assertIn("save-epsilon-svg", first_ids)
+        for identity in ("save-epsilon-png", "save-epsilon-svg", "export-epsilon", "save-session"):
+            self.assertIn(identity, output_ids)
+        for removed in ("save-slice-png", "save-slice-svg", "save-nmr-png", "save-nmr-svg",
+                        "save-folder", "save-filename", "session-filename"):
+            self.assertNotIn(removed, output_ids)
 
     def test_analysis_has_no_validate_button_and_explains_json_saving(self):
         app = create_analysis_app()

@@ -1,214 +1,243 @@
-# Tutorial: 395 nm analysis with ε uncertainty
+# Tutorial: the 395 nm example
 
-This tutorial begins with three independently prepared reactant solutions and
-finishes with a quantum-yield fit that propagates wavelength-resolved errors in
-both reactant and product molar absorptivity.
+This example shows how to calculate stable and metastable ε, then use them
+to calculate quantum yields.
 
-## Files and experimental values
+Here, the **reactant** is the stable isomer and the **product** is the metastable
+isomer. ε means molar absorptivity: how strongly the compound absorbs light
+after allowing for concentration and cuvette path length.
 
-| File | Purpose | Concentration |
-| --- | --- | ---: |
-| `crespi_group_inputs/source_data/2107362U1_0001A.Abs8` | Reactant measurement 1 | 6.82e-5 M |
-| `crespi_group_inputs/source_data/2107362U1_0001B.Abs8` | Reactant measurement 2 | 6.87e-5 M |
-| `crespi_group_inputs/source_data/2107362U1_0001C.Abs8` | Reactant measurement 3 | 6.80e-5 M |
-| `crespi_group_inputs/source_data/reactant_pss.dat` | Pure reactant and final PSS spectra | 23% reactant at PSS |
-| `generic_inputs/led_emission.csv` | Generic LED emission | — |
-| `generic_inputs/measurement_spectra.csv` | Generic time-resolved absorbance | — |
-| `generic_inputs/timestamps.csv` | Generic irradiation times | — |
+All paths below start in `ExampleData/Example-4_395nm-EpsilonError`.
 
-The optical path length is 1 cm. The irradiation power is 1.46 ± 0.03 mW.
-The sample volume is 1995 µL and the thermal back-reaction rate is 6.3e-5 s⁻¹.
+## Want to try the analysis first?
 
-Ready-to-run CSV files are bundled under `generic_inputs`; the original TSV
-and instrument files are under `crespi_group_inputs`. The following steps
-regenerate the processed inputs from the source spectra.
+The `generic_inputs` folder already contains the prepared files.
 
-## 1. Open Spectral Treatment from the Analysis GUI
+1. Open the **AutoQY** folder on your Desktop and double-click **AutoQY Analysis GUI**.
+2. In **1 · Project**, load `generic_inputs/analysis.json`.
+3. Check that **JSON base folder** is the `generic_inputs` folder.
+4. Check the output folder before running. The included settings allow overwriting.
+5. Click **Run analysis**.
 
-Start **AutoQY Analysis**, expand **1 · Project**, and select
-**Open Spectral Treatment**. Spectral Treatment opens separately so its exports
-can then be selected in the Analysis GUI.
+To prepare the spectra yourself, start below. Save your new files in a separate
+folder, such as `my_395nm_inputs`, so you do not replace the included files.
 
-## 2. Calculate reactant molar absorptivity
+## 1. Open Spectral Treatment
 
-1. Under **1 · Data**, select **Open files from folder** and load the three
-   `.Abs8` files together, in numeric order.
-2. Under **2 · Range**, set the wavelength range to **250–700 nm**.
-3. Expand **Preprocess spectra**, set the baseline interval to **600–650 nm**,
-   press **Enter** or leave each number field to apply it, and enable
-   **Baseline**.
-4. Select **SavGol**, then set a **5 nm** window and polynomial order **3**.
-5. Leave **SVD off**. These are independent preparations, not an ordered time
-   series; SVD would mix their genuine between-sample variation.
-6. Under **3 · Beer–Lambert**, enter the concentrations in the same file order:
-   **6.82e-5**, **6.87e-5**, and **6.80e-5 mol/L**. Enter **1 cm** for every
-   path length.
-7. Inspect the individual ε traces, mean, and shaded error band. Large
-   structured differences between measurements should be investigated before
-   export; the band is not a substitute for inspecting the spectra.
-8. Under **4 · Output**, choose the Example 4 folder, set the CSV name to
-   `reactant_absorptivity.csv`, and select **Save processed CSV**. The file
-   contains processed absorbance, individual ε curves, their mean, SD, SEM,
-   and non-negative limits.
+In AutoQY Analysis, open **1 · Project** and click **Open Spectral Treatment**.
+A second window opens.
 
-Before all Beer–Lambert values are entered, the processed-absorbance preview
-shows only the corrected spectra. Original spectra are hidden by default;
-enable **Show original** above the plot when you want the raw and corrected
-curves together. That choice also applies to a saved absorbance PNG or SVG.
+## 2. Calculate stable-isomer ε
 
-The bundled generic result is `reactant_absorptivity.csv`. If the GUI proposes a different
-name, select or rename the export before using it in the analysis configuration.
+In Spectral Treatment:
 
-This example has only three spectra. For kinetic files with more than 60
-spectra, Spectral Treatment plots an evenly spaced preview of at most 60,
-including the endpoints, but processes and exports the complete dataset.
-Per-spectrum Beer–Lambert inputs are intentionally unavailable for those large
-series.
+1. Open **1 · Data** and load these three files from
+   `crespi_group_inputs/source_data`:
 
-## 3. Derive product ε from the PSS composition
+   - `2107362U1_0001A.Abs8`
+   - `2107362U1_0001B.Abs8`
+   - `2107362U1_0001C.Abs8`
+2. In **2 · Range**, enter **250** and **700** nm.
+3. Open **Preprocess spectra**. Set the baseline to **600–650 nm** and turn
+   **Baseline** on. Press Enter after typing numbers, or click outside the field.
+4. Choose **SavGol**, with a **5 nm** window and order **3**.
+5. Leave **SVD off**. These are separate sample preparations; keep the
+   differences between them so AutoQY can estimate the error.
+6. Open **3 · Beer–Lambert** and enter:
 
-1. Keep the calculated reactant ε loaded in Spectral Treatment.
-2. Expand **5 · Optional — NMR-guided PSS subtraction** and load
-   `crespi_group_inputs/source_data/reactant_pss.dat`. Its first spectrum is the pure reactant and
-   its last spectrum is the final PSS.
-3. Under **Preprocess reactant and PSS**, apply the same **600–650 nm** baseline
-   and **Savitzky–Golay 5 nm / order 3** settings.
-4. Enter **23** for **Reactant in final PSS (%)**.
-5. Enter the experimental NMR uncertainty. The bundled product file uses the
-   GUI default of **1%**. Change this value when a different uncertainty is
-   justified by the composition measurement.
-6. Inspect the normalized reactant and PSS curves and the reconstructed product
-   ε. The calculation is:
+| File ending | Concentration (mol/L) | Path length (cm) |
+| --- | ---: | ---: |
+| `0001A.Abs8` | `6.82e-5` | `1` |
+| `0001B.Abs8` | `6.87e-5` | `1` |
+| `0001C.Abs8` | `6.80e-5` | `1` |
 
-   `product = (PSS − 0.23 × reactant) / (1 − 0.23)`
+7. Check that the three ε curves are similar. If one is far from the others,
+   check the file order and concentrations before continuing.
+8. In **5 · Output**, choose **Processed dataset / calculated ε** under
+   **Content to save**. Click **Save CSV**.
+9. In Save As, choose your new folder and name the file
+   `reactant_absorptivity.csv`.
 
-7. Review any negative-value warning. Small negative results down to
-   −500 M⁻¹ cm⁻¹ remain visible for diagnosis; values below that threshold stop
-   export. By default, the primary exported product ε is constrained to
-   zero while the raw audit column is retained.
-8. Set the optional reactant and product file names to
-   `reactant_absorptivity.csv` and `product_absorptivity.csv`, then select
-   **Save reactant + NMR-derived ε CSVs**.
+This file contains the three ε curves, their average, SD, and SEM.
+**SD** describes differences between samples. **SEM** is the error estimated
+for the average; it is smaller.
 
-The product bounds combine the reactant measurement SD with the selected NMR
-composition error. They are therefore asymmetric and wavelength dependent.
+Original absorbance curves are hidden by default after treatment.
+Use **Show original** if you want to compare them with the treated curves.
 
-## 4. Build the quantum-yield analysis
+## 3. Calculate metastable ε from the PSS mixture
 
-Return to **AutoQY Analysis**. You may load the bundled
-`generic_inputs/analysis.json` and
-inspect each section, or enter the following values manually.
+The final mixture contains **23% stable isomer** and **77% metastable isomer**,
+measured by NMR. Enter the metastable percentage in Reconstruction.
 
-### Project and data
+1. Make sure you saved the ε CSV from step 2.
+2. Click **Clear all spectra**. Load
+   `crespi_group_inputs/source_data/reactant_pss.dat` into **1 · Data**.
+3. Keep the same settings: **250–700 nm**, baseline **600–650 nm**,
+   **SavGol 5 nm / order 3**, and **SVD off**.
+4. Open **4 · Reconstruction → Reconstruct spectrum**.
+5. Select the first spectrum as **Stable spectrum** and the last
+   as **PSS spectrum**.
+6. Drop your saved `reactant_absorptivity.csv` into
+   **Stable ε reference (optional)**.
+   You can use `generic_inputs/reactant_absorptivity.csv` instead.
+7. Enter **77** for **Metastable (%)**.
+8. Leave composition uncertainty at **1** percentage point and choose
+   **Replicate SD**. Use zero only if you want to leave the NMR error out.
+9. Click **Reconstruct**.
 
-- JSON base folder: the `Example-4_395nm-EpsilonError/generic_inputs` directory.
-- Analysis ID: `example_395nm_epsilon_error`.
-- Measurement spectra: `measurement_spectra.csv`.
-- Reactant molar absorptivity: `reactant_absorptivity.csv`.
-- Product molar absorptivity: `product_absorptivity.csv`.
-- LED emission: `led_emission.csv`.
-- Irradiation timestamps: `timestamps.csv`.
-- Spectral formats: **Generic CSV (recommended)**.
-- Timestamp format: **Generic CSV (recommended)**.
+The initial and PSS absorbance curves come from the main window.
+The dropped ε file provides the scale and error from the stable-isomer samples.
+It does not replace those UV measurements. Both UV measurements must have the
+same total concentration and path length.
 
-Store input paths relative to the JSON folder so the example remains portable.
+For this mixture, the subtraction is:
 
-### LED processing
+`metastable = (PSS − 0.23 × stable) / 0.77`
 
-Use **250–800 nm**, Savitzky–Golay window **12 points**, polynomial order **3**,
-and baseline correction with exclusion multiplier **10**. This processing is
-only for the LED spectrum; it is distinct from treating absorbance spectra.
+The plot shows stable, PSS, and metastable ε. The error bands use the stable ε
+error and the NMR composition error. No PSS measurement error is added.
+The upper and lower errors need not be equal.
+
+### Check and save
+
+Small negative values near zero can come from noise. Large negative peaks
+need checking. Values below **−500 M⁻¹ cm⁻¹** stop export.
+
+1. In **5 · Output**, choose **Stable + reconstructed ε (pair)**.
+2. Click **Save CSV**. Two Save As dialogs open.
+3. Save the stable file as `reactant_absorptivity.csv` and the metastable file
+   as `product_absorptivity.csv` in your new folder.
+   The stable file may replace the one saved in step 2; confirm only if intended.
+
+Negative values are kept by default. To set negative values to zero in the
+main exported columns, tick **Convert negative absorbance and ε values to 0**.
+The metastable CSV also keeps the original calculated values in a separate column.
+
+For a figure, open **Save figures** and click **Save PNG** or **Save SVG**.
+The same content choice is used. **Image export options** lets you hide the
+title, legend, or axis labels. **Minimal colors** uses blue, orange, black,
+and grey. Normalized absorbance curves are not included in the reconstruction plot.
+
+If you only want reconstructed absorbance, leave the ε reference empty.
+That result can be saved too, but it is not the product ε file needed for Analysis.
+
+To stop and continue later, click **Save session (.aqys)**.
+Drop the saved session into **1 · Data** to reopen it.
+
+## 4. Set up Analysis
+
+Return to **AutoQY Analysis**.
+
+If using the included prepared files, load `generic_inputs/analysis.json`.
+If using your new ε files, put copies of these files from `generic_inputs`
+in your new folder too:
+
+- `measurement_spectra.csv`
+- `led_emission.csv`
+- `timestamps.csv`
+
+Then load the example JSON and update its base folder and input paths.
+Check the settings below.
+
+### Project and files
+
+Set **JSON base folder** to the folder containing the five input CSVs.
+In **2 · Identity and data**, select:
+
+| Input | File |
+| --- | --- |
+| Measurement spectra | `measurement_spectra.csv` |
+| Reactant molar absorptivity | `reactant_absorptivity.csv` |
+| Product molar absorptivity | `product_absorptivity.csv` |
+| LED emission | `led_emission.csv` |
+| Irradiation timestamps | `timestamps.csv` |
+
+Use **Generic CSV (recommended)** for the spectral and timestamp formats.
+Use `example_395nm_epsilon_error` as the analysis ID. In **Output stem**, enter
+`Results_395nm_EpsilonError`. Saved result file names will start with this text.
+
+### LED settings
+
+In the LED **Processing** section, use:
+
+- wavelength range: **250–800 nm**;
+- smoothing window: **12 points**;
+- polynomial order: **3**;
+- baseline correction: **on**;
+- baseline exclusion multiplier: **10**.
+
+These settings apply to the LED file, not the absorbance spectra.
+The LED window is in points; the Spectral Treatment window was in nm.
 
 ### Experiment
 
-- Sample volume: **1995 µL**.
-- Path length: **1 cm**.
-- Power: **1.46 mW**.
-- Power error: **0.03 mW**.
-- Irradiation wavelength: **395 nm**.
-- Thermal back-reaction: **6.3e-5 s⁻¹**.
-- Thermal forward reaction: **0 s⁻¹**.
+In **3 · Experiment**, enter:
 
-The irradiation wavelength is metadata and a consistency marker. Photon flux
-uses the complete processed LED emission spectrum rather than a single value.
+| Field | Value |
+| --- | ---: |
+| Sample volume | **1995 µL** |
+| Path length | **1 cm** |
+| Power | **1.46 mW** |
+| Power error | **0.03 mW** |
+| Irradiation wavelength | **395 nm** |
+| Thermal P→R rate | **6.3e-5 s⁻¹** |
+| Thermal R→P rate | **0 s⁻¹** |
 
-### Kinetic model
+Leave chemical-actinometer mode off for this example.
+AutoQY uses the LED spectrum and measured power to calculate photon flux.
 
-Select **Regularized concentrations**. Expand **Expert optimizer settings** for:
+### Fit
 
-- Initial Φ R→P: **0.5**.
-- Initial Φ P→R: **0.5**.
-- Bounds: **0–1**.
-- Concentration regularization strength: **1**.
-- Expected reactant at PSS: **23%**.
+In **4 · Fit**, choose **Regularized concentrations**.
 
-The other method-specific values can remain at emission threshold **0.01**,
-absorbance baseline order **1**, and robust-loss scale **0.02**. They are stored
-for reproducibility but only affect methods that use them.
+Leave the initial yields at **0.5** and the bounds at **0–1** under
+**Expert optimizer settings**. These are starting guesses.
 
-Available fitting methods are:
+Under **Method-specific controls**, use:
 
-- **Regularized concentrations**: conserves total concentration and softly
-  regularizes fractions to a free exponential envelope; used in this example.
-- **Full-spectrum ODE absorbance**: jointly fits kinetics and the complete
-  absorbance matrix, with optional spectral baselines.
-- **Concentrations (legacy pure NNLS)**: independent NNLS decomposition at every time,
-  followed by the kinetic fit.
-- **Emission (legacy)**: fits absorbance only in the active LED band and assumes
-  initially pure reactant.
+- concentration regularization strength: **1**;
+- expected metastable photoproduct at PSS: **77%** (equivalent to 23% remaining stable reactant).
 
-Use **Compare fit methods** to inspect nominal-method sensitivity. Comparison
-runs without ε uncertainty and writes no result files; it does not replace
-the selected uncertainty-enabled analysis.
+Notice the difference: Analysis asks for **23% reactant**;
+Reconstruction asked for **77% metastable**.
 
-### ε range
+### Uncertainty
 
-Under **5 · Uncertainty** choose:
+In **5 · Uncertainty**, select **ε range** and **Standard deviation** (SD).
 
-- ε uncertainty: **ε range**.
-- Repeat-spectrum error metric: **Standard deviation (SD)**.
+AutoQY repeats the calculation using the lower, central, and upper ε values.
+For the metastable form, it uses the upper and lower limits saved during
+Reconstruction. The results show fit/power error, ε error, and combined error.
 
-SD represents the observed variation among the three independent preparations.
-SEM is also available, but represents uncertainty in their mean and is smaller;
-select it only when that interpretation matches the scientific question.
+## 5. Run and check the results
 
-AutoQY evaluates lower, nominal, and upper wavelength-resolved ε curves
-for both species. The reactant uses mean ± SD with non-negative bounds. The
-NMR-derived product uses its asymmetric exported bounds. The result separates
-optimizer/power, ε, and combined quantum-yield uncertainty contributions.
+1. In **6 · Output**, set **Results directory** to `results`.
+2. Enable text, figures, JSON, configuration, and detailed-data exports.
+   Enable overwrite only if you want to replace an earlier run.
+3. Click **Save JSON** to save your settings.
+4. Click **Run analysis**. Running alone does not save `analysis.json`.
+5. Read any amber or red warnings. Click their information buttons for details.
+6. Check **Concentrations**, **Endpoint reconstruction**, and
+   **Absorbance residuals**. The calculated spectra should follow the measured
+   spectra; large differences or clear patterns in the residuals need checking.
 
-The JSON retains `deterministic_extremes` as the backward-compatible internal
-method identifier.
+**Compare fit methods** is an extra check. It runs without ε uncertainty and
+does not save results. Compare **Regularized concentrations** with
+**Full-spectrum ODE absorbance**. If they disagree badly, investigate.
 
-### Output and analysis
+With the included files and settings, expect roughly:
 
-Set the output directory to `results`, use stem
-`Results_395nm_EpsilonError`, enable text, figures, JSON, configuration, and
-detailed-data exports, and enable overwrite only when replacing previous runs
-is intentional.
+- **Φ R→P: 25.0 ± 1.2%**
+- **Φ P→R: 21 ± 3%**
+- **PSS: 23.3% reactant**
 
-1. Select **Run analysis**. This validates the configuration but does not save
-   `analysis.json`; use **Save JSON** separately when you want that file.
-2. Review amber or red diagnostics through their information popovers. A red
-   diagnostic opens the panel automatically.
-3. Inspect concentrations, fraction residuals, preprocessing,
-   reference/reconstruction plots, and the wavelength-resolved residual map.
+Newly prepared ε files or different treatment settings can change the numbers
+slightly. Use the included files when checking against these results.
 
-Long quantum-yield values and fit descriptions wrap within their result cards.
-The fit-method comparison also wraps long method names; on a narrow window,
-scroll its table horizontally to see every result column.
+## Optional: run from a terminal
 
-For the bundled files, the expected result is approximately:
-
-- Φ R→P = **25.0 ± 1.2%**.
-- Φ P→R = **21 ± 3%**.
-- Extrapolated PSS = **23.3% reactant**.
-
-Small differences can result if preprocessing or uncertainty settings differ.
-
-## 5. Terminal equivalent
-
-From the repository root:
+From the repository folder:
 
 ```text
 autoqy-core validate ExampleData/Example-4_395nm-EpsilonError/generic_inputs/analysis.json

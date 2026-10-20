@@ -14,3 +14,14 @@ ANALYSIS_TRACE_PALETTE = (
     PLOT_BROWN,
     PLOT_NEUTRAL,
 )
+
+# Okabe–Ito colours; omit yellow, which is faint on the white plot background.
+COLORBLIND_TRACE_PALETTE = (
+    "#0072B2",  # blue
+    "#E69F00",  # orange
+    "#009E73",  # bluish green
+    "#D55E00",  # vermilion
+    "#CC79A7",  # reddish purple
+    "#56B4E9",  # sky blue
+    "#000000",  # black
+)

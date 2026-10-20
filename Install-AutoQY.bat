@@ -3,6 +3,8 @@ setlocal
 cd /d "%~dp0"
 
 echo AutoQY installer
+echo To choose a different installation folder, answer No when asked about the current folder,
+echo then copy and paste its full path.
 echo.
 
 set "AUTOQY_BRANCH="
@@ -21,8 +23,16 @@ if errorlevel 1 (
 echo Selected branch: %AUTOQY_BRANCH%
 echo.
 
-set "AUTOQY_PS1_TARGET=%~dp0Install-AutoQY.ps1"
+set "AUTOQY_BOOTSTRAP_DIR=%TEMP%\AutoQY-installer-%RANDOM%-%RANDOM%"
+set "AUTOQY_PS1_TARGET=%AUTOQY_BOOTSTRAP_DIR%\Install-AutoQY.ps1"
 set "AUTOQY_PS1_URL=https://raw.githubusercontent.com/CrespiLab/autoQY/%AUTOQY_BRANCH%/Install-AutoQY.ps1"
+set "AUTOQY_EXIT=1"
+
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "New-Item -ItemType Directory -Path $env:AUTOQY_BOOTSTRAP_DIR -ErrorAction Stop | Out-Null"
+if errorlevel 1 (
+    echo Could not create a temporary installer folder. Check your TEMP folder and try again.
+    goto finish
+)
 
 echo PowerShell installer URL for branch "%AUTOQY_BRANCH%":
 echo %AUTOQY_PS1_URL%
@@ -34,8 +44,7 @@ if errorlevel 1 (
     echo Could not download Install-AutoQY.ps1 from:
     echo %AUTOQY_PS1_URL%
     echo GitHub may be unavailable, the branch name may be incorrect, or the installer location may have changed.
-    set /p "AUTOQY_CLOSE=Press Enter to close: "
-    exit /b 1
+    goto cleanup
 )
 
 echo Ready. Starting installation of branch "%AUTOQY_BRANCH%"...
@@ -43,15 +52,12 @@ echo.
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%AUTOQY_PS1_TARGET%" -Branch "%AUTOQY_BRANCH%" -InstallerSourceUrl "%AUTOQY_PS1_URL%" -NoClosePrompt %*
 set "AUTOQY_EXIT=%ERRORLEVEL%"
 
-if exist "%AUTOQY_PS1_TARGET%" (
-    echo Removing the downloaded PowerShell installer...
-    del /f /q "%AUTOQY_PS1_TARGET%"
-    if exist "%AUTOQY_PS1_TARGET%" (
-        echo Warning: could not remove %AUTOQY_PS1_TARGET%
-    ) else (
-        echo Downloaded PowerShell installer removed.
-    )
-)
+:cleanup
+echo Removing temporary installer files...
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Remove-Item -LiteralPath $env:AUTOQY_PS1_TARGET, ($env:AUTOQY_PS1_TARGET+'.download') -Force -ErrorAction SilentlyContinue; [System.IO.Directory]::Delete($env:AUTOQY_BOOTSTRAP_DIR, $false)"
+if errorlevel 1 echo Warning: could not remove all temporary files in "%AUTOQY_BOOTSTRAP_DIR%".
+
+:finish
 echo.
 if not "%AUTOQY_EXIT%"=="0" (
     echo The installer stopped with exit code %AUTOQY_EXIT%.

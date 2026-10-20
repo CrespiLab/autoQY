@@ -89,6 +89,15 @@
   cursor: help;
   outline: none;
 }
+button.info-popup { padding: 0; margin: 0; vertical-align: middle; }
+.control-with-info { display: flex; align-items: center; gap: 8px; }
+.control-with-info > :first-child { flex: 1; min-width: 0; }
+.control-with-info .info-popup-content { left: auto; right: 0; }
+.smoother-controls label > .info-popup { margin-left: 6px; }
+.export-mode-control { display: flex; align-items: center; gap: 8px; }
+.export-mode-control > .toggle-control { flex: 1; min-width: 0; }
+.result-summary .interaction-bar { display: flex; align-items: center; flex-wrap: wrap; }
+.result-summary .interaction-bar .button { width: auto; }
 .info-popup:focus { box-shadow: 0 0 0 3px rgba(45,111,142,.18); }
 .info-popup-content {
   position: absolute;
@@ -105,6 +114,7 @@
   box-shadow: 0 10px 28px rgba(23,59,76,.18);
   font-size: .78rem;
   font-weight: 500;
+  text-align: left;
   line-height: 1.45;
   opacity: 0;
   pointer-events: none;
@@ -118,6 +128,8 @@
   opacity: 1;
   transform: translateY(0);
 }
+.info-popup-open .info-popup-content { visibility: visible; opacity: 1; transform: translateY(0); }
+.info-popup.info-popup-dismissed .info-popup-content { visibility: hidden; opacity: 0; }
 .action-title-row .info-popup-content { left: -8px; }
 
 .result-strip.analysis-result-strip { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
@@ -223,3 +235,10 @@
   .analysis-controls .input-row { grid-template-columns: 1fr; }
   .diagnostic-item { gap: 8px; }
 }
+
+/* Keep diagnostic explanations visible and allow long messages to wrap. */
+.diagnostic-content { min-width: 0; overflow-wrap: anywhere; }
+.diagnostic-message { margin-top: 4px; }
+.diagnostic-content details { margin-top: 6px; color: #505661; }
+.diagnostic-content summary { cursor: pointer; }
+.diagnostic-item { align-items: flex-start; }

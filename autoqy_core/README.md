@@ -1,6 +1,6 @@
 # AutoQY Core configuration
 
-One `analysis.json` contains every input path, unit-bearing experimental value,
+One `analysis.json` contains every embedded input or input path, unit-bearing experimental value,
 processing choice, fit setting, plot setting, and output instruction required
 for a reproducible quantum-yield run. Relative paths are resolved from the JSON
 file location.
@@ -10,7 +10,20 @@ Power-monitor processing is intentionally separate; see
 
 ## Minimal files for one analysis
 
-A run needs the installed `autoqy_core` package and six experiment files:
+A self-contained run needs the installed `autoqy_core` package and one analysis
+JSON file. Schema version 2 stores input contents directly in `inputs` as objects
+with `filename`, `encoding: "base64"`, `data`, and `sha256`. Formats remain in
+`inputs.formats`. Exact source bytes retain binary formats and uncertainty columns.
+The loader checks integrity and gives the existing readers private temporary
+copies; there is no dependency on the sender's folders or original files.
+
+The Python helper `self_contained_document(config)` creates this document from a
+validated `AnalysisConfig`. `outputs.embed_inputs: true` includes it in saved
+configuration snapshots and under `configuration` in result JSON. `load_config`
+also accepts those result JSON files. Existing schema version 1 file paths remain
+supported; older AutoQY builds cannot read embedded schema version 2 inputs.
+
+For the older path-based format, a run uses six experiment files:
 
 - `analysis.json`;
 - time-series absorbance spectra;
@@ -44,7 +57,10 @@ tab in the user's main browser. The default browser is used when app-window
 mode is unavailable. All pages and uploaded data remain on the local computer.
 
 The GUI window and Python server monitor each other. Closing the app window
-stops its server, and closing the terminal or Python process closes the browser
+stops its server. On Windows, the dedicated GUI commands and installer-created
+Desktop shortcuts run without a terminal window. Diagnostic logs for these
+launchers are saved under `%LOCALAPPDATA%\AutoQY\logs`. Running through
+`autoqy-core` still uses the terminal; closing that process closes the browser
 process tree. A normal browser tab that cannot close itself instead displays a
 message telling the user to close the page and restart the GUI. Pass
 `--no-open` to run a GUI server without opening a window.
@@ -55,14 +71,16 @@ Run `autoqy-core analysis-gui` to build a complete `analysis.json`, load an
 existing configuration, or run an analysis. Its six control panels cover the
 project location and files, experiment, fit, uncertainty, and output settings.
 Native file and folder selectors are available for local paths, and the live
-JSON preview shows the configuration being constructed.
+settings preview omits embedded data to keep the preview responsive.
 
 Both **Save JSON** and **Run analysis** validate every referenced file and
 setting. There is no separate validation button. **Run analysis** does not save
 the editable `analysis.json`; **Save JSON** does. The
 `outputs.write_config` option independently controls the configuration snapshot
-written beside analysis results. Portable JSON can store input paths relative
-to the saved JSON file.
+written beside analysis results. **Include all input data in JSON** is enabled
+by default for new GUI saves. Disable it to retain file links; linked absolute
+paths can be made relative to the saved JSON file. Already embedded inputs stay
+embedded until replaced using Browse.
 
 As soon as the four spectral inputs are loaded, **Preprocessing** shows the
 reactant/product epsilon spectra with the processed LED above the measured
@@ -323,7 +341,7 @@ The TXT and results JSON distinguish two endpoint values:
 Run `autoqy-core smoother-gui` (or `autoqy-smoother-gui`) to load
 SpectraGryph text, SPECORD WinASPECT `.dat`, Agilent/Varian Cary `.DSW/.BSW`,
 Avantes `.Abs8`, wavelength-by-row TSV, or CSV data. File types are detected
-automatically. **Open files from folder** also makes the
+automatically. **Choose files** also makes the
 source directory the default export location, and a loading indicator remains
 visible while large groups of spectra are parsed.
 
@@ -341,7 +359,7 @@ For datasets above 60 spectra, the Plotly preview contains at most 60 evenly
 spaced spectra and always includes indices zero and the final index. The full
 matrix remains available to preprocessing, SVD, wavelength slicing, and
 processed-data export. Only the first and last spectra receive loaded-spectrum
-legend controls, only those two can create spectrum legend entries, and the
+legend controls when editing is enabled, only those two can create spectrum legend entries, and the
 per-spectrum concentration/path-length cards are replaced by an explanatory
 message. Browser stores use a compressed representation of the absorbance
 matrix to reduce callback traffic; this does not change exported numerical
@@ -350,32 +368,106 @@ precision.
 Processed absorbance can be exported without concentration values. When every
 solution concentration and path length is supplied, the same workflow exports
 individual molar-absorptivity spectra and their wavelength-resolved statistics.
-The save folder and CSV name are editable, missing `.csv` extensions are added,
-and existing files require confirmation before replacement. Negative values are
+**Save CSV** opens Save As to choose the folder and file name, with a suggested
+name and automatic `.csv` extension. The most recently saved folder is remembered;
+otherwise the source folder is suggested when available. The dialog confirms
+overwriting existing files. There are no separate folder or file-name fields. Negative values are
 preserved by default; the output option can clamp saved absorbance and epsilon
 values to zero without changing the preview or source data.
 
+### Unified spectrum reconstruction
+
+Expand **4 · Reconstruction → Reconstruct spectrum**, select a pure stable-isomer reference and
+a mixture/PSS spectrum from the loaded dataset, then enter the **metastable**
+isomer percentage in the mixture and click **Reconstruct**. No concentrations,
+path-length inputs, or molar-absorptivity conversion are required.
+
+For metastable fraction `f = percentage / 100`, the calculated spectrum is
+`A_meta = (A_mixture - (1 - f) * A_stable) / f`. The reference and mixture must
+have the same total concentration and optical path length. The reference must
+be the pure stable isomer. The calculation assumes an additive two-isomer
+mixture; independently peak-normalizing the spectra would invalidate the result.
+
+The reconstructed curve is shown on the main absorbance plot, including its
+absorbance panel when ε is also calculated. **Show reconstructed isomer**
+controls its visibility in the preview and PNG/SVG export. Current baseline,
+smoothing, SVD, and wavelength-range settings apply, and preprocessing changes
+update the reconstruction. Changing the dataset, spectrum selections, or
+composition clears the reconstruction until **Reconstruct** is clicked again.
+
+In **5 · Output**, choose **Reconstructed metastable spectrum** under
+**Content to save**, then click **Save CSV**. The default file is
+`reconstructed-metastable-isomer.csv`; choose the destination in Save As.
+The shared negative-value option and native overwrite confirmation apply too.
+It contains only the calculated curve; **Processed dataset / calculated ε**
+exports the measured series. Negative values are preserved unless Output
+clamping is enabled. Percentages must be greater than 0 and
+at most 100; small metastable fractions amplify measurement noise.
+
+For ε calibration, drop the triplicate stable-isomer ε CSV into the optional
+**Stable ε reference** input in the same panel. Load the UV–Vis irradiation
+dataset in **1 · Data**, select its initial stable and PSS spectra in Reconstruction,
+enter the **metastable** percentage (77 for 23% stable), and click **Reconstruct**.
+The dropped ε file supplies only the calibration scale and reference uncertainty;
+it does not replace the measured main-window spectra. Main wavelength range,
+baseline, smoothing, and SVD apply once, before interpolation onto the overlapping
+reference ε grid. There is no separate UV uploader or preprocessing section.
+Only one ε reference is needed—there is no PSS-error or second ε-file requirement.
+Clear the ε reference to return to absorbance-only reconstruction.
+
+Choose reference **Replicate SD** (default) or **SEM of the mean**. Optional NMR
+composition uncertainty defaults to **1 percentage point (1σ)**; use zero to
+omit it. Reference SD/SEM must be available, not silently replaced by zero.
+The retained shared-reference calibration divides both UV–Vis curves by the
+stable-reference absorbance maximum and scales them by the reference ε maximum.
+Metastable ε follows the same weighted subtraction. The lower/upper envelope
+combines reference ε mean ± selected error and composition ± entered error.
+It is generally asymmetric, is not an independent-PSS-error or full-covariance
+calculation, and includes **no PSS measurement uncertainty**. The export records
+the error basis, NMR uncertainty, method, and this exclusion.
+
+For absorbance-only reconstruction, entering composition uncertainty adds a
+composition-only band and CSV column; absorbance measurement error is unavailable.
+The ε result is shown in its own plot and in Displayed data. **Show reconstructed
+isomer** applies to that plot too. Save the product alone with **Reconstructed
+metastable spectrum**, or both ε files with **Stable + reconstructed ε (pair)**,
+all through Output. The product CSV remains compatible with Analysis.
+
+### Spectral plots and exports
+
 Files dropped together are naturally ordered by name, so `sample1` precedes
-`sample2` and `sample10`. Open **Loaded spectra: order, legend, removal** to
+`sample2` and `sample10`. Open **Loaded spectra** to
 move individual spectra up or down, remove them, or choose exactly which trace
-names appear in the legend. The name field beside each trace changes its legend
-text without changing the source filename. **Show all** and **Hide all** provide
+names appear in the legend. **Legend options → Enable legend editing** is off by default: the
+name inputs and visibility checkboxes are created only when requested, and
+custom names and visibility are retained when editing is turned off. The name field beside each trace changes its legend
+text without changing the source filename. Saved CSV spectrum columns use the
+current legend names (or the source spectrum names when not edited), not numeric
+indices. **Show all** and **Hide all** provide
 quick legend shortcuts.
+The default full-color spectrum palette uses Okabe–Ito color-blind-friendly
+colors (without yellow on the white background), cycling after seven spectra.
+The same colors are used in the absorbance and ε plots and saved figures.
 **Minimal colors** highlights the initial spectrum in blue and the final
 spectrum in orange, with intermediate spectra in grey as in the Analysis GUI.
 In the processed-absorbance preview, raw traces are hidden after preprocessing
 by default. **Show original** adds them to both the interactive plot and saved
 PNG/SVG figures without changing the processed-data export.
-PNG and SVG save buttons open a Save As dialog. Saved images contain only the
+PNG and SVG save buttons are in **5 · Output → Save figures** and open a Save As
+dialog. Image export options are there too. Saved images contain only the
 plots by default. **Title in saved image** and **Legend in saved image** can be
-enabled independently. **Origin-style export** follows the supplied Origin-like
+enabled independently, as can **Axis labels in saved image**. One shared options
+menu applies to the main plot, wavelength slice, and reconstructed ε without
+duplicated settings. **Origin-style export** follows the supplied Origin-like
 Python example: a 6.5:5 white figure with Arial text, boxed axes, outward major
 and minor ticks, thick high-contrast curves, larger text, tight margins, and no
 grid by default. Its optional legend is placed inside the plot frame, and PNGs
 are rendered at 1950 × 1500 pixels (300 dpi at 6.5 × 5 inches); SVG remains
 resolution-independent.
-**Grid in saved image** can be switched on independently for the main and
-wavelength-slice exports.
+**Grid in saved image** applies to all three exports. The reconstructed ε plot
+and its PNG/SVG exports contain only calibrated ε and uncertainty envelopes,
+not normalized input spectra. Its minimal palette uses blue for stable ε,
+orange for metastable ε, black for PSS ε, and light-grey reference lines.
 
 Open **Wavelength slice over time** below the main plot and type a wavelength
 to graph the interpolated absorbance across the spectrum coordinates. For a
@@ -397,20 +489,73 @@ retain the wavelength bounds selected in **Wavelengths**; if a new file
 has a smaller overlap, the bounds are clipped only to that available range.
 Active baseline and Savitzky–Golay settings are reapplied to the complete raw
 series after every addition, so newly appended spectra receive the same
-preprocessing as earlier spectra. Repeated single-spectrum drops use elapsed
-seconds from the first drop. The uploader is
+preprocessing as earlier spectra. Separate-file sequences advance by one
+coordinate per added spectrum, independent of delays between uploads; the
+**Seconds per timestamp** multiplier applies to the whole series. An existing
+time-series file retains its numerical axis and uses its typical spacing for
+added single spectra. The uploader is
 reset after every addition, allowing the same filename to be reused. Removing a
 loaded spectrum updates both plots without changing the remaining time
-coordinates. **Clear all spectra** resets the whole accumulated series and
-timer.
+coordinates. **Clear all spectra** resets the whole accumulated series.
 
-The optional NMR-guided PSS workflow loads a dataset whose first spectrum is
-reactant and last spectrum is the final PSS. It supports its own baseline and
-Savitzky–Golay settings, propagates the entered PSS composition uncertainty,
-and exports reactant and reconstructed product epsilon CSV files. The primary
-product epsilon is clipped at zero by default, while a raw audit column is
-always retained; **Keep negative values in product epsilon** changes the primary
-export behavior.
+Original spectra, per-spectrum settings, processing controls, time multiplier,
+and NMR inputs are autosaved locally about one second after changes settle.
+The next launch automatically recovers the last saved session and regenerates
+its plots. The Data panel reports recovery and autosave errors; wait for the
+autosave confirmation before closing after an edit. Clear all spectra also
+updates the recovery snapshot, so cleared data does not return on restart.
+The file is `%LOCALAPPDATA%/AutoQY/spectral-treatment/autosave.aqys` on Windows
+and `~/.local/share/AutoQY/spectral-treatment/autosave.aqys` otherwise. It is
+replaced atomically so an interrupted write leaves the previous save intact.
+One latest session is retained per OS user; concurrently opened instances
+share that recovery file.
+
+**5 · Output → Save session (.aqys)** opens Save As for a portable binary session.
+This versioned compressed binary format stores numerical arrays without large
+JSON matrices or Python pickle. Manual saves and autosave use the same format.
+Drop one `.aqys` file into the main uploader or select it with **Choose files** to
+replace the current session and restore the saved spectra, preprocessing,
+per-spectrum settings, reconstruction, NMR inputs, and Output settings. Plots
+and derived results are recalculated. Loading a session also makes it the
+current recovery snapshot. Old JSON autosaves remain readable for migration.
+
+All spectral CSV exports use **Output → Content to save → Save CSV**. Choose the
+processed dataset/calculated ε, reconstructed isomer, wavelength slice, or
+**Stable + reconstructed ε (pair)**. The pair opens two Save As dialogs, one for
+each CSV. All modes share one negative-value option; negatives are preserved
+unless conversion to zero is enabled. Reconstruction and slice panels
+do not have separate CSV save buttons.
+
+The **Displayed data** panel replaces the former Result panel with a
+spreadsheet-style numerical view. Select the main spectra, wavelength slice,
+or NMR reconstruction. Its columns follow the actual plotted curves and legend
+names, including visible raw data, reconstruction, and fits; hidden curves are
+omitted. Scroll vertically through all rows and horizontally through columns,
+without pagination. Virtualization renders only the visible rows and keeps
+the header fixed while scrolling. This view is a
+preview of the plot (including the 60-spectrum preview limit), not a replacement
+for exporting the full dataset through Output.
+
+Select cell ranges with Shift-click and use Ctrl+C, then Ctrl+V in another
+spreadsheet. Row and column checkboxes select whole rows/columns for **Copy selection**;
+checking both copies their intersection. **Copy all** includes every row in the
+displayed sheet, even outside the scroll viewport. Copies include column headings
+and tab-separated, full-precision values. The sheet is read-only; pasting elsewhere
+does not change the source spectra.
+
+The dedicated browser process is monitored directly: closing or killing it
+stops the server, while a delayed browser heartbeat does not close a busy or
+suspended app window. Connection failures leave the spectral page visible.
+If AutoQY falls back to a normal browser tab, whose process it cannot track,
+a two-minute heartbeat timeout still cleans up the server after a browser crash.
+
+The calibrated ε route in **Reconstruct spectrum** uses the selected initial
+and PSS spectra from the treated main dataset (first and last by default).
+It propagates reference and NMR composition errors,
+and exports stable and reconstructed product ε CSV files. The primary
+product epsilon retains negative values by default, while a raw audit column is
+always retained. The shared **Convert negative absorbance and ε values to 0**
+option clamps the primary export columns without changing the plot.
 
 ## Power-treatment GUI
 
@@ -430,3 +575,10 @@ GUI when needed.
 For portable scripted input, set `"format": "generic_csv"` in
 `power_analysis.json` and provide one `power_mw` column. The legacy
 `thorlabs_opm_csv` format remains available for original instrument exports.
+
+Infinite and missing power readings are automatically excluded from baseline
+fits, signal averages, and uncertainties. Their sample positions remain as gaps
+so region boundaries retain their meaning. Upload messages report the number
+excluded per file, and scripted CSV imports issue a warning. Each baseline
+region must retain a finite reading, with more total baseline readings than the
+polynomial degree; each signal region must retain at least two finite readings.

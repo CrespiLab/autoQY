@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from io import StringIO
 import json
 from pathlib import Path
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -130,17 +131,30 @@ def load_generic_power_csv(path):
     if "power_mw" not in data:
         raise ValueError(f"Generic power CSV has no 'power_mw' column: {path}")
     values = pd.to_numeric(data["power_mw"], errors="raise").to_numpy(float)
-    if not np.isfinite(values).all():
-        raise ValueError(f"Non-finite power values found in {path}")
-    return values
+    return _valid_power_samples(values, path)
 
 
 def _power_values(data, source):
     if "Power (W)" not in data:
         raise ValueError(f"Thorlabs OPM file has no 'Power (W)' column: {source}")
     values = pd.to_numeric(data["Power (W)"], errors="raise").to_numpy(float) * 1000
-    if not np.isfinite(values).all():
-        raise ValueError(f"Non-finite power values found in {source}")
+    return _valid_power_samples(values, source)
+
+
+def _valid_power_samples(values, source):
+    """Mark invalid readings as gaps without shifting region/sample indices."""
+    values = np.array(values, dtype=float, copy=True)
+    valid = np.isfinite(values)
+    if not valid.any():
+        raise ValueError(f"No finite power values found in {source}")
+    count = int(np.count_nonzero(~valid))
+    if count:
+        values[~valid] = np.nan
+        warnings.warn(
+            f"{source}: excluded {count} non-finite power reading(s); "
+            "sample positions are preserved",
+            UserWarning, stacklevel=2,
+        )
     return values
 
 
@@ -150,6 +164,11 @@ def process_power_trace(power_mw, regions, baseline_degree=3, path=""):
     parsed = baseline.regions
     open_values = baseline.open_corrected_mw[slice(*parsed["open_on"])]
     cuvette_values = baseline.cuvette_corrected_mw[slice(*parsed["cuvette_on"])]
+    open_values = open_values[np.isfinite(open_values)]
+    cuvette_values = cuvette_values[np.isfinite(cuvette_values)]
+    for name, signal in (("open_on", open_values), ("cuvette_on", cuvette_values)):
+        if len(signal) < 2:
+            raise ValueError(f"Power region {name} needs at least two finite readings")
     means = np.array([np.mean(open_values), np.mean(cuvette_values)])
     standard_deviations = np.array([
         np.std(open_values, ddof=1), np.std(cuvette_values, ddof=1)
@@ -167,9 +186,10 @@ def process_power_trace(power_mw, regions, baseline_degree=3, path=""):
 
 def baseline_power_trace(power_mw, regions, baseline_degree=3):
     """Return the two fitted baselines and full corrected traces."""
-    values = np.asarray(power_mw, float)
-    if values.ndim != 1 or not len(values) or not np.isfinite(values).all():
-        raise ValueError("Power data must be a finite one-dimensional sequence")
+    values = np.array(power_mw, dtype=float, copy=True)
+    if values.ndim != 1 or not len(values) or not np.isfinite(values).any():
+        raise ValueError("Power data must be a one-dimensional sequence with finite readings")
+    values[~np.isfinite(values)] = np.nan
     if not isinstance(baseline_degree, int) or baseline_degree < 0:
         raise ValueError("baseline_degree must be a nonnegative integer")
     if not isinstance(regions, dict) or set(regions) != set(REGION_NAMES):
@@ -191,9 +211,13 @@ def baseline_power_trace(power_mw, regions, baseline_degree=3):
 
 
 def _fit_baseline(x, values, off_before, off_after, degree):
+    for region in (off_before, off_after):
+        if not np.isfinite(values[slice(*region)]).any():
+            raise ValueError("Each power baseline region needs at least one finite reading")
     baseline_indices = np.r_[np.arange(*off_before), np.arange(*off_after)]
+    baseline_indices = baseline_indices[np.isfinite(values[baseline_indices])]
     if len(baseline_indices) <= degree:
-        raise ValueError("Power baseline regions contain too few points")
+        raise ValueError("Power baseline regions contain too few finite points")
     coefficients = np.polyfit(x[baseline_indices], values[baseline_indices], degree)
     return np.polyval(coefficients, x)
 

@@ -104,6 +104,18 @@ class _WindowsJob:
     _KILL_ON_JOB_CLOSE = 0x00002000
     _EXTENDED_LIMIT_INFORMATION = 9
 
+    class _AccountingInformation(ctypes.Structure):
+        _fields_ = [
+            ("TotalUserTime", ctypes.c_longlong),
+            ("TotalKernelTime", ctypes.c_longlong),
+            ("ThisPeriodTotalUserTime", ctypes.c_longlong),
+            ("ThisPeriodTotalKernelTime", ctypes.c_longlong),
+            ("TotalPageFaultCount", wintypes.DWORD),
+            ("TotalProcesses", wintypes.DWORD),
+            ("ActiveProcesses", wintypes.DWORD),
+            ("TotalTerminatedProcesses", wintypes.DWORD),
+        ]
+
     class _BasicLimitInformation(ctypes.Structure):
         _fields_ = [
             ("PerProcessUserTimeLimit", ctypes.c_longlong),
@@ -146,6 +158,10 @@ class _WindowsJob:
             wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD
         )
         kernel32.AssignProcessToJobObject.argtypes = (wintypes.HANDLE, wintypes.HANDLE)
+        kernel32.QueryInformationJobObject.argtypes = (
+            wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
+            ctypes.c_void_p,
+        )
         kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
         handle = kernel32.CreateJobObjectW(None, None)
         if not handle:
@@ -170,6 +186,15 @@ class _WindowsJob:
         if not assigned:
             raise ctypes.WinError(ctypes.get_last_error())
 
+    def active_processes(self):
+        """Count the browser's entire process tree, including relaunched children."""
+        information = self._AccountingInformation()
+        if not self._kernel32.QueryInformationJobObject(
+            self._handle, 1, ctypes.byref(information), ctypes.sizeof(information), None,
+        ):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return information.ActiveProcesses
+
     def close(self):
         if self._handle:
             self._kernel32.CloseHandle(self._handle)
@@ -184,6 +209,24 @@ class GuiWindowHandle:
     process: object = None
     job: object = None
     profile_directory: Path | None = None
+
+    def browser_running(self):
+        """Return None when launcher exit cannot establish whether the window closed."""
+        if self.job is not None:
+            try:
+                return self.job.active_processes() > 0
+            except OSError:
+                return None
+        if self.process is None:
+            return None
+        status = self.process.poll()
+        if status is None:
+            return True
+        # Edge can exit its initial launcher successfully while its app window
+        # continues in another process. Without a job, rely on page heartbeats.
+        if sys.platform == "win32" and status == 0:
+            return None
+        return False
 
     def close(self):
         if self.job is not None:
@@ -250,7 +293,7 @@ class GuiWindowSession:
         self._handle = None
         self._closed = False
 
-    def open_after(self, delay=1.0):
+    def open_after(self, delay=0.0):
         with self._lock:
             if self._closed:
                 return
@@ -266,6 +309,16 @@ class GuiWindowSession:
             else:
                 self._handle = handle
 
+    def browser_exited(self):
+        """Detect a killed app window even when it cannot send a close beacon."""
+        with self._lock:
+            handle = self._handle
+            return handle is not None and handle.browser_running() is False
+
+    def has_browser_process(self):
+        with self._lock:
+            return self._handle is not None and self._handle.browser_running() is not None
+
     def close(self):
         with self._lock:
             self._closed = True
@@ -277,13 +330,34 @@ class GuiWindowSession:
             handle.close()
 
 
+def _window_close_due(requested, now, last_heartbeat=None, tracked_browser=True):
+    """Allow reloads; use a generous timeout only for untracked browser tabs."""
+    if requested is not None and now - requested >= 30:
+        return True
+    return (not tracked_browser and last_heartbeat is not None
+            and now - last_heartbeat >= 120)
+
+
 def serve_gui(create_app, host, port, open_window, window_name):
     """Serve a Dash GUI and keep its dedicated window lifecycle synchronized."""
+    # Windows GUI launchers have no console streams. Keep server diagnostics
+    # available without requiring a terminal to remain open.
+    if sys.stdout is None or sys.stderr is None:
+        log_root = os.environ.get("LOCALAPPDATA") or str(Path.home())
+        log_directory = Path(log_root) / "AutoQY" / "logs"
+        log_directory.mkdir(parents=True, exist_ok=True)
+        log_name = "".join(c if c.isalnum() else "-" for c in window_name).lower()
+        stream = (log_directory / f"{log_name}.log").open("a", encoding="utf-8", buffering=1)
+        if sys.stdout is None:
+            sys.stdout = stream
+        if sys.stderr is None:
+            sys.stderr = stream
     from werkzeug.serving import make_server
 
     app = create_app()
     server = make_server(host, port, app.server, threaded=True)
     window_state, window_lock = app.server.config["AUTOQY_WINDOW_STATE"]
+    window = GuiWindowSession(_local_gui_url(host, port), window_name)
 
     def close_after_window():
         while True:
@@ -292,14 +366,14 @@ def serve_gui(create_app, host, port, open_window, window_name):
                 requested = window_state["close_requested_at"]
                 last_heartbeat = window_state["last_heartbeat_at"]
             now = time.monotonic()
-            close_requested = requested is not None and now - requested >= 3
-            heartbeat_expired = last_heartbeat is not None and now - last_heartbeat >= 5
-            if close_requested or heartbeat_expired:
+            if window.browser_exited() or _window_close_due(
+                requested, now, last_heartbeat, window.has_browser_process()
+            ):
+                print(f"{window_name}: shutting down after window closure.")
                 server.shutdown()
                 return
 
     Thread(target=close_after_window, daemon=True).start()
-    window = GuiWindowSession(_local_gui_url(host, port), window_name)
     if open_window:
         window.open_after()
         _minimize_console_window()

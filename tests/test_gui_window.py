@@ -11,11 +11,106 @@ from autoqy_core.gui_window import (
     _local_gui_url,
     _minimize_console_window,
     _remove_profile_directory,
+    _window_close_due,
     open_gui_window,
+    serve_gui,
 )
 
 
 class GuiWindowTests(unittest.TestCase):
+    def test_browser_children_keep_server_alive_after_launcher_exits_successfully(self):
+        process = Mock()
+        process.poll.return_value = 0
+        job = Mock()
+        job.active_processes.return_value = 3
+        handle = GuiWindowHandle("app", process, job)
+        session = GuiWindowSession("http://127.0.0.1:8051", opener=lambda *_: handle)
+        session._open()
+        self.assertFalse(session.browser_exited())
+        self.assertTrue(session.has_browser_process())
+        job.active_processes.return_value = 0
+        self.assertTrue(session.browser_exited())
+
+    def test_untracked_windows_launcher_exit_uses_heartbeat_watchdog(self):
+        process = Mock()
+        process.poll.return_value = 0
+        session = GuiWindowSession("http://127.0.0.1:8051",
+                                   opener=lambda *_: GuiWindowHandle("app", process))
+        session._open()
+        with patch("autoqy_core.gui_window.sys.platform", "win32"):
+            self.assertFalse(session.browser_exited())
+            self.assertFalse(session.has_browser_process())
+
+    def test_windowless_launcher_records_startup_diagnostics(self):
+        with TemporaryDirectory() as directory:
+            with (
+                patch("autoqy_core.gui_window.os.environ", {"LOCALAPPDATA": directory}),
+                patch("autoqy_core.gui_window.sys.stdout", None),
+                patch("autoqy_core.gui_window.sys.stderr", None),
+            ):
+                import sys
+                def failing_app():
+                    print("Startup diagnostic", file=sys.stderr)
+                    raise RuntimeError("Startup failed")
+                try:
+                    with self.assertRaisesRegex(RuntimeError, "Startup failed"):
+                        serve_gui(failing_app, "127.0.0.1", 8051, True, "Spectral Treatment")
+                    log = Path(directory) / "AutoQY" / "logs" / "spectral-treatment.log"
+                    self.assertIn("Startup diagnostic", log.read_text(encoding="utf-8"))
+                finally:
+                    if sys.stderr is not None:
+                        sys.stderr.close()
+
+    def test_server_survives_stale_heartbeat_then_exits_when_browser_is_killed(self):
+        from threading import Lock
+        app = Mock()
+        app.server.config = {"AUTOQY_WINDOW_STATE": (
+            {"close_requested_at": None, "last_heartbeat_at": 1}, Lock())}
+        server = Mock()
+        window = Mock()
+        window.browser_exited.side_effect = [False, True]
+        window.has_browser_process.return_value = True
+        with (
+            patch("werkzeug.serving.make_server", return_value=server),
+            patch("autoqy_core.gui_window.GuiWindowSession", return_value=window),
+            patch("autoqy_core.gui_window.Thread") as thread,
+            patch("autoqy_core.gui_window.time.sleep"),
+            patch("autoqy_core.gui_window.time.monotonic", return_value=1000),
+            patch("autoqy_core.gui_window._minimize_console_window"),
+        ):
+            server.serve_forever.side_effect = lambda: thread.call_args.kwargs['target']()
+            serve_gui(lambda: app, "127.0.0.1", 8051, True, "Spectral Treatment")
+        self.assertEqual(window.browser_exited.call_count, 2)
+        server.shutdown.assert_called_once_with()
+        window.close.assert_called_once_with()
+
+    def test_a_killed_dedicated_browser_is_detected_without_heartbeats(self):
+        process = Mock()
+        process.poll.return_value = None
+        session = GuiWindowSession("http://127.0.0.1:8051",
+                                   opener=lambda *_: GuiWindowHandle("app", process))
+        self.assertFalse(session.browser_exited())
+        session._open()
+        self.assertFalse(session.browser_exited())
+        process.poll.return_value = 1
+        self.assertTrue(session.browser_exited())
+
+    def test_a_browser_without_a_tracked_process_is_not_treated_as_dead(self):
+        session = GuiWindowSession("http://127.0.0.1:8051",
+                                   opener=lambda *_: GuiWindowHandle("browser"))
+        session._open()
+        self.assertFalse(session.browser_exited())
+
+    def test_explicit_close_has_reload_grace_but_silence_never_closes(self):
+        self.assertFalse(_window_close_due(None, 1000000))
+        self.assertFalse(_window_close_due(None, 1000000, 1, tracked_browser=True))
+        self.assertFalse(_window_close_due(100, 105))
+        self.assertTrue(_window_close_due(100, 131))
+
+    def test_fallback_browser_retains_a_generous_heartbeat_watchdog(self):
+        self.assertFalse(_window_close_due(None, 105, 100, tracked_browser=False))
+        self.assertTrue(_window_close_due(None, 221, 100, tracked_browser=False))
+
     def test_console_minimization_is_a_noop_outside_windows(self):
         with patch("autoqy_core.gui_window.sys.platform", "linux"):
             self.assertFalse(_minimize_console_window())

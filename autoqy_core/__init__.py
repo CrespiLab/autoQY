@@ -1,20 +1,46 @@
-"""GUI-independent AutoQY calculations."""
+"""GUI-independent AutoQY calculations, imported only when requested.
 
-from .config import AnalysisConfig, ConfigError, load_config, validate_config
-from .pipeline import (AnalysisInput, AnalysisResult, run_analysis_pipeline,
-                       run_concentration_analysis)
-from .output import format_value_uncertainty, write_detailed_data, write_results
-from .plotting import write_figure
-from .power import (PowerBaseline, PowerResult, PowerTraceResult,
-                    baseline_power_trace, combine_power_traces,
-                    process_power_configuration, run_power_analysis)
-from .runner import RunOutput, run_analysis
+Keep the public API without loading numerical solvers or Matplotlib merely
+to launch a GUI or import a lightweight utility.
+"""
 
-__all__ = [
-    "AnalysisConfig", "ConfigError", "load_config", "validate_config",
-    "AnalysisInput", "AnalysisResult", "run_analysis_pipeline", "run_concentration_analysis",
-    "PowerBaseline", "PowerResult", "PowerTraceResult", "baseline_power_trace",
-    "combine_power_traces", "process_power_configuration", "run_power_analysis",
-    "RunOutput", "run_analysis", "format_value_uncertainty", "write_detailed_data",
-    "write_results", "write_figure",
-]
+from importlib import import_module
+
+_EXPORT_MODULES = {
+    'AnalysisConfig': 'config',
+    'ConfigError': 'config',
+    'load_config': 'config',
+    'validate_config': 'config',
+    'AnalysisInput': 'pipeline',
+    'AnalysisResult': 'pipeline',
+    'run_analysis_pipeline': 'pipeline',
+    'run_concentration_analysis': 'pipeline',
+    'format_value_uncertainty': 'output',
+    'write_detailed_data': 'output',
+    'write_results': 'output',
+    'write_figure': 'plotting',
+    'PowerBaseline': 'power',
+    'PowerResult': 'power',
+    'PowerTraceResult': 'power',
+    'baseline_power_trace': 'power',
+    'combine_power_traces': 'power',
+    'process_power_configuration': 'power',
+    'run_power_analysis': 'power',
+    'RunOutput': 'runner',
+    'run_analysis': 'runner',
+}
+
+__all__ = list(_EXPORT_MODULES)
+
+
+def __getattr__(name):
+    module = _EXPORT_MODULES.get(name)
+    if module is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(import_module(f".{module}", __name__), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__():
+    return sorted(set(globals()) | set(__all__))
