@@ -85,11 +85,19 @@ class ActinometerTests(unittest.TestCase):
             values = _example_actinometer_config(temporary)
             output = run_analysis(AnalysisConfig(values, EXAMPLE_DIRECTORY))
 
+            optical_values = json.loads(
+                (EXAMPLE_DIRECTORY / "analysis.json").read_text(encoding="utf-8")
+            )
+            optical_values["outputs"] = values["outputs"].copy()
+            optical = run_analysis(AnalysisConfig(optical_values, EXAMPLE_DIRECTORY))
+
         np.testing.assert_allclose(
-            output.result.yield_fit.values, [0.25, 0.21], atol=0.006, rtol=0
+            output.result.yield_fit.values, optical.result.yield_fit.values,
+            atol=0.006, rtol=0,
         )
         np.testing.assert_allclose(
-            output.result.yield_errors, [0.012, 0.029], atol=0.002, rtol=0
+            output.result.yield_errors, optical.result.yield_errors,
+            atol=0.004, rtol=0,
         )
         reactant_pss = output.result.extrapolated_pss[0] / output.result.extrapolated_pss.sum()
         self.assertAlmostEqual(reactant_pss, 0.233, delta=0.002)

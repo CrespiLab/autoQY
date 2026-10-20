@@ -1,0 +1,516 @@
+[
+  {
+    "id": "340nm_raw_led",
+    "title": "340 nm, raw LED",
+    "configuration": "ExampleData/Example-1a_340nm_ManualPower_noblcorrLED/generic_inputs/analysis.json",
+    "epsilon_uncertainty_method": "none",
+    "methods": [
+      {
+        "method": "concentrations",
+        "label": "Concentrations",
+        "quantum_yield_percent": {
+          "R_to_P": 19.76348673304607,
+          "P_to_R": 26.163823015230708
+        },
+        "reported_error_percent": {
+          "R_to_P": 0.11539612818883271,
+          "P_to_R": 0.20624783568644056
+        },
+        "optimizer_power_error_percent": {
+          "R_to_P": 0.11539612818883271,
+          "P_to_R": 0.20624783568644056
+        },
+        "epsilon_error_percent": {
+          "R_to_P": 0.0,
+          "P_to_R": 0.0
+        },
+        "epsilon_bound_combination_count": 0,
+        "concentration_difference_fraction": 0.0,
+        "absorbance_rmse": 0.0031119518742651064,
+        "initial_reactant_fraction": 1.0,
+        "final_reactant_fraction": 0.03855500445279601,
+        "optimizer_success": true,
+        "active_bounds": [
+          false,
+          false
+        ]
+      },
+      {
+        "method": "emission",
+        "label": "Emission (legacy)",
+        "quantum_yield_percent": {
+          "R_to_P": 17.641902035475294,
+          "P_to_R": 42.8508219836613
+        },
+        "reported_error_percent": {
+          "R_to_P": 0.10267940319177438,
+          "P_to_R": 0.3362328013618132
+        },
+        "optimizer_power_error_percent": {
+          "R_to_P": 0.10267940319177438,
+          "P_to_R": 0.3362328013618132
+        },
+        "epsilon_error_percent": {
+          "R_to_P": 0.0,
+          "P_to_R": 0.0
+        },
+        "epsilon_bound_combination_count": 0,
+        "concentration_difference_fraction": 0.013123076746920986,
+        "absorbance_rmse": 0.00362539987133161,
+        "initial_reactant_fraction": 1.0,
+        "final_reactant_fraction": 0.03776497841501744,
+        "optimizer_success": true,
+        "active_bounds": [
+          false,
+          false
+        ]
+      },
+      {
+        "method": "ode_absorbance",
+        "label": "Full spectrum ODE",
+        "quantum_yield_percent": {
+          "R_to_P": 19.36213682329047,
+          "P_to_R": 24.25881486740023
+        },
+        "reported_error_percent": {
+          "R_to_P": 0.11149437505401094,
+          "P_to_R": 0.16736357444172567
+        },
+        "optimizer_power_error_percent": {
+          "R_to_P": 0.11149437505401094,
+          "P_to_R": 0.16736357444172567
+        },
+        "epsilon_error_percent": {
+          "R_to_P": 0.0,
+          "P_to_R": 0.0
+        },
+        "epsilon_bound_combination_count": 0,
+        "concentration_difference_fraction": 0.004406510279623505,
+        "absorbance_rmse": 0.002131357492356679,
+        "initial_reactant_fraction": 0.9807564465418814,
+        "final_reactant_fraction": 0.03657536988564875,
+        "optimizer_success": true,
+        "active_bounds": [
+          false,
+          false
+        ]
+      }
+    ]
+  },
+  {
+    "id": "340nm_baselined_led",
+    "title": "340 nm, pre-baselined LED",
+    "configuration": "ExampleData/Example-1b_340nm_ManualPower_blcorrLED/generic_inputs/analysis.json",
+    "epsilon_uncertainty_method": "none",
+    "methods": [
+      {
+        "method": "concentrations",
+        "label": "Concentrations",
+        "quantum_yield_percent": {
+          "R_to_P": 17.67661026124735,
+          "P_to_R": 42.3589191540994
+        },
+        "reported_error_percent": {
+          "R_to_P": 0.1124424120631018,
+          "P_to_R": 0.464176231028518
+        },
+        "optimizer_power_error_percent": {
+          "R_to_P": 0.1124424120631018,
+          "P_to_R": 0.464176231028518
+        },
+        "epsilon_error_percent": {
+          "R_to_P": 0.0,
+          "P_to_R": 0.0
+        },
+        "epsilon_bound_combination_count": 0,
+        "concentration_difference_fraction": 0.0,
+        "absorbance_rmse": 0.0025727207254485516,
+        "initial_reactant_fraction": 1.0,
+        "final_reactant_fraction": 0.03862548838517455,
+        "optimizer_success": true,
+        "active_bounds": [
+          false,
+          false
+        ]
+      },
+      {
+        "method": "emission",
+        "label": "Emission (legacy)",
+        "quantum_yield_percent": {
+          "R_to_P": 17.226101269891497,
+          "P_to_R": 41.180254178785106
+        },
+        "reported_error_percent": {
+          "R_to_P": 0.09826596879758676,
+          "P_to_R": 0.29706077201214764
+        },
+        "optimizer_power_error_percent": {
+          "R_to_P": 0.09826596879758676,
+          "P_to_R": 0.29706077201214764
+        },
+        "epsilon_error_percent": {
+          "R_to_P": 0.0,
+          "P_to_R": 0.0
+        },
+        "epsilon_bound_combination_count": 0,
+        "concentration_difference_fraction": 0.003343527923159713,
+        "absorbance_rmse": 0.002660239945920593,
+        "initial_reactant_fraction": 1.0,
+        "final_reactant_fraction": 0.036754083523357885,
+        "optimizer_success": true,
+        "active_bounds": [
+          false,
+          false
+        ]
+      },
+      {
+        "method": "ode_absorbance",
+        "label": "Full spectrum ODE",
+        "quantum_yield_percent": {
+          "R_to_P": 17.189563811186307,
+          "P_to_R": 38.618798064542155
+        },
+        "reported_error_percent": {
+          "R_to_P": 0.09778933356559827,
+          "P_to_R": 0.25612865149542974
+        },
+        "optimizer_power_error_percent": {
+          "R_to_P": 0.09778933356559827,
+          "P_to_R": 0.25612865149542974
+        },
+        "epsilon_error_percent": {
+          "R_to_P": 0.0,
+          "P_to_R": 0.0
+        },
+        "epsilon_bound_combination_count": 0,
+        "concentration_difference_fraction": 0.004773288390296216,
+        "absorbance_rmse": 0.0017248752388336836,
+        "initial_reactant_fraction": 0.9814488982414424,
+        "final_reactant_fraction": 0.036322637923911744,
+        "optimizer_success": true,
+        "active_bounds": [
+          false,
+          false
+        ]
+      }
+    ]
+  },
+  {
+    "id": "455nm_first40",
+    "title": "455 nm, first 40 spectra",
+    "configuration": "ExampleData/Example-2_AB_455nm-100mA/generic_inputs/analysis.json",
+    "epsilon_uncertainty_method": "none",
+    "methods": [
+      {
+        "method": "concentrations",
+        "label": "Concentrations",
+        "quantum_yield_percent": {
+          "R_to_P": 36.773737363520155,
+          "P_to_R": 49.92486742820403
+        },
+        "reported_error_percent": {
+          "R_to_P": 0.44082107246145585,
+          "P_to_R": 0.6270334191381899
+        },
+        "optimizer_power_error_percent": {
+          "R_to_P": 0.44082107246145585,
+          "P_to_R": 0.6270334191381899
+        },
+        "epsilon_error_percent": {
+          "R_to_P": 0.0,
+          "P_to_R": 0.0
+        },
+        "epsilon_bound_combination_count": 0,
+        "concentration_difference_fraction": 0.0,
+        "absorbance_rmse": 0.00904414459618355,
+        "initial_reactant_fraction": 0.9640313871902905,
+        "final_reactant_fraction": 0.7771409992561528,
+        "optimizer_success": true,
+        "active_bounds": [
+          false,
+          false
+        ]
+      },
+      {
+        "method": "emission",
+        "label": "Emission (legacy)",
+        "quantum_yield_percent": {
+          "R_to_P": 25.79020936566863,
+          "P_to_R": 51.39808625355249
+        },
+        "reported_error_percent": {
+          "R_to_P": 0.4770637943776579,
+          "P_to_R": 1.0876199580160728
+        },
+        "optimizer_power_error_percent": {
+          "R_to_P": 0.4770637943776579,
+          "P_to_R": 1.0876199580160728
+        },
+        "epsilon_error_percent": {
+          "R_to_P": 0.0,
+          "P_to_R": 0.0
+        },
+        "epsilon_bound_combination_count": 0,
+        "concentration_difference_fraction": 0.09157330759228426,
+        "absorbance_rmse": 0.04995189312716689,
+        "initial_reactant_fraction": 1.0,
+        "final_reactant_fraction": 0.8370427890190294,
+        "optimizer_success": true,
+        "active_bounds": [
+          false,
+          false
+        ]
+      },
+      {
+        "method": "ode_absorbance",
+        "label": "Full spectrum ODE",
+        "quantum_yield_percent": {
+          "R_to_P": 35.135039459667155,
+          "P_to_R": 50.91126256992846
+        },
+        "reported_error_percent": {
+          "R_to_P": 0.5048832592500441,
+          "P_to_R": 0.760521407557857
+        },
+        "optimizer_power_error_percent": {
+          "R_to_P": 0.5048832592500441,
+          "P_to_R": 0.760521407557857
+        },
+        "epsilon_error_percent": {
+          "R_to_P": 0.0,
+          "P_to_R": 0.0
+        },
+        "epsilon_bound_combination_count": 0,
+        "concentration_difference_fraction": 0.02426462367937073,
+        "absorbance_rmse": 0.004200991485762304,
+        "initial_reactant_fraction": 0.9994283466162862,
+        "final_reactant_fraction": 0.7884211880425797,
+        "optimizer_success": true,
+        "active_bounds": [
+          false,
+          false
+        ]
+      }
+    ]
+  },
+  {
+    "id": "455nm_epsilon_error",
+    "title": "455 nm, with \u03b5 uncertainty",
+    "configuration": "ExampleData/Example-3_AB_455nm-EpsilonError/generic_inputs/analysis.json",
+    "epsilon_uncertainty_method": "deterministic_extremes",
+    "methods": [
+      {
+        "method": "concentrations",
+        "label": "Concentrations",
+        "quantum_yield_percent": {
+          "R_to_P": 40.16405619021884,
+          "P_to_R": 51.77232638123136
+        },
+        "reported_error_percent": {
+          "R_to_P": 0.745509399975175,
+          "P_to_R": 3.002983220895672
+        },
+        "optimizer_power_error_percent": {
+          "R_to_P": 0.49271606675700963,
+          "P_to_R": 0.6691089505179715
+        },
+        "epsilon_error_percent": {
+          "R_to_P": 0.2503262697611808,
+          "P_to_R": 2.29947612155329
+        },
+        "epsilon_bound_combination_count": 9,
+        "concentration_difference_fraction": 0.0,
+        "absorbance_rmse": 0.00646865861006539,
+        "initial_reactant_fraction": 0.961999141781198,
+        "final_reactant_fraction": 0.7588203703745442,
+        "optimizer_success": true,
+        "active_bounds": [
+          false,
+          false
+        ],
+        "epsilon_absorbance_rmse_range": [
+          0.0049982476703348,
+          0.008596165993559097
+        ]
+      },
+      {
+        "method": "emission",
+        "label": "Emission (legacy)",
+        "quantum_yield_percent": {
+          "R_to_P": 28.09966373386345,
+          "P_to_R": 53.14691298266485
+        },
+        "reported_error_percent": {
+          "R_to_P": 2.3981631566381054,
+          "P_to_R": 2.4401359036829495
+        },
+        "optimizer_power_error_percent": {
+          "R_to_P": 0.510391034913793,
+          "P_to_R": 1.1044344408179252
+        },
+        "epsilon_error_percent": {
+          "R_to_P": 1.8538448532631369,
+          "P_to_R": 1.354518126109927
+        },
+        "epsilon_bound_combination_count": 9,
+        "concentration_difference_fraction": 0.09365752508612792,
+        "absorbance_rmse": 0.0469743986970748,
+        "initial_reactant_fraction": 1.0,
+        "final_reactant_fraction": 0.822500875988005,
+        "optimizer_success": true,
+        "active_bounds": [
+          false,
+          false
+        ],
+        "epsilon_absorbance_rmse_range": [
+          0.040786629697090994,
+          0.052550574606237604
+        ]
+      },
+      {
+        "method": "ode_absorbance",
+        "label": "Full spectrum ODE",
+        "quantum_yield_percent": {
+          "R_to_P": 37.93686102847016,
+          "P_to_R": 52.444029828117934
+        },
+        "reported_error_percent": {
+          "R_to_P": 1.1866044930199993,
+          "P_to_R": 2.9187087024085123
+        },
+        "optimizer_power_error_percent": {
+          "R_to_P": 0.5623442065636142,
+          "P_to_R": 0.8071762512383618
+        },
+        "epsilon_error_percent": {
+          "R_to_P": 0.6406965232039485,
+          "P_to_R": 2.0920033780552294
+        },
+        "epsilon_bound_combination_count": 9,
+        "concentration_difference_fraction": 0.0182933182018076,
+        "absorbance_rmse": 0.004509329375473909,
+        "initial_reactant_fraction": 0.986422786738872,
+        "final_reactant_fraction": 0.7715576697795273,
+        "optimizer_success": true,
+        "active_bounds": [
+          false,
+          false
+        ],
+        "epsilon_absorbance_rmse_range": [
+          0.0043500027452101795,
+          0.004705840192505561
+        ]
+      }
+    ]
+  },
+  {
+    "id": "395nm_epsilon_error",
+    "title": "395 nm, with \u03b5 uncertainty",
+    "configuration": "ExampleData/Example-4_395nm-EpsilonError/generic_inputs/analysis.json",
+    "epsilon_uncertainty_method": "deterministic_extremes",
+    "methods": [
+      {
+        "method": "concentrations",
+        "label": "Concentrations",
+        "quantum_yield_percent": {
+          "R_to_P": 24.089127158986642,
+          "P_to_R": 20.30160717719987
+        },
+        "reported_error_percent": {
+          "R_to_P": 0.7425472281326201,
+          "P_to_R": 1.7906663597424406
+        },
+        "optimizer_power_error_percent": {
+          "R_to_P": 0.5721598759748842,
+          "P_to_R": 0.5200717872093669
+        },
+        "epsilon_error_percent": {
+          "R_to_P": 0.1694003855789883,
+          "P_to_R": 1.2484844422478658
+        },
+        "epsilon_bound_combination_count": 9,
+        "concentration_difference_fraction": 0.0,
+        "absorbance_rmse": 0.005992281833933878,
+        "initial_reactant_fraction": 0.9731637105659074,
+        "final_reactant_fraction": 0.23323087534890802,
+        "optimizer_success": true,
+        "active_bounds": [
+          false,
+          false
+        ],
+        "epsilon_absorbance_rmse_range": [
+          0.0028456093941387033,
+          0.013345800820162911
+        ]
+      },
+      {
+        "method": "emission",
+        "label": "Emission (legacy)",
+        "quantum_yield_percent": {
+          "R_to_P": 25.248144176784542,
+          "P_to_R": 20.98330041260741
+        },
+        "reported_error_percent": {
+          "R_to_P": 1.622147156549253,
+          "P_to_R": 3.288867908333193
+        },
+        "optimizer_power_error_percent": {
+          "R_to_P": 0.5345361330072074,
+          "P_to_R": 0.4462164243969474
+        },
+        "epsilon_error_percent": {
+          "R_to_P": 1.0615245183457633,
+          "P_to_R": 2.7776329591336775
+        },
+        "epsilon_bound_combination_count": 9,
+        "concentration_difference_fraction": 0.008740503405695137,
+        "absorbance_rmse": 0.0025601880378347945,
+        "initial_reactant_fraction": 1.0,
+        "final_reactant_fraction": 0.2301680721897883,
+        "optimizer_success": true,
+        "active_bounds": [
+          false,
+          false
+        ],
+        "epsilon_absorbance_rmse_range": [
+          0.002192349771489836,
+          0.0070210310364387865
+        ]
+      },
+      {
+        "method": "ode_absorbance",
+        "label": "Full spectrum ODE",
+        "quantum_yield_percent": {
+          "R_to_P": 24.59068142281955,
+          "P_to_R": 20.779709794902132
+        },
+        "reported_error_percent": {
+          "R_to_P": 0.8485164662158512,
+          "P_to_R": 1.8492723545162097
+        },
+        "optimizer_power_error_percent": {
+          "R_to_P": 0.5331882684650846,
+          "P_to_R": 0.4672355238168946
+        },
+        "epsilon_error_percent": {
+          "R_to_P": 0.3292180999555916,
+          "P_to_R": 1.4174322641116788
+        },
+        "epsilon_bound_combination_count": 9,
+        "concentration_difference_fraction": 0.010008286970123612,
+        "absorbance_rmse": 0.002028790464748104,
+        "initial_reactant_fraction": 0.9930570114170856,
+        "final_reactant_fraction": 0.23359083486078808,
+        "optimizer_success": true,
+        "active_bounds": [
+          false,
+          false
+        ],
+        "epsilon_absorbance_rmse_range": [
+          0.001975397753041602,
+          0.002739509071601913
+        ]
+      }
+    ]
+  }
+]

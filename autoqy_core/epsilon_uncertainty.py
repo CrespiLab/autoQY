@@ -137,7 +137,7 @@ def load_epsilon_nominal(path):
 
 
 def run_with_epsilon_uncertainty(data, reactant, product, error_metric="sd"):
-    """Run distinct low/mean/high epsilon-bound combinations through the pipeline."""
+    """Run distinct low/mean/high epsilon range combinations through the pipeline."""
     from .pipeline import run_analysis_pipeline
 
     nominal_data = replace(
@@ -285,4 +285,4 @@ def _validate_envelope(path, wavelengths, nominal, lower, upper):
         raise ValueError(f"Epsilon uncertainty bounds in {path} must be non-negative")
     tolerance = np.finfo(float).eps * np.maximum(1.0, np.abs(nominal)) * 16
     if np.any(lower > nominal + tolerance) or np.any(upper < nominal - tolerance):
-        raise ValueError(f"Epsilon bounds in {path} must enclose the nominal spectrum")
+        raise ValueError(f"Epsilon ranges in {path} must enclose the nominal spectrum")

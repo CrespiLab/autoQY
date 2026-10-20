@@ -189,18 +189,15 @@ AutoQY uses the LED spectrum and measured power to calculate photon flux.
 
 ### Fit
 
-In **4 · Fit**, choose **Regularized concentrations**.
+In **4 · Fit**, choose **Concentrations (legacy pure NNLS)**.
 
 Leave the initial yields at **0.5** and the bounds at **0–1** under
 **Expert optimizer settings**. These are starting guesses.
 
-Under **Method-specific controls**, use:
-
-- concentration regularization strength: **1**;
-- expected metastable photoproduct at PSS: **77%** (equivalent to 23% remaining stable reactant).
-
-Notice the difference: Analysis asks for **23% reactant**;
-Reconstruction asked for **77% metastable**.
+Set **Expected metastable photoproduct at PSS (%)** to **77%** (equivalent to
+23% remaining stable reactant). Analysis and Reconstruction both ask for the
+metastable percentage. This optional diagnostic reference does not constrain
+the fit.
 
 ### Uncertainty
 
@@ -217,23 +214,21 @@ Reconstruction. The results show fit/power error, ε error, and combined error.
    Enable overwrite only if you want to replace an earlier run.
 3. Click **Save JSON** to save your settings.
 4. Click **Run analysis**. Running alone does not save `analysis.json`.
-5. Read any amber or red warnings. Click their information buttons for details.
+5. Read any amber or red warnings. Their explanation is shown beside the flag;
+   expand **Technical details** if you need more information.
 6. Check **Concentrations**, **Endpoint reconstruction**, and
    **Absorbance residuals**. The calculated spectra should follow the measured
    spectra; large differences or clear patterns in the residuals need checking.
 
-**Compare fit methods** is an extra check. It runs without ε uncertainty and
-does not save results. Compare **Regularized concentrations** with
-**Full-spectrum ODE absorbance**. If they disagree badly, investigate.
+**Compare fit methods** is an extra check. It keeps the ε uncertainty settings
+selected above and does not save results. Compare **Concentrations (legacy pure
+NNLS)** with **Full spectrum ODE**. Each method's errors include its own ε range
+calculations. If the yields disagree beyond those ranges, investigate the
+concentration curves, reference spectra, and absorbance residuals.
 
-With the included files and settings, expect roughly:
-
-- **Φ R→P: 25.0 ± 1.2%**
-- **Φ P→R: 21 ± 3%**
-- **PSS: 23.3% reactant**
-
-Newly prepared ε files or different treatment settings can change the numbers
-slightly. Use the included files when checking against these results.
+See [the regenerated method comparison](../../method_comparison/README.md) for
+the included 395 nm inputs and settings. Newly prepared ε files or different
+treatment settings can change the values; use the included files for that check.
 
 ## Optional: run from a terminal
 

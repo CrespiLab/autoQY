@@ -9,7 +9,7 @@ from .kinetics import (YieldFit, extrapolate_photostationary_state,
                        fit_quantum_yields, fit_quantum_yields_absorbance,
                        fit_quantum_yields_ode_absorbance)
 from .spectra import (ConcentrationFit, fit_concentrations,
-                      fit_concentrations_regularized, interpolate_inputs, process_led)
+                      interpolate_inputs, process_led)
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,6 @@ class AnalysisInput:
     baseline_exclusion_fwhm_multiplier: float = 10
     fit_method: str = "concentrations"
     emission_threshold_fraction: float = 0.01
-    regularization_strength: float = 1
     absorbance_baseline_order: int = 1
     robust_loss_scale: float = 0.02
     initial_yields: tuple[float, float] = (0.5, 0.5)
@@ -80,15 +79,9 @@ def run_analysis_pipeline(data):
     if actinometer_mode:
         emission = np.zeros_like(wavelengths, dtype=float)
         emission[np.argmin(np.abs(wavelengths - data.irradiation_wavelength_nm))] = 100.0
-    if data.fit_method in {"regularized_concentrations", "ode_absorbance"}:
-        concentration_fit = fit_concentrations_regularized(
-            absorbance, wavelengths, epsilon_r, epsilon_p, data.timestamps,
-            data.path_length_cm, data.regularization_strength,
-        )
-    else:
-        concentration_fit = fit_concentrations(
-            absorbance, wavelengths, epsilon_r, epsilon_p, data.path_length_cm
-        )
+    concentration_fit = fit_concentrations(
+        absorbance, wavelengths, epsilon_r, epsilon_p, data.path_length_cm
+    )
 
     initial_total = float(np.sum(concentration_fit.concentrations[0]))
     initial_product_fraction = (float(concentration_fit.concentrations[0, 1]) /
@@ -129,7 +122,7 @@ def run_analysis_pipeline(data):
     for level in levels:
         power = None if actinometer_mode else level
         photon_flux = level if actinometer_mode else None
-        if data.fit_method in {"concentrations", "regularized_concentrations"}:
+        if data.fit_method == "concentrations":
             fits.append(fit_quantum_yields(
                 wavelengths, emission, concentration_fit.concentrations,
                 data.timestamps, epsilon_r, epsilon_p, power, data.volume_ml,

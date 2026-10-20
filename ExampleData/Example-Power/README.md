@@ -1,33 +1,62 @@
-# Power processing example
+# Calculate power from monitor measurements
 
-`generic_inputs/power_analysis.json` processes plain CSV files containing a
-single `power_mw` column. `crespi_group_inputs/power_analysis.json` processes
-the three original Thorlabs OPM CSV files. Both produce equivalent results.
+This example uses three measurements to calculate the optical power at the
+cuvette and its error. Use these values as inputs to a quantum-yield analysis.
 
-Each trace records six explicit half-open index regions: LED off/on/off without
-the cuvette assembly, followed by LED off/on/off with the jacket, cuvette, and
-solvent. A cubic baseline is fitted to the two off regions surrounding each on
-region. The browser GUI retains draggable lines but can export their final
-indices, making the processing reproducible from `power_analysis.json`.
+## Run the prepared example
 
-From the repository root, install the optional GUI and start it with:
+After installing AutoQY, run this command from the repository folder:
 
-```bash
-pip install -e ".[gui]"
+```text
+autoqy-core power ExampleData/Example-Power/generic_inputs/power_analysis.json
+```
+
+The result is saved as `PowerProcessing_results.json` in `generic_inputs`.
+The configuration stops if that file already exists. To keep it and run again,
+add `--output` with a new absolute file path, or change the `output` setting
+in a copy of the configuration. Relative output paths start at the configuration
+folder, including paths passed through `--output`.
+
+`generic_inputs` contains CSV files with one `power_mw` column.
+`crespi_group_inputs` contains the original Thorlabs OPM files and equivalent
+settings. Replace `generic_inputs` with `crespi_group_inputs` in the command
+to try those files. Keep all three measurements beside their JSON.
+
+## Inspect the measurements in the Power window
+
+Open **AutoQY Power GUI**, or run:
+
+```text
 autoqy-core power-gui
 ```
 
-Upload the three CSV files from `crespi_group_inputs` to reproduce the graphical
-workflow. Each supplied `power_analysis.json` contains the already selected
-regions and remains the non-interactive example.
+Load the three CSV files from `crespi_group_inputs`. The prepared terminal
+settings are not automatically loaded into the window: select each trace and
+set its region boundaries before calculating power.
 
-Two uncertainty quantities are reported:
+Each trace contains LED off/on/off measurements without the cuvette assembly,
+then off/on/off with the jacket, cuvette, and solvent. A cubic curve estimates
+the background around each on region. Check the corrected traces before using
+the result. The supplied JSON files already contain these region choices.
 
-- `repeatability_sd_mw`: conservative root-mean-square variation within the
-  corrected on regions;
-- `standard_error_mw`: propagated within-region standard errors combined with
-  the variation between replicate power estimates.
+## Choose the error and use the result
 
-`uncertainty_output` selects which quantity is returned as `power_error_mw`.
-The example retains `repeatability_sd` for compatibility with the historical
-reported uncertainty.
+The result gives two error measures:
+
+- **Repeatability SD** (`repeatability_sd_mw`): describes variation in the
+  corrected signal. This is the choice saved in this example.
+- **Standard error** (`standard_error_mw`): estimates uncertainty in the average,
+  including differences between the repeated power measurements.
+
+`uncertainty_output` chooses which one is reported as `power_error_mw`.
+Copy `power_mw` and `power_error_mw` to the Experiment fields in Analysis.
+This is a manual step; the Power and Analysis windows do not transfer them automatically.
+
+With the supplied settings, expect about **2.067 mW**, with repeatability SD
+**0.0226 mW** and standard error **0.00621 mW**. The terminal rounds the
+selected result to **2.07 ± 0.02 mW**. For unrounded values, read the generated JSON. The older
+`CorrectlyProcessed_Results_PowerProcessing.txt` is a historical record;
+its error calculation may differ from the current one.
+
+For a quantum-yield run using this power measurement, try the
+[455 nm example](../Example-2_AB_455nm-100mA/README.md).

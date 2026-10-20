@@ -3,10 +3,11 @@
 Use this guide for your own data. To practise with the included files, follow the
 [395 nm tutorial](ExampleData/Example-4_395nm-EpsilonError/TUTORIAL.md).
 
-AutoQY has two windows:
+AutoQY has three windows:
 
 - **Spectral Treatment**: clean spectra, calculate ε, reconstruct a spectrum, and save data or figures.
 - **Analysis**: calculate quantum yields from your measurements.
+- **Power**: process power-monitor measurements before entering power in Analysis.
 
 Click an **ⓘ** button for help with the control beside it. Press Escape to close it.
 
@@ -322,26 +323,27 @@ need an LED file.
 
 ### 4 · Fit
 
-Start with **Regularized concentrations**. This finds the amounts of reactant
-and product at each time, discourages jumps between nearby points, then fits
-the reaction rates to calculate quantum yields.
+Start with **Concentrations (legacy pure NNLS)**. This finds the amounts of
+reactant and product independently at each time, then fits the photochemical
+reaction model to calculate quantum yields.
 
-Compare it with **Full-spectrum ODE absorbance**, which fits the changing
-spectra directly to the reaction model.
-
-The two legacy methods are kept for older analyses. You do not need them to
-follow the tutorial.
+Compare it with **Full spectrum ODE**, which fits the changing spectra
+directly to the same reaction model, including the initial composition and
+total concentration. Check the concentration curves and spectral residuals
+alongside the reported yields. **Emission (legacy)** is also
+available for reproducing older analyses.
 
 Leave **Expert optimizer settings** at their defaults to start:
 initial yields `0.5` and bounds `0–1`. These are starting guesses, not results.
-Under **Method-specific controls**, the regularization strength starts at `1`.
 If you measured PSS by NMR, enter the **metastable photoproduct** percentage in
 **Expected metastable photoproduct at PSS (%)**. For 23% stable reactant and
 77% metastable product, enter **77**. This uses the same percentage as Spectral
 Treatment and is an optional diagnostic reference, not a fitting constraint.
 
-**Compare fit methods** compares results without ε errors and does not save
-result files. It does not replace your final analysis with uncertainty enabled.
+**Compare fit methods** uses the same inputs and uncertainty settings as your
+analysis, including **ε range** when enabled. It does not save result files.
+The displayed yield errors therefore include the configured ε uncertainty;
+leave that option off only when you want to compare fit/power errors alone.
 
 ### 5 · Uncertainty
 
@@ -353,7 +355,7 @@ AutoQY repeats the calculation with lower, central, and upper ε values.
 Reconstructed product files can have different upper and lower errors.
 The results list the fit/power error, ε error, and combined error separately.
 
-### 6 · Output and 7 · Analyze
+### 6 · Output and the analysis buttons
 
 Choose where to save the analysis results and which files to write.
 These Analysis settings are separate from Spectral Treatment's Save As buttons.
@@ -378,11 +380,18 @@ Check these plots:
 - **Absorbance residuals**: these are measured minus fitted absorbance.
   Clear bands or patterns can point to wrong references, a bad baseline, or another absorbing compound.
 
-The regularized method uses a simple exponential to keep concentration points
-from jumping around. That exponential is not the photochemical model.
-Small patterns in its **Fraction residual** plot can occur for this reason.
-Check them alongside the other plots, not on their own.
+Concentration plots use blue for reactant and orange for product. Open circles
+show concentrations recovered from the spectra; solid lines show the fitted
+reaction model. When ε uncertainty is enabled, error bars and shaded ranges
+show the changes caused by the ε ranges. The PNG and SVG exports identify the
+two yields with the reaction directions Φ R→P and Φ P→R.
 
-Compare the two main fit methods and the fitted PSS with your NMR result.
+The **Fraction residual** is measured reactant fraction minus fitted fraction.
+The absorbance residual map uses a color scale centered on zero, so opposite
+colors indicate underprediction and overprediction. Inspect patterns as well
+as the size of the residuals.
+
+Compare **Concentrations (legacy pure NNLS)** with **Full spectrum ODE** and
+compare the fitted PSS with your NMR result.
 If they disagree badly, or small changes in treatment cause large changes in
 quantum yield, investigate before reporting the result.

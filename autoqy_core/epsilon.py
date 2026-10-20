@@ -169,7 +169,7 @@ def load_epsilon_tsv(text):
 
 
 def nonnegative_error_bounds(mean, error):
-    """Return mean ± non-negative error constrained to physical epsilon bounds."""
+    """Return mean ± non-negative error constrained to physical epsilon ranges."""
     mean = np.asarray(mean, float)
     error = np.abs(np.asarray(error, float))
     return np.maximum(mean - error, 0.0), np.maximum(mean + error, 0.0)

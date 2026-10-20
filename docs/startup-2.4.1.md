@@ -1,5 +1,9 @@
 # AutoQY 2.4.1 startup and analysis GUI changes
 
+This is a historical development report. Its timings, test counts, and example
+results describe that version, not the current release. For current instructions,
+use the [beginner guide](../BEGINNERS-GUIDE.md) and [example index](../ExampleData/README.md).
+
 Base commit: `8810b40` (local branch `2.4.1`).
 
 ## Findings and fixes

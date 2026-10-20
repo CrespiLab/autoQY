@@ -80,9 +80,8 @@
     }
   },
   "fit": {
-    "method": "regularized_concentrations",
+    "method": "concentrations",
     "emission_threshold_fraction": 0.01,
-    "regularization_strength": 1,
     "absorbance_baseline_order": 1,
     "robust_loss_scale": 0.02,
     "initial_quantum_yields": {

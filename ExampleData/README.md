@@ -1,49 +1,78 @@
-# AutoQY example data
+# Try AutoQY with example data
 
-Every example has the same two input tracks:
+These examples include the input files and saved settings needed to repeat an
+analysis. Install AutoQY first. You can use the Analysis window or a terminal.
 
-- `generic_inputs` contains plain, headered CSV files and is the recommended
-  starting point for users outside the Crespi group;
-- `crespi_group_inputs` preserves the original SpectraGryph, AHK, Avantes, or
-  Thorlabs files and their matching configuration.
+## Choose an example
 
-Each input folder contains its own portable `analysis.json` (or
-`power_analysis.json`). The paired configurations produce numerically
-equivalent results. Check all six pairs from the repository root with:
+| Example | What you will learn | Method in the saved settings |
+|---|---|---|
+| [1a · 340 nm, raw LED](Example-1a_340nm_ManualPower_noblcorrLED/README.md) | Reproduce an older analysis with a raw LED spectrum | Emission (legacy) |
+| [1b · 340 nm, corrected LED](Example-1b_340nm_ManualPower_blcorrLED/README.md) | Run a similar analysis with an LED spectrum corrected before import | Emission (legacy) |
+| [2 · 455 nm](Example-2_AB_455nm-100mA/README.md) | **Start here** for a simple concentration analysis | Concentrations |
+| [3 · 455 nm with ε uncertainty](Example-3_AB_455nm-EpsilonError/README.md) | Include errors in the reference spectra | Concentrations |
+| [4 · 395 nm with ε uncertainty](Example-4_395nm-EpsilonError/README.md) | Follow the [full preparation tutorial](Example-4_395nm-EpsilonError/TUTORIAL.md), from raw spectra to quantum yields | Concentrations |
+| [Power](Example-Power/README.md) | Calculate optical power and its error from three monitor traces | Power processing |
 
-```powershell
-python ExampleData/verify_equivalent_inputs.py
-```
+ε (epsilon, or molar absorptivity) describes how strongly a compound absorbs
+light after allowing for concentration and path length. A quantum yield counts
+molecules changed per absorbed photon. AutoQY reports it in percent.
 
-## Available examples
+## Run your first analysis
 
-| Directory | Irradiation | Fitting method | Purpose |
-|---|---:|---|---|
-| `Example-1a_340nm_ManualPower_noblcorrLED` | 340 nm | `emission` | Raw LED without baseline correction |
-| `Example-1b_340nm_ManualPower_blcorrLED` | 340 nm | `emission` | Externally baseline-corrected LED |
-| `Example-2_AB_455nm-100mA` | 455 nm | `concentrations` | Legacy pure-NNLS concentration route |
-| `Example-3_AB_455nm-EpsilonError` | 455 nm | `concentrations` | Wavelength-resolved ε uncertainty |
-| `Example-4_395nm-EpsilonError` | 395 nm | `regularized_concentrations` | Regularized fit with ε uncertainty |
-| `Example-Power` | 455 nm | — | Optical-power processing |
+Open **AutoQY Analysis GUI**, load
+`Example-2_AB_455nm-100mA/generic_inputs/analysis.json` from this folder,
+check the results folder, and click **Run analysis**.
 
-For a first command-line test, use the generic CSV version of the 455 nm
-example:
+Or run these commands from the repository folder:
 
-```powershell
+```text
 autoqy-core validate ExampleData/Example-2_AB_455nm-100mA/generic_inputs/analysis.json
 autoqy-core run ExampleData/Example-2_AB_455nm-100mA/generic_inputs/analysis.json
 ```
 
-To reproduce the same calculation from the original group files, replace
-`generic_inputs` with `crespi_group_inputs`.
+If the installed command is unavailable, use `python -m autoqy_core` followed
+by the same arguments. [The core guide](../autoqy_core/README.md) explains the
+commands, plots, and saved files.
 
-The power example follows the same convention:
+## Two ways to provide the same data
 
-```powershell
-autoqy-core power ExampleData/Example-Power/generic_inputs/power_analysis.json
+Every example has two input folders:
+
+- **`generic_inputs`**: CSV files with column headings. Use these first.
+- **`crespi_group_inputs`**: the original instrument files, with matching settings.
+
+Each folder contains `analysis.json`, or `power_analysis.json` for Power.
+Both versions give the same results. Replace `generic_inputs` with
+`crespi_group_inputs` in a command to try the original files.
+Keep the referenced input files with their JSON when moving an example;
+the bundled JSON files contain file links, not embedded copies of the data.
+
+Analysis outputs go into the selected input folder's `results` subfolder.
+Some examples allow overwrite and others stop if results already exist;
+each example README states which. To keep an earlier run, choose another
+results folder or add `--output-directory my_results` to the run command.
+
+Power is a separate calculation. Its result is written beside its JSON as
+`PowerProcessing_results.json`. Follow the [power instructions](Example-Power/README.md)
+to transfer its values to Analysis.
+
+## Check your results
+
+Each example README gives expected yields and explains any expected warnings.
+The [method comparison](../method_comparison/README.md) compares all three
+quantum-yield methods on the five datasets, including ε ranges where supplied.
+Its result figures are regenerated from the current code.
+
+`LegacyResults` and the power example's historical TXT file are older outputs
+kept for reference. They are not the expected results of the current settings.
+Current settings come from JSON; the original `ExpParams.txt` files are not used.
+
+To check that all six pairs of input folders give the same numerical results,
+run from the repository folder:
+
+```text
+python ExampleData/verify_equivalent_inputs.py
 ```
 
-`LegacyResults` directories contain outputs from earlier AutoQY
-implementations and are retained only for historical comparison. `ExpParams.txt`
-and raw instrument source files live under `crespi_group_inputs`; current
-analyses obtain experimental parameters from their JSON configuration.
+For your own measurements, continue with the [beginner guide](../BEGINNERS-GUIDE.md).

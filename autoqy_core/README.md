@@ -1,303 +1,138 @@
-# AutoQY Core configuration
+# Using AutoQY Core
 
-One `analysis.json` contains every embedded input or input path, unit-bearing experimental value,
-processing choice, fit setting, plot setting, and output instruction required
-for a reproducible quantum-yield run. Relative paths are resolved from the JSON
-file location.
+AutoQY calculates quantum yields from a series of absorption spectra. You can
+use its windows to prepare and analyze data, or run a saved analysis from a terminal.
+Your data stay on your computer.
 
-Power-monitor processing is intentionally separate; see
-`ExampleData/Example-Power/generic_inputs/power_analysis.json`.
+## Start with an example
 
-## Minimal files for one analysis
+After installing AutoQY, open **AutoQY Analysis GUI** from the AutoQY Desktop
+folder, or run:
 
-A self-contained run needs the installed `autoqy_core` package and one analysis
-JSON file. Schema version 2 stores input contents directly in `inputs` as objects
-with `filename`, `encoding: "base64"`, `data`, and `sha256`. Formats remain in
-`inputs.formats`. Exact source bytes retain binary formats and uncertainty columns.
-The loader checks integrity and gives the existing readers private temporary
-copies; there is no dependency on the sender's folders or original files.
-
-The Python helper `self_contained_document(config)` creates this document from a
-validated `AnalysisConfig`. `outputs.embed_inputs: true` includes it in saved
-configuration snapshots and under `configuration` in result JSON. `load_config`
-also accepts those result JSON files. Existing schema version 1 file paths remain
-supported; older AutoQY builds cannot read embedded schema version 2 inputs.
-
-For the older path-based format, a run uses six experiment files:
-
-- `analysis.json`;
-- time-series absorbance spectra;
-- reactant molar absorptivity;
-- product molar absorptivity;
-- LED emission spectrum;
-- timestamps.
-
-No `ExpParams.txt`, terminal prompts, or Python source edits are required.
-
-## Terminal interface
-
-```bash
-python -m autoqy_core validate analysis.json
-python -m autoqy_core run analysis.json
-python -m autoqy_core power power_analysis.json
-python -m autoqy_core analysis-gui
-python -m autoqy_core smoother-gui
-python -m autoqy_core power-gui
+```text
+autoqy-core analysis-gui
 ```
 
-The equivalent installed commands are `autoqy-core`, `autoqy-analysis-gui`,
-`autoqy-smoother-gui`, and `autoqy-power-gui`.
+In **1 · Project**, load
+`ExampleData/Example-2_AB_455nm-100mA/generic_inputs/analysis.json`.
+Check the results folder, then click **Run analysis**. Paths in this guide
+start at the repository folder unless stated otherwise.
 
-## Local GUI behavior
+For a step-by-step introduction, use the [395 nm tutorial](../ExampleData/Example-4_395nm-EpsilonError/TUTORIAL.md).
+For your own measurements, see the [beginner guide](../BEGINNERS-GUIDE.md).
+The [example index](../ExampleData/README.md) explains all six examples.
 
-Analysis, Spectral Treatment, and Power display the version read from
-`pyproject.toml`. On Windows, each GUI opens in a dedicated Edge or Chrome app
-window with a temporary isolated browser profile, rather than becoming another
-tab in the user's main browser. The default browser is used when app-window
-mode is unavailable. All pages and uploaded data remain on the local computer.
+## Choose a window
 
-The GUI window and Python server monitor each other. Closing the app window
-stops its server. On Windows, the dedicated GUI commands and installer-created
-Desktop shortcuts run without a terminal window. Diagnostic logs for these
-launchers are saved under `%LOCALAPPDATA%\AutoQY\logs`. Running through
-`autoqy-core` still uses the terminal; closing that process closes the browser
-process tree. A normal browser tab that cannot close itself instead displays a
-message telling the user to close the page and restart the GUI. Pass
-`--no-open` to run a GUI server without opening a window.
+| Window | What you use it for | Terminal command |
+|---|---|---|
+| Analysis | Load settings, calculate quantum yields, and check the fit | `autoqy-core analysis-gui` |
+| Spectral Treatment | Treat spectra, calculate ε, and reconstruct a pure-isomer spectrum | `autoqy-core smoother-gui` |
+| Power | Process power-monitor measurements | `autoqy-core power-gui` |
 
-### Analysis GUI
+**ε** (epsilon, or molar absorptivity) describes how strongly a compound absorbs
+light after allowing for concentration and cuvette path length. **R** means
+reactant; **P** means product. **PSS** is the mixture predicted when continued
+irradiation no longer changes the composition.
 
-Run `autoqy-core analysis-gui` to build a complete `analysis.json`, load an
-existing configuration, or run an analysis. Its six control panels cover the
-project location and files, experiment, fit, uncertainty, and output settings.
-Native file and folder selectors are available for local paths, and the live
-settings preview omits embedded data to keep the preview responsive.
+On Windows, each window normally opens separately in Edge or Chrome. Closing
+it stops its local server. If a separate window cannot open, AutoQY uses your
+default browser. The version is shown in each window.
 
-Both **Save JSON** and **Run analysis** validate every referenced file and
-setting. There is no separate validation button. **Run analysis** does not save
-the editable `analysis.json`; **Save JSON** does. The
-`outputs.write_config` option independently controls the configuration snapshot
-written beside analysis results. **Include all input data in JSON** is enabled
-by default for new GUI saves. Disable it to retain file links; linked absolute
-paths can be made relative to the saved JSON file. Already embedded inputs stay
-embedded until replaced using Browse.
+## What an analysis needs
 
-As soon as the four spectral inputs are loaded, **Preprocessing** shows the
-reactant/product epsilon spectra with the processed LED above the measured
-spectral decay; the LED is not overlaid on the decay. After a run, the GUI
-reports the two quantum yields and fit status, lists the generated files, and
-adds interactive views for concentrations, fraction residuals, endpoint
-reconstruction, and wavelength-resolved absorbance residuals. Automatic
-diagnostics are grouped as green, amber, or red checks. **Compare fit methods** runs regularized
-concentrations, full-spectrum ODE, and legacy concentration fitting with the
-same nominal inputs; it writes no result files and disables epsilon uncertainty
-for the comparison. **Open Spectral Treatment** starts that GUI in its own
-dedicated window.
+For the usual LED-and-power workflow, prepare:
 
-## Fitting methods
+- absorption spectra measured during irradiation;
+- reactant and product ε spectra;
+- the LED emission spectrum;
+- one irradiation time in seconds for each absorption spectrum;
+- sample volume, path length, optical power and its error, and any thermal rates.
 
-`"method": "regularized_concentrations"` is the recommended concentration
-route. It fits all spectra together with a single conserved total concentration.
-Each timestamp retains an independent reactant fraction, but those fractions
-have a soft exponential envelope with a free starting fraction and free plateau.
-The exponential is only a regularizer, not the quantum-yield model; the quantum
-yields are still obtained from the full photochemical ODE.
-`regularization_strength` controls the soft constraint. Larger values follow
-the envelope more closely; the default is `1.0`.
+Save the file locations and settings in `analysis.json`. Relative file paths
+start at the folder containing that JSON, not the terminal's current folder.
+No changes to Python code or `ExpParams.txt` are needed.
 
-`"method": "ode_absorbance"` jointly fits the quantum yields, total
-concentration, and initial composition directly to the full measured spectral
-range. The concentration trajectory follows the photochemical ODE. An optional
-small baseline correction is fitted independently to each spectrum, and a
-robust loss reduces the influence of isolated bad wavelengths. This method is
-slower but avoids deriving the result from independently clipped concentration
-points. `absorbance_baseline_order` accepts `-1` (off), `0` (offset), or `1`
-(offset and slope); the default is `1`. `robust_loss_scale` defaults to `0.02`.
+### Save and share an experiment
 
-`"method": "concentrations"` is the legacy pure-NNLS concentration route. It
-recovers every time point independently by non-negative spectral decomposition,
-then fits the photochemical ODE to the resulting traces. It is fast and
-transparent, but a mismatch between experimental and reference spectra can pin
-several consecutive points to exactly 100% reactant or product. It has no
-temporal information during spectral decomposition.
+In Analysis, **Save JSON** saves the editable experiment. **Run analysis** runs
+it; running alone does not save that JSON. Both buttons check the inputs first.
 
-`"method": "emission"` is retained to reproduce the older direct-absorbance
-calculation. It fits only wavelengths inside the active LED-emission band and
-assumes the first spectrum contains pure reactant. When the absorbance area and
-spectral shape sampled by the LED change little during irradiation—for example,
-when reactant and product absorptivities are similar in that band—the fit is
-poorly conditioned and can report large quantum-yield errors or concentrations
-that disagree with the full-spectrum methods. `emission_threshold_fraction`
-defines the active band as a fraction of the processed LED maximum.
+Leave **Include all input data in JSON (recommended)** enabled to put copies of
+the inputs inside the saved JSON. You can then move it to another computer
+with a compatible AutoQY installation and choose a new results folder.
+Turn this option off to save links to the original input files instead.
+Use Browse to replace an input that was already embedded in a loaded JSON.
 
-All four methods use the same rate equations, path length, power uncertainty,
-two thermal directions, bounds, outputs, and plotting pipeline. The thermal
-part of the reactant derivative is
-`d[R]/dt = … + k_P→R[P] - k_R→P[R]`; the product derivative is its negative.
-`thermal_forward_reaction_s_1` is optional and defaults to zero, so existing
-configurations retain their prior behavior. A practical configuration
-containing every method-specific control is:
+The output setting `write_config` separately saves a settings snapshot beside
+the results. With `embed_inputs: true`, saved configurations and result JSON
+files include the inputs. Analysis can reopen either file.
 
-```json
-"fit": {
-  "method": "regularized_concentrations",
-  "regularization_strength": 1.0,
-  "absorbance_baseline_order": 1,
-  "robust_loss_scale": 0.02,
-  "emission_threshold_fraction": 0.01,
-  "initial_quantum_yields": {"R_to_P": 0.5, "P_to_R": 0.5},
-  "quantum_yield_bounds": {"minimum": 0.0, "maximum": 1.0}
-}
+### Run from a terminal
+
+Run these commands after installing AutoQY and activating its environment:
+
+```text
+autoqy-core validate analysis.json
+autoqy-core run analysis.json
+autoqy-core run analysis.json --output-directory my_results
+autoqy-core power power_analysis.json
 ```
 
-Controls unused by the selected method are ignored. For a new dataset, compare
-`regularized_concentrations` with `ode_absorbance` and inspect both the
-concentration and wavelength-resolved residuals. Agreement is stronger evidence
-than either result alone.
+`validate` checks the configuration and input paths; `run` also reads and fits
+the data. Use a new output folder for another run, or enable overwrite in the
+configuration if you intend to replace existing results.
 
-### Bundled azobenzene comparison
+If the `autoqy-core` command is unavailable in an otherwise installed environment,
+use `python -m autoqy_core` followed by the same arguments. The window shortcuts
+`autoqy-analysis-gui`, `autoqy-smoother-gui`, and `autoqy-power-gui` are also available.
 
-The table reports concentration-trajectory RMSE relative to `concentrations`,
-divided by the initial total concentration. It is a regression check for the
-bundled data, not a general accuracy estimate.
+## Choose and compare fitting methods
 
-| Example | `emission` | `regularized_concentrations` | `ode_absorbance` |
-|---|---:|---:|---:|
-| 340 nm, raw LED | 1.31% | 0.93% | 0.44% |
-| 340 nm, pre-baselined LED | 0.33% | 0.76% | 0.48% |
-| 455 nm, first 40 spectra | 9.16% | 1.53% | 2.43% |
+Start with **Concentrations (legacy pure NNLS)**, then compare it with
+**Full spectrum ODE**. NNLS means non-negative least squares: recovered
+concentrations cannot be negative. ODE refers to the reaction model that
+describes how concentrations change over time.
 
-Both new methods therefore reproduce the established concentration trajectory
-within 2.5% normalized RMSE in all three examples. The older `emission` result
-also agrees for the 340 nm examples but not for the 455 nm example, illustrating
-why agreement should be checked rather than assumed.
+| Method in Analysis | JSON value | How it works |
+|---|---|---|
+| Concentrations (legacy pure NNLS) | `concentrations` | Finds concentrations from each spectrum, keeps one total concentration, then fits the reaction model. |
+| Full spectrum ODE | `ode_absorbance` | Fits the reaction model directly to the full spectral range, including total concentration and the starting mixture. It can also fit a small baseline correction. |
+| Emission (legacy) | `emission` | Fits absorbance in the active LED band and assumes a pure-reactant starting sample. Use it to reproduce older analyses. |
 
-## Input formats
+**Compare fit methods** runs all three using the same inputs and selected
+uncertainty settings. It writes no result files. With **ε range** enabled,
+each method includes ε uncertainty in its reported yield errors.
+The comparison's RMSE values summarize the differences between measured and
+fitted data using the central ε spectra. Smaller RMSE means closer agreement,
+but extra baseline terms can also reduce it.
 
-Each input has its own entry under `inputs.formats`, allowing mixed formats in
-one experiment.
+See the [method comparison](../method_comparison/README.md) for results and
+figures from all five quantum-yield datasets.
 
-### Generic CSV (recommended)
+### Optional fit controls
 
-Use `generic_delimited` with a comma delimiter and a header row. Measurement
-CSV files place wavelength in the first column and one spectrum in every
-remaining column; single-spectrum files use one value column.
+The controls below can stay at their defaults for a first run:
 
-```json
-{"type": "generic_delimited", "delimiter": ",", "header": true}
-```
+| JSON setting | Default | When it applies |
+|---|---:|---|
+| `absorbance_baseline_order` | `1` | Full spectrum ODE: `-1` disables baseline fitting, `0` fits an offset, `1` fits an offset and slope per spectrum. |
+| `robust_loss_scale` | `0.02` | Full spectrum ODE: controls how strongly isolated large residuals are downweighted. |
+| `emission_threshold_fraction` | `0.01` | Emission: selects wavelengths where LED intensity exceeds this fraction of its maximum. |
+| `initial_quantum_yields` | `0.5` in each direction | Starting guesses for the fit, not measured yields. |
+| `quantum_yield_bounds` | `0` to `1` | Allowed yields as fractions; `0.25` means 25%. |
 
-### SpectraGryph / Crespi group
+These keys belong inside `fit`. Settings for other methods are ignored.
+**Expected metastable photoproduct at PSS (%)** is an optional check against
+a separately measured composition; it does not constrain the fit. Enter 77
+for a mixture containing 77% product and 23% reactant.
 
-```json
-{"type": "spectragryph_tsv"}
-```
+## Include ε uncertainty
 
-This reads a tab-separated header, uses the first column as wavelength in nm,
-and ignores a column named `Wavenumbers [1/cm]`.
-
-### Analytik Jena SPECORD binary
-
-```json
-{"type": "specord"}
-```
-
-This reads WinASPECT `.dat` files containing the SPECORD metadata header and
-labelled binary wavelength/signal arrays. The x axis must be wavelength in nm.
-
-### Agilent/Varian Cary 50 and 60 binary
-
-```json
-{"type": "agilent_cary"}
-```
-
-This reads Cary WinUV `.DSW` single-spectrum and `.BSW` batch files. Decreasing
-wavelength scans are restored to increasing order, and multiple scans are
-interpolated onto their finest common measured wavelength grid.
-
-### Other generic delimiters
-
-```json
-{
-  "type": "generic_delimited",
-  "delimiter": ",",
-  "header": false,
-  "skip_rows": 0,
-  "wavelength_column": 0,
-  "value_columns": [1]
-}
-```
-
-With a header, columns may be named instead of numbered. For measurement data,
-`"value_columns": "remaining"` selects every non-wavelength, non-ignored
-column.
-
-### Crespi Lab AHK timestamps
-
-```json
-{"type": "ahk_csv"}
-```
-
-The core derives cumulative irradiation time from `LEDon` and `LEDoff` events.
-
-### Generic timestamps
-
-```json
-{
-  "type": "generic_delimited",
-  "delimiter": ",",
-  "header": true,
-  "time_column": "irradiation_seconds"
-}
-```
-
-The selected column must contain elapsed irradiation time in seconds and have
-one value per measured spectrum.
-
-## Units
-
-| Field | Unit |
-|---|---|
-| `volume_ul` | microlitres |
-| `power_mw`, `power_error_mw` | mW |
-| `photon_flux_mol_s`, `photon_flux_error_mol_s` | mol photons s^-1 |
-| `thermal_back_reaction_s_1` | s^-1 |
-| `thermal_forward_reaction_s_1` | s^-1 |
-| `irradiation_wavelength_nm` | nm |
-| `path_length_cm` | cm |
-| `wavelength_range_nm` | nm |
-
-Volume is converted internally from microlitres to millilitres.
-
-### Chemical-actinometer photon flux
-
-Set `experiment.irradiation_source` to `chemical_actinometer` to supply a
-measured molar photon flux instead of optical power:
-
-```json
-"experiment": {
-  "irradiation_source": "chemical_actinometer",
-  "photon_flux_mol_s": 4.8e-9,
-  "photon_flux_error_mol_s": 1e-10,
-  "irradiation_wavelength_nm": 395
-}
-```
-
-In this mode `inputs.led_emission`, `power_mw`, and `power_error_mw` are not
-required. The irradiation wavelength is required and is used as the exact
-monochromatic wavelength. The GUI displays the corresponding spectrum as zero
-at every wavelength except 100 at the nominal wavelength.
-
-For Example 4, converting `1.46 ± 0.03 mW` at 395 nm gives the correctly
-rounded photon flux `(4.8 ± 0.1) × 10^-9 mol photons/s`. The unrounded values
-remain available internally for calculation.
-
-## Optional molar-absorptivity uncertainty
-
-The established error-less calculation remains the default. To propagate the
-wavelength-resolved errors exported by Spectral Treatment, point
-`inputs.reactant_absorptivity` and `inputs.product_absorptivity` to their AutoQY
-epsilon CSV files (legacy TSV remains supported) and add:
+Power uncertainty is included even when ε uncertainty is off. To include
+uncertainty in the reference spectra, use AutoQY ε CSV or TSV files containing
+error columns for both compounds. In Analysis, choose **ε range** and **SD**
+or **SEM**. In JSON, add:
 
 ```json
 "uncertainty": {
@@ -308,277 +143,158 @@ epsilon CSV files (legacy TSV remains supported) and add:
 }
 ```
 
-`sd` is the default for independently prepared samples; `sem` is also
-available. The product input may instead be an NMR-derived product epsilon CSV,
-whose asymmetric non-negative bounds are used directly. The core evaluates the
-distinct low/mean/high reactant-product epsilon-bound combinations through the
-complete selected fit and reports optimizer-plus-power, epsilon-only, and
-combined conservative error envelopes separately. Omitting this section, or
-setting `method` to `none`, preserves the original calculation and input formats.
+This is a section of a complete configuration, not a standalone JSON file.
+SD describes variation between repeated samples. SEM describes uncertainty in
+their average. Product ε reconstructed from NMR composition can have unequal
+lower and upper ranges; AutoQY uses the saved ranges directly.
 
-Future import parsers can target the same CSV contract with normalization and
-concentration metadata left empty or zero and wavelength error set to zero; the
-uncertainty loader only requires the wavelength, nominal epsilon, and selected
-error columns.
+AutoQY repeats the selected fit with distinct combinations of lower, central,
+and upper ε curves. It reports fit/power error, ε error, and combined error
+separately. The combined error is a sensitivity range, not a confidence interval.
+Omit this section or set its method to `none` to leave ε uncertainty out.
 
-## Detailed outputs
+The [455 nm](../ExampleData/Example-3_AB_455nm-EpsilonError/README.md) and
+[395 nm](../ExampleData/Example-4_395nm-EpsilonError/README.md) examples demonstrate this.
 
-When `outputs.write_detailed_data` is true, the traces CSV contains measured
-and fitted concentrations, fractions, and separate reactant/product residuals.
-The spectra CSV contains original absorbance, concentration reconstruction,
-kinetic reconstruction, and both residual matrices in long form.
+## Read the results
 
-The TXT and results JSON distinguish two endpoint values:
+Blue is reactant and orange is product. Open circles show concentrations
+recovered from the spectra; solid lines show the fitted reaction model.
+With ε uncertainty enabled, error bars and shading show **ε ranges**.
+The two yields are labelled **Φ R→P** and **Φ P→R**.
 
-- **Composition at the last timestamp** is the fitted composition at the final
-  experimental measurement time.
-- **Extrapolated PSS** is the composition predicted by the fitted model when
-  constant irradiation is continued until `dC/dt = 0`. It includes the
-  configured thermal rates in both directions.
+**Absorbance residuals** means measured minus fitted absorbance. Look for
+patterns as well as large values. A small reported yield error does not rule
+out a poor reference spectrum, baseline problem, or unsuitable reaction model.
+Green checks mean no automatic flag; amber asks for review; red flags need
+investigation. Expand **Technical details** when more detail is needed.
 
-## Spectral Treatment GUI
+Each analysis example enables these outputs:
 
-Run `autoqy-core smoother-gui` (or `autoqy-smoother-gui`) to load
-SpectraGryph text, SPECORD WinASPECT `.dat`, Agilent/Varian Cary `.DSW/.BSW`,
-Avantes `.Abs8`, wavelength-by-row TSV, or CSV data. File types are detected
-automatically. **Choose files** also makes the
-source directory the default export location, and a loading indicator remains
-visible while large groups of spectra are parsed.
+| File | What it contains |
+|---|---|
+| `.txt` | Readable results and experiment settings |
+| `.png` and `.svg` | Four-panel result figure |
+| `_results.json` | Results for further calculations |
+| `_config.json` | Settings snapshot |
+| `_traces.csv` | Concentrations, fractions, and residuals over time |
+| `_spectra.csv` | Measured and calculated spectra and their residuals |
 
-The main workflow selects a wavelength range and optionally applies a baseline
-interval, Savitzky–Golay smoothing, and SVD rank reduction. Baseline and
-Savitzky–Golay operate on each spectrum independently. SVD mixes columns and is
-therefore intended for ordered time-series spectra, not independent replicate
-solutions. The suggested rank retains at least 99.5% of squared singular-value
-weight, but it remains an operator decision. Uploaded data is never modified.
-Wavelength, baseline, and Savitzky–Golay number fields submit on Enter or blur,
-which prevents a separate large-data update for every digit typed. SVD analysis
-is skipped entirely while SVD is disabled.
+File names start with `outputs.stem`. `outputs.directory` is relative to the
+configuration folder unless an absolute path is supplied.
+The **last timestamp composition** is the fitted mixture at the end of the
+measurement. **Extrapolated PSS** predicts the mixture after continued constant
+irradiation. These need not be the same.
 
-For datasets above 60 spectra, the Plotly preview contains at most 60 evenly
-spaced spectra and always includes indices zero and the final index. The full
-matrix remains available to preprocessing, SVD, wavelength slicing, and
-processed-data export. Only the first and last spectra receive loaded-spectrum
-legend controls when editing is enabled, only those two can create spectrum legend entries, and the
-per-spectrum concentration/path-length cards are replaced by an explanatory
-message. Browser stores use a compressed representation of the absorbance
-matrix to reduce callback traffic; this does not change exported numerical
-precision.
+## Prepare spectra in Spectral Treatment
 
-Processed absorbance can be exported without concentration values. When every
-solution concentration and path length is supplied, the same workflow exports
-individual molar-absorptivity spectra and their wavelength-resolved statistics.
-**Save CSV** opens Save As to choose the folder and file name, with a suggested
-name and automatic `.csv` extension. The most recently saved folder is remembered;
-otherwise the source folder is suggested when available. The dialog confirms
-overwriting existing files. There are no separate folder or file-name fields. Negative values are
-preserved by default; the output option can clamp saved absorbance and epsilon
-values to zero without changing the preview or source data.
+1. Load spectra in **1 · Data**. Check their order in **Loaded spectra**.
+2. Select a wavelength range. Apply baseline correction or smoothing only when needed.
+3. To calculate ε, enter each sample's concentration in mol/L and path length in cm.
+4. To reconstruct a pure metastable spectrum, select stable and mixture/PSS spectra,
+   enter the metastable percentage, then click **Reconstruct**.
+5. In **5 · Output**, choose **Content to save**, then **Save CSV** or a figure format.
 
-### Unified spectrum reconstruction
+The [beginner guide](../BEGINNERS-GUIDE.md) explains each step. Keep SVD off for
+independently prepared ε samples so their differences remain visible.
+For sets larger than 60 spectra, the preview shows at most 60; treatment and
+data exports still use the full set.
 
-Expand **4 · Reconstruction → Reconstruct spectrum**, select a pure stable-isomer reference and
-a mixture/PSS spectrum from the loaded dataset, then enter the **metastable**
-isomer percentage in the mixture and click **Reconstruct**. No concentrations,
-path-length inputs, or molar-absorptivity conversion are required.
+Reconstruction assumes two absorbing forms, a pure stable reference, and the
+same total concentration and path length in the stable and mixture measurements.
+An absorbance-only reconstruction cannot replace the product ε file for Analysis.
+Add a stable ε reference to calibrate the reconstructed spectrum and include
+reference error. NMR composition error defaults to 1 percentage point; enter
+zero to omit it. No separate PSS measurement error is included.
 
-For metastable fraction `f = percentage / 100`, the calculated spectrum is
-`A_meta = (A_mixture - (1 - f) * A_stable) / f`. The reference and mixture must
-have the same total concentration and optical path length. The reference must
-be the pure stable isomer. The calculation assumes an additive two-isomer
-mixture; independently peak-normalizing the spectra would invalidate the result.
+**Minimal colors** uses blue for the first spectrum, orange for the last, and
+grey for intermediate spectra. The full-color palette is designed for color-blind
+readers. **Show original**, legend choices, and image export options control
+the preview and figures. **Origin-style export** uses boxed axes, larger text,
+and a 1950 × 1500 pixel PNG; SVG can be resized without losing sharpness.
 
-The reconstructed curve is shown on the main absorbance plot, including its
-absorbance panel when ε is also calculated. **Show reconstructed isomer**
-controls its visibility in the preview and PNG/SVG export. Current baseline,
-smoothing, SVD, and wavelength-range settings apply, and preprocessing changes
-update the reconstruction. Changing the dataset, spectrum selections, or
-composition clears the reconstruction until **Reconstruct** is clicked again.
+Use **Wavelength slice over time** to inspect one wavelength. **Seconds per
+timestamp** converts the stored coordinates to seconds: use `1` for seconds,
+or `30` for coordinates `0, 1, 2, ...` measured every 30 seconds.
+An optional exponential fit reports a lifetime and its error.
 
-In **5 · Output**, choose **Reconstructed metastable spectrum** under
-**Content to save**, then click **Save CSV**. The default file is
-`reconstructed-metastable-isomer.csv`; choose the destination in Save As.
-The shared negative-value option and native overwrite confirmation apply too.
-It contains only the calculated curve; **Processed dataset / calculated ε**
-exports the measured series. Negative values are preserved unless Output
-clamping is enabled. Percentages must be greater than 0 and
-at most 100; small metastable fractions amplify measurement noise.
+New uploads are added to the current set and receive the current treatment.
+**Clear all spectra** clears the window, not your source files. **Displayed data**
+lets you inspect and copy the plotted values; use CSV export for the complete dataset.
+Negative values are preserved unless you select the option to convert them to zero.
 
-For ε calibration, drop the triplicate stable-isomer ε CSV into the optional
-**Stable ε reference** input in the same panel. Load the UV–Vis irradiation
-dataset in **1 · Data**, select its initial stable and PSS spectra in Reconstruction,
-enter the **metastable** percentage (77 for 23% stable), and click **Reconstruct**.
-The dropped ε file supplies only the calibration scale and reference uncertainty;
-it does not replace the measured main-window spectra. Main wavelength range,
-baseline, smoothing, and SVD apply once, before interpolation onto the overlapping
-reference ε grid. There is no separate UV uploader or preprocessing section.
-Only one ε reference is needed—there is no PSS-error or second ε-file requirement.
-Clear the ε reference to return to absorbance-only reconstruction.
+Spectral Treatment autosaves the latest session locally. Wait for its save
+confirmation before closing. Use **Save session (.aqys)** for a portable copy;
+drop that file into **1 · Data** to reopen it.
 
-Choose reference **Replicate SD** (default) or **SEM of the mean**. Optional NMR
-composition uncertainty defaults to **1 percentage point (1σ)**; use zero to
-omit it. Reference SD/SEM must be available, not silently replaced by zero.
-The retained shared-reference calibration divides both UV–Vis curves by the
-stable-reference absorbance maximum and scales them by the reference ε maximum.
-Metastable ε follows the same weighted subtraction. The lower/upper envelope
-combines reference ε mean ± selected error and composition ± entered error.
-It is generally asymmetric, is not an independent-PSS-error or full-covariance
-calculation, and includes **no PSS measurement uncertainty**. The export records
-the error basis, NMR uncertainty, method, and this exclusion.
+## Process power measurements
 
-For absorbance-only reconstruction, entering composition uncertainty adds a
-composition-only band and CSV column; absorbance measurement error is unavailable.
-The ε result is shown in its own plot and in Displayed data. **Show reconstructed
-isomer** applies to that plot too. Save the product alone with **Reconstructed
-metastable spectrum**, or both ε files with **Stable + reconstructed ε (pair)**,
-all through Output. The product CSV remains compatible with Analysis.
+Use **Power** to load up to three Thorlabs OPM traces. Select each measurement,
+place the boundaries around its six LED-off/on regions, correct the baseline,
+and inspect the result before calculating power at the cuvette.
 
-### Spectral plots and exports
+The result reports repeatability SD and standard error. Choose which one to
+use as `power_error_mw`. Transfer `power_mw` and `power_error_mw` to Analysis;
+the two windows do not transfer them automatically.
+The [power example](../ExampleData/Example-Power/README.md) includes ready-to-run
+settings and explains both error choices. For terminal use, plain CSV with a
+`power_mw` column is supported through `generic_csv`.
 
-Files dropped together are naturally ordered by name, so `sample1` precedes
-`sample2` and `sample10`. Open **Loaded spectra** to
-move individual spectra up or down, remove them, or choose exactly which trace
-names appear in the legend. **Legend options → Enable legend editing** is off by default: the
-name inputs and visibility checkboxes are created only when requested, and
-custom names and visibility are retained when editing is turned off. The name field beside each trace changes its legend
-text without changing the source filename. Saved CSV spectrum columns use the
-current legend names (or the source spectrum names when not edited), not numeric
-indices. **Show all** and **Hide all** provide
-quick legend shortcuts.
-The default full-color spectrum palette uses Okabe–Ito color-blind-friendly
-colors (without yellow on the white background), cycling after seven spectra.
-The same colors are used in the absorbance and ε plots and saved figures.
-**Minimal colors** highlights the initial spectrum in blue and the final
-spectrum in orange, with intermediate spectra in grey as in the Analysis GUI.
-In the processed-absorbance preview, raw traces are hidden after preprocessing
-by default. **Show original** adds them to both the interactive plot and saved
-PNG/SVG figures without changing the processed-data export.
-PNG and SVG save buttons are in **5 · Output → Save figures** and open a Save As
-dialog. Image export options are there too. Saved images contain only the
-plots by default. **Title in saved image** and **Legend in saved image** can be
-enabled independently, as can **Axis labels in saved image**. One shared options
-menu applies to the main plot, wavelength slice, and reconstructed ε without
-duplicated settings. **Origin-style export** follows the supplied Origin-like
-Python example: a 6.5:5 white figure with Arial text, boxed axes, outward major
-and minor ticks, thick high-contrast curves, larger text, tight margins, and no
-grid by default. Its optional legend is placed inside the plot frame, and PNGs
-are rendered at 1950 × 1500 pixels (300 dpi at 6.5 × 5 inches); SVG remains
-resolution-independent.
-**Grid in saved image** applies to all three exports. The reconstructed ε plot
-and its PNG/SVG exports contain only calibrated ε and uncertainty envelopes,
-not normalized input spectra. Its minimal palette uses blue for stable ε,
-orange for metastable ε, black for PSS ε, and light-grey reference lines.
+Missing or infinite power readings are excluded and reported. They remain as
+gaps, so the selected region positions do not shift.
 
-Open **Wavelength slice over time** below the main plot and type a wavelength
-to graph the interpolated absorbance across the spectrum coordinates. For a
-single time-series file, the original numerical coordinates are retained.
-**Seconds per timestamp** is a numeric multiplier applied to those
-coordinates: leave it at `1` when they are already seconds, or enter `30` for
-spectra recorded every 30 seconds with default coordinates `0, 1, 2, ...`.
-Enable **Fit exponential decay** to fit an offset exponential, show the fitted
-curve, and report the lifetime with its one-standard-error uncertainty. The
-result confirms when the measured time span extends beyond one lifetime and
-shows a yellow warning when the span is shorter than one lifetime. Fit
-values and lifetime information are included in the slice CSV. The slice can be
-saved as PNG, SVG, or CSV. The collapsed **Axis names** controls rename the main
-wavelength, absorbance, and epsilon axes and both slice axes.
+## File formats and units
 
-Newly dropped or selected spectra are appended to the current dataset, so the
-main plot and wavelength slice can monitor a growing kinetics series. Updates
-retain the wavelength bounds selected in **Wavelengths**; if a new file
-has a smaller overlap, the bounds are clipped only to that available range.
-Active baseline and Savitzky–Golay settings are reapplied to the complete raw
-series after every addition, so newly appended spectra receive the same
-preprocessing as earlier spectra. Separate-file sequences advance by one
-coordinate per added spectrum, independent of delays between uploads; the
-**Seconds per timestamp** multiplier applies to the whole series. An existing
-time-series file retains its numerical axis and uses its typical spacing for
-added single spectra. The uploader is
-reset after every addition, allowing the same filename to be reused. Removing a
-loaded spectrum updates both plots without changing the remaining time
-coordinates. **Clear all spectra** resets the whole accumulated series.
+Analysis lets you choose a format for each input through `inputs.formats`.
+Generic CSV is the easiest starting point. Use one wavelength column and one
+value column for a reference spectrum, or several value columns for a time series.
+Timestamps must contain one elapsed irradiation time in seconds per spectrum.
 
-Original spectra, per-spectrum settings, processing controls, time multiplier,
-and NMR inputs are autosaved locally about one second after changes settle.
-The next launch automatically recovers the last saved session and regenerates
-its plots. The Data panel reports recovery and autosave errors; wait for the
-autosave confirmation before closing after an edit. Clear all spectra also
-updates the recovery snapshot, so cleared data does not return on restart.
-The file is `%LOCALAPPDATA%/AutoQY/spectral-treatment/autosave.aqys` on Windows
-and `~/.local/share/AutoQY/spectral-treatment/autosave.aqys` otherwise. It is
-replaced atomically so an interrupted write leaves the previous save intact.
-One latest session is retained per OS user; concurrently opened instances
-share that recovery file.
+| Data | Supported formats |
+|---|---|
+| Analysis spectra | Generic delimited text, SpectraGryph text, SPECORD WinASPECT `.dat`, Cary `.DSW/.BSW` |
+| Spectral Treatment | Those formats plus Avantes `.Abs8`, with automatic detection |
+| Timestamps | Generic delimited text or Crespi Lab AHK event logs |
+| Power | Generic CSV or original Thorlabs OPM CSV |
 
-**5 · Output → Save session (.aqys)** opens Save As for a portable binary session.
-This versioned compressed binary format stores numerical arrays without large
-JSON matrices or Python pickle. Manual saves and autosave use the same format.
-Drop one `.aqys` file into the main uploader or select it with **Choose files** to
-replace the current session and restore the saved spectra, preprocessing,
-per-spectrum settings, reconstruction, NMR inputs, and Output settings. Plots
-and derived results are recalculated. Loading a session also makes it the
-current recovery snapshot. Old JSON autosaves remain readable for migration.
+Generic text settings can specify delimiter, header, skipped rows, and columns.
+With headers, use column names. Otherwise, columns are numbered from zero.
+`"value_columns": "remaining"` selects all remaining data columns.
+The bundled configurations give complete examples of each input layout.
 
-All spectral CSV exports use **Output → Content to save → Save CSV**. Choose the
-processed dataset/calculated ε, reconstructed isomer, wavelength slice, or
-**Stable + reconstructed ε (pair)**. The pair opens two Save As dialogs, one for
-each CSV. All modes share one negative-value option; negatives are preserved
-unless conversion to zero is enabled. Reconstruction and slice panels
-do not have separate CSV save buttons.
+| Experiment value | Unit |
+|---|---|
+| `volume_ul` | µL |
+| `path_length_cm` | cm |
+| `power_mw`, `power_error_mw` | mW |
+| `irradiation_wavelength_nm`, processing wavelength range | nm |
+| `thermal_back_reaction_s_1`, `thermal_forward_reaction_s_1` | s⁻¹ |
+| `photon_flux_mol_s`, `photon_flux_error_mol_s` | mol photons/s |
 
-The **Displayed data** panel replaces the former Result panel with a
-spreadsheet-style numerical view. Select the main spectra, wavelength slice,
-or NMR reconstruction. Its columns follow the actual plotted curves and legend
-names, including visible raw data, reconstruction, and fits; hidden curves are
-omitted. Scroll vertically through all rows and horizontally through columns,
-without pagination. Virtualization renders only the visible rows and keeps
-the header fixed while scrolling. This view is a
-preview of the plot (including the 60-spectrum preview limit), not a replacement
-for exporting the full dataset through Output.
+Thermal back reaction is P→R; thermal forward reaction is R→P and defaults to zero.
+Enter a rate, not a half-life: rate = 0.693 / half-life in seconds.
 
-Select cell ranges with Shift-click and use Ctrl+C, then Ctrl+V in another
-spreadsheet. Row and column checkboxes select whole rows/columns for **Copy selection**;
-checking both copies their intersection. **Copy all** includes every row in the
-displayed sheet, even outside the scroll viewport. Copies include column headings
-and tab-separated, full-precision values. The sheet is read-only; pasting elsewhere
-does not change the source spectra.
+### Use a chemical actinometer
 
-The dedicated browser process is monitored directly: closing or killing it
-stops the server, while a delayed browser heartbeat does not close a busy or
-suspended app window. Connection failures leave the spectral page visible.
-If AutoQY falls back to a normal browser tab, whose process it cannot track,
-a two-minute heartbeat timeout still cleans up the server after a browser crash.
+If you measured photon flux directly, select chemical-actinometer mode in
+Analysis. In JSON, set `experiment.irradiation_source` to `chemical_actinometer`
+and supply `photon_flux_mol_s`, `photon_flux_error_mol_s`, and
+`irradiation_wavelength_nm`, alongside the other experiment settings.
+This mode treats the light as a single wavelength; it needs no LED file or power input.
+For Example 4, 1.46 ± 0.03 mW at 395 nm corresponds to approximately
+(4.8 ± 0.1) × 10⁻⁹ mol photons/s.
 
-The calibrated ε route in **Reconstruct spectrum** uses the selected initial
-and PSS spectra from the treated main dataset (first and last by default).
-It propagates reference and NMR composition errors,
-and exports stable and reconstructed product ε CSV files. The primary
-product epsilon retains negative values by default, while a raw audit column is
-always retained. The shared **Convert negative absorbance and ε values to 0**
-option clamps the primary export columns without changing the plot.
+### Notes for scripted use
 
-## Power-treatment GUI
+Schema version 1 uses input paths. Schema version 2 embeds each input's original
+bytes with a filename, base64 data, and SHA-256 integrity check. Older builds
+may not read version 2. `self_contained_document(config)` creates a portable
+document from a validated `AnalysisConfig`.
 
-Install `.[gui]`, then run `autoqy-core power-gui`. Load up to three
-Thorlabs OPM CSV traces and select the active measurement from the dropdown.
-Drag the twelve vertical boundaries around the six background/signal regions,
-choose the baseline polynomial degree, apply the correction, and inspect the
-raw and corrected plots before calculating power at the cuvette.
-
-The result can report repeatability standard deviation or standard error. The
-GUI shows both the active-measurement result and the combined result, and its
-JSON export includes the selected regions so processing can be repeated from
-the terminal. Power treatment remains separate from quantum-yield analysis;
-transfer `power_mw` and `power_error_mw` into `analysis.json` or the Analysis
-GUI when needed.
-
-For portable scripted input, set `"format": "generic_csv"` in
-`power_analysis.json` and provide one `power_mw` column. The legacy
-`thorlabs_opm_csv` format remains available for original instrument exports.
-
-Infinite and missing power readings are automatically excluded from baseline
-fits, signal averages, and uncertainties. Their sample positions remain as gaps
-so region boundaries retain their meaning. Upload messages report the number
-excluded per file, and scripted CSV imports issue a warning. Each baseline
-region must retain a finite reading, with more total baseline readings than the
-polynomial degree; each signal region must retain at least two finite readings.
+GUI commands accept `--no-open` to start the local server without opening a
+window. On Windows, shortcut launch logs are in `%LOCALAPPDATA%\AutoQY\logs`.
+Spectral Treatment recovery is stored at
+`%LOCALAPPDATA%/AutoQY/spectral-treatment/autosave.aqys` on Windows or
+`~/.local/share/AutoQY/spectral-treatment/autosave.aqys` elsewhere.
+Only the latest recovery session is retained per user; use `.aqys` copies to
+keep separate experiments.

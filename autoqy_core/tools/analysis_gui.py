@@ -300,15 +300,14 @@ def create_app():
                                   info_popup(
                                       "Choose the kinetic fitting formulation. Starting quantum yields and bounds "
                                       "are available under Expert optimizer settings. "
-                                      "Method-specific controls refine emission, regularization, or full-spectrum fitting."
+                                      "Method-specific controls refine emission or Full spectrum ODE fitting."
                                   )]),
                     html.Label("Method"),
                     dropdown("fit_method", (
-                        ("regularized_concentrations", "Regularized concentrations"),
-                        ("ode_absorbance", "Full-spectrum ODE absorbance"),
+                        ("ode_absorbance", "Full spectrum ODE"),
                         ("concentrations", "Concentrations (legacy pure NNLS)"),
                         ("emission", "Emission (legacy)"),
-                    ), "regularized_concentrations"),
+                    ), "concentrations"),
                     html.Details(className="nested-tool", children=[
                         html.Summary(["Expert optimizer settings", info_popup(
                             "Change the optimizer's initial quantum-yield guesses and shared bounds. "
@@ -321,16 +320,13 @@ def create_app():
                     ]),
                     html.Details(className="nested-tool", children=[
                         html.Summary(["Method-specific controls", info_popup(
-                            "Emission threshold applies to the legacy emission fit; regularization strength "
-                            "applies to regularized concentrations; baseline order and robust-loss scale apply "
-                            "to the full-spectrum ODE fit. Expected PSS is an optional diagnostic reference: "
+                            "Emission threshold applies to the legacy emission fit; baseline order and "
+                            "robust-loss scale apply to Full spectrum ODE. Expected PSS is an optional diagnostic reference: "
                             "enter the metastable photoproduct percentage, with 100% meaning all product. "
                             "It does not constrain the fit."
                         )]),
                         html.Label("Emission threshold fraction"),
                         number("emission_threshold", 0.01, min=0, max=1, step="any"),
-                        html.Label("Concentration regularization strength"),
-                        number("regularization_strength", 1.0, min=0, step="any"),
                         pair("Absorbance baseline order",
                              dropdown("absorbance_baseline_order",
                                       ((-1, "None"), (0, "Constant"), (1, "Linear")), 1),
@@ -383,9 +379,9 @@ def create_app():
                     html.Div(className="action-title-row", children=[
                         html.P("7 · Analyze", className="step-label"),
                         info_popup(
-                            "Compare fit methods runs regularized concentrations, full-spectrum ODE, and legacy "
-                            "pure-NNLS concentrations on identical inputs. It disables ε uncertainty, omits "
-                            "the legacy emission fit, writes no files, and compares quantum yields plus fraction "
+                            "Compare fit methods runs Full spectrum ODE, legacy pure-NNLS concentrations, "
+                            "and legacy emission on identical inputs. It applies the selected ε uncertainty "
+                            "to every method, writes no files, and compares quantum yields plus fraction "
                             "and absorbance residuals."
                         ),
                     ]),
@@ -440,13 +436,13 @@ def create_app():
                 html.Section(className="panel comparison-panel", children=[
                     section_title(
                         "Fit-method comparison",
-                        "Runs three fits with the same data and nominal ε spectra. It reports "
-                        "optimizer-and-power uncertainty, time-trace fraction RMSE, full-spectrum "
-                        "absorbance RMSE, and explicit optimizer flags. Fraction RMSE compares "
+                        "Runs three fits with the same data and ε spectra. Quantum-yield errors include "
+                        "optimizer-and-power uncertainty and the selected ε uncertainty. It reports "
+                        "time-trace fraction RMSE, full-spectrum absorbance RMSE, and automatic fit flags. Fraction RMSE compares "
                         "recovered and fitted reactant fractions over time; absorbance RMSE compares "
                         "all measured and reconstructed absorbance points. Lower is better, but also "
-                        "inspect residual structure and method assumptions. ε uncertainty is disabled "
-                        "and no result files are written."
+                        "inspect residual structure and method assumptions. RMSE values use the nominal ε "
+                        "spectra; no result files are written."
                     ),
                     html.Div("", id="method-comparison", className="helper-text"),
                 ]),
@@ -703,7 +699,7 @@ def create_app():
                     for item in caught_warnings
                 )
                 return (
-                    "Fit-method comparison completed with ε uncertainty disabled.",
+                    "Fit-method comparison completed using the selected ε uncertainty settings.",
                     "message status-message status-ok",
                     blank_card, blank_back, blank_pss, blank_fit, *blank_figures,
                     diagnostics, diagnostics_open,
@@ -839,7 +835,6 @@ def _configuration(values, embedded=None):
         "fit": {
             "method": values.get("fit_method"),
             "emission_threshold_fraction": values.get("emission_threshold"),
-            "regularization_strength": values.get("regularization_strength"),
             "absorbance_baseline_order": values.get("absorbance_baseline_order"),
             "robust_loss_scale": values.get("robust_loss_scale"),
             "initial_quantum_yields": {"R_to_P": values.get("initial_rp"),
@@ -904,7 +899,6 @@ def _form_values(document):
         "baseline_multiplier": processing["led_baseline"]["exclusion_fwhm_multiplier"],
         "fit_method": fit["method"],
         "emission_threshold": fit.get("emission_threshold_fraction", 0.01),
-        "regularization_strength": fit.get("regularization_strength", 1),
         "absorbance_baseline_order": fit.get("absorbance_baseline_order", 1),
         "robust_loss_scale": fit.get("robust_loss_scale", 0.02),
         "expected_pss_product_percent": _complement_percent(
@@ -1440,13 +1434,12 @@ def _transition_time(times, values, fraction=0.95):
 def _compare_fit_methods(config):
     from ..runner import run_analysis
 
-    methods = ("regularized_concentrations", "ode_absorbance", "concentrations")
+    methods = ("ode_absorbance", "concentrations", "emission")
     rows = []
     with TemporaryDirectory(prefix="autoqy-method-comparison-") as temporary:
         for method in methods:
             values = deepcopy(config.values)
             values["fit"]["method"] = method
-            values.setdefault("uncertainty", {}).setdefault("epsilon", {})["method"] = "none"
             for name in ("write_text", "write_figures", "write_json", "write_config",
                          "write_detailed_data"):
                 values["outputs"][name] = False
@@ -1477,26 +1470,17 @@ def _compare_fit_methods(config):
                 "optimizer_success": result.yield_fit.optimizer_success,
                 "jacobian_condition": result.yield_fit.jacobian_condition,
                 "active_bounds": any(result.yield_fit.active_bounds),
+                "diagnostics": _fit_diagnostic_checks(result, data, values),
             })
     return rows
 
 
 def _render_comparison(html, rows, selected_method):
     headings = ("Method", "Φ R→P", "Φ P→R", "Fraction RMSE", "Absorbance RMSE",
-                "Fit reliability")
+                "Fit diagnostics")
     body = []
     for row in rows:
-        condition = float(row["jacobian_condition"])
-        if not row["optimizer_success"]:
-            flags = "Fit did not finish successfully; check inputs and starting values"
-        elif not np.isfinite(condition) or condition > 1e8:
-            flags = "Data cannot reliably separate the two quantum yields"
-        elif row["active_bounds"]:
-            flags = "A quantum yield reached the allowed minimum or maximum"
-        elif condition > 1e6:
-            flags = "Quantum yields are sensitive to measurement errors"
-        else:
-            flags = "Passed automatic fit-stability checks"
+        diagnostic_level, flags = _comparison_diagnostic_summary(row["diagnostics"])
         forward = format_value_uncertainty(
             row["values"][0], row["errors"][0], two_digit_threshold=2
         )
@@ -1510,7 +1494,7 @@ def _render_comparison(html, rows, selected_method):
             html.Td(f"{backward[0]} ± {backward[1]}%"),
             html.Td(f"{row['fraction_rmse']:.4g}"),
             html.Td(f"{row['absorbance_rmse']:.4g}"),
-            html.Td(flags),
+            html.Td(flags, className=f"comparison-diagnostic comparison-diagnostic-{diagnostic_level}"),
         ]))
     return html.Div([
         html.Div(className="comparison-table-wrap", children=[
@@ -1519,7 +1503,22 @@ def _render_comparison(html, rows, selected_method):
                 html.Tbody(body),
             ])
         ]),
+        html.Small(
+            "Quantum-yield errors include optimizer and power errors, plus the selected ε range. "
+            "Fraction and absorbance RMSE use the nominal ε spectra. Fit diagnostics include "
+            "reference-spectrum uncertainty checks when ε range analysis is enabled.",
+            className="helper-text",
+        ),
     ])
+
+
+def _comparison_diagnostic_summary(checks):
+    """Return the highest fit-diagnostic level and its concise table label."""
+    for level, label in (("stop", "Red flag"), ("warning", "Review")):
+        titles = [item["title"] for item in checks if item["level"] == level]
+        if titles:
+            return level, f"{label}: {'; '.join(titles)}"
+    return "ok", "No automatic fit flags"
 
 
 def _yield_card(html, label, summary, name):
@@ -1593,7 +1592,7 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
             _add_band(go, concentration, times,
                       uncertainty.concentration_fit_minimum[:, index],
                       uncertainty.concentration_fit_maximum[:, index], colour,
-                      f"{name} ε-bound fit range")
+                      f"{name} ε fit range")
     for index, (name, colour) in enumerate((("Reactant", blue), ("Product", orange))):
         error_y = None
         if uncertainty is not None:
@@ -1608,9 +1607,10 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
             marker={"symbol": "circle-open", "size": 7, "color": colour},
             error_y=error_y,
         ))
+    for index, (name, colour) in enumerate((("Reactant", blue), ("Product", orange))):
         concentration.add_trace(go.Scatter(
             x=times, y=fitted[:, index], mode="lines", name=f"{name} fit",
-            line={"color": colour, "width": 2},
+            line={"color": colour, "width": 3},
         ))
     _style_figure(concentration, "Concentration fit", "Irradiation time (s)",
                   "Concentration (mol/L)")
@@ -1618,9 +1618,9 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
     fraction = go.Figure()
     if uncertainty is not None:
         _add_band(go, fraction, times, uncertainty.fraction_residual_minimum,
-                  uncertainty.fraction_residual_maximum, blue, "ε-bound range")
+                  uncertainty.fraction_residual_maximum, blue, "ε ranges")
     fraction.add_trace(go.Scatter(x=times, y=fraction_residual, mode="lines+markers",
-                                  name="Nominal residual", line={"color": blue}))
+                                  name="Residual", line={"color": blue}))
     fraction.add_hline(y=0, line={"color": "#20242c", "width": 1})
     _style_figure(fraction, "Reactant fraction residual", "Irradiation time (s)",
                   "Fraction data − fit")
@@ -1669,11 +1669,7 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
         colorbar={"title": "Data − fit"},
         hovertemplate="time=%{y:.3g} s<br>λ=%{x:.1f} nm<br>residual=%{z:.5g}<extra></extra>",
     ))
-    title = "Absorbance residuals"
-    if uncertainty is not None:
-        title += (f" · ε-bound RMSE {uncertainty.absorbance_residual_rmse_minimum:.3g}–"
-                  f"{uncertainty.absorbance_residual_rmse_maximum:.3g}")
-    _style_figure(heatmap, title, "Wavelength (nm)", "Irradiation time (s)")
+    _style_figure(heatmap, "Absorbance residuals", "Wavelength (nm)", "Irradiation time (s)")
     heatmap.update_yaxes(autorange="reversed")
     return concentration, fraction, spectra, input_diagnostic, heatmap
 
@@ -1722,8 +1718,7 @@ def _empty_figure(go, message):
 def _method_label(method):
     return {
         "concentrations": "Concentrations (legacy pure NNLS)",
-        "regularized_concentrations": "Regularized concentrations",
-        "ode_absorbance": "ODE absorbance",
+        "ode_absorbance": "Full spectrum ODE",
         "emission": "Emission",
     }[method]
 

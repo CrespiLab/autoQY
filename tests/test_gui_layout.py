@@ -133,6 +133,19 @@ class GuiLayoutTests(unittest.TestCase):
         self.assertIn("does not save analysis.json", visible_text)
         self.assertNotIn("validate-analysis", " ".join(app.callback_map))
 
+    def test_analysis_fit_options_and_default(self):
+        app = create_analysis_app()
+        methods = _by_id(app.layout, {"type": "analysis-field", "name": "fit_method"})
+        self.assertEqual(methods.value, "concentrations")
+        self.assertEqual(
+            {option["value"]: option["label"] for option in methods.options},
+            {
+                "ode_absorbance": "Full spectrum ODE",
+                "concentrations": "Concentrations (legacy pure NNLS)",
+                "emission": "Emission (legacy)",
+            },
+        )
+
     def test_analysis_preprocessing_preview_is_available_before_the_fit(self):
         app = create_analysis_app()
         tabs = _by_id(app.layout, "analysis-plot-tabs")

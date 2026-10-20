@@ -142,8 +142,7 @@ def write_results(path, result, data, irradiation_wavelength_nm):
     method = {
         "concentrations": "Concentrations (legacy pure NNLS)",
         "emission": "Emission (legacy)",
-        "regularized_concentrations": "Regularized concentrations",
-        "ode_absorbance": "Full-spectrum ODE absorbance",
+        "ode_absorbance": "Full spectrum ODE",
     }[result.fit_method]
     epsilon_text = "\n"
     if result.epsilon_uncertainty is not None:
@@ -161,7 +160,7 @@ Error component epsilon P_to_R (%): {components['epsilon']['P_to_R']:g}
 Epsilon uncertainty method: {metadata['method']}
 Reactant epsilon error metric: {metadata['reactant_error_metric']}
 Product epsilon error metric: {metadata['product_error_metric']}
-Epsilon bound combinations: {metadata['bound_combination_count']}
+Epsilon range combinations: {metadata['bound_combination_count']}
 Reactant epsilon values constrained to zero: {metadata['constrained_negative_points']['reactant']}
 NMR epsilon values constrained to zero: {metadata['constrained_negative_points']['product']}
 
