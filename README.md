@@ -6,8 +6,6 @@
 
 AutoQY calculates photoisomerization quantum yields and helps prepare optical-power and spectral data.
 
-**Version 2.5.0** — see [what changed since the previous main release](RELEASE-NOTES-2.5.0.md).
-
 If you want to use the program on Windows, follow the quickstart below. 
 <details>
 <summary><strong>Advanced: manual installation on Windows, Linux, or macOS — click to expand</strong></summary>
