@@ -56,6 +56,7 @@ class EpsilonUncertaintySummary:
     bound_absorbance_rmse: np.ndarray
     bound_active_bounds: np.ndarray
     bound_jacobian_conditions: np.ndarray
+    bound_optimizer_success: tuple[bool, ...] = ()
 
 
 def load_epsilon_envelope(path, error_metric="sd"):
@@ -241,6 +242,9 @@ def run_with_epsilon_uncertainty(data, reactant, product, error_metric="sd"):
         bound_jacobian_conditions=np.asarray([
             result.yield_fit.jacobian_condition for result in results
         ], dtype=float),
+        bound_optimizer_success=tuple(
+            bool(result.yield_fit.optimizer_success) for result in results
+        ),
     )
     return replace(
         nominal_result,

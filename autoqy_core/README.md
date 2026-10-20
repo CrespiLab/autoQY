@@ -103,6 +103,9 @@ describes how concentrations change over time.
 **Compare fit methods** runs all three using the same inputs and selected
 uncertainty settings. It writes no result files. With **ε range** enabled,
 each method includes ε uncertainty in its reported yield errors.
+Diagnostics also check the combined error and every tested ε combination.
+They flag yield limits, unstable fits, and failed fits even when the central
+fit looks precise. A yield limit can truncate the reported sensitivity range.
 The comparison's RMSE values summarize the differences between measured and
 fitted data using the central ε spectra. Smaller RMSE means closer agreement,
 but extra baseline terms can also reduce it.

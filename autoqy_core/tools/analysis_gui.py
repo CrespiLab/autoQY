@@ -1329,7 +1329,20 @@ def _fit_diagnostic_checks(result, data, document):
         "for sample loss or additional reactions.",
     ))
 
-    checks.append(_yield_reliability_check(result.yield_fit))
+    reliability = _yield_reliability_check(result.yield_fit)
+    epsilon_check = _epsilon_reliability_check(result)
+    if epsilon_check is not None and epsilon_check["level"] != "ok":
+        severity = {"ok": 0, "warning": 1, "stop": 2}
+        if reliability["level"] == "ok":
+            reliability["body"] = "The fit using the central ε spectra passed its local checks."
+        reliability["level"] = max(
+            (reliability["level"], epsilon_check["level"]), key=severity.get
+        )
+        reliability["body"] += (
+            " The ε range analysis found a reliability issue. "
+            "See ‘Uncertainty when reference spectra are varied’ below."
+        )
+    checks.append(reliability)
 
     model_time = _transition_time(np.asarray(data.timestamps), 1 - fitted_fraction)
     data_time = _transition_time(np.asarray(data.timestamps),
@@ -1368,20 +1381,77 @@ def _fit_diagnostic_checks(result, data, document):
             "The uncertainty is too large or could not be calculated. These data do not "
             "support reliable quantum-yield values. Check the spectra and time series.",
         ))
-    uncertainty = result.epsilon_uncertainty
-    if uncertainty is not None and len(uncertainty.bound_labels):
-        worst = int(np.argmax(np.max(uncertainty.bound_optimizer_errors, axis=1)))
-        worst_errors = uncertainty.bound_optimizer_errors[worst] * 100
-        level = "stop" if np.max(worst_errors) >= 100 else "warning" if np.max(worst_errors) >= 25 else "ok"
-        checks.append(_check(
-            level, "Uncertainty when reference spectra are varied",
-            f"For the least certain tested reference spectra, the quantum-yield errors "
-            f"are {worst_errors[0]:.3g} and {worst_errors[1]:.3g} percentage points. "
-            "Above 25 points, treat the values with caution; at 100 points or more, "
-            "these data do not support reliable yields. Check the reference-spectrum uncertainties.",
-        ))
-        checks[-1]["details"] = f"Reference-spectrum combination: {uncertainty.bound_labels[worst]}"
+    if epsilon_check is not None:
+        checks.append(epsilon_check)
     return checks
+
+
+def _epsilon_reliability_check(result):
+    """Assess the whole ε sweep, including shifts between precise refits."""
+    uncertainty = result.epsilon_uncertainty
+    if uncertainty is None or not len(uncertainty.bound_labels):
+        return None
+    yields = np.asarray(uncertainty.bound_yields, float)
+    local_errors = np.asarray(uncertainty.bound_optimizer_errors, float)
+    combined = np.asarray(result.yield_errors, float)
+    nominal = np.asarray(result.yield_fit.values, float)
+    conditions = np.asarray(uncertainty.bound_jacobian_conditions, float)
+    limits = np.asarray(uncertainty.bound_active_bounds, bool)
+    successes = np.asarray(getattr(uncertainty, "bound_optimizer_success", ()), bool)
+    level = "ok"
+    messages = []
+    if (np.any(~np.isfinite(yields)) or np.any(~np.isfinite(local_errors))
+            or np.any(~np.isfinite(combined))):
+        level = "stop"
+        messages.append("Some tested yields or errors are not finite; reliable uncertainty could not be calculated.")
+    else:
+        minimum, maximum = np.min(yields, axis=0) * 100, np.max(yields, axis=0) * 100
+        messages.append(
+            f"Across the tested ε ranges, R→P yields span {minimum[0]:.3g}–{maximum[0]:.3g}% "
+            f"and P→R yields span {minimum[1]:.3g}–{maximum[1]:.3g}%. "
+            f"Combined errors are {combined[0] * 100:.3g} and {combined[1] * 100:.3g} percentage points."
+        )
+        if np.any(combined >= 1) or np.any(local_errors >= 1):
+            level = "stop"
+            messages.append("An error reaches 100 percentage points; the affected yield is not reliably determined.")
+        elif (np.any(combined >= 0.25) or np.any(local_errors >= 0.25)
+              or np.any((combined > 0) & (combined >= np.abs(nominal)))):
+            level = "warning"
+            messages.append(
+                "An error reaches 25 percentage points or is as large as the yield itself. "
+                "Treat the affected yield with caution and check the reference-spectrum uncertainties."
+            )
+    if np.any(limits):
+        if level == "ok":
+            level = "warning"
+        count = int(np.count_nonzero(np.any(limits, axis=1)))
+        messages.append(
+            f"{count} of {len(uncertainty.bound_labels)} ε combinations reached an allowed yield "
+            "minimum or maximum. The reported sensitivity range may be truncated by those limits."
+        )
+    if np.any(~np.isfinite(conditions)) or np.any(conditions > 1e8):
+        level = "stop"
+        messages.append("Some ε combinations cannot reliably separate the two quantum yields.")
+    elif np.any(conditions > 1e6):
+        if level == "ok":
+            level = "warning"
+        messages.append("Some ε combinations are sensitive to small measurement errors.")
+    if successes.size and not np.all(successes):
+        level = "stop"
+        messages.append("Some ε fits did not finish successfully; the reported ranges may be incomplete.")
+    check = _check(level, "Uncertainty when reference spectra are varied", " ".join(messages))
+    flagged = np.any(limits, axis=1) | (~np.isfinite(conditions)) | (conditions > 1e6)
+    if successes.size:
+        flagged |= ~successes
+    labels = [label for label, flag in zip(uncertainty.bound_labels, flagged) if flag]
+    worst = int(np.argmax(np.max(np.where(np.isfinite(local_errors), local_errors, np.inf), axis=1)))
+    check["details"] = (
+        f"Largest local optimizer/power error: {np.max(local_errors) * 100:.3g} percentage points "
+        f"({uncertainty.bound_labels[worst]}). "
+        f"Flagged ε combinations: {'; '.join(labels) if labels else 'none'}. "
+        "Combined errors include shifts between ε combinations, not only local fit errors."
+    )
+    return check
 
 
 def _yield_reliability_check(fit):

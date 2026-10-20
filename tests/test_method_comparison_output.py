@@ -15,6 +15,8 @@ from autoqy_core.plotting import write_figure
 from autoqy_core.tools.analysis_gui import (
     _compare_fit_methods,
     _comparison_diagnostic_summary,
+    _epsilon_reliability_check,
+    _fit_diagnostic_checks,
     _interactive_figures,
     _method_label,
 )
@@ -40,6 +42,9 @@ def _result_and_data():
         absorbance_residual_rmse_maximum=0.002,
         bound_labels=("lower references",),
         bound_optimizer_errors=np.array([[0.02, 0.03]]),
+        bound_yields=np.array([[0.12, 0.08]]),
+        bound_jacobian_conditions=np.array([20.0]),
+        bound_active_bounds=np.array([[False, False]]),
     )
     result = SimpleNamespace(
         concentration_fit=SimpleNamespace(
@@ -118,6 +123,107 @@ class MethodComparisonTests(unittest.TestCase):
             ("stop", "Red flag: Quantum-yield uncertainty"),
         )
         self.assertEqual(_method_label("ode_absorbance"), "Full spectrum ODE")
+
+
+class EpsilonReliabilityTests(unittest.TestCase):
+    def test_precise_refits_with_large_shifts_warn_in_analysis_and_comparison(self):
+        result, data = _result_and_data()
+        result.yield_fit.values = np.array([0.348, 0.422])
+        result.yield_errors = np.array([0.655, 0.033])
+        u = result.epsilon_uncertainty
+        u.bound_labels = ("reactant lower / product nominal", "nominal", "reactant upper / product nominal")
+        u.bound_yields = np.array([[1.0, 0.395], [0.348, 0.422], [0.156, 0.424]])
+        u.bound_optimizer_errors = np.full((3, 2), 0.003)
+        u.bound_active_bounds = np.array([[True, False], [False, False], [False, False]])
+        u.bound_jacobian_conditions = np.array([86.0, 34.0, 25.0])
+        checks = _fit_diagnostic_checks(result, data, {"analysis": {}})
+        sweep = next(c for c in checks if c["title"] == "Uncertainty when reference spectra are varied")
+        self.assertEqual(sweep["level"], "warning")
+        self.assertIn("65.5", sweep["body"])
+        self.assertIn("15.6–100%", sweep["body"])
+        self.assertIn("truncated", sweep["body"])
+        self.assertIn("reactant lower / product nominal", sweep["details"])
+        overall = next(c for c in checks if c["title"] == "Can I trust the quantum yields?")
+        self.assertEqual(overall["level"], "warning")
+        self.assertEqual(_comparison_diagnostic_summary(checks)[0], "warning")
+
+    def test_combined_error_warns_even_without_active_limits(self):
+        result, _ = _result_and_data()
+        result.yield_errors = np.array([0.3, 0.01])
+        result.epsilon_uncertainty.bound_optimizer_errors[:] = 0.001
+        check = _epsilon_reliability_check(result)
+        self.assertEqual(check["level"], "warning")
+        self.assertIn("30", check["body"])
+
+    def test_small_absolute_but_large_relative_error_warns(self):
+        result, _ = _result_and_data()
+        result.yield_fit.values = np.array([0.01, 0.08])
+        result.yield_errors = np.array([0.02, 0.005])
+        self.assertEqual(_epsilon_reliability_check(result)["level"], "warning")
+
+    def test_each_sweep_failure_mode_prevents_a_green_check(self):
+        cases = (
+            ("bound_active_bounds", np.array([[False, True]]), "warning", "minimum or maximum"),
+            ("bound_jacobian_conditions", np.array([1e7]), "warning", "sensitive"),
+            ("bound_jacobian_conditions", np.array([1e9]), "stop", "cannot reliably separate"),
+            ("bound_jacobian_conditions", np.array([np.nan]), "stop", "cannot reliably separate"),
+            ("bound_optimizer_success", (False,), "stop", "did not finish"),
+            ("bound_optimizer_errors", np.array([[np.nan, 0.001]]), "stop", "not finite"),
+            ("bound_yields", np.array([[np.nan, 0.08]]), "stop", "not finite"),
+        )
+        for name, value, level, phrase in cases:
+            with self.subTest(name=name, value=value):
+                result, _ = _result_and_data()
+                setattr(result.epsilon_uncertainty, name, value)
+                check = _epsilon_reliability_check(result)
+                self.assertEqual(check["level"], level)
+                self.assertIn(phrase, check["body"])
+
+    def test_large_and_nonfinite_combined_errors_are_red(self):
+        for error in (1.0, np.inf, np.nan):
+            with self.subTest(error=error):
+                result, _ = _result_and_data()
+                result.yield_errors[0] = error
+                self.assertEqual(_epsilon_reliability_check(result)["level"], "stop")
+
+    def test_small_stable_ranges_stay_green_and_disabled_epsilon_is_unchanged(self):
+        result, _ = _result_and_data()
+        self.assertEqual(_epsilon_reliability_check(result)["level"], "ok")
+        result.epsilon_uncertainty = None
+        self.assertIsNone(_epsilon_reliability_check(result))
+
+    def test_epsilon_propagation_retains_unsuccessful_refit_status(self):
+        from autoqy_core.epsilon_uncertainty import EpsilonEnvelope, run_with_epsilon_uncertainty
+        from autoqy_core.pipeline import AnalysisInput, AnalysisResult
+
+        result, data = _result_and_data()
+        inputs = AnalysisInput(
+            wavelengths=result.wavelengths, absorbance=result.absorbance,
+            timestamps=data.timestamps,
+            epsilon_r=(result.wavelengths, result.epsilon_r),
+            epsilon_p=(result.wavelengths, result.epsilon_p),
+            led=data.led, power_mw=1, power_error_mw=0, volume_ml=1,
+        )
+        def envelope(values):
+            return EpsilonEnvelope(result.wavelengths, values, values * .9, values * 1.1,
+                                   "epsilon_spectra", "sd", "test.csv")
+        calls = []
+        def fit(_):
+            outcome = deepcopy(result.yield_fit)
+            outcome.optimizer_success = len(calls) != 1
+            calls.append(outcome)
+            return AnalysisResult(result.concentration_fit, outcome, result.yield_errors,
+                                  result.wavelengths, result.absorbance,
+                                  result.epsilon_r, result.epsilon_p, "ode_absorbance",
+                                  result.extrapolated_pss)
+        with patch("autoqy_core.pipeline.run_analysis_pipeline", side_effect=fit):
+            output = run_with_epsilon_uncertainty(inputs, envelope(result.epsilon_r), envelope(result.epsilon_p))
+        self.assertEqual(len(calls), 9)
+        u = output.epsilon_uncertainty
+        self.assertEqual(len(u.bound_optimizer_success), 9)
+        failed = u.bound_optimizer_success.index(False)
+        self.assertEqual(u.bound_labels[failed], "reactant lower / product lower")
+        self.assertEqual(_epsilon_reliability_check(output)["level"], "stop")
 
 
 class ResultPresentationTests(unittest.TestCase):
