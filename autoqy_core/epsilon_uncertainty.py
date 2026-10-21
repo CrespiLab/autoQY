@@ -81,6 +81,7 @@ class EpsilonUncertaintySummary:
     workers: int = 1
     requested_workers: int = 1
     available_cpus: int = 1
+    concentration_data_standard_deviation: np.ndarray | None = None
 
 
 def load_epsilon_envelope(path, error_metric="sd"):

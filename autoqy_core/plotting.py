@@ -38,12 +38,11 @@ def write_figure(path, result, data, residual_percentile=100):
 
     if show_ranges:
         for index, colour in enumerate((blue, orange)):
-            lower = uncertainty.concentration_data_minimum[:, index]
-            upper = uncertainty.concentration_data_maximum[:, index]
-            centre = (lower + upper) / 2 if is_mc else measured[:, index]
+            errors = (uncertainty.concentration_data_standard_deviation[:, index] if is_mc
+                      else np.vstack((measured[:, index] - uncertainty.concentration_data_minimum[:, index],
+                                      uncertainty.concentration_data_maximum[:, index] - measured[:, index])))
             concentration.errorbar(
-                times, centre,
-                yerr=np.vstack((centre - lower, upper - centre)),
+                times, measured[:, index], yerr=errors,
                 fmt="none", ecolor=colour, elinewidth=0.8, alpha=0.35, capsize=2,
             )
             concentration.fill_between(
@@ -52,14 +51,14 @@ def write_figure(path, result, data, residual_percentile=100):
                 color=colour, alpha=0.13,
             )
     concentration.scatter(times, measured[:, 0], s=24, facecolors="none",
-                          edgecolors=blue, label="Reactant data")
+                          edgecolors=blue, label="Reactant data ±1 SD" if is_mc else "Reactant data")
     concentration.scatter(times, measured[:, 1], s=24, facecolors="none",
-                          edgecolors=orange, label="Product data")
+                          edgecolors=orange, label="Product data ±1 SD" if is_mc else "Product data")
     concentration.plot(times, fitted[:, 0], color=blue, linewidth=2,
                        zorder=4, label="Reactant fit")
     concentration.plot(times, fitted[:, 1], color=orange, linewidth=2,
                        zorder=4, label="Product fit")
-    title = (f"Concentration fit · {uncertainty.coverage_probability * 100:g}% intervals"
+    title = (f"Concentration fit · {uncertainty.coverage_probability * 100:g}% fit intervals"
              if is_mc else "Concentrations with ε ranges" if show_ranges else "Concentration fit")
     concentration.set(title=title,
                       xlabel="Irradiation time (s)",

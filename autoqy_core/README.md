@@ -305,9 +305,11 @@ The [455 nm](../ExampleData/Example-3_AB_455nm-EpsilonError/README.md) and
 Blue is reactant and orange is product. Open circles show concentrations
 recovered from the spectra; solid lines show the fitted reaction model.
 **ε ranges** shows variation across the tested ε curves. **Monte Carlo**
-reports mean ± standard uncertainty. In the concentration plot, shaded bands
-show pointwise fit intervals and error bars show the intervals for recovered
-concentrations (95% coverage by default). Detailed data includes these intervals.
+reports mean ± standard uncertainty. The concentration plot keeps the points
+recovered from your measured spectra and the fit to those data. Monte Carlo
+error bars show ±1 SD centred on each point. Shaded bands show pointwise fit
+intervals (95% coverage by default). Detailed CSV files include both the SDs
+and coverage intervals.
 The two yields are labelled **Φ R→P** and **Φ P→R**.
 The shaded band around the fraction residual shows a pointwise Monte Carlo
 coverage interval (95% by default), or the variation across the tested ε curves

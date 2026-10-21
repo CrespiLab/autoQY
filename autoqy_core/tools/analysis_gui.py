@@ -1953,24 +1953,20 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
     for index, (name, colour) in enumerate((("Reactant", blue), ("Product", orange))):
         error_y = None
         if show_ranges:
-            lower = uncertainty.concentration_data_minimum[:, index]
-            upper = uncertainty.concentration_data_maximum[:, index]
-            centre = (lower + upper) / 2 if is_mc else measured[:, index]
             error_y = {
-                "type": "data", "symmetric": False, "visible": True,
-                "array": upper - centre, "arrayminus": centre - lower,
+                "type": "data", "visible": True,
                 "color": _hex_rgba(colour, 0.38), "thickness": 1, "width": 2,
             }
             if is_mc:
-                # Centre interval bars independently of the nominal data points.
-                concentration.add_trace(go.Scatter(
-                    x=times, y=centre, mode="markers", name=f"{name} data interval",
-                    marker={"size": 0, "opacity": 0}, error_y=error_y,
-                    hoverinfo="skip", showlegend=False,
-                ))
-                error_y = None
+                error_y.update(symmetric=True,
+                               array=uncertainty.concentration_data_standard_deviation[:, index])
+            else:
+                error_y.update(symmetric=False,
+                               array=uncertainty.concentration_data_maximum[:, index] - measured[:, index],
+                               arrayminus=measured[:, index] - uncertainty.concentration_data_minimum[:, index])
         concentration.add_trace(go.Scatter(
-            x=times, y=measured[:, index], mode="markers", name=f"{name} data",
+            x=times, y=measured[:, index], mode="markers",
+            name=f"{name} data ±1 SD" if is_mc else f"{name} data",
             marker={"symbol": "circle-open", "size": 7, "color": colour},
             error_y=error_y,
         ))
@@ -1979,7 +1975,7 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
             x=times, y=fitted[:, index], mode="lines", name=f"{name} fit",
             line={"color": colour, "width": 3},
         ))
-    title = (f"Concentration fit · {uncertainty.coverage_probability * 100:g}% intervals"
+    title = (f"Concentration fit · {uncertainty.coverage_probability * 100:g}% fit intervals"
              if is_mc else "Concentration fit")
     _style_figure(concentration, title, "Irradiation time (s)", "Concentration (mol/L)")
 

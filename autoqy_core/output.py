@@ -338,6 +338,8 @@ def write_detailed_data(stem, result, data):
     if getattr(uncertainty, "method", "") == "monte_carlo":
         columns = {name.replace("_epsilon_min", "_mc_interval_lower").replace(
             "_epsilon_max", "_mc_interval_upper"): value for name, value in columns.items()}
+        for species, index in (("reactant", 0), ("product", 1)):
+            columns[f"{species}_concentration_data_mc_sd_M"] = uncertainty.concentration_data_standard_deviation[:, index]
     traces = pd.DataFrame(columns)
     traces_path = stem.parent / f"{stem.name}_traces.csv"
     traces.to_csv(traces_path, index=False)

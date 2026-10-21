@@ -321,6 +321,9 @@ class MonteCarloPipelineTests(unittest.TestCase):
             self.assertEqual(len(paths),3)
             self.assertEqual(len(pd.read_csv(paths[-1])),32)
             self.assertIn('reactant_concentration_fit_mc_interval_lower_M',pd.read_csv(paths[0]).columns)
+            saved = pd.read_csv(paths[0])
+            np.testing.assert_allclose(saved.reactant_concentration_data_mc_sd_M,
+                                       self.output.epsilon_uncertainty.concentration_data_standard_deviation[:, 0])
             captured = []
             with patch('matplotlib.figure.Figure.savefig',side_effect=lambda *a,**k:captured.append(plt.gcf())):
                 write_figure(stem,self.output,self.data)
@@ -338,12 +341,12 @@ class MonteCarloPipelineTests(unittest.TestCase):
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
         figures = _interactive_figures(go,make_subplots,self.output,self.data,99,395)
-        self.assertEqual(figures[0].layout.title.text,'Concentration fit · 95% intervals')
+        self.assertEqual(figures[0].layout.title.text,'Concentration fit · 95% fit intervals')
         self.assertEqual(sum(t.fill == 'tonexty' for t in figures[0].data), 2)
         self.assertEqual(sum(t.error_y.visible is True for t in figures[0].data), 2)
         self.assertTrue(any(t.name == '95% interval' and t.fill == 'tonexty' for t in figures[1].data))
 
-    def test_concentration_intervals_keep_both_endpoints_outside_nominal_data(self):
+    def test_mc_error_bars_stay_centered_on_observed_points_when_distribution_shifts(self):
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
         measured = self.output.concentration_fit.concentrations
@@ -352,32 +355,36 @@ class MonteCarloPipelineTests(unittest.TestCase):
                     concentration_data_minimum=measured + 2e-6,
                     concentration_data_maximum=measured + 4e-6,
                     concentration_fit_minimum=fitted + 2e-6,
-                    concentration_fit_maximum=fitted + 4e-6)
+                    concentration_fit_maximum=fitted + 4e-6,
+                    concentration_data_standard_deviation=np.full_like(measured, .5e-6))
         result = replace(self.output, epsilon_uncertainty=u)
         concentration = _interactive_figures(go, make_subplots, result, self.data, 99, 395)[0]
         for index, species in enumerate(('Reactant', 'Product')):
-            bar = next(t for t in concentration.data if t.name == f'{species} data interval')
-            np.testing.assert_allclose(np.asarray(bar.y) - bar.error_y.arrayminus,
-                                       u.concentration_data_minimum[:, index])
-            np.testing.assert_allclose(np.asarray(bar.y) + bar.error_y.array,
-                                       u.concentration_data_maximum[:, index])
-            self.assertTrue(np.all(np.asarray(bar.error_y.arrayminus) >= 0))
-            self.assertTrue(np.all(np.asarray(bar.error_y.array) >= 0))
-            points = next(t for t in concentration.data if t.name == f'{species} data')
+            points = next(t for t in concentration.data if t.name == f'{species} data ±1 SD')
             np.testing.assert_array_equal(points.y, measured[:, index])
+            self.assertTrue(points.error_y.symmetric)
+            np.testing.assert_array_equal(points.error_y.array, u.concentration_data_standard_deviation[:, index])
+            curve = next(t for t in concentration.data if t.name == f'{species} fit')
+            np.testing.assert_array_equal(curve.y, fitted[:, index])
         captured = []
         with TemporaryDirectory() as folder, \
              patch('matplotlib.figure.Figure.savefig', side_effect=lambda *a, **k: captured.append(plt.gcf())):
             write_figure(Path(folder)/'skewed', result, self.data)
         axis = captured[0].axes[0]
-        self.assertEqual(axis.get_title(), 'Concentration fit · 95% intervals')
+        self.assertEqual(axis.get_title(), 'Concentration fit · 95% fit intervals')
         self.assertEqual(len(axis.containers), 2)
         for index, bars in enumerate(axis.containers):
             segments = np.asarray(bars.lines[2][0].get_segments())
-            np.testing.assert_allclose(segments[:, 0, 1], u.concentration_data_minimum[:, index])
-            np.testing.assert_allclose(segments[:, 1, 1], u.concentration_data_maximum[:, index])
+            np.testing.assert_allclose(segments[:, 0, 1], measured[:, index] - u.concentration_data_standard_deviation[:, index])
+            np.testing.assert_allclose(segments[:, 1, 1], measured[:, index] + u.concentration_data_standard_deviation[:, index])
+            np.testing.assert_allclose(segments[:, :, 1].mean(axis=1), measured[:, index], atol=1e-20)
         bands = [c for c in axis.collections if c.__class__.__name__ == 'FillBetweenPolyCollection']
         self.assertEqual(len(bands), 2)
+
+    def test_identical_draws_have_zero_concentration_standard_uncertainty(self):
+        result, _ = self.mocked_run(samples=32)
+        np.testing.assert_allclose(result.epsilon_uncertainty.concentration_data_standard_deviation,
+                                   0, atol=1e-18)
 
     def test_monte_carlo_warning_refers_to_the_panel_that_is_present(self):
         from autoqy_core.tools.analysis_gui import _fit_diagnostic_checks
