@@ -258,9 +258,12 @@ def _summary_precision(samples):
 
 def run_monte_carlo(data, reactant, product, *, error_metric="sd", samples=2048,
                     seed=0, coverage=.95, tolerance=.005,
-                    checkpoint_directory=None, progress_callback=None):
+                    checkpoint_directory=None, progress_callback=None, workers=1):
     from .monte_carlo_checkpoint import MonteCarloCheckpoint, checkpoint_key, legacy_checkpoint_keys
 
+    from .monte_carlo_execution import resolve_workers
+
+    actual_workers, cpus = resolve_workers(workers)
     assumption_messages = []
     sample_pair, assumptions = paired_epsilon_sampler(
         reactant, product, error_metric, assumed_input_warnings=assumption_messages)
@@ -271,13 +274,17 @@ def run_monte_carlo(data, reactant, product, *, error_metric="sd", samples=2048,
     with checkpoint as saved:
         return _run_monte_carlo(data, reactant, product, error_metric, samples, seed,
                                 coverage, tolerance, sample_pair, assumptions, saved,
-                                progress_callback, assumed_input_warnings=assumption_messages)
+                                progress_callback, assumed_input_warnings=assumption_messages,
+                                workers=actual_workers, requested_workers=workers, available_cpus=cpus)
 
 
 def _run_monte_carlo(data, reactant, product, error_metric, samples, seed,
                      coverage, tolerance, sample_pair, assumptions, checkpoint,
-                     progress_callback, *, assumed_input_warnings=()):
+                     progress_callback, *, assumed_input_warnings=(), workers=1, requested_workers=1, available_cpus=1):
     from .pipeline import run_analysis_pipeline
+
+    from .monte_carlo_draw import prepare_trial
+    from .monte_carlo_execution import process_pool, trial_results
 
     rng = np.random.default_rng(seed)
     records, failures, attempted, rng_state = (checkpoint.load(samples) if checkpoint is not None
@@ -291,6 +298,7 @@ def _run_monte_carlo(data, reactant, product, error_metric, samples, seed,
             progress_callback({"kind": "monte_carlo", "phase": phase, "attempted": attempted,
                                "successful": len(records), "failed": len(failures),
                                "maximum": samples, "reused": reused, "fit_method": data.fit_method,
+                               "workers": workers, "available_cpus": available_cpus,
                                "checkpoint_path": str(checkpoint.path) if checkpoint is not None else None,
                                **details})
 
@@ -308,50 +316,25 @@ def _run_monte_carlo(data, reactant, product, error_metric, samples, seed,
     already_stable = (not failures and len(records) >= 128
                       and _summary_precision([r[0] for r in records])[0])
     report("running")
-    for iteration in (() if already_stable else range(attempted, samples)):
-        attempted += 1
-        record, failure = None, None
-        try:
-            er, ep = sample_pair(rng)
-            absorbance = data.absorbance.copy()
-            bootstrap = residuals[rng.integers(0, len(residuals), size=len(residuals))]
-            absorbance[rows] = (model + bootstrap).T
-            power, flux = data.power_mw, data.photon_flux_mol_s
-            if flux is None:
-                power = float(_positive_normal(power, data.power_error_mw, rng.random()))
-            else:
-                flux = float(_positive_normal(flux, data.photon_flux_error_mol_s, rng.random()))
-            trial_data = replace(
-                data, epsilon_r=(reactant.wavelengths, er), epsilon_p=(product.wavelengths, ep),
-                absorbance=absorbance, power_mw=power, photon_flux_mol_s=flux,
-                power_error_mw=0, photon_flux_error_mol_s=0,
-            )
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", message="Initial product is .*", category=RuntimeWarning)
-                trial = run_analysis_pipeline(trial_data, include_power_variations=False)
-            fit = trial.yield_fit
-            if not fit.optimizer_success or not np.isfinite(fit.values).all():
-                raise ValueError("Kinetic optimizer failed or returned non-finite yields")
-            total = fit.concentrations.sum(axis=1)
-            fraction = np.divide(fit.concentrations[:, 0], total,
-                                 out=np.zeros_like(total), where=total != 0)
-            residual = trial.concentration_fit.fractions[:, 0] - fraction
-            record = (fit.values, fit.standard_errors, fit.active_bounds,
-                      fit.jacobian_condition, trial.concentration_fit.concentrations,
-                      fit.concentrations, residual,
-                      _absorbance_residual_rmse(trial, data.path_length_cm))
-        except (ValueError, RuntimeError, FloatingPointError, np.linalg.LinAlgError) as error:
-            failure = f"Simulation {iteration + 1}: {error}"
-        if checkpoint is not None:
-            checkpoint.append(attempted, record, failure, rng.bit_generator.state)
-        if failure is None:
-            records.append(record)
-        else:
-            failures.append(failure)
-        report("running")
-        if len(records) >= 128 and attempted % 64 == 0:
-            if not failures and _summary_precision([r[0] for r in records])[0]:
-                break
+    if not already_stable and attempted < samples:
+        if workers > 1:
+            report("starting_workers")
+        prepare = lambda: prepare_trial(data, reactant, product, model, residuals, rows, rng, sample_pair)
+        with process_pool(workers) as executor:
+            while attempted < samples:
+                stop = min(samples, (attempted // 64 + 1) * 64)
+                for iteration, record, failure, draw_state in trial_results(
+                        attempted, stop, workers, prepare, rng, executor):
+                    attempted = iteration
+                    if checkpoint is not None:
+                        checkpoint.append(attempted, record, failure, draw_state)
+                    if failure is None:
+                        records.append(record)
+                    else:
+                        failures.append(failure)
+                    report("running")
+                if len(records) >= 128 and not failures and _summary_precision([r[0] for r in records])[0]:
+                    break
     if len(records) < max(16, attempted // 2):
         raise ValueError(f"Only {len(records)} of {attempted} Monte Carlo fits succeeded. "
                          + (failures[0] if failures else "Increase the number of simulations."))
@@ -397,6 +380,7 @@ def _run_monte_carlo(data, reactant, product, error_metric, samples, seed,
         interval_converged=bool(not failures and len(records) >= 128 and np.all(2 * endpoint_error <= tolerance)),
         summary_mc_error=summary_error, summary_mc_tolerance=summary_tolerance,
         assumed_input_warnings=tuple(assumed_input_warnings),
+        workers=workers, requested_workers=requested_workers, available_cpus=available_cpus,
         endpoint_mc_error=endpoint_error, scope=SCOPE, sampling_assumptions=assumptions,
         failure_messages=tuple(failures), reused_samples=reused,
         checkpoint_path=str(checkpoint.path) if checkpoint is not None else None,

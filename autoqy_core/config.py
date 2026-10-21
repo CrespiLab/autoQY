@@ -186,6 +186,7 @@ def validate_config(config):
         epsilon_settings = uncertainty.get("epsilon", {})
         if epsilon_settings.get("method") == "monte_carlo":
             for key, default, minimum, maximum in (("samples", 2048, 32, 100000),
+                                                   ("workers", 1, 1, 61),
                                                    ("seed", 0, 0, 2**32 - 1)):
                 value = epsilon_settings.get(key, default)
                 if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:

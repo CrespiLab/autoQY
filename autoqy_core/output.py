@@ -73,6 +73,9 @@ def monte_carlo_messages(uncertainty):
     else:
         messages = [f"All {u.attempted_samples} simulations finished successfully."]
     messages.extend(getattr(u, "assumed_input_warnings", ()))
+    if getattr(u, "requested_workers", 1) > getattr(u, "workers", 1):
+        messages.append(f"Using {u.workers} CPU workers instead of the requested {u.requested_workers} "
+                        "to leave capacity for other applications.")
     if u.converged:
         messages.append("The mean and error passed the precision check.")
     elif not u.failed_samples:
@@ -191,6 +194,9 @@ def result_summary(result, data, irradiation_wavelength_nm):
             "standard_uncertainty_percentage_points": _yield_pair(uncertainty.sample_standard_deviation * 100),
             "nominal_quantum_yield_percent": _yield_pair(result.yield_fit.values * 100),
             "requested_maximum_simulations": uncertainty.requested_samples,
+            "workers": uncertainty.workers,
+            "requested_workers": uncertainty.requested_workers,
+            "available_cpus": uncertainty.available_cpus,
             "attempted_simulations": uncertainty.attempted_samples,
             "successful_simulations": uncertainty.bound_combination_count,
             "failed_simulations": uncertainty.failed_samples,
@@ -233,6 +239,7 @@ def write_results(path, result, data, irradiation_wavelength_nm):
     uncertainty_text = "Error: fit and irradiation-input uncertainty.\n"
     if getattr(uncertainty, "method", "") == "monte_carlo":
         uncertainty_text = "\n".join(monte_carlo_messages(uncertainty)) + "\n"
+        uncertainty_text += f"CPU workers: {uncertainty.workers}.\n"
         uncertainty_text += ("Included errors: reference spectra, NMR composition, irradiation input and kinetic fitting.\n"
                              "The PSS reconstruction absorbance is held fixed.\n")
         mc_error = uncertainty.summary_mc_error * 100

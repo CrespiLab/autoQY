@@ -78,6 +78,9 @@ class EpsilonUncertaintySummary:
     summary_mc_error: np.ndarray | None = None
     summary_mc_tolerance: np.ndarray | None = None
     assumed_input_warnings: tuple[str, ...] = ()
+    workers: int = 1
+    requested_workers: int = 1
+    available_cpus: int = 1
 
 
 def load_epsilon_envelope(path, error_metric="sd"):

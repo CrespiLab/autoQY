@@ -103,13 +103,15 @@ The GUI and figures show the Monte Carlo mean ± standard uncertainty (1 SD).
 The error uses one significant digit, or two when it starts with 1 or 2; the
 mean uses the same decimal place. Detailed JSON retains the nominal fit,
 full-precision values, and asymmetric coverage interval. The default maximum is
-2048 simulations. After at least 128 successful fits, AutoQY checks the numerical
-precision of both mean yields and their SDs every 64 fits. It stops early when
+2048 simulations. Any whole-number limit from 32 to 100000 is allowed.
+Powers of two are optional. After at least 128 successful fits, AutoQY checks
+the numerical precision of both mean yields and their SDs every 64 fits. It stops early when
 twice their estimated simulation error is below half a unit in the last
 reported SD digit. Batch estimates and moment-based estimates are combined;
 the larger error estimate is used. This applies the numerical-tolerance
 principle in [JCGM 101:2008, section 7.9](https://www.bipm.org/documents/20126/2071204/JCGM_101_2008_E.pdf)
-to the reported mean and SD.
+to the reported mean and SD. Parallel workers finish the current block
+before the check; a passed check prevents another block from starting.
 
 The interval endpoints have their own precision check in **Technical details**.
 An approximate interval can accompany a mean and SD that have passed their check.
@@ -119,6 +121,19 @@ precision check has not passed and show the remaining simulation error in
 The kinetic solver reuses fixed wavelength weights and baseline projections
 to shorten repeated fits. A saved random seed makes the calculation reproducible.
 Detailed output includes `_uncertainty.csv` with the successful simulated yields.
+
+For a longer run, open **Monte Carlo settings** and select **Use multiple CPUs**.
+Parallel processing is off by default. AutoQY detects the available CPUs and
+suggests up to four workers, using roughly half the available CPUs initially.
+The worker limit leaves at least one CPU free for Windows and other applications.
+Each worker fits one simulation at a time and uses one numerical-library thread.
+More workers use more memory; short runs can take longer because worker startup
+takes time. The counter shows the selected worker count.
+
+Input draws keep the same random sequence in either mode. Fits are saved in
+simulation order, and precision checks use the same completed prefixes. You can
+change worker counts and continue compatible saved runs. Small differences in
+floating-point results can occur between numerical-library thread settings.
 
 A live counter shows how many simulations have finished and how many were reused.
 Each completed simulation is saved automatically in `.autoqy-monte-carlo`
@@ -181,6 +196,7 @@ Add these settings to the analysis configuration:
     "method": "monte_carlo",
     "error_metric": "sd",
     "samples": 2048,
+    "workers": 1,
     "seed": 0,
     "coverage_probability": 0.95,
     "endpoint_tolerance": 0.005

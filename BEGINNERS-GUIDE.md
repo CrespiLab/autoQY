@@ -371,9 +371,10 @@ reconstruction. Other missing reconstruction details require a complete export.
 
 Monte Carlo shows the mean ± standard uncertainty (1 SD). The error uses
 one significant digit, or two when it starts with 1 or 2, and the mean uses
-the same decimal place. The default maximum is 2048 simulations. AutoQY checks
-the precision of the mean and error as it runs and can stop early. When the
-check passes, the remaining simulation error is small enough for the displayed
+the same decimal place. The default maximum is 2048 simulations. You can choose
+any whole number from 32 to 100000. AutoQY first checks precision after 128
+successful simulations, then every 64 simulations. It stops when the remaining
+simulation error is small enough for the displayed
 precision. If it reaches the limit first, **Technical details** shows how much
 simulation error remains.
 
@@ -382,6 +383,13 @@ Its limits can remain approximate even when the mean and error pass their check.
 Failed fits and yields reaching their allowed limits also appear in the results.
 
 A live counter shows how many simulations have finished and how many were reused.
+To run several simulations at once, open **Monte Carlo settings** and select
+**Use multiple CPUs**. Start with the suggested worker count. AutoQY suggests
+up to four workers and leaves CPU capacity for other applications. More workers
+need more memory, and starting them takes time, so short runs may be faster with
+parallel processing off. You can change the worker count and keep using saved
+simulations with the same inputs and random seed.
+
 Each completed simulation is saved automatically in `.autoqy-monte-carlo`
 inside the output folder. To continue a run, keep the same output folder,
 inputs, fit settings, and random seed, raise **Maximum simulations**, and

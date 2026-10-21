@@ -41,15 +41,13 @@ def _calculation_signature(directory=None):
                            if isinstance(item, ast.Assign) and any(
                                isinstance(t, ast.Name) and t.id == 'rows' for t in item.targets))
                 parts.extend(node.body[start:end + 1])
-                loop = next(item for item in node.body if isinstance(item, ast.For))
-                parts.append(next(item for item in loop.body if isinstance(item, ast.Try)))
             elif node.name not in ('_endpoint_error', '_summary_precision', 'run_monte_carlo'):
                 parts.append(node)
     epsilon_tree = ast.parse((directory / 'epsilon_uncertainty.py').read_text(encoding='utf-8'))
     parts.extend(node for node in epsilon_tree.body
                  if isinstance(node, (ast.FunctionDef, ast.Import, ast.ImportFrom)))
     code = '\n'.join(ast.dump(node, include_attributes=False) for node in parts)
-    for name in ('kinetics.py', 'pipeline.py', 'spectra.py'):
+    for name in ('kinetics.py', 'pipeline.py', 'spectra.py', 'monte_carlo_draw.py'):
         code += ast.dump(ast.parse((directory / name).read_text(encoding='utf-8')),
                          include_attributes=False)
     return hashlib.sha256(code.encode('utf-8')).hexdigest()
@@ -90,25 +88,27 @@ def checkpoint_key(data, reactant, product, error_metric, seed):
 
 
 def legacy_checkpoint_keys(data, reactant, product, error_metric, seed):
-    from .monte_carlo_legacy import CALCULATION_SIGNATURE, PREVIOUS_CALCULATION_SIGNATURES, SOURCE_PROFILES
+    from .monte_carlo_legacy import CALCULATION_SIGNATURE, COMPATIBLE_CALCULATION_SIGNATURES, PREVIOUS_CALCULATION_SIGNATURES, SOURCE_PROFILES
     from .epsilon_uncertainty import _read_epsilon_frame
 
     # Only explicitly verified, numerically identical legacy implementations
     # may migrate. Inputs, seed, Python, NumPy and SciPy must still match exactly.
     if _calculation_signature() != CALCULATION_SIGNATURE:
         return ()
+    compatible = [_fingerprint(data, reactant, product, error_metric, seed, 2, (signature,))
+                  for signature in COMPATIBLE_CALCULATION_SIGNATURES]
     # Previous calculations required an explicitly saved NMR uncertainty. They
     # remain identical when that value is present. A fallback starts a new run.
     for envelope in (reactant, product):
         frame = _read_epsilon_frame(envelope.source_path)
         if ('Product_epsilon_M-1_cm-1' in frame
                 and 'Composition_uncertainty_percentage_points' not in frame):
-            return ()
+            return tuple(compatible)
     previous = [_fingerprint(data, reactant, product, error_metric, seed, 2, (signature,))
                 for signature in PREVIOUS_CALCULATION_SIGNATURES]
     previous.extend(_fingerprint(data, reactant, product, error_metric, seed, 1, profile)
                     for profile in SOURCE_PROFILES)
-    return tuple(previous)
+    return tuple(compatible + previous)
 
 
 def _pack(record):

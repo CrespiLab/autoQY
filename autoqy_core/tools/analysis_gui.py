@@ -20,6 +20,7 @@ from ..epsilon_uncertainty import load_epsilon_nominal
 from ..gui_window import serve_gui
 from ..input_restore import restore_embedded_inputs
 from ..io import load_spectra, load_spectrum, load_timestamps
+from ..monte_carlo_execution import cpu_worker_limits
 from ..output import (format_scientific_value_uncertainty,
                       format_value_uncertainty, monte_carlo_messages, quantum_yield_values, result_summary)
 from ..plot_style import (PLOT_BLUE, PLOT_BROWN, PLOT_NEUTRAL,
@@ -48,6 +49,7 @@ def create_app():
 
     assets = Path(__file__).parents[1] / "assets"
     project_version = get_project_version()
+    available_cpus, suggested_workers, maximum_workers = cpu_worker_limits()
     app = Dash(__name__, assets_folder=str(assets), suppress_callback_exceptions=True)
     app.title = f"AutoQY Analysis · {project_version}"
     window_state = {"close_requested_at": None, "last_heartbeat_at": None}
@@ -377,20 +379,32 @@ def create_app():
                             "Results show the mean ± estimated error (1 SD). The shaded band shows "
                             "the uncertainty range, with 95% coverage by default. The calculation checks "
                             "the precision of the mean and SD after at least 128 successful simulations "
-                            "and stops early when they pass. Interval endpoint precision is checked "
+                            "and every 64 simulations after that. It stops when they pass. "
+                            "The default maximum is 2048; any whole number from 32 to 100000 is allowed. "
+                            "Interval endpoint precision is checked "
                             "separately in Technical details. Keeping the same random seed lets you repeat a run. "
                             "Enter power and NMR errors as 1 SD."
                         )]),
-                        pair("Maximum simulations", number("mc_samples", 2048, min=32, step=1),
+                        pair("Maximum simulations", number("mc_samples", 2048, min=32, max=100000, step=1),
                              "Random seed", number("mc_seed", 0, min=0, step=1)),
                         pair("Coverage probability", number("mc_coverage", .95, min=.5, max=1, step="any"),
                              "Interval endpoint tolerance (yield fraction)",
                              number("mc_tolerance", .005, min=0, step="any")),
-                        html.Small("The default maximum is 2048; the calculation stops early when the mean and error pass their precision check. "
-                                   "Completed simulations are saved in the output folder and reused on the next run. "
-                                   "Keep that folder and the same inputs and seed to continue, even after reopening the GUI. "
-                                   "Endpoint tolerance controls the separate interval check in Technical details.",
-                                   className="helper-text"),
+                        dcc.Checklist(
+                            id={"type": "analysis-field", "name": "mc_parallel"},
+                            options=[{"label": "Use multiple CPUs (optional)", "value": "on",
+                                      "disabled": maximum_workers < 2}],
+                            value=[], className="toggle-control"),
+                        html.Label(["CPU workers ", info_popup(
+                            "Each worker fits one simulation at a time. More workers use more memory. "
+                            "Short runs may take longer because starting workers takes time. "
+                            "Changing the worker count keeps compatible saved simulations.")]),
+                        number("mc_workers", suggested_workers, min=1, max=maximum_workers, step=1, disabled=True),
+                        html.Small(f"{available_cpus} CPUs available. Suggested: {suggested_workers} workers "
+                                   "to keep the PC responsive.", className="helper-text"),
+                        html.Small("Stops early when the mean and error are precise enough. "
+                                   "Progress is saved automatically. Keep the same output folder, "
+                                   "inputs and seed to resume.", className="helper-text"),
                     ]),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
@@ -688,6 +702,11 @@ def create_app():
         except Exception as error:
             return f"Could not open Spectral Treatment: {error}"
 
+    @app.callback(Output({"type": "analysis-field", "name": "mc_workers"}, "disabled"),
+                  Input({"type": "analysis-field", "name": "mc_parallel"}, "value"))
+    def select_parallel_simulations(enabled):
+        return "on" not in (enabled or [])
+
     @app.callback(Output("analysis-mc-progress", "children"),
                   Input("analysis-progress-poll", "n_intervals"))
     def update_progress(_):
@@ -890,9 +909,12 @@ def _monte_carlo_progress_view(html, state):
     method = _method_label(state["fit_method"])
     phase = state.get("phase")
     title = ("Preparing Monte Carlo" if phase == "preparing" else
+             "Starting parallel workers" if phase == "starting_workers" else
              "Monte Carlo finished" if phase == "complete" else
              "Monte Carlo stopped" if phase == "stopped" else "Monte Carlo running")
     details = [f"{state['successful']} successful"]
+    if state.get("workers", 1) > 1:
+        details.append(f"{state['workers']} CPU workers")
     if state.get("reused"):
         details.append(f"{state['reused']} reused from saved simulations")
     if state.get("failed"):
@@ -1007,6 +1029,8 @@ def _configuration(values, embedded=None, *, preprocessing_only=False):
             "uncertainty": {"epsilon": {"method": values.get("epsilon_method"),
                                           "error_metric": values.get("epsilon_metric"),
                                           **({"samples": values.get("mc_samples", 2048),
+                                              "workers": values.get("mc_workers", cpu_worker_limits()[1])
+                                              if _on(values, "mc_parallel") else 1,
                                               "seed": values.get("mc_seed", 0),
                                               "coverage_probability": values.get("mc_coverage", .95),
                                               "endpoint_tolerance": values.get("mc_tolerance", .005)}
@@ -1038,6 +1062,9 @@ def _form_values(document):
     inputs, experiment = document["inputs"], document["experiment"]
     processing, fit = document["processing"], document["fit"]
     output = document["outputs"]
+    saved_workers = document.get("uncertainty", {}).get("epsilon", {}).get("workers", 1)
+    _, suggested_workers, maximum_workers = cpu_worker_limits()
+    restored_workers = min(saved_workers, maximum_workers)
     values = {
         "analysis_id": document["analysis"]["id"],
         "reactant_name": document["analysis"]["reactant_name"],
@@ -1077,6 +1104,8 @@ def _form_values(document):
         "residual_percentile": document["plots"]["absorbance_residual_percentile"],
         "epsilon_method": document.get("uncertainty", {}).get("epsilon", {}).get("method", "none"),
         "epsilon_metric": document.get("uncertainty", {}).get("epsilon", {}).get("error_metric", "sd"),
+        "mc_parallel": _toggle_value(restored_workers > 1),
+        "mc_workers": restored_workers if saved_workers > 1 else suggested_workers,
         **{field: document.get("uncertainty", {}).get("epsilon", {}).get(key, default)
            for field, key, default in (("mc_samples", "samples", 2048), ("mc_seed", "seed", 0),
                                        ("mc_coverage", "coverage_probability", .95),
@@ -1676,14 +1705,16 @@ def _epsilon_reliability_check(result):
 
 def _monte_carlo_reliability_check(u):
     level = "stop" if u.failed_samples else (
-        "warning" if u.assumed_input_warnings or not u.converged or np.any(u.boundary_fractions) else "ok")
+        "warning" if u.assumed_input_warnings or u.requested_workers > u.workers
+        or not u.converged or np.any(u.boundary_fractions) else "ok")
     messages = monte_carlo_messages(u)
     if np.any(~np.isfinite(u.bound_jacobian_conditions)) or np.any(u.bound_jacobian_conditions > 1e8):
         level = "stop"
         messages.append("Some simulated fits cannot reliably separate the quantum yields.")
     check = _check(level, "Monte Carlo uncertainty", " ".join(messages))
     errors = u.summary_mc_error * 100
-    check["details"] = (f"Seed {u.random_seed}. Remaining simulation error (1 SD, percentage points): "
+    check["details"] = (f"Seed {u.random_seed}. CPU workers {u.workers} (available CPUs: {u.available_cpus}). "
+                        "Remaining simulation error (1 SD, percentage points): "
                         f"mean R→P {errors[0, 0]:.2g}, P→R {errors[0, 1]:.2g}; "
                         f"SD R→P {errors[1, 0]:.2g}, P→R {errors[1, 1]:.2g}. "
                         f"Mean/SD precision check: {'passed' if u.converged else 'not passed'}. "

@@ -435,7 +435,7 @@ class MonteCarloConfigurationTests(unittest.TestCase):
                     'coverage_probability':.9,'endpoint_tolerance':.002}
         values['uncertainty']['epsilon'] = settings
         form = _form_values(values)
-        self.assertEqual(_configuration(form)['uncertainty']['epsilon'],settings)
+        self.assertEqual(_configuration(form)['uncertainty']['epsilon'],settings | {'workers': 1})
         for method in ('none','deterministic_extremes','monte_carlo'):
             values['uncertainty']['epsilon']['method'] = method
             validate_config(AnalysisConfig(values,EXAMPLE))

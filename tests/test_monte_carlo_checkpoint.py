@@ -195,22 +195,24 @@ np.savez({str(output)!r},yields=r.epsilon_uncertainty.bound_yields)
             # complete reconstruction before it opens any checkpoint.
             pd.DataFrame({'Product_epsilon_M-1_cm-1': [1]}).to_csv(path, index=False)
             derived = replace(self.envelopes[0], source_path=str(path))
-            self.assertEqual(legacy_checkpoint_keys(self.data, derived, self.envelopes[1], 'sd', 3), ())
+            compatible = legacy_checkpoint_keys(self.data, derived, self.envelopes[1], 'sd', 3)
+            self.assertEqual(len(compatible), 1)  # The previous fallback-capable sampler remains compatible.
             pd.DataFrame({'Product_epsilon_M-1_cm-1': [1],
                           'Composition_uncertainty_percentage_points': [1]}).to_csv(path, index=False)
-            self.assertGreaterEqual(len(legacy_checkpoint_keys(self.data, derived, self.envelopes[1], 'sd', 3)), 2)
+            self.assertGreaterEqual(len(legacy_checkpoint_keys(self.data, derived, self.envelopes[1], 'sd', 3)), 3)
 
     def test_calculation_signature_ignores_stopping_but_detects_sampling_changes(self):
         package = Path(__file__).parents[1]/'autoqy_core'
         with TemporaryDirectory() as folder:
-            for name in ('epsilon_monte_carlo.py', 'epsilon_uncertainty.py', 'kinetics.py', 'pipeline.py', 'spectra.py'):
+            for name in ('epsilon_monte_carlo.py', 'epsilon_uncertainty.py', 'kinetics.py', 'pipeline.py', 'spectra.py', 'monte_carlo_draw.py'):
                 shutil.copy2(package/name, Path(folder)/name)
             path = Path(folder)/'epsilon_monte_carlo.py'
             text = path.read_text(encoding='utf-8')
             original = _calculation_signature(folder)
-            path.write_text(text.replace('attempted % 64', 'attempted % 32'), encoding='utf-8')
+            path.write_text(text.replace('len(records) >= 128', 'len(records) >= 256'), encoding='utf-8')
             self.assertEqual(_calculation_signature(folder), original)
-            path.write_text(text.replace('rng.random()', 'rng.random() / 2'), encoding='utf-8')
+            draw_path = Path(folder)/'monte_carlo_draw.py'
+            draw_path.write_text(draw_path.read_text(encoding='utf-8').replace('rng.random()', 'rng.random() / 2'), encoding='utf-8')
             self.assertNotEqual(_calculation_signature(folder), original)
         with patch('autoqy_core.monte_carlo_checkpoint._calculation_signature', return_value='changed'):
             self.assertEqual(legacy_checkpoint_keys(self.data, *self.envelopes, 'sd', 3), ())
