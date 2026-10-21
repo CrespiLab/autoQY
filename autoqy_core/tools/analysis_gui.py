@@ -1186,10 +1186,10 @@ def _physical_parameter_preview(values):
         text = f"Interpreted volume: {volume_ul:g} µL = {volume_ul / 1000:g} mL."
         rates = (("R→P", values.get("thermal_forward_rate")),
                  ("P→R", values.get("thermal_rate")))
-        half_lives = [f"{label} half-life: {np.log(2) / float(rate):g} s"
-                      for label, rate in rates if rate is not None and float(rate) > 0]
-        if half_lives:
-            text += " Thermal " + "; ".join(half_lives) + "."
+        lifetimes = [f"{label} lifetime τ: {1 / float(rate):.4g} s"
+                     for label, rate in rates if rate is not None and float(rate) > 0]
+        if lifetimes:
+            text += " Thermal " + "; ".join(lifetimes) + "."
         if _on(values, "chemical_actinometer"):
             flux = values.get("photon_flux_mol_s")
             flux_error = values.get("photon_flux_error_mol_s")
@@ -1409,12 +1409,13 @@ def _input_checks(config):
     )
     for label, rate in thermal_rates:
         if rate > 0:
+            lifetime = 1 / rate
             half_life = float(np.log(2) / rate)
             suspicious = ((np.isfinite(median_interval) and half_life < median_interval) or
                           (duration > 0 and half_life < duration / 10))
             checks.append(_check(
                 "warning" if suspicious else "ok", label,
-                f"k = {rate:g} s⁻¹; half-life {half_life:.4g} s" +
+                f"k = {rate:g} s⁻¹; lifetime τ = {lifetime:.4g} s" +
                 (" is short relative to the experiment" if suspicious else ""),
             ))
         else:

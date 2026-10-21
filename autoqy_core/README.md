@@ -425,7 +425,8 @@ The bundled configurations give complete examples of each input layout.
 | `photon_flux_mol_s`, `photon_flux_error_mol_s` | mol photons/s |
 
 Thermal back reaction is P→R; thermal forward reaction is R→P and defaults to zero.
-Calculate each rate as 0.693 / half-life, with the half-life in seconds.
+For a first-order reaction, lifetime τ = 1 / rate, in seconds.
+Analysis shows this lifetime for each positive thermal rate.
 
 ### Use a chemical actinometer
 

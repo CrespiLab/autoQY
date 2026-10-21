@@ -316,7 +316,9 @@ Enter your measured values, with the units shown beside each field:
 - thermal reaction rates in s⁻¹.
 
 Thermal rates describe reactions without light. For a first-order reaction,
-rate = 0.693 / half-life, with the half-life in seconds.
+lifetime τ = 1 / rate, in seconds. For example, a rate of 0.01 s⁻¹
+gives a lifetime of 100 s. Analysis shows the lifetime when you enter
+a positive thermal rate.
 
 With power input, AutoQY uses the full LED spectrum to calculate the number of
 photons. The wavelength field records the nominal irradiation wavelength.
