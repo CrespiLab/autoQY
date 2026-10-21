@@ -364,8 +364,10 @@ You can keep **ε ranges**, or choose **Monte Carlo**.
 Monte Carlo uses the uncertainties already supplied and keeps the PSS absorbance
 used for reconstruction fixed. It uses
 replicate ε data and, for a reconstructed isomer, the matching reconstruction
-with its NMR composition uncertainty. Re-export from Spectral Treatment if an
-older file is missing those details.
+with its NMR composition uncertainty. If an older file omits the composition
+error, AutoQY assumes ±1 percentage point (1 SD), continues and displays a warning.
+To use your measured error, enter it in Spectral Treatment and re-export the
+reconstruction. Other missing reconstruction details require a complete export.
 
 Monte Carlo shows the mean ± standard uncertainty (1 SD). The error uses
 one significant digit, or two when it starts with 1 or 2, and the mean uses

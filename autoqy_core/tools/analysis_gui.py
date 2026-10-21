@@ -1676,7 +1676,7 @@ def _epsilon_reliability_check(result):
 
 def _monte_carlo_reliability_check(u):
     level = "stop" if u.failed_samples else (
-        "warning" if not u.converged or np.any(u.boundary_fractions) else "ok")
+        "warning" if u.assumed_input_warnings or not u.converged or np.any(u.boundary_fractions) else "ok")
     messages = monte_carlo_messages(u)
     if np.any(~np.isfinite(u.bound_jacobian_conditions)) or np.any(u.bound_jacobian_conditions > 1e8):
         level = "stop"

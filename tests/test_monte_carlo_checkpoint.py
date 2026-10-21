@@ -172,7 +172,7 @@ np.savez({str(output)!r},yields=r.epsilon_uncertainty.bound_yields)
             with closing(sqlite3.connect(source)) as connection:
                 rows = connection.execute('SELECT * FROM draws ORDER BY iteration').fetchall()
             legacy = legacy_checkpoint_keys(self.data, *self.envelopes, 'sd', 3)
-            self.assertTrue(legacy)
+            self.assertGreaterEqual(len(legacy), 2)  # Previous v2 plus the original v1.
             with MonteCarloCheckpoint(migrated, legacy[0]) as old:
                 with old.connection:
                     old.connection.executemany('INSERT INTO draws VALUES (?, ?, ?, ?)', rows)
@@ -186,6 +186,19 @@ np.savez({str(output)!r},yields=r.epsilon_uncertainty.bound_yields)
             self.assertEqual(hashlib.sha256(old_path.read_bytes()).hexdigest(), original_hash)
             with closing(sqlite3.connect(output.epsilon_uncertainty.checkpoint_path)) as connection:
                 self.assertEqual(connection.execute('SELECT * FROM draws ORDER BY iteration').fetchall(), rows)
+
+    def test_fallback_metadata_cannot_reuse_pre_fallback_draws(self):
+        import pandas as pd
+        with TemporaryDirectory() as folder:
+            path = Path(folder)/'derived.csv'
+            # Header eligibility is enough here; normal sampling validates the
+            # complete reconstruction before it opens any checkpoint.
+            pd.DataFrame({'Product_epsilon_M-1_cm-1': [1]}).to_csv(path, index=False)
+            derived = replace(self.envelopes[0], source_path=str(path))
+            self.assertEqual(legacy_checkpoint_keys(self.data, derived, self.envelopes[1], 'sd', 3), ())
+            pd.DataFrame({'Product_epsilon_M-1_cm-1': [1],
+                          'Composition_uncertainty_percentage_points': [1]}).to_csv(path, index=False)
+            self.assertGreaterEqual(len(legacy_checkpoint_keys(self.data, derived, self.envelopes[1], 'sd', 3)), 2)
 
     def test_calculation_signature_ignores_stopping_but_detects_sampling_changes(self):
         package = Path(__file__).parents[1]/'autoqy_core'

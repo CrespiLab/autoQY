@@ -23,6 +23,7 @@ from .epsilon_uncertainty import (
 
 SCOPE = ("Reference ε, NMR composition, irradiation input, and kinetic-fit residual "
          "contributions; PSS reconstruction absorbance is fixed. No separate PSS ε is required.")
+DEFAULT_COMPOSITION_ERROR_PERCENTAGE_POINTS = 1.0
 
 
 def _positive_normal(mean, sigma, probability):
@@ -77,22 +78,20 @@ def _scalar(frame, name):
     return float(values[0])
 
 
+def _composition_assumption_warning(source_name):
+    return (f"NMR composition uncertainty is missing in {source_name}. "
+            f"Monte Carlo assumed ±{DEFAULT_COMPOSITION_ERROR_PERCENTAGE_POINTS:g} percentage point (1 SD). "
+            "To use your measured uncertainty, enter it in Spectral Treatment and re-export the reconstruction.")
+
+
 def _reconstruction_sampler(frame, reference_frame, reference_axis, *,
-                            source_name="the reconstructed ε file"):
+                            source_name="the reconstructed ε file", assumed_input_warnings=None):
     required = ("Reactant_normalized", "PSS_normalized_to_reactant",
-                "Reactant_reconstructed_M-1_cm-1", "Product_epsilon_raw_M-1_cm-1",
-                "Composition_uncertainty_percentage_points")
+                "Reactant_reconstructed_M-1_cm-1", "Product_epsilon_raw_M-1_cm-1")
     missing = [name for name in required if name not in frame]
     if missing:
-        composition_missing = "Composition_uncertainty_percentage_points" in missing
-        reconstruction_missing = any(name != "Composition_uncertainty_percentage_points" for name in missing)
-        absent = []
-        if composition_missing:
-            absent.append("the NMR composition error")
-        if reconstruction_missing:
-            absent.append("the saved calibration and reconstruction details")
         raise ValueError(
-            f"Monte Carlo cannot use {source_name}: it is missing {' and '.join(absent)}. "
+            f"Monte Carlo cannot use {source_name}: it is missing the saved calibration and reconstruction details. "
             "In Spectral Treatment, open 4 · Reconstruction using the stable and PSS absorbance spectra "
             "and the stable ε reference. Enter Composition error (± percentage points), "
             "reconstruct and save the ε CSV, then load that new file in Analysis. "
@@ -131,7 +130,14 @@ def _reconstruction_sampler(frame, reference_frame, reference_axis, *,
             (mixture - fraction * stable) * scale / (1 - fraction), raw,
             rtol=2e-5, atol=2e-4):
         raise ValueError("Cannot validate the NMR composition in this reconstruction")
-    sigma = _scalar(frame, "Composition_uncertainty_percentage_points") / 100
+    if "Composition_uncertainty_percentage_points" in frame:
+        sigma = _scalar(frame, "Composition_uncertainty_percentage_points") / 100
+    else:
+        sigma = DEFAULT_COMPOSITION_ERROR_PERCENTAGE_POINTS / 100
+        message = _composition_assumption_warning(source_name)
+        warnings.warn(message, RuntimeWarning, stacklevel=2)
+        if assumed_input_warnings is not None:
+            assumed_input_warnings.append(message)
     if sigma < 0:
         raise ValueError("NMR composition uncertainty must be nonnegative")
 
@@ -147,7 +153,7 @@ def _reconstruction_sampler(frame, reference_frame, reference_axis, *,
     return sample, fraction
 
 
-def paired_epsilon_sampler(reactant, product, metric="sd"):
+def paired_epsilon_sampler(reactant, product, metric="sd", *, assumed_input_warnings=None):
     """Build the joint sampler before starting costly kinetic fits."""
     frames = [_read_epsilon_frame(e.source_path) for e in (reactant, product)]
     derived = [i for i, f in enumerate(frames) if "Product_epsilon_M-1_cm-1" in f]
@@ -175,9 +181,14 @@ def paired_epsilon_sampler(reactant, product, metric="sd"):
     reference_sample = _reference_sampler(frames[reference_index], metric)
     reconstruction_envelope = (reactant, product)[index]
     role = "reactant" if index == 0 else "product"
+    assumption_messages = []
     reconstruction_sample, fraction = _reconstruction_sampler(
         frames[index], frames[reference_index], reference_envelope.wavelengths,
-        source_name=f"the {role} ε file '{Path(reconstruction_envelope.source_path).name}'")
+        source_name=f"the {role} ε file '{Path(reconstruction_envelope.source_path).name}'",
+        assumed_input_warnings=assumption_messages)
+    assumptions.extend(assumption_messages)
+    if assumed_input_warnings is not None:
+        assumed_input_warnings.extend(assumption_messages)
     assumptions.append(f"Shared calibration reused in both species; stable fraction in "
                        f"reconstruction PSS = {fraction:.10g}. Fixed normalized absorbance "
                        "curves; nonnegative least-squares subtraction for each draw.")
@@ -250,7 +261,9 @@ def run_monte_carlo(data, reactant, product, *, error_metric="sd", samples=2048,
                     checkpoint_directory=None, progress_callback=None):
     from .monte_carlo_checkpoint import MonteCarloCheckpoint, checkpoint_key, legacy_checkpoint_keys
 
-    sample_pair, assumptions = paired_epsilon_sampler(reactant, product, error_metric)
+    assumption_messages = []
+    sample_pair, assumptions = paired_epsilon_sampler(
+        reactant, product, error_metric, assumed_input_warnings=assumption_messages)
     checkpoint = (MonteCarloCheckpoint(checkpoint_directory,
                   checkpoint_key(data, reactant, product, error_metric, seed),
                   legacy_keys=legacy_checkpoint_keys(data, reactant, product, error_metric, seed))
@@ -258,12 +271,12 @@ def run_monte_carlo(data, reactant, product, *, error_metric="sd", samples=2048,
     with checkpoint as saved:
         return _run_monte_carlo(data, reactant, product, error_metric, samples, seed,
                                 coverage, tolerance, sample_pair, assumptions, saved,
-                                progress_callback)
+                                progress_callback, assumed_input_warnings=assumption_messages)
 
 
 def _run_monte_carlo(data, reactant, product, error_metric, samples, seed,
                      coverage, tolerance, sample_pair, assumptions, checkpoint,
-                     progress_callback):
+                     progress_callback, *, assumed_input_warnings=()):
     from .pipeline import run_analysis_pipeline
 
     rng = np.random.default_rng(seed)
@@ -383,6 +396,7 @@ def _run_monte_carlo(data, reactant, product, error_metric, samples, seed,
         converged=bool(not failures and stable),
         interval_converged=bool(not failures and len(records) >= 128 and np.all(2 * endpoint_error <= tolerance)),
         summary_mc_error=summary_error, summary_mc_tolerance=summary_tolerance,
+        assumed_input_warnings=tuple(assumed_input_warnings),
         endpoint_mc_error=endpoint_error, scope=SCOPE, sampling_assumptions=assumptions,
         failure_messages=tuple(failures), reused_samples=reused,
         checkpoint_path=str(checkpoint.path) if checkpoint is not None else None,

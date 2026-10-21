@@ -72,6 +72,7 @@ def monte_carlo_messages(uncertainty):
                     "Review the failed fits in Technical details before using these results."]
     else:
         messages = [f"All {u.attempted_samples} simulations finished successfully."]
+    messages.extend(getattr(u, "assumed_input_warnings", ()))
     if u.converged:
         messages.append("The mean and error passed the precision check.")
     elif not u.failed_samples:
@@ -210,6 +211,7 @@ def result_summary(result, data, irradiation_wavelength_nm):
             },
             "scope": uncertainty.scope,
             "sampling_assumptions": list(uncertainty.sampling_assumptions),
+            "assumed_input_warnings": list(uncertainty.assumed_input_warnings),
             "failures": list(uncertainty.failure_messages),
         }
         summary["epsilon_uncertainty"]["interval_kind"] = "Monte Carlo coverage interval"

@@ -7,6 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
+import warnings
 from unittest.mock import patch
 
 import matplotlib.pyplot as plt
@@ -161,13 +162,35 @@ class MonteCarloSamplingTests(unittest.TestCase):
 
     def test_missing_composition_error_does_not_become_zero(self):
         x, reference, derived = self.reconstruction()
-        with self.assertRaises(ValueError) as caught:
-            _reconstruction_sampler(derived.drop(columns='Composition_uncertainty_percentage_points'), reference,x)
-        message = str(caught.exception)
-        self.assertIn('missing the NMR composition error', message)
-        self.assertIn('Composition error (± percentage points)', message)
-        self.assertIn('Missing CSV columns: Composition_uncertainty_percentage_points.', message)
-        self.assertIn('select ε ranges', message)
+        messages = []
+        with self.assertWarnsRegex(RuntimeWarning, 'assumed ±1 percentage point \\(1 SD\\)'):
+            fallback, _ = _reconstruction_sampler(
+                derived.drop(columns='Composition_uncertainty_percentage_points'), reference, x,
+                assumed_input_warnings=messages)
+        derived['Composition_uncertainty_percentage_points'] = 1
+        explicit, _ = _reconstruction_sampler(derived, reference, x)
+        values = reference['Epsilon_mean_M-1_cm-1'].to_numpy()
+        rng_fallback, rng_explicit = np.random.default_rng(8), np.random.default_rng(8)
+        a = np.array([fallback(rng_fallback, values) for _ in range(64)])
+        b = np.array([explicit(rng_explicit, values) for _ in range(64)])
+        np.testing.assert_array_equal(a, b)
+        self.assertGreater(float(a[:, 0].std()), 0)
+        self.assertEqual(len(messages), 1)
+        self.assertIn('NMR composition uncertainty is missing', messages[0])
+
+    def test_saved_composition_error_including_zero_is_kept_without_assumption(self):
+        x, reference, derived = self.reconstruction()
+        for value in (0., .25, 2.):
+            derived['Composition_uncertainty_percentage_points'] = value
+            messages = []
+            with warnings.catch_warnings(record=True) as caught:
+                _reconstruction_sampler(derived, reference, x, assumed_input_warnings=messages)
+            self.assertEqual(messages, [])
+            self.assertEqual(caught, [])
+        for invalid in (-1., float('nan'), float('inf')):
+            derived['Composition_uncertainty_percentage_points'] = invalid
+            with self.subTest(value=invalid), self.assertRaises(ValueError):
+                _reconstruction_sampler(derived, reference, x)
 
     def test_incomplete_reconstruction_names_the_file_and_each_missing_detail(self):
         x, reference, derived = self.reconstruction()
@@ -180,16 +203,19 @@ class MonteCarloSamplingTests(unittest.TestCase):
                 paired_epsilon_sampler(load_epsilon_envelope(dp), load_epsilon_envelope(rp))
         message = str(caught.exception)
         self.assertIn("reactant ε file 'student-reconstruction.csv'", message)
-        self.assertIn('NMR composition error and the saved calibration', message)
-        self.assertIn('Missing CSV columns: Reactant_normalized, Composition_uncertainty_percentage_points.', message)
+        self.assertIn('missing the saved calibration', message)
+        self.assertIn('Missing CSV columns: Reactant_normalized.', message)
 
-    def test_bundled_older_reconstruction_reports_missing_composition_error(self):
+    def test_bundled_older_reconstruction_uses_fallback_and_warns(self):
         from autoqy_core.epsilon_uncertainty import _read_epsilon_frame
         folder = EXAMPLE
         reference = load_epsilon_envelope(folder/'reactant_absorptivity.csv')
         frame = _read_epsilon_frame(folder/'product_absorptivity.csv')
-        with self.assertRaisesRegex(ValueError, 'missing the NMR composition error'):
-            _reconstruction_sampler(frame, _read_epsilon_frame(reference.source_path), reference.wavelengths)
+        with self.assertWarnsRegex(RuntimeWarning, 'assumed ±1 percentage point'):
+            sample, fraction = _reconstruction_sampler(
+                frame, _read_epsilon_frame(reference.source_path), reference.wavelengths)
+        self.assertTrue(0 <= fraction < 1)
+        self.assertTrue(np.isfinite(sample(np.random.default_rng(8), reference.nominal)).all())
 
 
 class MonteCarloPipelineTests(unittest.TestCase):
@@ -328,6 +354,43 @@ class MonteCarloPipelineTests(unittest.TestCase):
         self.assertTrue(summary['monte_carlo']['mean_and_error_stable'])
         self.assertFalse(summary['monte_carlo']['endpoints_stable'])
         self.assertFalse(summary['quantum_yield_interval_percent']['endpoints_stable'])
+
+    def test_missing_nmr_error_runs_and_records_a_visible_assumption(self):
+        # The fixture's calibrated curves cover the same axis as its reference.
+        # Match that axis to a real synthetic kinetic input for an end-to-end run.
+        x = self.data.wavelengths
+        stable = self.data.epsilon_r[1]
+        mixture = .4 * stable + .6 * self.data.epsilon_p[1]
+        epsilon = calculate_epsilon_statistics(x, np.column_stack([stable*.98, stable, stable*1.02]),
+                                             np.ones(3), np.ones(3))
+        reconstructed = reconstruct_product_from_nmr(x, stable, mixture, epsilon, 40, 1)
+        from io import StringIO
+        derived = pd.read_csv(StringIO(export_nmr_subtraction_csv(reconstructed)))
+        derived = derived.drop(columns='Composition_uncertainty_percentage_points')
+        with TemporaryDirectory() as folder:
+            rp, dp = Path(folder)/'reference.csv', Path(folder)/'old-reconstruction.csv'
+            rp.write_text(export_epsilon_csv(epsilon, ['a','b','c']), encoding='utf-8')
+            derived.to_csv(dp, index=False)
+            r, p = load_epsilon_envelope(rp), load_epsilon_envelope(dp)
+            nominal = run_analysis_pipeline(self.data)
+            with self.assertWarnsRegex(RuntimeWarning, "product ε file 'old-reconstruction.csv'"), \
+                 patch('autoqy_core.pipeline.run_analysis_pipeline', return_value=nominal):
+                result = run_monte_carlo(self.data, r, p, samples=32)
+            u = result.epsilon_uncertainty
+            self.assertEqual(u.attempted_samples, 32)
+            self.assertEqual(u.failed_samples, 0)
+            self.assertEqual(len(u.assumed_input_warnings), 1)
+            visible = replace(u, converged=True, boundary_fractions=np.zeros(2),
+                              bound_jacobian_conditions=np.ones(32))
+            check = _epsilon_reliability_check(replace(result, epsilon_uncertainty=visible))
+            self.assertEqual(check['level'], 'warning')
+            self.assertIn('assumed ±1 percentage point', check['body'])
+            summary = result_summary(result, self.data, 395)
+            self.assertEqual(summary['monte_carlo']['assumed_input_warnings'], list(u.assumed_input_warnings))
+            self.assertIn(u.assumed_input_warnings[0], summary['monte_carlo']['sampling_assumptions'])
+            path = Path(folder)/'result.txt'
+            write_results(path, result, self.data, 395)
+            self.assertIn('assumed ±1 percentage point', path.read_text(encoding='utf-8'))
 
     def test_sampling_stops_on_summary_precision_even_with_unresolved_endpoints(self):
         nominal = run_analysis_pipeline(self.data)

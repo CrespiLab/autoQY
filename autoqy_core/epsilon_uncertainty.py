@@ -77,6 +77,7 @@ class EpsilonUncertaintySummary:
     interval_converged: bool = False
     summary_mc_error: np.ndarray | None = None
     summary_mc_tolerance: np.ndarray | None = None
+    assumed_input_warnings: tuple[str, ...] = ()
 
 
 def load_epsilon_envelope(path, error_metric="sd"):

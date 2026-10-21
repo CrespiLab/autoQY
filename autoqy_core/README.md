@@ -88,7 +88,9 @@ uncertainties together. PSS reconstruction absorbance stays fixed.
 **ε ranges** remains available, and loaded JSON files keep their saved method.
 
 Use ε files containing complete replicate curves. A reconstructed isomer also
-needs its matching calibration and NMR composition uncertainty. New Spectral
+needs its matching calibration. Supply the NMR composition uncertainty when
+available. If an older export omits it, Monte Carlo assumes ±1 percentage point
+(1 SD) and records a visible warning in the GUI, text and JSON results. New Spectral
 Treatment exports retain the reference curve and composition used for
 reconstruction. AutoQY checks older exports using their saved calibration scale
 and recoverable composition; the result records the checks available for each file.
@@ -134,11 +136,14 @@ To update existing result files, enable **Allow replacing existing results** or
 choose a new **Output stem** while keeping the output folder.
 
 
-Older reconstructed ε exports may lack the saved NMR composition error. If
-Monte Carlo reports missing reconstruction information, reopen the stable
+Older reconstructed ε exports may lack the saved NMR composition error.
+AutoQY continues with an assumed ±1 percentage point (1 SD) and shows a warning.
+To replace this assumption, reopen the stable
 and PSS absorbance spectra in **Spectral Treatment → 4 · Reconstruction**,
 add the stable ε reference, enter **Composition error (± percentage points)**,
 and reconstruct and save the ε CSV again. Load the new CSV in Analysis.
+An explicitly saved composition error, including zero, is used as supplied.
+Other missing calibration or reconstruction details still require a complete export.
 **ε ranges** remains available for files that contain the lower and upper ε curves.
 
 The interval endpoint tolerance defaults to 0.005 in yield fraction (0.5

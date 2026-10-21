@@ -53,6 +53,7 @@ autoqy_core = [
   "assets/*.js",
   "assets/*.css",
   "assets/*.png",
+  "assets/*.ico",
   "assets/*.svg",
   "assets/icons/*.ico",
   "assets/icons/*.png",

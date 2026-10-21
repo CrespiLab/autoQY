@@ -1,4 +1,5 @@
 import tomllib
+import re
 import unittest
 from unittest.mock import patch
 from pathlib import Path
@@ -67,6 +68,21 @@ class GuiLayoutTests(unittest.TestCase):
             )
             self.assertIn(expected, visible_text)
             self.assertNotIn("AUTOQY CORE", visible_text.upper())
+
+    def test_all_browser_tabs_use_the_autoqy_power_icon(self):
+        expected = (Path(__file__).parents[1]/'autoqy_core/assets/icons/power-gui.ico').read_bytes()
+        for app in (create_power_app(), create_spectral_app(), create_analysis_app()):
+            client = app.server.test_client()
+            page = client.get('/').get_data(as_text=True)
+            icon = re.search(r'href="([^"]*favicon\.ico[^"]*)"', page)
+            self.assertIsNotNone(icon, page[:1000])
+            self.assertIn('/assets/favicon.ico', icon.group(1))
+            response = client.get(icon.group(1))
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data, expected)
+        with (Path(__file__).parents[1]/'pyproject.toml').open('rb') as source:
+            project = tomllib.load(source)
+        self.assertIn('assets/*.ico', project['tool']['setuptools']['package-data']['autoqy_core'])
 
     def test_power_and_analysis_close_their_page_when_the_terminal_stops(self):
         for app in (create_power_app(), create_analysis_app()):
