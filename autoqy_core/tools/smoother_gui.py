@@ -2505,10 +2505,15 @@ def _calibrated_reconstruction_csv(data, preserve_negative):
     import pandas as pd
     text = export_nmr_subtraction_csv(_unpack_nmr(data), preserve_negative)
     frame = pd.read_csv(StringIO(text), float_precision="round_trip")
+    reference = data.get("reference_epsilon")
+    if reference:
+        frame["Calibration_reference_epsilon_M-1_cm-1"] = np.interp(
+            frame["Wavelength_nm"], reference["wavelengths"], reference["mean"])
     frame["Spectral_error_basis"] = data.get("error_basis", "sd")
     frame["Composition_uncertainty_percentage_points"] = data.get("composition_error", 1)
     frame["PSS_measurement_uncertainty_included"] = False
     frame["Uncertainty_method"] = "shared-reference calibration envelope"
+    frame["Composition_uncertainty_interpretation"] = "standard uncertainty (1 SD) for Monte Carlo"
     return frame.to_csv(index=False, float_format="%.8e", lineterminator="\n")
 
 
@@ -2906,6 +2911,8 @@ def _pack_nmr(result):
                           "product_error_upper")} | {
         "negative_product_points": result.negative_product_points,
         "negative_bound_points": result.negative_bound_points,
+        "stable_fraction_in_pss": result.stable_fraction_in_pss,
+        "composition_standard_uncertainty": result.composition_standard_uncertainty,
     }
 
 
@@ -2918,6 +2925,7 @@ def _unpack_nmr(data):
            "product_lower", "product_upper", "product_error_lower",
            "product_error_upper")),
         int(data["negative_product_points"]), int(data["negative_bound_points"]),
+        data.get("stable_fraction_in_pss"), data.get("composition_standard_uncertainty"),
     )
 
 

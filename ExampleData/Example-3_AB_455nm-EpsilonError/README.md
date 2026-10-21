@@ -29,7 +29,7 @@ Keep the input files beside their JSON when moving this example.
 
 These values use the included files and settings. Changing the treatment or
 method can change the result. With ε uncertainty on, the reported error also
-includes the effect of the ε ranges. It is not a confidence interval.
+includes the sensitivity to the tested ε curves.
 
 ## Find the saved files
 
@@ -40,12 +40,11 @@ and two CSV tables. See [the output guide](../../autoqy_core/README.md#read-the-
 
 The included configuration **allows replacement of existing results**.
 For another run, choose a new results folder. From a terminal, add
-`--output-directory my_results` to the run command, using a folder name you
-have not used before.
+`--output-directory my_results` to the run command with a new folder name.
 
 ## What to check
 
-The reactant file contains SD values from repeated reference spectra. The product file was reconstructed using an NMR mixture composition and has unequal lower and upper ε ranges. AutoQY reports negative reactant ε values in a low-signal region and sets them to zero. A warning about the initial product fraction (about 3.8%) is also expected. These warnings are reasons to inspect the data, not signs that loading failed.
+The reactant file contains SD values from repeated reference spectra. The product file was reconstructed using an NMR mixture composition and has unequal lower and upper ε ranges. AutoQY reports negative reactant ε values in a low-signal region and sets them to zero. A warning about the initial product fraction (about 3.8%) is also expected. Check the corresponding spectra and starting composition when reviewing these warnings.
 
 Compare the concentration curves and the **Absorbance residuals** plot as well
 as the two yields. The [method comparison](../../method_comparison/README.md)

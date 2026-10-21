@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 import json
+import math
 from pathlib import Path
 import base64
 import binascii
@@ -174,12 +175,27 @@ def validate_config(config):
             errors.append("uncertainty.epsilon must be an object")
         else:
             epsilon_method = epsilon_uncertainty.get("method", "none")
-            if epsilon_method not in {"none", "deterministic_extremes"}:
+            if epsilon_method not in {"none", "deterministic_extremes", "monte_carlo"}:
                 errors.append(
-                    "uncertainty.epsilon.method must be none or deterministic_extremes"
+                    "uncertainty.epsilon.method must be none, deterministic_extremes, or monte_carlo"
                 )
             if epsilon_uncertainty.get("error_metric", "sd") not in {"sd", "sem"}:
                 errors.append("uncertainty.epsilon.error_metric must be sd or sem")
+
+    if isinstance(uncertainty, dict) and isinstance(uncertainty.get("epsilon", {}), dict):
+        epsilon_settings = uncertainty.get("epsilon", {})
+        if epsilon_settings.get("method") == "monte_carlo":
+            for key, default, minimum, maximum in (("samples", 256, 32, 100000),
+                                                   ("seed", 0, 0, 2**32 - 1)):
+                value = epsilon_settings.get(key, default)
+                if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
+                    errors.append(f"uncertainty.epsilon.{key} must be an integer from {minimum} to {maximum}")
+            coverage = epsilon_settings.get("coverage_probability", .95)
+            if isinstance(coverage, bool) or not isinstance(coverage, (int, float)) or not .5 <= coverage < 1:
+                errors.append("uncertainty.epsilon.coverage_probability must be at least 0.5 and below 1")
+            tolerance = epsilon_settings.get("endpoint_tolerance", .005)
+            if not _positive(tolerance) or not math.isfinite(tolerance):
+                errors.append("uncertainty.epsilon.endpoint_tolerance must be positive")
 
     for name in ("volume_ul", "path_length_cm", "irradiation_wavelength_nm"):
         if not _positive(experiment[name]):

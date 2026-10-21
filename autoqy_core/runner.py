@@ -38,7 +38,7 @@ def run_analysis(config, output_directory=None):
     epsilon_method = epsilon_settings.get("method", "none")
     epsilon_metric = epsilon_settings.get("error_metric", "sd")
     epsilon_envelopes = None
-    if epsilon_method == "deterministic_extremes":
+    if epsilon_method in {"deterministic_extremes", "monte_carlo"}:
         epsilon_envelopes = (
             load_epsilon_envelope(
                 config.input_path("reactant_absorptivity"), epsilon_metric
@@ -106,9 +106,19 @@ def run_analysis(config, output_directory=None):
                                  if irradiation_source == "chemical_actinometer" else 0),
         irradiation_wavelength_nm=experiment["irradiation_wavelength_nm"],
     )
-    result = (run_with_epsilon_uncertainty(
-        data, *epsilon_envelopes, error_metric=epsilon_metric
-    ) if epsilon_envelopes else run_analysis_pipeline(data))
+    if epsilon_method == "monte_carlo":
+        from .epsilon_monte_carlo import run_monte_carlo
+        result = run_monte_carlo(
+            data, *epsilon_envelopes, error_metric=epsilon_metric,
+            samples=epsilon_settings.get("samples", 256),
+            seed=epsilon_settings.get("seed", 0),
+            coverage=epsilon_settings.get("coverage_probability", .95),
+            tolerance=epsilon_settings.get("endpoint_tolerance", .005),
+        )
+    elif epsilon_envelopes:
+        result = run_with_epsilon_uncertainty(data, *epsilon_envelopes, error_metric=epsilon_metric)
+    else:
+        result = run_analysis_pipeline(data)
     files = _write_outputs(config, data, result, output_directory)
     return RunOutput(result, files, data)
 
@@ -136,6 +146,8 @@ def _write_outputs(config, data, result, output_directory):
     if output.get("write_detailed_data", False):
         paths.extend((directory / f"{output['stem']}_traces.csv",
                       directory / f"{output['stem']}_spectra.csv"))
+        if getattr(result.epsilon_uncertainty, "method", "") == "monte_carlo":
+            paths.append(directory / f"{output['stem']}_uncertainty.csv")
     existing = [path for path in paths if path.exists()]
     if existing and not output["overwrite"]:
         raise FileExistsError("Output exists and overwrite is false: " + ", ".join(map(str, existing)))

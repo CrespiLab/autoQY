@@ -31,8 +31,8 @@ autoqy-core power-gui
 ```
 
 Load the three CSV files from `crespi_group_inputs`. The prepared terminal
-settings are not automatically loaded into the window: select each trace and
-set its region boundaries before calculating power.
+settings give the region boundaries. Select each trace in the window and
+enter those boundaries before calculating power.
 
 Each trace contains LED off/on/off measurements without the cuvette assembly,
 then off/on/off with the jacket, cuvette, and solvent. A cubic curve estimates
@@ -50,7 +50,7 @@ The result gives two error measures:
 
 `uncertainty_output` chooses which one is reported as `power_error_mw`.
 Copy `power_mw` and `power_error_mw` to the Experiment fields in Analysis.
-This is a manual step; the Power and Analysis windows do not transfer them automatically.
+Copy these values into the corresponding fields in Analysis.
 
 With the supplied settings, expect about **2.067 mW**, with repeatability SD
 **0.0226 mW** and standard error **0.00621 mW**. The terminal rounds the

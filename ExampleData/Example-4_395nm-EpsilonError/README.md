@@ -31,7 +31,7 @@ Keep the input files beside their JSON when moving this example.
 
 These values use the included files and settings. Changing the treatment or
 method can change the result. With ε uncertainty on, the reported error also
-includes the effect of the ε ranges. It is not a confidence interval.
+includes the sensitivity to the tested ε curves.
 
 ## Find the saved files
 
@@ -42,12 +42,11 @@ and two CSV tables. See [the output guide](../../autoqy_core/README.md#read-the-
 
 The included configuration **allows replacement of existing results**.
 For another run, choose a new results folder. From a terminal, add
-`--output-directory my_results` to the run command, using a folder name you
-have not used before.
+`--output-directory my_results` to the run command with a new folder name.
 
 ## What to check
 
-The reactant file has negative ε values in a low-signal region. AutoQY reports them and sets them to zero. A warning about the initial product fraction (about 2.7%) is also expected. The separately measured PSS mixture contains 23% reactant and 77% product; enter 77 in the GUI product-percentage field. This value checks the result and does not constrain the fit.
+The reactant file has negative ε values in a low-signal region. AutoQY reports them and sets them to zero. A warning about the initial product fraction (about 2.7%) is also expected. The separately measured PSS mixture contains 23% reactant and 77% product; enter 77 in the GUI product-percentage field. AutoQY compares this reference value with the fitted PSS.
 
 Compare the concentration curves and the **Absorbance residuals** plot as well
 as the two yields. The [method comparison](../../method_comparison/README.md)

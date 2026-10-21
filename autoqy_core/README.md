@@ -32,7 +32,8 @@ The [example index](../ExampleData/README.md) explains all six examples.
 
 **ε** (epsilon, or molar absorptivity) describes how strongly a compound absorbs
 light after allowing for concentration and cuvette path length. **R** means
-reactant; **P** means product. **PSS** is the mixture predicted when continued
+reactant; **P** means product. These labels follow the chosen reaction direction.
+For a back reaction, R can be metastable and P stable. **PSS** is the mixture predicted when continued
 irradiation no longer changes the composition.
 
 On Windows, each window normally opens separately in Edge or Chrome. Closing
@@ -42,9 +43,8 @@ default browser. The version is shown in each window.
 ## What an analysis needs
 
 **Preprocessing** previews each measurement, ε reference, and LED as soon as
-it can be read. Missing or invalid inputs do not hide the other curves;
-messages identify the input that needs attention. All required inputs must
-still be correct before you can run the analysis.
+it can be read. Messages identify inputs that need attention while the
+available curves remain visible. Run analysis requires a valid set of inputs.
 
 For the usual LED-and-power workflow, prepare:
 
@@ -55,13 +55,12 @@ For the usual LED-and-power workflow, prepare:
 - sample volume, path length, optical power and its error, and any thermal rates.
 
 Save the file locations and settings in `analysis.json`. Relative file paths
-start at the folder containing that JSON, not the terminal's current folder.
-No changes to Python code or `ExpParams.txt` are needed.
+start at the folder containing that JSON. The JSON contains the experiment settings.
 
 ### Save and share an experiment
 
-In Analysis, **Save JSON** saves the editable experiment. **Run analysis** runs
-it; running alone does not save that JSON. Both buttons check the inputs first.
+In Analysis, use **Save JSON** to save the editable experiment settings and
+**Run analysis** to calculate results. Both buttons check the inputs first.
 
 Leave **Include all input data in JSON (recommended)** enabled to put copies of
 the inputs inside the saved JSON. You can then move it to another computer
@@ -74,12 +73,81 @@ CSV…** in **1 · Project**. Choose a folder for the CSV copies. All data colum
 are kept, including ε errors and timestamp events. Instrument formats are
 converted to tables. Files are named by their role (for example,
 `measurement_spectra.csv`); a number is added if that name already exists.
-You do not need the original files or to run the analysis. This option is
-available only when the loaded JSON contains input data, rather than just links.
+Restoration uses the data embedded in the loaded JSON. The button becomes
+available when those data are present.
 
 The output setting `write_config` separately saves a settings snapshot beside
 the results. With `embed_inputs: true`, saved configurations and result JSON
 files include the inputs. Analysis can reopen either file.
+
+### Monte Carlo uncertainty
+
+In **5 · Uncertainty**, choose **Monte Carlo** to propagate
+the supplied reference ε, NMR composition, power or photon-flux, and kinetic-fit
+uncertainties together. PSS reconstruction absorbance stays fixed.
+**ε ranges** remains available, and loaded JSON files keep their saved method.
+
+Use ε files containing complete replicate curves. A reconstructed isomer also
+needs its matching calibration and NMR composition uncertainty. New Spectral
+Treatment exports retain the reference curve and composition used for
+reconstruction. AutoQY checks older exports using their saved calibration scale
+and recoverable composition; the result records the checks available for each file.
+
+Each simulation draws a shared reference once, reuses it in the reconstruction,
+and refits the kinetics. This preserves the calibration relationship between
+the two isomers in either reaction direction.
+
+The GUI and figures show the Monte Carlo mean ± standard uncertainty (1 SD).
+The error uses one significant digit, or two when it starts with 1 or 2; the
+mean uses the same decimal place. Detailed JSON retains the nominal fit,
+full-precision values, and asymmetric coverage interval. Diagnostics report failed fits, yield-limit
+hits, and interval stability. Increase **Maximum simulations** until the
+interval endpoints stabilize. The default limit is 256, with checks starting
+after 128 successful fits. A saved random seed makes the calculation reproducible.
+Detailed output includes `_uncertainty.csv` with the successful simulated yields.
+
+The endpoint tolerance defaults to 0.005 in yield fraction (0.5 percentage
+points). The stability check uses batch estimates and binomial order-statistic
+brackets, requiring twice the estimated endpoint sampling error to fall below
+the tolerance.
+
+The [NIST Uncertainty Machine manual](https://uncertainty.nist.gov/NISTUncertaintyMachine-UserManual.pdf)
+describes propagation through a joint input distribution. AutoQY uses this model:
+
+- Reference ε has nonnegative truncated Gaussian marginals. A Gaussian copula
+  estimates wavelength correlations from complete replicate deviations. SD or
+  SEM parameterizes the untruncated measurement model.
+- The NMR fraction has a Gaussian distribution restricted to 0–1. Its supplied
+  error represents one standard uncertainty. Each draw uses nonnegative
+  constrained subtraction to reconstruct the other isomer.
+- Kinetic-fit uncertainty uses a bootstrap of centred whole-spectrum residuals
+  across timestamps, assuming those residual spectra are exchangeable.
+- Power or photon-flux errors represent one standard uncertainty. These errors,
+  NMR composition errors, reference repeatability, and kinetic residuals are
+  assumed independent, with the shared calibration preserved explicitly.
+
+The bootstrap supplies the fit contribution. PSS reconstruction absorbance,
+concentrations, and path lengths stay at their supplied values. These scope and
+sampling assumptions are saved with the results. Wavelength correlations are
+approximate with a small replicate set. The plotted intervals apply separately
+at each timestamp.
+
+Add these settings to the analysis configuration:
+
+```json
+"uncertainty": {
+  "epsilon": {
+    "method": "monte_carlo",
+    "error_metric": "sd",
+    "samples": 256,
+    "seed": 0,
+    "coverage_probability": 0.95,
+    "endpoint_tolerance": 0.005
+  }
+}
+```
+
+For ε ranges, set `"method": "deterministic_extremes"`.
 
 ### Run from a terminal
 
@@ -115,14 +183,14 @@ ODE refers to the reaction model describing how concentrations change over time.
 | Emission (legacy) | `emission` | Fits absorbance in the active LED band and assumes a pure-reactant starting sample. Use it to reproduce older analyses. |
 
 **Compare fit methods** runs all three using the same inputs and selected
-uncertainty settings. It writes no result files. With **ε range** enabled,
+uncertainty settings and displays the comparison in the window. With **ε ranges** enabled,
 each method includes ε uncertainty in its reported yield errors.
 Diagnostics also check the combined error and every tested ε combination.
 They flag yield limits, unstable fits, and failed fits even when the central
 fit looks precise. A yield limit can truncate the reported sensitivity range.
 The comparison's RMSE values summarize the differences between measured and
 fitted data using the central ε spectra. Smaller RMSE means closer agreement,
-but extra baseline terms can also reduce it.
+and depends on the baseline terms fitted by each method.
 
 See the [method comparison](../method_comparison/README.md) for results and
 figures from all five quantum-yield datasets.
@@ -136,19 +204,20 @@ The controls below can stay at their defaults for a first run:
 | `absorbance_baseline_order` | `1` | Full spectrum ODE: `-1` disables baseline fitting, `0` fits an offset, `1` fits an offset and slope per spectrum. |
 | `robust_loss_scale` | `0.02` | Full spectrum ODE: controls how strongly isolated large residuals are downweighted. |
 | `emission_threshold_fraction` | `0.01` | Emission: selects wavelengths where LED intensity exceeds this fraction of its maximum. |
-| `initial_quantum_yields` | `0.5` in each direction | Starting guesses for the fit, not measured yields. |
+| `initial_quantum_yields` | `0.5` in each direction | Initial guesses supplied to the optimizer. |
 | `quantum_yield_bounds` | `0` to `1` | Allowed yields as fractions; `0.25` means 25%. |
 
 These keys belong inside `fit`. Settings for other methods are ignored.
 **Expected metastable photoproduct at PSS (%)** is an optional check against
-a separately measured composition; it does not constrain the fit. Enter 77
-for a mixture containing 77% product and 23% reactant.
+a separately measured composition. AutoQY compares it with the fitted PSS. Enter 77
+for a mixture containing 77% product and 23% reactant. The check uses the
+species assigned to P, including in a back-reaction analysis.
 
 ## Include ε uncertainty
 
 Power uncertainty is included even when ε uncertainty is off. To include
 uncertainty in the reference spectra, use AutoQY ε CSV or TSV files containing
-error columns for both compounds. In Analysis, choose **ε range** and **SD**
+error columns for both compounds. In Analysis, choose **ε ranges** and **SD**
 or **SEM**. In JSON, add:
 
 ```json
@@ -160,14 +229,15 @@ or **SEM**. In JSON, add:
 }
 ```
 
-This is a section of a complete configuration, not a standalone JSON file.
+Add this section to the complete analysis configuration.
 SD describes variation between repeated samples. SEM describes uncertainty in
 their average. Product ε reconstructed from NMR composition can have unequal
 lower and upper ranges; AutoQY uses the saved ranges directly.
 
 AutoQY repeats the selected fit with distinct combinations of lower, central,
 and upper ε curves. It reports fit/power error, ε error, and combined error
-separately. The combined error is a sensitivity range, not a confidence interval.
+separately. The combined error describes sensitivity to the tested ε curves.
+Use Monte Carlo to calculate a coverage interval under its stated sampling model.
 Omit this section or set its method to `none` to leave ε uncertainty out.
 
 The [455 nm](../ExampleData/Example-3_AB_455nm-EpsilonError/README.md) and
@@ -177,13 +247,17 @@ The [455 nm](../ExampleData/Example-3_AB_455nm-EpsilonError/README.md) and
 
 Blue is reactant and orange is product. Open circles show concentrations
 recovered from the spectra; solid lines show the fitted reaction model.
-With ε uncertainty enabled, error bars and shading show **ε ranges**.
+**ε ranges** shows variation across the tested ε curves. **Monte Carlo**
+reports mean ± standard uncertainty. Its detailed data includes the coverage intervals.
 The two yields are labelled **Φ R→P** and **Φ P→R**.
+The shaded band around the fraction residual shows a pointwise Monte Carlo
+coverage interval (95% by default), or the variation across the tested ε curves
+when using **ε ranges**.
 
 **Absorbance residuals** means measured minus fitted absorbance. Look for
-patterns as well as large values. A small reported yield error does not rule
-out a poor reference spectrum, baseline problem, or unsuitable reaction model.
-Green checks mean no automatic flag; amber asks for review; red flags need
+patterns as well as large values. Assess the reported yield errors together
+with the reference spectra, baseline, and suitability of the reaction model.
+Green checks show passed diagnostics; amber asks for review; red flags need
 investigation. Expand **Technical details** when more detail is needed.
 
 Each analysis example enables these outputs:
@@ -201,7 +275,7 @@ File names start with `outputs.stem`. `outputs.directory` is relative to the
 configuration folder unless an absolute path is supplied.
 The **last timestamp composition** is the fitted mixture at the end of the
 measurement. **Extrapolated PSS** predicts the mixture after continued constant
-irradiation. These need not be the same.
+irradiation. Their difference indicates how far the measurement ended from the predicted PSS.
 
 ## Prepare spectra in Spectral Treatment
 
@@ -225,10 +299,10 @@ data exports still use the full set.
 
 Reconstruction assumes two absorbing forms, a pure stable reference, and the
 same total concentration and path length in the stable and mixture measurements.
-An absorbance-only reconstruction cannot replace the product ε file for Analysis.
-Add a stable ε reference to calibrate the reconstructed spectrum and include
+Analysis uses ε spectra. Add a stable ε reference to calibrate a reconstructed
+absorbance spectrum and include
 reference error. NMR composition error defaults to 1 percentage point; enter
-zero to omit it. No separate PSS measurement error is included.
+zero to omit it. PSS reconstruction absorbance stays fixed.
 
 **Minimal colors** uses blue for the first spectrum, orange for the last, and
 grey for intermediate spectra. The full-color palette is designed for color-blind
@@ -242,7 +316,7 @@ or `30` for coordinates `0, 1, 2, ...` measured every 30 seconds.
 An optional exponential fit reports a lifetime and its error.
 
 New uploads are added to the current set and receive the current treatment.
-**Clear all spectra** clears the window, not your source files. **Displayed data**
+**Clear all spectra** clears the loaded set; source files remain on disk. **Displayed data**
 lets you inspect and copy the plotted values; use CSV export for the complete dataset.
 Negative values are preserved unless you select the option to convert them to zero.
 
@@ -257,14 +331,13 @@ place the boundaries around its six LED-off/on regions, correct the baseline,
 and inspect the result before calculating power at the cuvette.
 
 The result reports repeatability SD and standard error. Choose which one to
-use as `power_error_mw`. Transfer `power_mw` and `power_error_mw` to Analysis;
-the two windows do not transfer them automatically.
+use as `power_error_mw`. Copy `power_mw` and `power_error_mw` into Analysis.
 The [power example](../ExampleData/Example-Power/README.md) includes ready-to-run
 settings and explains both error choices. For terminal use, plain CSV with a
 `power_mw` column is supported through `generic_csv`.
 
 Missing or infinite power readings are excluded and reported. They remain as
-gaps, so the selected region positions do not shift.
+gaps to preserve the positions of the selected regions.
 
 ## File formats and units
 
@@ -295,7 +368,7 @@ The bundled configurations give complete examples of each input layout.
 | `photon_flux_mol_s`, `photon_flux_error_mol_s` | mol photons/s |
 
 Thermal back reaction is P→R; thermal forward reaction is R→P and defaults to zero.
-Enter a rate, not a half-life: rate = 0.693 / half-life in seconds.
+Calculate each rate as 0.693 / half-life, with the half-life in seconds.
 
 ### Use a chemical actinometer
 
@@ -303,15 +376,15 @@ If you measured photon flux directly, select chemical-actinometer mode in
 Analysis. In JSON, set `experiment.irradiation_source` to `chemical_actinometer`
 and supply `photon_flux_mol_s`, `photon_flux_error_mol_s`, and
 `irradiation_wavelength_nm`, alongside the other experiment settings.
-This mode treats the light as a single wavelength; it needs no LED file or power input.
+This mode uses the supplied photon flux at a single irradiation wavelength.
 For Example 4, 1.46 ± 0.03 mW at 395 nm corresponds to approximately
 (4.8 ± 0.1) × 10⁻⁹ mol photons/s.
 
 ### Notes for scripted use
 
 Schema version 1 uses input paths. Schema version 2 embeds each input's original
-bytes with a filename, base64 data, and SHA-256 integrity check. Older builds
-may not read version 2. `self_contained_document(config)` creates a portable
+bytes with a filename, base64 data, and SHA-256 integrity check. Version 2
+requires an AutoQY build with embedded-input support. `self_contained_document(config)` creates a portable
 document from a validated `AnalysisConfig`.
 
 GUI commands accept `--no-open` to start the local server without opening a

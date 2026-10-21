@@ -246,7 +246,10 @@ class ResultPresentationTests(unittest.TestCase):
             self.assertIn("Residual", residual.get_legend_handles_labels()[1])
             self.assertEqual(heatmap.get_title(), "Absorbance residuals")
             self.assertEqual(len(spectra.texts), 1)
-            self.assertIn("±", spectra.texts[0].get_text())
+            annotation = spectra.texts[0].get_text()
+            self.assertIn("±", annotation)
+            self.assertNotIn("(", annotation)
+            self.assertIsNone(figure._suptitle)
 
     @unittest.skipUnless(go is not None, "Plotly is not installed")
     def test_gui_draws_fitted_lines_above_all_measured_points(self):

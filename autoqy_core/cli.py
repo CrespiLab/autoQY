@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 import sys
 
 from .config import load_config
-from .output import format_value_uncertainty
+from .output import format_value_uncertainty, formatted_quantum_yields
 from .power import run_power_analysis
 from .runner import run_analysis
 
@@ -53,10 +53,7 @@ def main(argv=None):
             print(f"Valid: {config.source}")
             return 0
         output = run_analysis(config, args.output_directory)
-        values = output.result.yield_fit.values * 100
-        errors = output.result.yield_errors * 100
-        forward = format_value_uncertainty(values[0], errors[0], two_digit_threshold=2)
-        backward = format_value_uncertainty(values[1], errors[1], two_digit_threshold=2)
+        forward, backward = formatted_quantum_yields(output.result)
         print(f"Phi_R->P: {forward[0]} +/- {forward[1]}%")
         print(f"Phi_P->R: {backward[0]} +/- {backward[1]}%")
         for path in output.files:

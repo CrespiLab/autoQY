@@ -29,7 +29,7 @@ Keep the input files beside their JSON when moving this example.
 
 These values use the included files and settings. Changing the treatment or
 method can change the result. With ε uncertainty on, the reported error also
-includes the effect of the ε ranges. It is not a confidence interval.
+includes the sensitivity to the tested ε curves.
 
 ## Find the saved files
 
@@ -40,12 +40,11 @@ and two CSV tables. See [the output guide](../../autoqy_core/README.md#read-the-
 
 The included configuration **allows replacement of existing results**.
 For another run, choose a new results folder. From a terminal, add
-`--output-directory my_results` to the run command, using a folder name you
-have not used before.
+`--output-directory my_results` to the run command with a new folder name.
 
 ## What to check
 
-Compare it with [Example 1b](../Example-1b_340nm_ManualPower_blcorrLED/README.md), which uses an LED spectrum corrected before import. The two examples also use different treated absorption data, so their difference is not a test of LED correction alone.
+Compare it with [Example 1b](../Example-1b_340nm_ManualPower_blcorrLED/README.md), which uses an LED spectrum corrected before import. Both the LED correction and treated absorption data differ between these examples. Compare their effects together.
 
 Compare the concentration curves and the **Absorbance residuals** plot as well
 as the two yields. The [method comparison](../../method_comparison/README.md)
@@ -53,5 +52,5 @@ shows this dataset with all three methods.
 
 For your own data, follow the [beginner guide](../../BEGINNERS-GUIDE.md).
 
-`LegacyResults` contains historical outputs. They are kept for reference and
-are not the expected results of the current configuration.
+`LegacyResults` records earlier settings and outputs. Use the current JSON
+configuration to reproduce the results described above.

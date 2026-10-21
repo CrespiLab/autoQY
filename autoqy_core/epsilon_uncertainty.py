@@ -57,6 +57,21 @@ class EpsilonUncertaintySummary:
     bound_active_bounds: np.ndarray
     bound_jacobian_conditions: np.ndarray
     bound_optimizer_success: tuple[bool, ...] = ()
+    coverage_probability: float | None = None
+    interval_lower: np.ndarray | None = None
+    interval_upper: np.ndarray | None = None
+    sample_mean: np.ndarray | None = None
+    sample_standard_deviation: np.ndarray | None = None
+    attempted_samples: int = 0
+    requested_samples: int = 0
+    failed_samples: int = 0
+    boundary_fractions: np.ndarray | None = None
+    random_seed: int | None = None
+    converged: bool = False
+    endpoint_mc_error: np.ndarray | None = None
+    scope: str = ""
+    sampling_assumptions: tuple[str, ...] = ()
+    failure_messages: tuple[str, ...] = ()
 
 
 def load_epsilon_envelope(path, error_metric="sd"):

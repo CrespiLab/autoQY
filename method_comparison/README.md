@@ -22,20 +22,20 @@ Values and errors are percentages. Each method uses the same data and error
 settings within a dataset. The first three datasets include fit and power
 errors. The last two also include the supplied **ε ranges**: AutoQY repeats
 the fit with lower, central, and upper reference curves. These combined errors
-are sensitivity ranges, not confidence intervals.
+describe sensitivity to the tested ε curves.
 
 **Concentration difference** measures how far a method's fitted concentration
 curves are from the Concentrations result, relative to that result's starting
-total concentration. It measures agreement with a reference method, not accuracy.
+total concentration. Use it to assess agreement with that reference method.
 
 **Absorbance RMSE** summarizes measured minus fitted absorbance over the same
 full spectral range. Smaller means closer agreement. For the last two datasets,
 parentheses give the RMSE range across the ε calculations. Initial and final
 R fractions describe the fitted mixture at the first and last measurement.
 
-Full spectrum ODE can fit baseline changes, so its smaller RMSE alone does
-not prove it is the better method. The datasets do not include the individual
-absorbance errors needed for a formal statistical ranking.
+Full spectrum ODE includes baseline fitting, which can reduce RMSE. Assess
+RMSE alongside the residual plots and the assumptions of each method. A formal
+statistical ranking would also require individual absorbance uncertainties.
 See [metrics.json](metrics.json) for unrounded results and separate error components.
 
 To rebuild the tables and figures after installing AutoQY, run from the repository folder:
@@ -111,6 +111,6 @@ Similar concentration curves can still give different reverse yields when little
 reactant remains. Check the Emission method's pure-reactant assumption against
 the recovered starting mixture.
 
-ε ranges can widen the errors and change which methods agree. They do not cover
-every choice of reaction model, baseline treatment, or LED processing. Use the
-comparison as a check of those choices, alongside the warnings and residual plots.
+ε ranges show how the supplied reference uncertainties affect the yields and
+method agreement. Check the reaction model, baseline treatment, and LED
+processing alongside the reported ranges, warnings, and residual plots.

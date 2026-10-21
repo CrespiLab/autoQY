@@ -88,16 +88,15 @@ measured by NMR. Enter the metastable percentage in Reconstruction.
 
 The initial and PSS absorbance curves come from the main window.
 The dropped ε file provides the scale and error from the stable-isomer samples.
-It does not replace those UV measurements. Both UV measurements must have the
-same total concentration and path length.
+Both UV measurements must have the same total concentration and path length.
 
 For this mixture, the subtraction is:
 
 `metastable = (PSS − 0.23 × stable) / 0.77`
 
 The plot shows stable, PSS, and metastable ε. The error bands use the stable ε
-error and the NMR composition error. No PSS measurement error is added.
-The upper and lower errors need not be equal.
+error and the NMR composition error, with PSS absorbance held fixed.
+The reconstruction can produce unequal upper and lower errors.
 
 ### Check and save
 
@@ -117,10 +116,10 @@ The metastable CSV also keeps the original calculated values in a separate colum
 For a figure, open **Save figures** and click **Save PNG** or **Save SVG**.
 The same content choice is used. **Image export options** lets you hide the
 title, legend, or axis labels. **Minimal colors** uses blue, orange, black,
-and grey. Normalized absorbance curves are not included in the reconstruction plot.
+and grey. The reconstruction plot shows the calibrated ε curves.
 
 If you only want reconstructed absorbance, leave the ε reference empty.
-That result can be saved too, but it is not the product ε file needed for Analysis.
+Save that result as an absorbance spectrum. Analysis requires the calibrated ε file.
 
 To stop and continue later, click **Save session (.aqys)**.
 Drop the saved session into **1 · Data** to reopen it.
@@ -167,7 +166,7 @@ In the LED **Processing** section, use:
 - baseline correction: **on**;
 - baseline exclusion multiplier: **10**.
 
-These settings apply to the LED file, not the absorbance spectra.
+These settings apply to the LED file. Prepare absorbance spectra in Spectral Treatment.
 The LED window is in points; the Spectral Treatment window was in nm.
 
 ### Experiment
@@ -196,12 +195,11 @@ Leave the initial yields at **0.5** and the bounds at **0–1** under
 
 Set **Expected metastable photoproduct at PSS (%)** to **77%** (equivalent to
 23% remaining stable reactant). Analysis and Reconstruction both ask for the
-metastable percentage. This optional diagnostic reference does not constrain
-the fit.
+metastable percentage. AutoQY compares this optional reference with the fitted PSS.
 
 ### Uncertainty
 
-In **5 · Uncertainty**, select **ε range** and **Standard deviation** (SD).
+In **5 · Uncertainty**, select **ε ranges** and **Standard deviation** (SD).
 
 AutoQY repeats the calculation using the lower, central, and upper ε values.
 For the metastable form, it uses the upper and lower limits saved during
@@ -213,7 +211,7 @@ Reconstruction. The results show fit/power error, ε error, and combined error.
 2. Enable text, figures, JSON, configuration, and detailed-data exports.
    Enable overwrite only if you want to replace an earlier run.
 3. Click **Save JSON** to save your settings.
-4. Click **Run analysis**. Running alone does not save `analysis.json`.
+4. Click **Run analysis** to calculate and save the selected results.
 5. Read any amber or red warnings. Their explanation is shown beside the flag;
    expand **Technical details** if you need more information.
 6. Check **Concentrations**, **Endpoint reconstruction**, and
@@ -221,7 +219,7 @@ Reconstruction. The results show fit/power error, ε error, and combined error.
    spectra; large differences or clear patterns in the residuals need checking.
 
 **Compare fit methods** is an extra check. It keeps the ε uncertainty settings
-selected above and does not save results. Compare **Concentrations (legacy pure
+selected above and displays the comparison in the window. Compare **Concentrations (legacy pure
 NNLS)** with **Full spectrum ODE**. Each method's errors include its own ε range
 calculations. If the yields disagree beyond those ranges, investigate the
 concentration curves, reference spectra, and absorbance residuals.

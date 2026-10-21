@@ -56,7 +56,7 @@ class AnalysisResult:
     epsilon_uncertainty: object | None = None
 
 
-def run_analysis_pipeline(data):
+def run_analysis_pipeline(data, *, include_power_variations=True):
     low = max(data.wavelength_limits[0], data.epsilon_r[0][0], data.epsilon_p[0][0])
     high = min(data.wavelength_limits[1], data.epsilon_r[0][-1], data.epsilon_p[0][-1])
     start = np.argmin(np.abs(data.wavelengths - low))
@@ -118,6 +118,8 @@ def run_analysis_pipeline(data):
             data.power_mw + data.power_error_mw,
             data.power_mw - data.power_error_mw,
         )
+    if not include_power_variations:
+        levels = levels[:1]
     fits = []
     for level in levels:
         power = None if actinometer_mode else level
@@ -151,9 +153,12 @@ def run_analysis_pipeline(data):
         else:
             raise ValueError(f"Unsupported fit method: {data.fit_method}")
 
-    lower = fits[1].values - fits[1].standard_errors
-    upper = fits[2].values + fits[2].standard_errors
-    errors = np.maximum(fits[0].values - lower, upper - fits[0].values)
+    if include_power_variations:
+        lower = fits[1].values - fits[1].standard_errors
+        upper = fits[2].values + fits[2].standard_errors
+        errors = np.maximum(fits[0].values - lower, upper - fits[0].values)
+    else:
+        errors = fits[0].standard_errors
     extrapolated_pss = extrapolate_photostationary_state(
         wavelengths[kinetic_slice], emission[kinetic_slice],
         fits[0].concentrations[0].sum(), fits[0].values,

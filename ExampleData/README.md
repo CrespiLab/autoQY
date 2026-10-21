@@ -46,7 +46,7 @@ Each folder contains `analysis.json`, or `power_analysis.json` for Power.
 Both versions give the same results. Replace `generic_inputs` with
 `crespi_group_inputs` in a command to try the original files.
 Keep the referenced input files with their JSON when moving an example;
-the bundled JSON files contain file links, not embedded copies of the data.
+the bundled JSON files link to the input files in their example folders.
 
 Analysis outputs go into the selected input folder's `results` subfolder.
 Some examples allow overwrite and others stop if results already exist;
@@ -65,8 +65,9 @@ quantum-yield methods on the five datasets, including ε ranges where supplied.
 Its result figures are regenerated from the current code.
 
 `LegacyResults` and the power example's historical TXT file are older outputs
-kept for reference. They are not the expected results of the current settings.
-Current settings come from JSON; the original `ExpParams.txt` files are not used.
+kept for reference. Use the current JSON configurations to reproduce the results
+described in the example guides.
+The JSON files provide the current analysis settings.
 
 To check that all six pairs of input folders give the same numerical results,
 run from the repository folder:

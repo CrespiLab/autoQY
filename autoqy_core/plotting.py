@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 import numpy as np
 
-from .output import format_value_uncertainty
+from .output import formatted_quantum_yields
 
 
 def write_figure(path, result, data, residual_percentile=100):
@@ -26,6 +26,8 @@ def write_figure(path, result, data, residual_percentile=100):
         fitted_absorbance = fitted_absorbance + result.yield_fit.absorbance_correction
     absorbance_residual = measured_absorbance - fitted_absorbance
     uncertainty = result.epsilon_uncertainty
+    is_mc = getattr(uncertainty, "method", "") == "monte_carlo"
+    show_ranges = uncertainty is not None and not is_mc
 
     blue, orange = "#346aa9", "#e16203"
     figure, axes = plt.subplots(
@@ -34,7 +36,7 @@ def write_figure(path, result, data, residual_percentile=100):
     )
     concentration, spectra, residual, heatmap = axes.flat
 
-    if uncertainty is not None:
+    if show_ranges:
         for index, colour in enumerate((blue, orange)):
             concentration.errorbar(
                 times, measured[:, index],
@@ -57,17 +59,17 @@ def write_figure(path, result, data, residual_percentile=100):
                        zorder=4, label="Reactant fit")
     concentration.plot(times, fitted[:, 1], color=orange, linewidth=2,
                        zorder=4, label="Product fit")
-    concentration.set(title=("Concentrations with ε ranges"
-                             if uncertainty is not None else "Concentration fit"),
+    concentration.set(title=("Concentrations with ε ranges" if show_ranges else "Concentration fit"),
                       xlabel="Irradiation time (s)",
                       ylabel="Concentration (mol/L)")
-    concentration.legend(frameon=False, ncol=2)
+    concentration.legend(frameon=False, ncol=2, fontsize=9)
 
     if uncertainty is not None:
         residual.fill_between(
             times, uncertainty.fraction_residual_minimum,
             uncertainty.fraction_residual_maximum,
-            color=blue, alpha=0.16, label="ε ranges",
+            color=blue, alpha=0.16,
+            label=f"{uncertainty.coverage_probability * 100:g}% interval" if is_mc else "ε ranges",
         )
     residual.plot(times, fraction_residual, "o-", color=blue, markersize=4,
                   label="Residual" if uncertainty is not None else None)
@@ -82,16 +84,16 @@ def write_figure(path, result, data, residual_percentile=100):
     for time, spectrum in zip(times, measured_absorbance):
         spectra.plot(result.wavelengths, spectrum, color=colour_map(normalization(time)),
                      linewidth=1)
-    formatted = [format_value_uncertainty(value, error, two_digit_threshold=2)
-                 for value, error in
-                 zip(result.yield_fit.values * 100, result.yield_errors * 100)]
+    formatted = formatted_quantum_yields(result)
     phi_rp = "$\\Phi_{\\mathrm{R}\\rightarrow\\mathrm{P}}$"
     phi_pr = "$\\Phi_{\\mathrm{P}\\rightarrow\\mathrm{R}}$"
-    spectra.text(0.98, 0.96,
-                 f"{phi_rp}: {formatted[0][0]} \u00b1 {formatted[0][1]}%\n"
-                 f"{phi_pr}: {formatted[1][0]} \u00b1 {formatted[1][1]}%",
-                 transform=spectra.transAxes, ha="right", va="top", fontsize=8.5,
-                 bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"})
+    spectra.text(
+        0.98, 0.96,
+        f"{phi_rp} = {formatted[0][0]} ± {formatted[0][1]}%\n"
+        f"{phi_pr} = {formatted[1][0]} ± {formatted[1][1]}%",
+        transform=spectra.transAxes, ha="right", va="top", fontsize=10,
+        bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"},
+    )
     spectra.set(title="Absorption spectra over time", xlabel="Wavelength (nm)",
                 ylabel="Absorbance")
     wavelength_limits = result.wavelengths[0], result.wavelengths[-1]

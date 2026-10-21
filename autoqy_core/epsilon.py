@@ -35,6 +35,8 @@ class NMRSubtractionResult:
     product_error_upper: np.ndarray
     negative_product_points: int
     negative_bound_points: int
+    stable_fraction_in_pss: float | None = None
+    composition_standard_uncertainty: float | None = None
 
 
 def calculate_epsilon(wavelengths, absorbance, concentrations_m, path_lengths_cm):
@@ -249,6 +251,7 @@ def reconstruct_product_from_nmr(wavelengths, reactant_absorbance, pss_absorbanc
         lower, upper, error_lower, error_upper,
         int(np.count_nonzero(nominal < 0)),
         int(np.count_nonzero((raw_lower < 0) | (raw_upper < 0))),
+        fraction, fraction_error,
     )
 
 
@@ -280,6 +283,10 @@ def _export_nmr_subtraction(result, preserve_negative, separator):
         "Product_error_lower_M-1_cm-1": result.product_error_lower,
         "Product_error_upper_M-1_cm-1": result.product_error_upper,
     })
+    if result.stable_fraction_in_pss is not None:
+        frame["Stable_fraction_in_PSS"] = result.stable_fraction_in_pss
+    if result.composition_standard_uncertainty is not None:
+        frame["Composition_uncertainty_percentage_points"] = result.composition_standard_uncertainty * 100
     return frame.to_csv(
         sep=separator, index=False, float_format="%.8e", lineterminator="\n"
     )

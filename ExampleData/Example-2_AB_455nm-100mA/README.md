@@ -29,7 +29,7 @@ Keep the input files beside their JSON when moving this example.
 
 These values use the included files and settings. Changing the treatment or
 method can change the result. With ε uncertainty on, the reported error also
-includes the effect of the ε ranges. It is not a confidence interval.
+includes the sensitivity to the tested ε curves.
 
 ## Find the saved files
 
@@ -40,8 +40,7 @@ and two CSV tables. See [the output guide](../../autoqy_core/README.md#read-the-
 
 The included configuration **stops if its output files already exist**.
 For another run, choose a new results folder. From a terminal, add
-`--output-directory my_results` to the run command, using a folder name you
-have not used before.
+`--output-directory my_results` to the run command with a new folder name.
 
 ## What to check
 
@@ -53,5 +52,5 @@ shows this dataset with all three methods.
 
 For your own data, follow the [beginner guide](../../BEGINNERS-GUIDE.md).
 
-`LegacyResults` contains historical outputs. They are kept for reference and
-are not the expected results of the current configuration.
+`LegacyResults` records earlier settings and outputs. Use the current JSON
+configuration to reproduce the results described above.

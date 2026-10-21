@@ -15,12 +15,15 @@ Click an **ⓘ** button for help with the control beside it. Press Escape to clo
 
 - **Absorbance**: the value measured by your UV–Vis instrument.
 - **ε** (epsilon, or molar absorptivity): absorbance divided by concentration and cuvette path length. This lets you compare how strongly compounds absorb light.
-- **Reactant / stable isomer (R)**: the compound you start with.
-- **Product / metastable isomer (P)**: the form made by irradiation.
+- **Reactant (R)**: the isomer converted in the chosen reaction direction.
+- **Product (P)**: the isomer formed in that direction.
 - **PSS**: the mixture reached when continued irradiation no longer changes its composition.
 - **Quantum yield (Φ)**: how many molecules change per absorbed photon (a particle of light). A value of 0.25 means 25%.
 - **SD**: how much repeated measurements differ from each other.
-- **SEM**: the error estimated for their average. It is smaller than SD; do not choose it just to get a smaller error.
+- **SEM**: the uncertainty estimated for the average of repeated measurements.
+
+For a back reaction, R can be the metastable isomer and P the stable isomer.
+An analysis can start from a PSS containing both.
 
 ## 1. Open AutoQY
 
@@ -39,8 +42,8 @@ Avantes `.Abs8`, CSV, and TSV files.
 Files loaded together are sorted by name: `sample2` comes before `sample10`.
 The file chooser and all Save As dialogs open in the latest folder you chose,
 including when loading an ε reference or saving a figure.
-Loading more files adds them to the current set. **Clear all spectra** removes
-the current set from the window; it does not delete your files.
+Loading more files adds them to the current set. **Clear all spectra** clears
+the loaded set. Source files remain in their original folder.
 
 Open **Loaded spectra**:
 
@@ -59,7 +62,7 @@ Open **2 · Range**. Enter the wavelength limits you want to keep.
 For example, enter `250` and `700` for 250–700 nm. Press Enter after typing a
 number, or click outside the field.
 
-Open **Preprocess spectra**. You do not have to turn everything on.
+Open **Preprocess spectra** and enable the treatments your data need.
 
 ### Baseline
 
@@ -70,8 +73,7 @@ Use this if the spectrum sits above or below zero where there should be no absor
 3. Turn **Baseline** on.
 
 For some samples, 600–650 nm works. Check your own spectrum first.
-Do not use an interval containing a real absorption band: you would subtract
-part of the signal.
+Choose a region outside the absorption bands to preserve the signal.
 
 ### Smoothing
 
@@ -88,11 +90,11 @@ Leave **SVD off** when comparing separately prepared samples to calculate ε.
 SVD can hide differences between those samples.
 
 For a time series, SVD can reduce noise. If you try it, compare the result with
-SVD off. The suggested component count is not a guarantee that the result is right.
+SVD off. Check the suggested component count against the spectral shapes and residuals.
 
 Original spectra are hidden by default in the treated-absorbance plot.
 Use **Show original** to compare them with the treated curves. This also affects
-the saved absorbance figure. It does not change your source files.
+the saved absorbance figure. Source files stay unchanged.
 
 ## 4. Calculate ε
 
@@ -110,16 +112,14 @@ AutoQY calculates ε = absorbance / (concentration × path length).
 With several samples, it also shows the average, SD, and SEM.
 
 Check the individual ε curves before saving. If one is very different, check
-its concentration, dilution, cuvette, and baseline. Do not hide the difference
-by adding more smoothing.
+its concentration, dilution, cuvette, and baseline before choosing the smoothing settings.
 
-Concentration fields are not shown for sets larger than 60 spectra.
-Calculate ε from a smaller, separate set of known-concentration samples.
+Concentration fields are available for sets of up to 60 spectra.
+Use a separate set of known-concentration samples to calculate ε.
 
 ## 5. Reconstruct the pure metastable spectrum
 
-If you can measure the pure metastable form, calculate its ε as in step 4.
-You do not need reconstruction.
+For a measured pure metastable form, calculate ε directly as in step 4.
 
 Use this when you have a pure stable-isomer spectrum and a PSS mixture, but
 cannot measure the pure metastable form.
@@ -130,8 +130,8 @@ You need:
 - the percentage of metastable isomer in the PSS, measured separately, for example by NMR.
 
 Both UV–Vis measurements must use the same total concentration and path length.
-This calculation assumes only two absorbing forms. Do not scale each peak to
-the same height before using it.
+The calculation assumes two absorbing forms and uses the relative sizes of
+the measured absorbance curves. Preserve those sizes during treatment.
 
 1. Load the UV–Vis series in **1 · Data**.
 2. Set the range, baseline, and smoothing in the main controls.
@@ -139,9 +139,10 @@ the same height before using it.
 4. Select **Stable spectrum** and **PSS spectrum**.
    The first and last spectra are selected by default; check them.
 5. Enter **Metastable (%)**.
-   If NMR gives 23% stable and 77% metastable, enter **77**, not 23.
+   For a mixture with 23% stable and 77% metastable isomer, enter **77**.
 6. Enter the composition error in percentage points.
-   The default `1` means ±1 percentage point, not 1% of the entered value.
+   The default `1` means one standard uncertainty of 1 percentage point.
+   For a 77% composition, that corresponds to 76–78% at ±1 SD.
    Use `0` to leave this error out.
 7. Click **Reconstruct**.
 
@@ -159,11 +160,11 @@ The initial and PSS absorbance curves still come from the main window.
 
 Choose **Replicate SD** or **SEM of the mean**. The reference file must contain
 the error type you choose. AutoQY uses that error and the NMR composition error
-to calculate the metastable ε limits. It does not add a PSS measurement error.
+to calculate the metastable ε limits. The PSS absorbance is held fixed.
 
 Both UV curves use the same scale: the stable absorbance peak is matched to
 the reference ε peak. Only wavelengths shared by the UV and ε files are used.
-The plot shows ε curves and error bands, not normalized absorbance curves.
+The plot shows the calibrated ε curves and their error bands.
 
 Clear the ε reference to return to absorbance-only reconstruction.
 
@@ -188,8 +189,8 @@ Leave the multiplier at `1` if the timestamps are already in seconds.
 If the points are numbered 0, 1, 2… and you measured every 30 seconds, enter `30`.
 
 **Fit exponential decay** fits a simple exponential and reports a lifetime, τ.
-This is not a quantum-yield calculation. A lifetime is not a half-life:
-for a first-order process, half-life = 0.693 × τ.
+For a first-order process, half-life = 0.693 × τ.
+Use Analysis to calculate quantum yields from the full reaction model.
 
 Check that the fitted line follows the data. If the measurement ends before
 one lifetime, the lifetime and final plateau can be poorly determined.
@@ -199,15 +200,14 @@ one lifetime, the lifetime and final plateau can be poorly determined.
 Above the main plot:
 
 - **Legend options → Enable legend editing** lets you edit names in **Loaded spectra**.
-- **Hide all** hides legend entries, not the curves. Use the **Show** controls to restore the entries you want.
+- **Hide all** hides the legend entries while keeping the curves visible. Use **Show** to restore individual entries.
 - **Axis names** changes the main and time-slice axis titles.
 - **Minimal colors** uses blue, orange, black, and grey. It also covers mean ε, reconstructed curves, and fits.
 
 Without minimal colors, AutoQY uses a color-blind-friendly palette.
 Colors repeat after seven spectra.
 
-Edited names are used in saved CSV column headings. Your original files are
-not renamed.
+Edited names become the saved CSV column headings. Source filenames stay unchanged.
 
 ## 8. Read or copy the numbers
 
@@ -221,8 +221,8 @@ then scroll through its rows and columns.
 - **Copy all** copies the whole displayed sheet, including rows below the screen.
 - Paste into Excel with Ctrl+V.
 
-The sheet cannot be edited. It follows the plotted curves, so hidden curves
-and spectra left out of a large-series preview are not shown here.
+The sheet is a read-only view of the plotted curves. CSV export contains the
+complete treated dataset, including spectra outside a large-series preview.
 
 ## 9. Save data, figures, or a session
 
@@ -242,10 +242,10 @@ Choose the folder and name in Save As. The CSV pair asks for two file names.
 The dialog asks before replacing an existing file.
 
 CSV export includes the full treated dataset, even when the plot shows only
-60 spectra. It can also include errors and other values not drawn in the figure.
+60 spectra. It also includes the available error columns and calculation data.
 
 Negative values are kept by default. **Convert negative absorbance and ε values
-to 0** changes the saved CSV, not the plot. The reconstructed ε CSV keeps a
+to 0** applies to the saved CSV. The plot keeps its current values, and the reconstructed ε CSV keeps a
 separate column with the original calculated values.
 
 There is one **Image export options** menu for all figures. It controls titles,
@@ -256,15 +256,14 @@ PNG is a fixed-size image; SVG stays sharp when resized.
 ### Save your work so you can continue later
 
 Click **Save session (.aqys)** and choose a name in Save As.
-This saves the spectra and settings, not just the plot.
+The session contains the spectra and settings.
 
 To reopen it, drop one `.aqys` file into **1 · Data**, or choose it with
-**Choose files**. It replaces the current session. Do not drop a session
-and spectra together.
+**Choose files**. Load the session on its own; it replaces the current session.
 
 AutoQY also saves the latest state automatically. Wait for the autosave message
-before closing. Clearing the spectra clears the autosaved state, but does not
-delete a session file you saved yourself.
+before closing. Clearing the spectra clears the autosaved state.
+Your manually saved session files remain available.
 
 ## 10. Set up a quantum-yield analysis
 
@@ -277,7 +276,7 @@ A JSON file records the settings and, with **Include all input data in JSON**
 enabled, the complete input data. You can send that single file to another person
 without also sending the original spectra, reference files, or timestamps.
 
-If you already have `analysis.json`, load it instead of filling everything again.
+Load an existing `analysis.json` to restore its saved settings and data.
 Keep related input files in the same experiment folder.
 
 To get CSV copies of the data stored in a JSON, load it and click **Restore input
@@ -298,13 +297,13 @@ Give the analysis a name, then choose:
 The times must match the spectra in order. Use the correct file-format setting;
 **Generic CSV** is suitable for the AutoQY CSV exports.
 
-You need both ε files. An absorbance-only reconstruction is not a replacement
-for the product ε file.
+Analysis requires an ε spectrum for each isomer. Add a stable ε reference in
+Spectral Treatment to calibrate a reconstructed absorbance spectrum.
 
 For the LED file, open **Processing**. Check the wavelength range, smoothing,
-and baseline against your measured LED curve. These controls treat the LED,
-not the absorbance spectra. The smoothing window here is in detector points,
-not nm. The tutorial gives settings for its example LED.
+and baseline against your measured LED curve. These controls apply to the LED.
+The smoothing window is in detector points. Prepare the absorbance spectra in
+Spectral Treatment, where the smoothing window is in nm.
 
 ### 3 · Experiment
 
@@ -318,15 +317,14 @@ Enter your measured values, with the units shown beside each field:
 
 Thermal rates describe reactions without light. For a first-order reaction,
 rate = 0.693 / half-life, with the half-life in seconds.
-Do not enter a half-life into a rate field.
 
 With power input, AutoQY uses the full LED spectrum to calculate the number of
-photons. The wavelength field does not replace the LED file.
+photons. The wavelength field records the nominal irradiation wavelength.
 
 If a chemical actinometer measured your photon flux, tick **Use photon flux
 from a chemical actinometer**. Enter flux and its error in **mol photons/s**,
-and the irradiation wavelength. This mode uses one wavelength and does not
-need an LED file.
+and the irradiation wavelength. This mode models monochromatic irradiation
+using the supplied photon flux.
 
 ### 4 · Fit
 
@@ -340,26 +338,42 @@ alongside the reported yields. **Emission (legacy)** is also
 available for reproducing older analyses.
 
 Leave **Expert optimizer settings** at their defaults to start:
-initial yields `0.5` and bounds `0–1`. These are starting guesses, not results.
+initial yield guesses `0.5` and allowed yield bounds `0–1`.
 If you measured PSS by NMR, enter the **metastable photoproduct** percentage in
 **Expected metastable photoproduct at PSS (%)**. For 23% stable reactant and
 77% metastable product, enter **77**. This uses the same percentage as Spectral
-Treatment and is an optional diagnostic reference, not a fitting constraint.
+Treatment. AutoQY compares the fitted PSS with this optional reference value.
+The check uses the percentage of the species assigned to P in Analysis.
 
 **Compare fit methods** uses the same inputs and uncertainty settings as your
-analysis, including **ε range** when enabled. It does not save result files.
+analysis. The comparison is displayed in the window.
 The displayed yield errors therefore include the configured ε uncertainty;
 leave that option off only when you want to compare fit/power errors alone.
 
 ### 5 · Uncertainty
 
-Choose **ε range** if both ε files contain AutoQY error values.
+Choose **ε ranges** if both ε files contain AutoQY error values.
 Choose **Standard deviation (SD)** to use the differences between repeated
 samples. Use SEM only if you want the error on their average.
 
 AutoQY repeats the calculation with lower, central, and upper ε values.
 Reconstructed product files can have different upper and lower errors.
 The results list the fit/power error, ε error, and combined error separately.
+
+You can keep **ε ranges**, or choose **Monte Carlo**.
+Monte Carlo uses the uncertainties already supplied and keeps the PSS absorbance
+used for reconstruction fixed. It uses
+replicate ε data and, for a reconstructed isomer, the matching reconstruction
+with its NMR composition uncertainty. Re-export from Spectral Treatment if an
+older file is missing those details.
+
+Monte Carlo shows the mean ± standard uncertainty (1 SD). The error uses
+one significant digit, or two when it starts with 1 or 2, and the mean uses
+the same decimal place. The detailed results include the coverage interval,
+yield-limit counts, and stability checks. If it asks for
+more simulations, raise **Maximum simulations**. The saved random seed lets you
+repeat the same calculation. A large interval can still reflect limited
+experimental information. Check its size, stability, and fit diagnostics together.
 
 ### 6 · Output and the analysis buttons
 
@@ -369,14 +383,14 @@ These Analysis settings are separate from Spectral Treatment's Save As buttons.
 Leave **Include all input data in JSON (recommended)** enabled for a portable
 experiment. Click **Save JSON**, then **Run analysis**. To recover or share the
 experiment, load that JSON on any computer with this AutoQY build, choose a local
-results directory, and run. The original input files are not needed. Disable the
-option if you prefer the older file-link format.
-Running does not save `analysis.json` for you.
+results directory, and run. The JSON carries the input data with it. Disable
+the option to save file links. Use **Save JSON** whenever you want to save the
+editable experiment settings.
 Only enable overwrite when you want to replace an earlier run.
 
 ## 11. Check the results before using them
 
-A small reported error does not prove the analysis is right.
+Assess the reported errors together with the fit and residual plots.
 
 Check these plots:
 
@@ -389,9 +403,12 @@ Check these plots:
 
 Concentration plots use blue for reactant and orange for product. Open circles
 show concentrations recovered from the spectra; solid lines show the fitted
-reaction model. When ε uncertainty is enabled, error bars and shaded ranges
-show the changes caused by the ε ranges. The PNG and SVG exports identify the
+reaction model. **ε ranges** shows the variation across the tested ε curves.
+**Monte Carlo** reports mean ± standard uncertainty; detailed data includes the coverage intervals. The PNG and SVG exports identify the
 two yields with the reaction directions Φ R→P and Φ P→R.
+The shaded band around the fraction residual shows a pointwise Monte Carlo
+coverage interval (95% by default), or the variation across the tested ε curves
+when using **ε ranges**.
 
 The **Fraction residual** is measured reactant fraction minus fitted fraction.
 The absorbance residual map uses a color scale centered on zero, so opposite

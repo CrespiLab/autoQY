@@ -21,7 +21,7 @@ from ..gui_window import serve_gui
 from ..input_restore import restore_embedded_inputs
 from ..io import load_spectra, load_spectrum, load_timestamps
 from ..output import (format_scientific_value_uncertainty,
-                      format_value_uncertainty, result_summary)
+                      format_value_uncertainty, quantum_yield_values, result_summary)
 from ..plot_style import (PLOT_BLUE, PLOT_BROWN, PLOT_NEUTRAL,
                           PLOT_ORANGE, PLOT_PURPLE)
 from ..version import get_project_version
@@ -347,18 +347,37 @@ def create_app():
                     html.Summary([html.Span("5 · Uncertainty", className="step-label"),
                                   html.Span("ε uncertainty"),
                                   info_popup(
-                                      "ε range analysis requires AutoQY Spectral Treatment CSV or TSV files for both "
-                                      "species. Choose standard deviation or standard error as the "
-                                      "wavelength-resolved error metric."
+                                      "ε ranges tests lower, nominal, and upper spectra. Monte Carlo samples the "
+                                      "supplied reference, NMR composition, power, and fit uncertainties together, "
+                                      "keeping the PSS reconstruction absorbance fixed. No PSS ε measurement is needed. "
+                                      "It requires replicate reference data and matching reconstruction metadata, "
+                                      "and can take longer. SD/SEM have their existing meanings."
                                   )]),
                     html.Label("Method"),
                     dropdown("epsilon_method", (
                         ("none", "Off (default)"),
-                        ("deterministic_extremes", "ε range"),
+                        ("deterministic_extremes", "ε ranges"),
+                        ("monte_carlo", "Monte Carlo"),
                     ), "none"),
                     html.Label("Repeat-spectrum error metric"),
                     dropdown("epsilon_metric", (("sd", "Standard deviation"),
                                                  ("sem", "Standard error")), "sd"),
+                    html.Details(className="nested-tool", children=[
+                        html.Summary(["Monte Carlo settings", info_popup(
+                            "Results show the mean ± one standard uncertainty. A 95% interval is also "
+                            "saved in detailed data. Simulations can stop after 128 "
+                            "successful fits if the endpoints stabilize; otherwise they continue to the "
+                            "chosen limit. The seed makes repeated runs reproducible. Power and NMR "
+                            "uncertainties are treated as one standard uncertainty."
+                        )]),
+                        pair("Maximum simulations", number("mc_samples", 256, min=32, step=1),
+                             "Random seed", number("mc_seed", 0, min=0, step=1)),
+                        pair("Coverage probability", number("mc_coverage", .95, min=.5, max=.999, step=.01),
+                             "Endpoint tolerance (yield fraction)",
+                             number("mc_tolerance", .005, min=.00001, step=.001)),
+                        html.Small("PSS reconstruction absorbance stays fixed. Failed fits, yield limits, "
+                                   "and interval stability are reported with the results.", className="helper-text"),
+                    ]),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
                     html.Summary([html.Span("6 · Output", className="step-label"),
@@ -897,7 +916,12 @@ def _configuration(values, embedded=None, *, preprocessing_only=False):
             },
             "plots": {"absorbance_residual_percentile": values.get("residual_percentile")},
             "uncertainty": {"epsilon": {"method": values.get("epsilon_method"),
-                                          "error_metric": values.get("epsilon_metric")}},
+                                          "error_metric": values.get("epsilon_metric"),
+                                          **({"samples": values.get("mc_samples", 256),
+                                              "seed": values.get("mc_seed", 0),
+                                              "coverage_probability": values.get("mc_coverage", .95),
+                                              "endpoint_tolerance": values.get("mc_tolerance", .005)}
+                                             if values.get("epsilon_method") == "monte_carlo" else {})}},
             "outputs": {
                 "directory": values.get("output_directory") or "results",
                 "stem": values.get("output_stem") or "",
@@ -964,6 +988,10 @@ def _form_values(document):
         "residual_percentile": document["plots"]["absorbance_residual_percentile"],
         "epsilon_method": document.get("uncertainty", {}).get("epsilon", {}).get("method", "none"),
         "epsilon_metric": document.get("uncertainty", {}).get("epsilon", {}).get("error_metric", "sd"),
+        **{field: document.get("uncertainty", {}).get("epsilon", {}).get(key, default)
+           for field, key, default in (("mc_samples", "samples", 256), ("mc_seed", "seed", 0),
+                                       ("mc_coverage", "coverage_probability", .95),
+                                       ("mc_tolerance", "endpoint_tolerance", .005))},
         "output_directory": output["directory"],
         "write_text": _toggle_value(output["write_text"]),
         "write_figures": _toggle_value(output["write_figures"]),
@@ -1276,6 +1304,17 @@ def _input_checks(config):
 
     epsilon_r = _load_reference(config, "reactant_absorptivity")
     epsilon_p = _load_reference(config, "product_absorptivity")
+    epsilon_settings = values.get("uncertainty", {}).get("epsilon", {})
+    if epsilon_settings.get("method") == "monte_carlo":
+        from ..epsilon_monte_carlo import paired_epsilon_sampler
+        from ..epsilon_uncertainty import load_epsilon_envelope
+        envelopes = [load_epsilon_envelope(config.input_path(role),
+                     epsilon_settings.get("error_metric", "sd"))
+                     for role in ("reactant_absorptivity", "product_absorptivity")]
+        paired_epsilon_sampler(*envelopes, epsilon_settings.get("error_metric", "sd"))
+        checks.append(_check("ok", "Monte Carlo inputs",
+                             "Reference replicates and any shared reconstruction are available. "
+                             "PSS reconstruction absorbance will be kept fixed."))
     requested_low, requested_high = processing["wavelength_range_nm"]
     common_low = max(float(wavelengths[0]), float(epsilon_r[0][0]),
                      float(epsilon_p[0][0]), float(requested_low))
@@ -1479,6 +1518,8 @@ def _fit_diagnostic_checks(result, data, document):
 def _epsilon_reliability_check(result):
     """Assess the whole ε sweep, including shifts between precise refits."""
     uncertainty = result.epsilon_uncertainty
+    if getattr(uncertainty, "method", "") == "monte_carlo":
+        return _monte_carlo_reliability_check(uncertainty)
     if uncertainty is None or not len(uncertainty.bound_labels):
         return None
     yields = np.asarray(uncertainty.bound_yields, float)
@@ -1541,6 +1582,33 @@ def _epsilon_reliability_check(result):
         f"Flagged ε combinations: {'; '.join(labels) if labels else 'none'}. "
         "Combined errors include shifts between ε combinations, not only local fit errors."
     )
+    return check
+
+
+def _monte_carlo_reliability_check(u):
+    level = "ok"
+    messages = [f"{u.bound_combination_count} successful fits from {u.attempted_samples} simulations. "
+                "Reported errors are one standard uncertainty (1 SD)."]
+    if not u.converged:
+        level = "warning"
+        messages.append("Interval stability was not established. Increase the simulation limit; "
+                        "do not treat the displayed endpoints as final.")
+    if np.any(u.boundary_fractions):
+        level = "warning"
+        messages.append(f"Yield limits reached in {u.boundary_fractions[0]:.1%} of R→P fits "
+                        f"and {u.boundary_fractions[1]:.1%} of P→R fits. "
+                        "The affected interval is constraint-limited.")
+    if u.failed_samples:
+        level = "stop"
+        messages.append(f"{u.failed_samples} simulations failed. The reported interval is incomplete.")
+    if np.any(~np.isfinite(u.bound_jacobian_conditions)) or np.any(u.bound_jacobian_conditions > 1e8):
+        level = "stop"
+        messages.append("Some simulated fits cannot reliably separate the quantum yields.")
+    check = _check(level, "Monte Carlo uncertainty", " ".join(messages) + " " + u.scope)
+    check["details"] = (f"Seed {u.random_seed}. Largest estimated endpoint sampling error "
+                        f"{np.max(u.endpoint_mc_error) * 100:.3g} percentage points. "
+                        + " ".join(u.sampling_assumptions)
+                        + " ".join(u.failure_messages[:5]))
     return check
 
 
@@ -1619,8 +1687,12 @@ def _compare_fit_methods(config):
                 fitted_absorbance += result.yield_fit.absorbance_correction
             rows.append({
                 "method": method,
-                "values": result.yield_fit.values * 100,
+                "values": quantum_yield_values(result) * 100,
                 "errors": result.yield_errors * 100,
+                "interval": ((result.epsilon_uncertainty.interval_lower * 100,
+                              result.epsilon_uncertainty.interval_upper * 100,
+                              result.epsilon_uncertainty.coverage_probability)
+                             if getattr(result.epsilon_uncertainty, "method", "") == "monte_carlo" else None),
                 "fraction_rmse": float(np.sqrt(np.mean(
                     (measured_fraction - fitted_fraction) ** 2
                 ))),
@@ -1642,16 +1714,18 @@ def _render_comparison(html, rows, selected_method):
     for row in rows:
         diagnostic_level, flags = _comparison_diagnostic_summary(row["diagnostics"])
         forward = format_value_uncertainty(
-            row["values"][0], row["errors"][0], two_digit_threshold=2
+            row["values"][0], row["errors"][0]
         )
         backward = format_value_uncertainty(
-            row["values"][1], row["errors"][1], two_digit_threshold=2
+            row["values"][1], row["errors"][1]
         )
+        forward_text = f"{forward[0]} ± {forward[1]}%"
+        backward_text = f"{backward[0]} ± {backward[1]}%"
         body.append(html.Tr(className="comparison-selected" if row["method"] == selected_method else "",
                             children=[
             html.Td(_method_label(row["method"])),
-            html.Td(f"{forward[0]} ± {forward[1]}%"),
-            html.Td(f"{backward[0]} ± {backward[1]}%"),
+            html.Td(forward_text),
+            html.Td(backward_text),
             html.Td(f"{row['fraction_rmse']:.4g}"),
             html.Td(f"{row['absorbance_rmse']:.4g}"),
             html.Td(flags, className=f"comparison-diagnostic comparison-diagnostic-{diagnostic_level}"),
@@ -1664,7 +1738,8 @@ def _render_comparison(html, rows, selected_method):
             ])
         ]),
         html.Small(
-            "Quantum-yield errors include optimizer and power errors, plus the selected ε range. "
+            "Monte Carlo reports the mean ± standard uncertainty (1 SD). ε ranges reports the fit "
+            "and combined sensitivity error. "
             "Fraction and absorbance RMSE use the nominal ε spectra. Fit diagnostics include "
             "reference-spectrum uncertainty checks when ε range analysis is enabled.",
             className="helper-text",
@@ -1690,7 +1765,7 @@ def _yield_card(html, label, summary, name):
     formatted = summary["quantum_yield_formatted_percent"][name]
     return [html.Span(label),
             html.Strong(f"{formatted['value']} ± {formatted['error']}%"),
-            html.Small("Quantum yield")]
+            html.Small("Mean ± SD" if "monte_carlo" in summary else "Quantum yield")]
 
 
 def _pss_card(html, summary=None, reactant_name="Reactant", product_name="Product"):
@@ -1744,10 +1819,12 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
                                 where=fitted_total != 0)
     fraction_residual = measured_fraction - fitted_fraction
     uncertainty = result.epsilon_uncertainty
+    is_mc = getattr(uncertainty, "method", "") == "monte_carlo"
+    show_ranges = uncertainty is not None and not is_mc
     blue, orange = PLOT_BLUE, PLOT_ORANGE
 
     concentration = go.Figure()
-    if uncertainty is not None:
+    if show_ranges:
         for index, (name, colour) in enumerate((("Reactant", blue), ("Product", orange))):
             _add_band(go, concentration, times,
                       uncertainty.concentration_fit_minimum[:, index],
@@ -1755,7 +1832,7 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
                       f"{name} ε fit range")
     for index, (name, colour) in enumerate((("Reactant", blue), ("Product", orange))):
         error_y = None
-        if uncertainty is not None:
+        if show_ranges:
             error_y = {
                 "type": "data", "symmetric": False, "visible": True,
                 "array": uncertainty.concentration_data_maximum[:, index] - measured[:, index],
@@ -1777,8 +1854,9 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
 
     fraction = go.Figure()
     if uncertainty is not None:
+        band_label = f"{uncertainty.coverage_probability * 100:g}% interval" if is_mc else "ε ranges"
         _add_band(go, fraction, times, uncertainty.fraction_residual_minimum,
-                  uncertainty.fraction_residual_maximum, blue, "ε ranges")
+                  uncertainty.fraction_residual_maximum, blue, band_label)
     fraction.add_trace(go.Scatter(x=times, y=fraction_residual, mode="lines+markers",
                                   name="Residual", line={"color": blue}))
     fraction.add_hline(y=0, line={"color": "#20242c", "width": 1})
@@ -1885,6 +1963,10 @@ def _method_label(method):
 
 def _fit_note(summary):
     uncertainty = summary.get("epsilon_uncertainty")
+    if uncertainty and uncertainty["method"] == "monte_carlo":
+        mc = summary["monte_carlo"]
+        return (f"{mc['successful_simulations']} Monte Carlo fits · "
+                + ("interval stable" if mc["endpoints_stable"] else "increase simulations"))
     return (f"{uncertainty['bound_combination_count']} ε combinations"
             if uncertainty else "Power + optimizer uncertainty")
 

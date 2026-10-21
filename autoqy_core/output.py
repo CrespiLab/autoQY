@@ -43,15 +43,27 @@ def format_scientific_value_uncertainty(value, uncertainty, two_digit_threshold=
     return formatted[0], formatted[1], exponent
 
 
+def quantum_yield_values(result):
+    """Use the MC mean for reporting, keeping the original fitted values on the result."""
+    uncertainty = result.epsilon_uncertainty
+    if getattr(uncertainty, "method", "") == "monte_carlo":
+        return np.asarray(uncertainty.sample_mean, float)
+    return np.asarray(result.yield_fit.values, float)
+
+
+def formatted_quantum_yields(result):
+    return [format_value_uncertainty(value * 100, error * 100)
+            for value, error in zip(quantum_yield_values(result), result.yield_errors)]
+
+
 def result_summary(result, data, irradiation_wavelength_nm):
-    values = result.yield_fit.values * 100
+    values = quantum_yield_values(result) * 100
     errors = result.yield_errors * 100
     last_composition = result.yield_fit.concentrations[-1]
     last_composition = last_composition / last_composition.sum() * 100
     extrapolated_pss = result.extrapolated_pss
     extrapolated_pss = extrapolated_pss / extrapolated_pss.sum() * 100
-    formatted = [format_value_uncertainty(value, error, two_digit_threshold=2)
-                 for value, error in zip(values, errors)]
+    formatted = formatted_quantum_yields(result)
     summary = {
         "schema_version": 2,
         "fit_method": result.fit_method,
@@ -130,6 +142,35 @@ def result_summary(result, data, irradiation_wavelength_nm):
                 "maximum": uncertainty.absorbance_residual_rmse_maximum,
             },
         }
+    if uncertainty is not None and uncertainty.method == "monte_carlo":
+        summary.pop("quantum_yield_error_components_percent", None)
+        summary["quantum_yield_estimate_kind"] = "monte_carlo_mean"
+        summary["quantum_yield_error_kind"] = "Monte Carlo standard uncertainty (1 SD)"
+        summary["quantum_yield_interval_percent"] = {
+            "coverage_probability": uncertainty.coverage_probability,
+            "lower": _yield_pair(uncertainty.interval_lower * 100),
+            "upper": _yield_pair(uncertainty.interval_upper * 100),
+        }
+        summary["monte_carlo"] = {
+            "mean_quantum_yield_percent": _yield_pair(uncertainty.sample_mean * 100),
+            "standard_uncertainty_percentage_points": _yield_pair(uncertainty.sample_standard_deviation * 100),
+            "nominal_quantum_yield_percent": _yield_pair(result.yield_fit.values * 100),
+            "requested_maximum_simulations": uncertainty.requested_samples,
+            "attempted_simulations": uncertainty.attempted_samples,
+            "successful_simulations": uncertainty.bound_combination_count,
+            "failed_simulations": uncertainty.failed_samples,
+            "boundary_hit_fraction": _yield_pair(uncertainty.boundary_fractions),
+            "seed": uncertainty.random_seed,
+            "endpoints_stable": uncertainty.converged,
+            "endpoint_mc_standard_error_percentage_points": {
+                "lower": _yield_pair(uncertainty.endpoint_mc_error[0] * 100),
+                "upper": _yield_pair(uncertainty.endpoint_mc_error[1] * 100),
+            },
+            "scope": uncertainty.scope,
+            "sampling_assumptions": list(uncertainty.sampling_assumptions),
+            "failures": list(uncertainty.failure_messages),
+        }
+        summary["epsilon_uncertainty"]["interval_kind"] = "Monte Carlo coverage interval"
     return summary
 
 
@@ -144,27 +185,25 @@ def write_results(path, result, data, irradiation_wavelength_nm):
         "emission": "Emission (legacy)",
         "ode_absorbance": "Full spectrum ODE",
     }[result.fit_method]
-    epsilon_text = "\n"
-    if result.epsilon_uncertainty is not None:
-        components = summary["quantum_yield_error_components_percent"]
-        metadata = summary["epsilon_uncertainty"]
-        irradiation_error_key = ("optimizer_and_photon_flux"
-                                 if data.photon_flux_mol_s is not None
-                                 else "optimizer_and_power")
-        irradiation_error_label = ("photon flux" if data.photon_flux_mol_s is not None
-                                   else "power")
-        epsilon_text = f"""Error component optimizer + {irradiation_error_label} R_to_P (%): {components[irradiation_error_key]['R_to_P']:g}
-Error component optimizer + {irradiation_error_label} P_to_R (%): {components[irradiation_error_key]['P_to_R']:g}
-Error component epsilon R_to_P (%): {components['epsilon']['R_to_P']:g}
-Error component epsilon P_to_R (%): {components['epsilon']['P_to_R']:g}
-Epsilon uncertainty method: {metadata['method']}
-Reactant epsilon error metric: {metadata['reactant_error_metric']}
-Product epsilon error metric: {metadata['product_error_metric']}
-Epsilon range combinations: {metadata['bound_combination_count']}
-Reactant epsilon values constrained to zero: {metadata['constrained_negative_points']['reactant']}
-NMR epsilon values constrained to zero: {metadata['constrained_negative_points']['product']}
-
-"""
+    uncertainty = result.epsilon_uncertainty
+    uncertainty_text = "Error: fit and irradiation-input uncertainty.\n"
+    if getattr(uncertainty, "method", "") == "monte_carlo":
+        mc = summary["monte_carlo"]
+        uncertainty_text = (
+            "Error: Monte Carlo standard uncertainty (1 SD).\n"
+            f"Simulations: {mc['successful_simulations']} successful, {mc['failed_simulations']} failed.\n"
+            + mc["scope"] + "\n"
+        )
+        notes = []
+        if any(mc["boundary_hit_fraction"].values()):
+            notes.append("Yield limits reached; review diagnostics.")
+        if not mc["endpoints_stable"]:
+            notes.append("Uncertainty stability not established; increase simulations.")
+        if mc["failed_simulations"]:
+            notes.append("Uncertainty calculation incomplete; review failed fits.")
+        uncertainty_text += "\n".join(notes) + "\n"
+    elif uncertainty is not None:
+        uncertainty_text = "Error: combined ε-range, fit, and irradiation-input sensitivity.\n"
     if data.photon_flux_mol_s is None:
         irradiation_input = (
             f"Power average (mW): {data.power_mw:g}\n"
@@ -182,11 +221,10 @@ Composition at the last timestamp - Reactant (%): {last_composition['reactant']:
 Composition at the last timestamp - Product (%): {last_composition['product']:.1f}
 Extrapolated PSS - Reactant (%): {extrapolated_pss['reactant']:.1f}
 Extrapolated PSS - Product (%): {extrapolated_pss['product']:.1f}
-QY_AB_opt (%): {formatted['R_to_P']['value']}
-QY_BA_opt (%): {formatted['P_to_R']['value']}
-error_QY_AB (%): {formatted['R_to_P']['error']}
-error_QY_BA (%): {formatted['P_to_R']['error']}
-{epsilon_text}Volume (ml): {data.volume_ml:g}
+Φ R→P: {formatted['R_to_P']['value']} ± {formatted['R_to_P']['error']}%
+Φ P→R: {formatted['P_to_R']['value']} ± {formatted['P_to_R']['error']}%
+{uncertainty_text}
+Volume (ml): {data.volume_ml:g}
 k thermal back-reaction (s-1): {data.thermal_rate:g}
 k thermal forward-reaction (s-1): {getattr(data, 'thermal_forward_rate', 0):g}
 {irradiation_input}
@@ -252,6 +290,9 @@ def write_detailed_data(stem, result, data):
         columns["reactant_fraction_residual_epsilon_max"] = (
             uncertainty.fraction_residual_maximum
         )
+    if getattr(uncertainty, "method", "") == "monte_carlo":
+        columns = {name.replace("_epsilon_min", "_mc_interval_lower").replace(
+            "_epsilon_max", "_mc_interval_upper"): value for name, value in columns.items()}
     traces = pd.DataFrame(columns)
     traces_path = stem.parent / f"{stem.name}_traces.csv"
     traces.to_csv(traces_path, index=False)
@@ -279,4 +320,18 @@ def write_detailed_data(stem, result, data):
     })
     spectra_path = stem.parent / f"{stem.name}_spectra.csv"
     spectra.to_csv(spectra_path, index=False)
-    return traces_path, spectra_path
+    paths = [traces_path, spectra_path]
+    if getattr(uncertainty, "method", "") == "monte_carlo":
+        samples = pd.DataFrame({
+            "successful_simulation": np.arange(1, len(uncertainty.bound_yields) + 1),
+            "R_to_P_percent": uncertainty.bound_yields[:, 0] * 100,
+            "P_to_R_percent": uncertainty.bound_yields[:, 1] * 100,
+            "R_to_P_at_yield_limit": uncertainty.bound_active_bounds[:, 0],
+            "P_to_R_at_yield_limit": uncertainty.bound_active_bounds[:, 1],
+            "jacobian_condition": uncertainty.bound_jacobian_conditions,
+            "absorbance_rmse": uncertainty.bound_absorbance_rmse,
+        })
+        samples_path = stem.parent / f"{stem.name}_uncertainty.csv"
+        samples.to_csv(samples_path, index=False)
+        paths.append(samples_path)
+    return tuple(paths)
