@@ -56,6 +56,38 @@ def formatted_quantum_yields(result):
             for value, error in zip(quantum_yield_values(result), result.yield_errors)]
 
 
+def monte_carlo_messages(uncertainty):
+    """Explain completion, reliability, and the next action in GUI and text exports."""
+    u = uncertainty
+    if u.failed_samples:
+        messages = [f"{u.bound_combination_count} of {u.attempted_samples} simulations finished successfully.",
+                    f"{u.failed_samples} fits failed, so the uncertainty estimate is incomplete. "
+                    "Review the failed fits in Technical details before using these results."]
+    else:
+        messages = [f"All {u.attempted_samples} simulations finished successfully."]
+    if u.converged:
+        messages.append("The uncertainty range passed the stability check.")
+    elif not u.failed_samples:
+        if u.requested_samples < 100000:
+            next_limit = min(100000, max(4096, u.requested_samples * 2))
+            messages.append("More simulations are needed to check the uncertainty range. "
+                            f"Set Maximum simulations to {next_limit} and run again. "
+                            "Treat the current results as provisional.")
+        else:
+            messages.append("The uncertainty range has not stabilized at the maximum simulation limit. "
+                            "Review Technical details and the input uncertainties before reporting these results.")
+    if np.any(u.boundary_fractions):
+        limits = "; ".join(f"{name}: {fraction * 100:.2g}%" for name, fraction in
+                           zip(("R→P", "P→R"), u.boundary_fractions) if fraction > 0)
+        messages.append(f"Some simulated yields reached an allowed minimum or maximum ({limits} of fits). "
+                        "These limits affect the uncertainty range; review the yield limits and input data.")
+    if getattr(u, "reused_samples", 0):
+        messages.append(f"Reused {u.reused_samples} saved simulations; "
+                        f"completed {u.attempted_samples - u.reused_samples} new simulations.")
+    messages.append("The ± value is the estimated error (1 SD).")
+    return messages
+
+
 def result_summary(result, data, irradiation_wavelength_nm):
     values = quantum_yield_values(result) * 100
     errors = result.yield_errors * 100
@@ -159,6 +191,8 @@ def result_summary(result, data, irradiation_wavelength_nm):
             "attempted_simulations": uncertainty.attempted_samples,
             "successful_simulations": uncertainty.bound_combination_count,
             "failed_simulations": uncertainty.failed_samples,
+            "reused_simulations": uncertainty.reused_samples,
+            "checkpoint_file": uncertainty.checkpoint_path,
             "boundary_hit_fraction": _yield_pair(uncertainty.boundary_fractions),
             "seed": uncertainty.random_seed,
             "endpoints_stable": uncertainty.converged,
@@ -188,20 +222,9 @@ def write_results(path, result, data, irradiation_wavelength_nm):
     uncertainty = result.epsilon_uncertainty
     uncertainty_text = "Error: fit and irradiation-input uncertainty.\n"
     if getattr(uncertainty, "method", "") == "monte_carlo":
-        mc = summary["monte_carlo"]
-        uncertainty_text = (
-            "Error: Monte Carlo standard uncertainty (1 SD).\n"
-            f"Simulations: {mc['successful_simulations']} successful, {mc['failed_simulations']} failed.\n"
-            + mc["scope"] + "\n"
-        )
-        notes = []
-        if any(mc["boundary_hit_fraction"].values()):
-            notes.append("Yield limits reached; review diagnostics.")
-        if not mc["endpoints_stable"]:
-            notes.append("Uncertainty stability not established; increase simulations.")
-        if mc["failed_simulations"]:
-            notes.append("Uncertainty calculation incomplete; review failed fits.")
-        uncertainty_text += "\n".join(notes) + "\n"
+        uncertainty_text = "\n".join(monte_carlo_messages(uncertainty)) + "\n"
+        uncertainty_text += ("Included errors: reference spectra, NMR composition, irradiation input and kinetic fitting.\n"
+                             "The PSS reconstruction absorbance is held fixed.\n")
     elif uncertainty is not None:
         uncertainty_text = "Error: combined ε-range, fit, and irradiation-input sensitivity.\n"
     if data.photon_flux_mol_s is None:

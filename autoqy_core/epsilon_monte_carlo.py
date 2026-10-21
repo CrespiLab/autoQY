@@ -6,7 +6,9 @@ the same sampled reference peak. Physical reconstruction uses a nonnegative
 least-squares projection; signed measured PSS absorbance is never changed.
 """
 
+from contextlib import nullcontext
 from dataclasses import replace
+from pathlib import Path
 import warnings
 
 import numpy as np
@@ -75,13 +77,28 @@ def _scalar(frame, name):
     return float(values[0])
 
 
-def _reconstruction_sampler(frame, reference_frame, reference_axis):
-    required = {"Reactant_normalized", "PSS_normalized_to_reactant",
+def _reconstruction_sampler(frame, reference_frame, reference_axis, *,
+                            source_name="the reconstructed ε file"):
+    required = ("Reactant_normalized", "PSS_normalized_to_reactant",
                 "Reactant_reconstructed_M-1_cm-1", "Product_epsilon_raw_M-1_cm-1",
-                "Composition_uncertainty_percentage_points"}
-    if not required.issubset(frame):
-        raise ValueError("Monte Carlo needs the calibrated reconstruction and NMR composition "
-                         "uncertainty. Re-export it from Spectral Treatment, or choose ε ranges.")
+                "Composition_uncertainty_percentage_points")
+    missing = [name for name in required if name not in frame]
+    if missing:
+        composition_missing = "Composition_uncertainty_percentage_points" in missing
+        reconstruction_missing = any(name != "Composition_uncertainty_percentage_points" for name in missing)
+        absent = []
+        if composition_missing:
+            absent.append("the NMR composition error")
+        if reconstruction_missing:
+            absent.append("the saved calibration and reconstruction details")
+        raise ValueError(
+            f"Monte Carlo cannot use {source_name}: it is missing {' and '.join(absent)}. "
+            "In Spectral Treatment, open 4 · Reconstruction using the stable and PSS absorbance spectra "
+            "and the stable ε reference. Enter Composition error (± percentage points), "
+            "reconstruct and save the ε CSV, then load that new file in Analysis. "
+            "To use the ranges already saved in this file, select ε ranges instead. "
+            f"Missing CSV columns: {', '.join(missing)}."
+        )
     x = _column(frame, "Wavelength_nm", "NMR reconstruction")
     if x[0] < reference_axis[0] or x[-1] > reference_axis[-1]:
         raise ValueError("The shared reference does not cover the reconstructed spectrum")
@@ -156,8 +173,11 @@ def paired_epsilon_sampler(reactant, product, metric="sd"):
         assumptions.append("Legacy shared-reference association inferred from the saved calibration "
                            "scale and supplied reference; the original reference identity is not stored.")
     reference_sample = _reference_sampler(frames[reference_index], metric)
+    reconstruction_envelope = (reactant, product)[index]
+    role = "reactant" if index == 0 else "product"
     reconstruction_sample, fraction = _reconstruction_sampler(
-        frames[index], frames[reference_index], reference_envelope.wavelengths)
+        frames[index], frames[reference_index], reference_envelope.wavelengths,
+        source_name=f"the {role} ε file '{Path(reconstruction_envelope.source_path).name}'")
     assumptions.append(f"Shared calibration reused in both species; stable fraction in "
                        f"reconstruction PSS = {fraction:.10g}. Fixed normalized absorbance "
                        "curves; nonnegative least-squares subtraction for each draw.")
@@ -197,11 +217,41 @@ def _endpoint_error(samples, coverage, yield_bounds=(0, 1)):
 
 
 def run_monte_carlo(data, reactant, product, *, error_metric="sd", samples=256,
-                    seed=0, coverage=.95, tolerance=.005):
-    from .pipeline import run_analysis_pipeline
+                    seed=0, coverage=.95, tolerance=.005,
+                    checkpoint_directory=None, progress_callback=None):
+    from .monte_carlo_checkpoint import MonteCarloCheckpoint, checkpoint_key
 
     sample_pair, assumptions = paired_epsilon_sampler(reactant, product, error_metric)
+    checkpoint = (MonteCarloCheckpoint(checkpoint_directory,
+                  checkpoint_key(data, reactant, product, error_metric, seed))
+                  if checkpoint_directory is not None else nullcontext(None))
+    with checkpoint as saved:
+        return _run_monte_carlo(data, reactant, product, error_metric, samples, seed,
+                                coverage, tolerance, sample_pair, assumptions, saved,
+                                progress_callback)
+
+
+def _run_monte_carlo(data, reactant, product, error_metric, samples, seed,
+                     coverage, tolerance, sample_pair, assumptions, checkpoint,
+                     progress_callback):
+    from .pipeline import run_analysis_pipeline
+
     rng = np.random.default_rng(seed)
+    records, failures, attempted, rng_state = (checkpoint.load(samples) if checkpoint is not None
+                                              else ([], [], 0, None))
+    reused = attempted
+    if rng_state is not None:
+        rng.bit_generator.state = rng_state
+
+    def report(phase, **details):
+        if progress_callback is not None:
+            progress_callback({"kind": "monte_carlo", "phase": phase, "attempted": attempted,
+                               "successful": len(records), "failed": len(failures),
+                               "maximum": samples, "reused": reused, "fit_method": data.fit_method,
+                               "checkpoint_path": str(checkpoint.path) if checkpoint is not None else None,
+                               **details})
+
+    report("preparing")
     nominal = run_analysis_pipeline(data)
     if not nominal.yield_fit.optimizer_success:
         raise ValueError("The nominal kinetic fit failed; Monte Carlo cannot start")
@@ -212,11 +262,13 @@ def run_monte_carlo(data, reactant, product, *, error_metric="sd", samples=256,
     residuals = nominal.absorbance.T - model
     residuals -= residuals.mean(axis=0, keepdims=True)
     rows = np.searchsorted(data.wavelengths, nominal.wavelengths)
-    records, failures = [], []
-    attempted = 0
-    endpoint_error = np.full((2, 2), np.inf)
-    for iteration in range(samples):
+    endpoint_error = (_endpoint_error([r[0] for r in records], coverage, data.yield_bounds)
+                      if len(records) >= 128 else np.full((2, 2), np.inf))
+    already_stable = not failures and len(records) >= 128 and np.all(2 * endpoint_error <= tolerance)
+    report("running")
+    for iteration in (() if already_stable else range(attempted, samples)):
         attempted += 1
+        record, failure = None, None
         try:
             er, ep = sample_pair(rng)
             absorbance = data.absorbance.copy()
@@ -242,12 +294,19 @@ def run_monte_carlo(data, reactant, product, *, error_metric="sd", samples=256,
             fraction = np.divide(fit.concentrations[:, 0], total,
                                  out=np.zeros_like(total), where=total != 0)
             residual = trial.concentration_fit.fractions[:, 0] - fraction
-            records.append((fit.values, fit.standard_errors, fit.active_bounds,
-                            fit.jacobian_condition, trial.concentration_fit.concentrations,
-                            fit.concentrations, residual,
-                            _absorbance_residual_rmse(trial, data.path_length_cm)))
+            record = (fit.values, fit.standard_errors, fit.active_bounds,
+                      fit.jacobian_condition, trial.concentration_fit.concentrations,
+                      fit.concentrations, residual,
+                      _absorbance_residual_rmse(trial, data.path_length_cm))
         except (ValueError, RuntimeError, FloatingPointError, np.linalg.LinAlgError) as error:
-            failures.append(f"Simulation {iteration + 1}: {error}")
+            failure = f"Simulation {iteration + 1}: {error}"
+        if checkpoint is not None:
+            checkpoint.append(attempted, record, failure, rng.bit_generator.state)
+        if failure is None:
+            records.append(record)
+        else:
+            failures.append(failure)
+        report("running")
         if len(records) >= 128 and attempted % 64 == 0:
             endpoint_error = _endpoint_error([r[0] for r in records], coverage, data.yield_bounds)
             if not failures and np.all(2 * endpoint_error <= tolerance):
@@ -294,6 +353,8 @@ def run_monte_carlo(data, reactant, product, *, error_metric="sd", samples=256,
         boundary_fractions=bounds.mean(axis=0), random_seed=seed,
         converged=bool(not failures and len(records) >= 128 and np.all(2 * endpoint_error <= tolerance)),
         endpoint_mc_error=endpoint_error, scope=SCOPE, sampling_assumptions=assumptions,
-        failure_messages=tuple(failures),
+        failure_messages=tuple(failures), reused_samples=reused,
+        checkpoint_path=str(checkpoint.path) if checkpoint is not None else None,
     )
+    report("complete", converged=summary.converged)
     return replace(nominal, yield_errors=std, epsilon_uncertainty=summary)

@@ -72,6 +72,8 @@ class EpsilonUncertaintySummary:
     scope: str = ""
     sampling_assumptions: tuple[str, ...] = ()
     failure_messages: tuple[str, ...] = ()
+    reused_samples: int = 0
+    checkpoint_path: str | None = None
 
 
 def load_epsilon_envelope(path, error_metric="sd"):

@@ -246,3 +246,9 @@ button.info-popup { padding: 0; margin: 0; vertical-align: middle; }
 .diagnostic-content details { margin-top: 6px; color: #505661; }
 .diagnostic-content summary { cursor: pointer; }
 .diagnostic-item { align-items: flex-start; }
+
+
+.mc-progress:empty { display: none; }
+.mc-progress { display: grid; gap: 6px; margin-top: 12px; color: #354451; }
+.mc-progress progress { width: 100%; height: 14px; accent-color: #346aa9; }
+.mc-progress small { display: block; line-height: 1.4; }

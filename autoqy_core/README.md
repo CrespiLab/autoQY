@@ -101,10 +101,37 @@ The GUI and figures show the Monte Carlo mean ± standard uncertainty (1 SD).
 The error uses one significant digit, or two when it starts with 1 or 2; the
 mean uses the same decimal place. Detailed JSON retains the nominal fit,
 full-precision values, and asymmetric coverage interval. Diagnostics report failed fits, yield-limit
-hits, and interval stability. Increase **Maximum simulations** until the
-interval endpoints stabilize. The default limit is 256, with checks starting
-after 128 successful fits. A saved random seed makes the calculation reproducible.
+hits, and whether the uncertainty range has passed its stability check. Start
+with the default limit of 256 for a quick check. If all fits succeed but the
+range needs more simulations, set **Maximum simulations** to 4096 and run again.
+Keep the same random seed and other settings. The calculation checks the range
+after at least 128 successful fits and can stop early once it passes. More
+simulations improve the numerical estimate of the uncertainty. The kinetic
+solver reuses fixed wavelength weights and baseline projections to shorten
+repeated fits. A saved random seed makes the calculation reproducible.
 Detailed output includes `_uncertainty.csv` with the successful simulated yields.
+
+A live counter shows how many simulations have finished and how many were reused.
+Each completed simulation is saved automatically in `.autoqy-monte-carlo`
+inside the output folder. To continue a run, keep the same output folder,
+inputs, fit settings, and random seed, raise **Maximum simulations**, and
+press **Run analysis**. For example, increasing 256 to 4096 reuses the
+first 256 simulations. You can close and reopen the GUI between runs.
+An interrupted run continues from its last completed simulation.
+
+Changes to the input data, uncertainty inputs, fit method, or seed start
+a separate saved run. Coverage and precision settings can reuse the same
+draws. Saved runs are also separated when the calculation software changes.
+To update existing result files, enable **Allow replacing existing results** or
+choose a new **Output stem** while keeping the output folder.
+
+
+Older reconstructed ε exports may lack the saved NMR composition error. If
+Monte Carlo reports missing reconstruction information, reopen the stable
+and PSS absorbance spectra in **Spectral Treatment → 4 · Reconstruction**,
+add the stable ε reference, enter **Composition error (± percentage points)**,
+and reconstruct and save the ε CSV again. Load the new CSV in Analysis.
+**ε ranges** remains available for files that contain the lower and upper ε curves.
 
 The endpoint tolerance defaults to 0.005 in yield fraction (0.5 percentage
 points). The stability check uses batch estimates and binomial order-statistic

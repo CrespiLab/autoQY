@@ -140,8 +140,35 @@ class MonteCarloSamplingTests(unittest.TestCase):
 
     def test_missing_composition_error_does_not_become_zero(self):
         x, reference, derived = self.reconstruction()
-        with self.assertRaisesRegex(ValueError, 'composition uncertainty'):
+        with self.assertRaises(ValueError) as caught:
             _reconstruction_sampler(derived.drop(columns='Composition_uncertainty_percentage_points'), reference,x)
+        message = str(caught.exception)
+        self.assertIn('missing the NMR composition error', message)
+        self.assertIn('Composition error (± percentage points)', message)
+        self.assertIn('Missing CSV columns: Composition_uncertainty_percentage_points.', message)
+        self.assertIn('select ε ranges', message)
+
+    def test_incomplete_reconstruction_names_the_file_and_each_missing_detail(self):
+        x, reference, derived = self.reconstruction()
+        derived = derived.drop(columns=['Reactant_normalized', 'Composition_uncertainty_percentage_points'])
+        with TemporaryDirectory() as folder:
+            rp, dp = Path(folder)/'stable.csv', Path(folder)/'student-reconstruction.csv'
+            reference.to_csv(rp,index=False)
+            derived.to_csv(dp,index=False)
+            with self.assertRaises(ValueError) as caught:
+                paired_epsilon_sampler(load_epsilon_envelope(dp), load_epsilon_envelope(rp))
+        message = str(caught.exception)
+        self.assertIn("reactant ε file 'student-reconstruction.csv'", message)
+        self.assertIn('NMR composition error and the saved calibration', message)
+        self.assertIn('Missing CSV columns: Reactant_normalized, Composition_uncertainty_percentage_points.', message)
+
+    def test_bundled_older_reconstruction_reports_missing_composition_error(self):
+        from autoqy_core.epsilon_uncertainty import _read_epsilon_frame
+        folder = EXAMPLE
+        reference = load_epsilon_envelope(folder/'reactant_absorptivity.csv')
+        frame = _read_epsilon_frame(folder/'product_absorptivity.csv')
+        with self.assertRaisesRegex(ValueError, 'missing the NMR composition error'):
+            _reconstruction_sampler(frame, _read_epsilon_frame(reference.source_path), reference.wavelengths)
 
 
 class MonteCarloPipelineTests(unittest.TestCase):
@@ -218,7 +245,7 @@ class MonteCarloPipelineTests(unittest.TestCase):
         check = _epsilon_reliability_check(result)
         self.assertEqual(check['level'],'stop')
         self.assertIn('incomplete',check['body'])
-        self.assertIn('constraint-limited',check['body'])
+        self.assertIn('limits affect the uncertainty range',check['body'])
 
     def test_exports_show_coverage_scope_and_simulations(self):
         summary = result_summary(self.output,self.data,395)
@@ -239,8 +266,8 @@ class MonteCarloPipelineTests(unittest.TestCase):
             stem = Path(folder)/'results'
             write_results(stem.with_suffix('.txt'),self.output,self.data,395)
             text = stem.with_suffix('.txt').read_text(encoding='utf-8')
-            self.assertIn('PSS reconstruction absorbance is fixed',text)
-            self.assertIn('not established',text)
+            self.assertIn('PSS reconstruction absorbance is held fixed',text)
+            self.assertIn('Set Maximum simulations to 4096 and run again',text)
             paths = write_detailed_data(stem,self.output,self.data)
             self.assertEqual(len(paths),3)
             self.assertEqual(len(pd.read_csv(paths[-1])),32)

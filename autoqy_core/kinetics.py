@@ -92,6 +92,8 @@ def fit_quantum_yields_ode_absorbance(
     )
     wavelengths_m, irradiation_epsilon_r, irradiation_epsilon_p, photons = irradiation
     absorbance_scale = max(float(np.max(np.abs(target))), np.finfo(float).eps)
+    epsilon = np.vstack((epsilon_r, epsilon_p)) * path_length_cm
+    baseline_basis = _baseline_basis(wavelengths_nm, baseline_order)
 
     def evaluate(values, return_model=False):
         yields = values[:2]
@@ -102,8 +104,9 @@ def fit_quantum_yields_ode_absorbance(
             irradiation_epsilon_r, irradiation_epsilon_p,
             path_length_cm, photons, volume_ml, thermal_rate, thermal_forward_rate,
         )
-        model = concentrations @ np.vstack((epsilon_r, epsilon_p)) * path_length_cm
-        correction = _baseline_correction(target - model, wavelengths_nm, baseline_order)
+        model = concentrations @ epsilon
+        delta = target - model
+        correction = (delta @ baseline_basis) @ baseline_basis.T
         if return_model:
             return yields, concentrations, correction
         return ((model + correction - target) / absorbance_scale).ravel()
@@ -274,23 +277,49 @@ def extrapolate_photostationary_state(
     )
 
 
-def _baseline_correction(delta, wavelengths_nm, order):
-    if order < 0:
-        return np.zeros_like(delta)
+def _baseline_basis(wavelengths_nm, order):
     coordinate = np.asarray(wavelengths_nm, float)
+    if order < 0:
+        return np.empty((len(coordinate), 0))
     span = np.ptp(coordinate)
     coordinate = ((coordinate - coordinate.mean()) / span
                   if span > 0 else np.zeros_like(coordinate))
     design = np.column_stack([coordinate ** degree for degree in range(order + 1)])
-    coefficients = np.linalg.lstsq(design, delta.T, rcond=None)[0]
-    return (design @ coefficients).T
+    # Retain only independent columns, including a constant wavelength axis.
+    u, singular, _ = np.linalg.svd(design, full_matrices=False)
+    rank = np.sum(singular > singular[0] * max(design.shape) * np.finfo(float).eps)
+    return u[:, :rank]
+
+
+def _baseline_correction(delta, wavelengths_nm, order):
+    basis = _baseline_basis(wavelengths_nm, order)
+    return (delta @ basis) @ basis.T
 
 
 def _solve(yields, initial, timestamps, wavelengths_m, epsilon_r, epsilon_p,
            path_length_cm, photons, volume_ml, thermal_rate, thermal_forward_rate=0):
-    args = (wavelengths_m, *yields, epsilon_r, epsilon_p, path_length_cm,
-            photons, volume_ml, thermal_rate, thermal_forward_rate)
-    return odeint(_rates, initial, timestamps, args=args)
+    # Trapezoidal integration is a weighted sum. Its wavelength weights and
+    # irradiation factors stay fixed throughout each ODE solve.
+    if len(wavelengths_m) == 1:
+        weights = np.ones(1)
+    else:
+        steps = np.diff(wavelengths_m) / 2
+        weights = np.r_[steps, 0] + np.r_[0, steps]
+    weights = weights * photons / volume_ml
+    forward = yields[0] * epsilon_r
+    backward = yields[1] * epsilon_p
+
+    def rates(concentrations, _):
+        reactant, product = concentrations
+        species = reactant * epsilon_r + product * epsilon_p
+        absorbed_fraction = 1 - 10 ** (-path_length_cm * species)
+        per_species = np.divide(absorbed_fraction, species,
+                                out=np.zeros_like(species), where=species != 0)
+        change = np.dot((product * backward - reactant * forward) * per_species, weights)
+        change += thermal_rate * product - thermal_forward_rate * reactant
+        return change, -change
+
+    return odeint(rates, initial, timestamps)
 
 
 def _rates(concentrations, _, wavelengths_m, yield_rp, yield_pr,

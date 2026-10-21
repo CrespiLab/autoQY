@@ -371,8 +371,26 @@ Monte Carlo shows the mean ± standard uncertainty (1 SD). The error uses
 one significant digit, or two when it starts with 1 or 2, and the mean uses
 the same decimal place. The detailed results include the coverage interval,
 yield-limit counts, and stability checks. If it asks for
-more simulations, raise **Maximum simulations**. The saved random seed lets you
-repeat the same calculation. A large interval can still reflect limited
+more simulations, set **Maximum simulations** to 4096 and run again, keeping
+the other settings unchanged. It can stop early when the uncertainty range passes
+its check. The default 256 is useful for a quick first run.
+
+A live counter shows how many simulations have finished and how many were reused.
+Each completed simulation is saved automatically in `.autoqy-monte-carlo`
+inside the output folder. To continue a run, keep the same output folder,
+inputs, fit settings, and random seed, raise **Maximum simulations**, and
+press **Run analysis**. For example, increasing 256 to 4096 reuses the
+first 256 simulations. You can close and reopen the GUI between runs.
+An interrupted run continues from its last completed simulation.
+
+Changes to the input data, uncertainty inputs, fit method, or seed start
+a separate saved run. Coverage and precision settings can reuse the same
+draws. Saved runs are also separated when the calculation software changes.
+To update existing result files, enable **Allow replacing existing results** or
+choose a new **Output stem** while keeping the output folder.
+
+The saved random seed
+lets you repeat the same calculation. A large interval can still reflect limited
 experimental information. Check its size, stability, and fit diagnostics together.
 
 ### 6 · Output and the analysis buttons
@@ -409,6 +427,13 @@ two yields with the reaction directions Φ R→P and Φ P→R.
 The shaded band around the fraction residual shows a pointwise Monte Carlo
 coverage interval (95% by default), or the variation across the tested ε curves
 when using **ε ranges**.
+
+Older reconstructed ε exports may lack the saved NMR composition error. If
+Monte Carlo reports missing reconstruction information, reopen the stable
+and PSS absorbance spectra in **Spectral Treatment → 4 · Reconstruction**,
+add the stable ε reference, enter **Composition error (± percentage points)**,
+and reconstruct and save the ε CSV again. Load the new CSV in Analysis.
+**ε ranges** remains available for files that contain the lower and upper ε curves.
 
 The **Fraction residual** is measured reactant fraction minus fitted fraction.
 The absorbance residual map uses a color scale centered on zero, so opposite

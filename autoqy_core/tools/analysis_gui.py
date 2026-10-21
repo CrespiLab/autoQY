@@ -21,7 +21,7 @@ from ..gui_window import serve_gui
 from ..input_restore import restore_embedded_inputs
 from ..io import load_spectra, load_spectrum, load_timestamps
 from ..output import (format_scientific_value_uncertainty,
-                      format_value_uncertainty, quantum_yield_values, result_summary)
+                      format_value_uncertainty, monte_carlo_messages, quantum_yield_values, result_summary)
 from ..plot_style import (PLOT_BLUE, PLOT_BROWN, PLOT_NEUTRAL,
                           PLOT_ORANGE, PLOT_PURPLE)
 from ..version import get_project_version
@@ -53,6 +53,13 @@ def create_app():
     window_state = {"close_requested_at": None, "last_heartbeat_at": None}
     window_lock = Lock()
     app.server.config["AUTOQY_WINDOW_STATE"] = (window_state, window_lock)
+    progress_state, progress_lock = {}, Lock()
+    app.server.config["AUTOQY_MC_PROGRESS"] = (progress_state, progress_lock)
+
+    def report_progress(update):
+        with progress_lock:
+            progress_state.update(update)
+            progress_state["active"] = True
 
     @app.server.post("/_autoqy_analysis_heartbeat")
     def autoqy_heartbeat():
@@ -364,19 +371,23 @@ def create_app():
                                                  ("sem", "Standard error")), "sd"),
                     html.Details(className="nested-tool", children=[
                         html.Summary(["Monte Carlo settings", info_popup(
-                            "Results show the mean ± one standard uncertainty. A 95% interval is also "
-                            "saved in detailed data. Simulations can stop after 128 "
-                            "successful fits if the endpoints stabilize; otherwise they continue to the "
-                            "chosen limit. The seed makes repeated runs reproducible. Power and NMR "
-                            "uncertainties are treated as one standard uncertainty."
+                            "Results show the mean ± estimated error (1 SD). The shaded band shows "
+                            "the uncertainty range, with 95% coverage by default. The calculation checks "
+                            "this range after at least 128 successful simulations and can stop early "
+                            "when it passes. If more simulations are needed, the results suggest a "
+                            "higher maximum. Keeping the same random seed lets you repeat a run. "
+                            "Enter power and NMR errors as 1 SD."
                         )]),
                         pair("Maximum simulations", number("mc_samples", 256, min=32, step=1),
                              "Random seed", number("mc_seed", 0, min=0, step=1)),
                         pair("Coverage probability", number("mc_coverage", .95, min=.5, max=.999, step=.01),
                              "Endpoint tolerance (yield fraction)",
                              number("mc_tolerance", .005, min=.00001, step=.001)),
-                        html.Small("PSS reconstruction absorbance stays fixed. Failed fits, yield limits, "
-                                   "and interval stability are reported with the results.", className="helper-text"),
+                        html.Small("Start with 256 simulations for a quick check. If the results ask for more, "
+                                   "try 4096. Completed simulations are saved in the output folder and reused on the next run. "
+                                   "Keep that folder and the same inputs and seed to continue, even after reopening the GUI. "
+                                   "The calculation can stop early once the uncertainty range passes its check.",
+                                   className="helper-text"),
                     ]),
                 ]),
                 html.Details(open=False, className="panel tool-details", children=[
@@ -423,6 +434,9 @@ def create_app():
                     ),
                     html.Button("Compare fit methods", id="compare-fit-methods", n_clicks=0,
                                 className="button button-secondary"),
+                    html.Div(id="analysis-mc-progress", className="mc-progress",
+                             role="status", **{"aria-live": "polite"}),
+                    dcc.Interval(id="analysis-progress-poll", interval=500, n_intervals=0),
                     dcc.Loading(html.Div(id="analysis-action-message", className="message"),
                                 type="circle"),
                 ]),
@@ -671,6 +685,13 @@ def create_app():
         except Exception as error:
             return f"Could not open Spectral Treatment: {error}"
 
+    @app.callback(Output("analysis-mc-progress", "children"),
+                  Input("analysis-progress-poll", "n_intervals"))
+    def update_progress(_):
+        with progress_lock:
+            snapshot = dict(progress_state)
+        return _monte_carlo_progress_view(html, snapshot)
+
     @app.callback(
         Output("analysis-action-message", "children"),
         Output("analysis-action-message", "className"),
@@ -694,6 +715,8 @@ def create_app():
         State({"type": "analysis-field", "name": ALL}, "value"),
         State({"type": "analysis-field", "name": ALL}, "id"),
         State("analysis-embedded-inputs", "data"),
+        running=[(Output("run-analysis", "disabled"), True, False),
+                 (Output("compare-fit-methods", "disabled"), True, False)],
         prevent_initial_call=True,
     )
     def analyze(_, __, ___, current_values, field_ids, embedded):
@@ -710,6 +733,12 @@ def create_app():
             _empty_figure(go, "Run analysis to display this plot"),
         ]
         blank_comparison = ""
+        action = ctx.triggered_id
+        tracks_progress = action in {"run-analysis", "compare-fit-methods"}
+        if tracks_progress:
+            with progress_lock:
+                progress_state.clear()
+                progress_state.update(active=True, kind="analysis", phase="preparing")
         try:
             document = _configuration(values, embedded)
             base = Path(values.get("config_folder") or Path.cwd()).expanduser().resolve()
@@ -747,7 +776,7 @@ def create_app():
             if action == "compare-fit-methods":
                 with warnings.catch_warnings(record=True) as caught_warnings:
                     warnings.simplefilter("always")
-                    comparison = _compare_fit_methods(config)
+                    comparison = _compare_fit_methods(config, progress_callback=report_progress)
                 warning_text = "\n".join(
                     f"{item.category.__name__}: {item.message}"
                     for item in caught_warnings
@@ -765,7 +794,7 @@ def create_app():
                 warnings.simplefilter("always")
                 from ..runner import run_analysis
 
-                output = run_analysis(config)
+                output = run_analysis(config, progress_callback=report_progress)
             summary = result_summary(
                 output.result, output.data,
                 document["experiment"]["irradiation_wavelength_nm"],
@@ -811,14 +840,48 @@ def create_app():
                     files, warning_text)
         except Exception as error:
             message = f"{type(error).__name__}: {error}"
+            if tracks_progress:
+                with progress_lock:
+                    progress_state["phase"] = "stopped"
             return ("Analysis stopped. See Python errors.",
                     "message status-message status-stop", blank_card, blank_back, blank_pss,
                     blank_fit,
                     *blank_figures,
                     _render_checks(html, [{"level": "stop", "title": "Stopped", "body": message}]),
                     True, blank_comparison, "No files were generated.", message)
+        finally:
+            if tracks_progress:
+                with progress_lock:
+                    progress_state["active"] = False
 
     return app
+
+
+def _monte_carlo_progress_view(html, state):
+    if state.get("kind") != "monte_carlo":
+        return "Running analysis…" if state.get("active") else ""
+    attempted, maximum = state["attempted"], state["maximum"]
+    method = _method_label(state["fit_method"])
+    phase = state.get("phase")
+    title = ("Preparing Monte Carlo" if phase == "preparing" else
+             "Monte Carlo finished" if phase == "complete" else
+             "Monte Carlo stopped" if phase == "stopped" else "Monte Carlo running")
+    details = [f"{state['successful']} successful"]
+    if state.get("reused"):
+        details.append(f"{state['reused']} reused from saved simulations")
+    if state.get("failed"):
+        details.append(f"{state['failed']} failed")
+    saved = ("Completed simulations are saved. Raising the limit continues this run."
+             if state.get("checkpoint_path") else "")
+    counter = (f"{attempted} simulations completed · maximum {maximum}" if phase == "complete"
+               else f"{attempted} of {maximum} simulations completed")
+    if phase == "complete" and state.get("converged"):
+        details.append("uncertainty range checked")
+    return [html.Strong(f"{title} · {method}"),
+            html.Div(counter),
+            html.Progress(value=attempted, max=max(attempted, 1) if phase == "complete" else maximum,
+                          **{"aria-label": "Completed Monte Carlo simulations"}),
+            html.Small(" · ".join(details)), html.Small(saved)]
 
 
 def _complement_percent(value):
@@ -1586,28 +1649,16 @@ def _epsilon_reliability_check(result):
 
 
 def _monte_carlo_reliability_check(u):
-    level = "ok"
-    messages = [f"{u.bound_combination_count} successful fits from {u.attempted_samples} simulations. "
-                "Reported errors are one standard uncertainty (1 SD)."]
-    if not u.converged:
-        level = "warning"
-        messages.append("Interval stability was not established. Increase the simulation limit; "
-                        "do not treat the displayed endpoints as final.")
-    if np.any(u.boundary_fractions):
-        level = "warning"
-        messages.append(f"Yield limits reached in {u.boundary_fractions[0]:.1%} of R→P fits "
-                        f"and {u.boundary_fractions[1]:.1%} of P→R fits. "
-                        "The affected interval is constraint-limited.")
-    if u.failed_samples:
-        level = "stop"
-        messages.append(f"{u.failed_samples} simulations failed. The reported interval is incomplete.")
+    level = "stop" if u.failed_samples else (
+        "warning" if not u.converged or np.any(u.boundary_fractions) else "ok")
+    messages = monte_carlo_messages(u)
     if np.any(~np.isfinite(u.bound_jacobian_conditions)) or np.any(u.bound_jacobian_conditions > 1e8):
         level = "stop"
         messages.append("Some simulated fits cannot reliably separate the quantum yields.")
-    check = _check(level, "Monte Carlo uncertainty", " ".join(messages) + " " + u.scope)
+    check = _check(level, "Monte Carlo uncertainty", " ".join(messages))
     check["details"] = (f"Seed {u.random_seed}. Largest estimated endpoint sampling error "
                         f"{np.max(u.endpoint_mc_error) * 100:.3g} percentage points. "
-                        + " ".join(u.sampling_assumptions)
+                        + u.scope + " " + " ".join(u.sampling_assumptions)
                         + " ".join(u.failure_messages[:5]))
     return check
 
@@ -1659,7 +1710,7 @@ def _transition_time(times, values, fraction=0.95):
     return float(times[indices[0]]) if len(indices) else None
 
 
-def _compare_fit_methods(config):
+def _compare_fit_methods(config, *, progress_callback=None):
     from ..runner import run_analysis
 
     methods = ("ode_absorbance", "concentrations", "emission")
@@ -1671,8 +1722,13 @@ def _compare_fit_methods(config):
             for name in ("write_text", "write_figures", "write_json", "write_config",
                          "write_detailed_data"):
                 values["outputs"][name] = False
+            options = {}
+            if progress_callback is not None:
+                options["progress_callback"] = progress_callback
+            if values.get("uncertainty", {}).get("epsilon", {}).get("method") == "monte_carlo":
+                options["checkpoint_directory"] = config.resolve(values["outputs"]["directory"]) / ".autoqy-monte-carlo"
             output = run_analysis(
-                AnalysisConfig(values, config.base_directory, config.source), temporary
+                AnalysisConfig(values, config.base_directory, config.source), temporary, **options
             )
             result, data = output.result, output.data
             measured_fraction = result.concentration_fit.fractions[:, 0]
@@ -1966,7 +2022,7 @@ def _fit_note(summary):
     if uncertainty and uncertainty["method"] == "monte_carlo":
         mc = summary["monte_carlo"]
         return (f"{mc['successful_simulations']} Monte Carlo fits · "
-                + ("interval stable" if mc["endpoints_stable"] else "increase simulations"))
+                + ("uncertainty range checked" if mc["endpoints_stable"] else "review uncertainty check"))
     return (f"{uncertainty['bound_combination_count']} ε combinations"
             if uncertainty else "Power + optimizer uncertainty")
 

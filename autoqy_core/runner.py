@@ -23,7 +23,7 @@ class RunOutput:
     data: object | None = None
 
 
-def run_analysis(config, output_directory=None):
+def run_analysis(config, output_directory=None, *, progress_callback=None, checkpoint_directory=None):
     if not isinstance(config, AnalysisConfig):
         config = load_config(config)
     validate_config(config)
@@ -114,6 +114,10 @@ def run_analysis(config, output_directory=None):
             seed=epsilon_settings.get("seed", 0),
             coverage=epsilon_settings.get("coverage_probability", .95),
             tolerance=epsilon_settings.get("endpoint_tolerance", .005),
+            checkpoint_directory=(checkpoint_directory if checkpoint_directory is not None else
+                (Path(output_directory) if output_directory else config.resolve(values["outputs"]["directory"]))
+                / ".autoqy-monte-carlo"),
+            progress_callback=progress_callback,
         )
     elif epsilon_envelopes:
         result = run_with_epsilon_uncertainty(data, *epsilon_envelopes, error_metric=epsilon_metric)
