@@ -18,6 +18,7 @@ from ..config import (AnalysisConfig, input_format, load_config, validate_config
                       self_contained_document)
 from ..epsilon_uncertainty import load_epsilon_nominal
 from ..gui_window import serve_gui
+from ..input_restore import restore_embedded_inputs
 from ..io import load_spectra, load_spectrum, load_timestamps
 from ..output import (format_scientific_value_uncertainty,
                       format_value_uncertainty, result_summary)
@@ -200,10 +201,16 @@ def create_app():
                                   html.Span("JSON and tools"),
                                   info_popup(
                                       "Load or save analysis.json and open Spectral Treatment. "
+                                      "Restore input files as CSV recovers data stored inside a loaded JSON, "
+                                      "including ε errors and timestamp events, to a folder you choose. "
+                                      "Existing files are kept; new copies get a numbered filename. "
                                       "Relative input and output paths are resolved from the selected JSON base folder."
                                   )]),
                     html.Button("Load existing analysis.json", id="load-analysis-json",
                                 n_clicks=0, className="button button-secondary"),
+                    html.Button("Restore input files as CSV…", id="restore-analysis-inputs",
+                                n_clicks=0, disabled=True, className="button button-secondary"),
+                    html.Div(id="restore-analysis-message", className="message"),
                     html.Label("JSON base folder"),
                     html.Div(className="path-row", children=[
                         field("config_folder", type="text", value=default_folder),
@@ -307,7 +314,7 @@ def create_app():
                         ("ode_absorbance", "Full spectrum ODE"),
                         ("concentrations", "Concentrations (legacy pure NNLS)"),
                         ("emission", "Emission (legacy)"),
-                    ), "concentrations"),
+                    ), "ode_absorbance"),
                     html.Details(className="nested-tool", children=[
                         html.Summary(["Expert optimizer settings", info_popup(
                             "Change the optimizer's initial quantum-yield guesses and shared bounds. "
@@ -455,7 +462,7 @@ def create_app():
                         dcc.Tab(label="Preprocessing", value="spectra",
                                 children=[analysis_graph(
                                     "spectra-figure",
-                                    "Load the spectra, epsilon references, and LED to preview them",
+                                    "Load any measurement spectra, ε reference, or LED to preview it",
                                     900,
                                 )]),
                         dcc.Tab(label="Endpoint reconstruction", value="input-compatibility",
@@ -552,6 +559,36 @@ def create_app():
         return [values.get(item["name"]) for item in field_ids], message, embedded
 
     @app.callback(
+        Output("restore-analysis-inputs", "disabled"),
+        Input("analysis-embedded-inputs", "data"),
+    )
+    def allow_input_restore(embedded):
+        return not bool(embedded)
+
+    @app.callback(
+        Output("restore-analysis-message", "children"),
+        Input("restore-analysis-inputs", "n_clicks"),
+        State("analysis-embedded-inputs", "data"),
+        State({"type": "analysis-field", "name": "config_folder"}, "value"),
+        prevent_initial_call=True,
+    )
+    def restore_inputs(_, embedded, base_folder):
+        if not embedded:
+            return "Load a JSON with input data stored inside it first."
+        try:
+            selected = _choose_folder(base_folder)
+            if not selected:
+                return no_update
+            inputs = {name: item["input"] for name, item in embedded.items()}
+            inputs["formats"] = {name: item["format"] for name, item in embedded.items()}
+            config = AnalysisConfig({"inputs": inputs}, Path(base_folder or Path.cwd()))
+            paths = restore_embedded_inputs(config, selected)
+            return (f"Restored {len(paths)} CSV files to {Path(selected).resolve()}: "
+                    + ", ".join(path.name for path in paths.values()))
+        except Exception as error:
+            return f"Could not restore input files: {error}"
+
+    @app.callback(
         Output("analysis-json-preview", "value"),
         Input({"type": "analysis-field", "name": ALL}, "value"),
         State({"type": "analysis-field", "name": ALL}, "id"),
@@ -581,22 +618,20 @@ def create_app():
     @app.callback(
         Output("spectra-figure", "figure", allow_duplicate=True),
         Input({"type": "analysis-field", "name": ALL}, "value"),
+        Input("analysis-embedded-inputs", "data"),
         State({"type": "analysis-field", "name": ALL}, "id"),
-        State("analysis-embedded-inputs", "data"),
         prevent_initial_call=True,
     )
-    def preview_preprocessing(current_values, field_ids, embedded):
+    def preview_preprocessing(current_values, embedded, field_ids):
         values = dict(zip((item["name"] for item in field_ids), current_values))
         try:
-            document = _configuration(values, embedded)
+            document = _configuration(values, embedded, preprocessing_only=True)
             base = Path(values.get("config_folder") or Path.cwd()).expanduser().resolve()
             return _preprocessing_figure(
                 go, make_subplots, AnalysisConfig(document, base)
             )
-        except Exception:
-            return _empty_figure(
-                go, "Load the spectra, epsilon references, and LED to preview them"
-            )
+        except Exception as error:
+            return _empty_figure(go, f"Preprocessing settings need attention: {error}")
 
     @app.callback(
         Output("tool-message", "children"),
@@ -779,7 +814,7 @@ def _complement_percent(value):
     return 100.0 - value
 
 
-def _configuration(values, embedded=None):
+def _configuration(values, embedded=None, *, preprocessing_only=False):
     use_actinometer = _on(values, "chemical_actinometer")
     configured_inputs = tuple(
         item for item in (*SPECTRAL_INPUTS, TIMESTAMP_INPUT)
@@ -795,68 +830,86 @@ def _configuration(values, embedded=None):
                 header=_on(values, f"header_{name}"),
             )
         formats[name] = specification
-    document = {
-        "schema_version": 1,
-        "analysis": {
-            "id": values.get("analysis_id") or "",
-            "reactant_name": values.get("reactant_name") or "",
-            "product_name": values.get("product_name") or "",
-            "expected_pss_reactant_percent": _complement_percent(
-                values.get("expected_pss_product_percent")
-            ),
-        },
-        "inputs": {
-            **{name: values.get(name) or "" for name, _ in configured_inputs},
-            "formats": formats,
-        },
-        "experiment": {
-            "irradiation_source": ("chemical_actinometer" if use_actinometer
-                                   else "optical_power"),
-            "volume_ul": _volume_ul(values),
-            **({
-                "photon_flux_mol_s": values.get("photon_flux_mol_s"),
-                "photon_flux_error_mol_s": values.get("photon_flux_error_mol_s"),
-            } if use_actinometer else {
-                "power_mw": values.get("power_mw"),
-                "power_error_mw": values.get("power_error_mw"),
-            }),
-            "thermal_back_reaction_s_1": values.get("thermal_rate"),
-            "thermal_forward_reaction_s_1": values.get("thermal_forward_rate"),
-            "irradiation_wavelength_nm": values.get("irradiation_wavelength_nm"),
-            "path_length_cm": values.get("path_length_cm"),
-        },
-        "processing": {
-            "wavelength_range_nm": [values.get("wavelength_low"), values.get("wavelength_high")],
-            "led_smoothing": {"method": "savgol", "window_points": values.get("led_window"),
-                              "polynomial_order": values.get("led_order")},
-            "led_baseline": {"enabled": _on(values, "led_baseline"),
-                             "exclusion_fwhm_multiplier": values.get("baseline_multiplier")},
-        },
-        "fit": {
-            "method": values.get("fit_method"),
-            "emission_threshold_fraction": values.get("emission_threshold"),
-            "absorbance_baseline_order": values.get("absorbance_baseline_order"),
-            "robust_loss_scale": values.get("robust_loss_scale"),
-            "initial_quantum_yields": {"R_to_P": values.get("initial_rp"),
-                                        "P_to_R": values.get("initial_pr")},
-            "quantum_yield_bounds": {"minimum": values.get("yield_min"),
-                                      "maximum": values.get("yield_max")},
-        },
-        "plots": {"absorbance_residual_percentile": values.get("residual_percentile")},
-        "uncertainty": {"epsilon": {"method": values.get("epsilon_method"),
-                                      "error_metric": values.get("epsilon_metric")}},
-        "outputs": {
-            "directory": values.get("output_directory") or "results",
-            "stem": values.get("output_stem") or "",
-            "write_text": _on(values, "write_text"),
-            "write_figures": _on(values, "write_figures"),
-            "write_json": _on(values, "write_json"),
-            "write_config": _on(values, "write_config"),
-            "write_detailed_data": _on(values, "write_detailed"),
-            "overwrite": _on(values, "overwrite"),
-            "embed_inputs": _on(values, "embed_inputs"),
-        },
-    }
+    if preprocessing_only:
+        document = {
+            "schema_version": 1,
+            "inputs": {**{name: values.get(name) or "" for name, _ in configured_inputs},
+                       "formats": formats},
+            "experiment": {
+                "irradiation_source": "chemical_actinometer" if use_actinometer else "optical_power",
+                "irradiation_wavelength_nm": values.get("irradiation_wavelength_nm"),
+            },
+            "processing": {
+                "wavelength_range_nm": [values.get("wavelength_low"), values.get("wavelength_high")],
+                "led_smoothing": {"window_points": values.get("led_window"),
+                                  "polynomial_order": values.get("led_order")},
+                "led_baseline": {"enabled": _on(values, "led_baseline"),
+                                 "exclusion_fwhm_multiplier": values.get("baseline_multiplier")},
+            },
+        }
+    else:
+        document = {
+            "schema_version": 1,
+            "analysis": {
+                "id": values.get("analysis_id") or "",
+                "reactant_name": values.get("reactant_name") or "",
+                "product_name": values.get("product_name") or "",
+                "expected_pss_reactant_percent": _complement_percent(
+                    values.get("expected_pss_product_percent")
+                ),
+            },
+            "inputs": {
+                **{name: values.get(name) or "" for name, _ in configured_inputs},
+                "formats": formats,
+            },
+            "experiment": {
+                "irradiation_source": ("chemical_actinometer" if use_actinometer
+                                       else "optical_power"),
+                "volume_ul": _volume_ul(values),
+                **({
+                    "photon_flux_mol_s": values.get("photon_flux_mol_s"),
+                    "photon_flux_error_mol_s": values.get("photon_flux_error_mol_s"),
+                } if use_actinometer else {
+                    "power_mw": values.get("power_mw"),
+                    "power_error_mw": values.get("power_error_mw"),
+                }),
+                "thermal_back_reaction_s_1": values.get("thermal_rate"),
+                "thermal_forward_reaction_s_1": values.get("thermal_forward_rate"),
+                "irradiation_wavelength_nm": values.get("irradiation_wavelength_nm"),
+                "path_length_cm": values.get("path_length_cm"),
+            },
+            "processing": {
+                "wavelength_range_nm": [values.get("wavelength_low"), values.get("wavelength_high")],
+                "led_smoothing": {"method": "savgol", "window_points": values.get("led_window"),
+                                  "polynomial_order": values.get("led_order")},
+                "led_baseline": {"enabled": _on(values, "led_baseline"),
+                                 "exclusion_fwhm_multiplier": values.get("baseline_multiplier")},
+            },
+            "fit": {
+                "method": values.get("fit_method"),
+                "emission_threshold_fraction": values.get("emission_threshold"),
+                "absorbance_baseline_order": values.get("absorbance_baseline_order"),
+                "robust_loss_scale": values.get("robust_loss_scale"),
+                "initial_quantum_yields": {"R_to_P": values.get("initial_rp"),
+                                            "P_to_R": values.get("initial_pr")},
+                "quantum_yield_bounds": {"minimum": values.get("yield_min"),
+                                          "maximum": values.get("yield_max")},
+            },
+            "plots": {"absorbance_residual_percentile": values.get("residual_percentile")},
+            "uncertainty": {"epsilon": {"method": values.get("epsilon_method"),
+                                          "error_metric": values.get("epsilon_metric")}},
+            "outputs": {
+                "directory": values.get("output_directory") or "results",
+                "stem": values.get("output_stem") or "",
+                "write_text": _on(values, "write_text"),
+                "write_figures": _on(values, "write_figures"),
+                "write_json": _on(values, "write_json"),
+                "write_config": _on(values, "write_config"),
+                "write_detailed_data": _on(values, "write_detailed"),
+                "overwrite": _on(values, "overwrite"),
+                "embed_inputs": _on(values, "embed_inputs"),
+            },
+        }
     for name, item in (embedded or {}).items():
         if name in document["inputs"] and values.get(name) == item["label"]:
             document["inputs"][name] = deepcopy(item["input"])
@@ -1015,44 +1068,74 @@ def _physical_parameter_preview(values):
 
 def _preprocessing_figure(go, make_subplots, config):
     from ..spectra import monochromatic_emission, process_led
+    from html import escape
 
     values = config.values
     processing = values["processing"]
-    wavelengths, absorbance = load_spectra(
-        config.input_path("measurement_spectra"),
-        input_format(config, "measurement_spectra"),
-    )
+    issues = []
+
+    def read(name, label, loader):
+        if not values["inputs"].get(name):
+            return None
+        try:
+            return loader()
+        except Exception as error:
+            issues.append(f"{label}: {error}")
+            return None
+
+    measured = read("measurement_spectra", "Measurement spectra", lambda: load_spectra(
+        config.input_path("measurement_spectra"), input_format(config, "measurement_spectra")))
+    epsilon_r = read("reactant_absorptivity", "Reactant ε", lambda: _load_reference(config, "reactant_absorptivity"))
+    epsilon_p = read("product_absorptivity", "Product ε", lambda: _load_reference(config, "product_absorptivity"))
+    led = None
+    led_label = "Processed LED (normalized)"
     if values["experiment"].get("irradiation_source") == "chemical_actinometer":
-        led_wavelengths, led_processed = monochromatic_emission(
-            wavelengths, values["experiment"]["irradiation_wavelength_nm"]
-        )
+        try:
+            axis = (measured[0] if measured is not None else
+                    epsilon_r[0] if epsilon_r is not None else
+                    epsilon_p[0] if epsilon_p is not None else
+                    np.asarray(processing["wavelength_range_nm"], float))
+            led = monochromatic_emission(axis, values["experiment"]["irradiation_wavelength_nm"])
+        except (TypeError, ValueError) as error:
+            issues.append(f"Photon flux wavelength: {error}")
     else:
-        led_wavelengths, led_values = load_spectrum(
-            config.input_path("led_emission"), input_format(config, "led_emission")
-        )
-        smoothing = processing["led_smoothing"]
-        baseline = processing["led_baseline"]
-        led_processed = process_led(
-            led_wavelengths, led_values, baseline["enabled"],
-            smoothing["window_points"], smoothing["polynomial_order"],
-            baseline["exclusion_fwhm_multiplier"],
-        )
-    epsilon_r = _load_reference(config, "reactant_absorptivity")
-    epsilon_p = _load_reference(config, "product_absorptivity")
-    return _spectra_led_figure(
-        go, make_subplots, wavelengths, absorbance,
-        epsilon_r, epsilon_p, led_wavelengths, led_processed,
+        led = read("led_emission", "LED", lambda: load_spectrum(
+            config.input_path("led_emission"), input_format(config, "led_emission")))
+        if led is not None:
+            try:
+                smoothing, baseline = processing["led_smoothing"], processing["led_baseline"]
+                led = (led[0], process_led(
+                    *led, baseline["enabled"], smoothing["window_points"],
+                    smoothing["polynomial_order"], baseline["exclusion_fwhm_multiplier"]))
+            except Exception as error:
+                issues.append(f"LED processing: {error}. Showing the original LED.")
+                led_label = "Original LED (normalized; processing unavailable)"
+    figure = _spectra_led_figure(
+        go, make_subplots, *(measured if measured is not None else (None, None)),
+        epsilon_r, epsilon_p, *(led if led is not None else (None, None)),
         tuple(processing["wavelength_range_nm"]),
-        values["experiment"]["irradiation_wavelength_nm"],
+        values["experiment"].get("irradiation_wavelength_nm"), led_label=led_label,
     )
+    if issues:
+        from textwrap import wrap
+        lines = [line for message in issues for line in wrap(message[:280], width=100)]
+        figure.add_annotation(
+            text="<br>".join(escape(line) for line in lines),
+            x=0, y=-0.18, xref="paper", yref="paper", showarrow=False,
+            xanchor="left", yanchor="top", align="left", font={"size": 11, "color": "#a33f31"},
+        )
+        figure.update_layout(margin={"b": 100 + 20 * len(lines)})
+    return figure
 
 
 def _spectra_led_figure(go, make_subplots, wavelengths, absorbance,
                         epsilon_r, epsilon_p, led_wavelengths, led_values,
-                        wavelength_limits, irradiation_wavelength):
-    wavelengths = np.asarray(wavelengths, float)
-    absorbance = np.asarray(absorbance, float)
-    low, high = map(float, wavelength_limits)
+                        wavelength_limits, irradiation_wavelength, *,
+                        led_label="Processed LED (normalized)"):
+    wavelengths = np.asarray(wavelengths if wavelengths is not None else [], float)
+    absorbance = np.asarray(absorbance if absorbance is not None else np.empty((0, 0)), float)
+    low, high = (float(value) if value is not None else default
+                 for value, default in zip(wavelength_limits, (250, 800)))
     wavelength_mask = (wavelengths >= low) & (wavelengths <= high)
     if not np.any(wavelength_mask):
         wavelength_mask = np.ones_like(wavelengths, dtype=bool)
@@ -1069,6 +1152,8 @@ def _spectra_led_figure(go, make_subplots, wavelengths, absorbance,
         (epsilon_r, "Reactant ε", PLOT_BLUE),
         (epsilon_p, "Product ε", PLOT_ORANGE),
     ):
+        if reference is None:
+            continue
         figure.add_trace(go.Scatter(
             x=np.asarray(reference[0], float), y=np.asarray(reference[1], float),
             mode="lines", name=name, line={"color": colour, "width": 2.2},
@@ -1088,26 +1173,29 @@ def _spectra_led_figure(go, make_subplots, wavelengths, absorbance,
             line={"color": "rgba(108,114,128,0.38)", "width": 1},
             hovertemplate=f"spectrum={index + 1}<br>λ=%{{x:.1f}} nm<br>A=%{{y:.5g}}<extra></extra>",
         ), row=2, col=1)
-    figure.add_trace(go.Scatter(
-        x=display_wavelengths, y=display_absorbance[:, 0], mode="lines",
-        name="Initial spectrum", line={"color": PLOT_BLUE, "width": 2.4},
-    ), row=2, col=1)
+    if count:
+        figure.add_trace(go.Scatter(
+            x=display_wavelengths, y=display_absorbance[:, 0], mode="lines",
+            name="Initial spectrum", line={"color": PLOT_BLUE, "width": 2.4},
+        ), row=2, col=1)
     if count > 1:
         figure.add_trace(go.Scatter(
             x=display_wavelengths, y=display_absorbance[:, -1], mode="lines",
             name="Final spectrum", line={"color": PLOT_ORANGE, "width": 2.4},
         ), row=2, col=1)
 
-    led_wavelengths = np.asarray(led_wavelengths, float)
-    led_values = np.asarray(led_values, float)
-    led_scale = max(float(np.max(np.abs(led_values))), np.finfo(float).eps)
-    figure.add_trace(go.Scatter(
-        x=led_wavelengths, y=led_values / led_scale, mode="lines",
-        name="Processed LED (normalized)",
-        line={"color": PLOT_PURPLE, "width": 2},
-    ), row=1, col=1, secondary_y=True)
-    irradiation_wavelength = float(irradiation_wavelength)
-    if display_wavelengths[0] <= irradiation_wavelength <= display_wavelengths[-1]:
+    if led_values is not None:
+        led_wavelengths = np.asarray(led_wavelengths, float)
+        led_values = np.asarray(led_values, float)
+        led_scale = max(float(np.max(np.abs(led_values))), np.finfo(float).eps)
+        figure.add_trace(go.Scatter(
+            x=led_wavelengths, y=led_values / led_scale, mode="lines",
+            name=led_label, line={"color": PLOT_PURPLE, "width": 2},
+        ), row=1, col=1, secondary_y=True)
+    display_low = float(display_wavelengths[0]) if len(display_wavelengths) else low
+    display_high = float(display_wavelengths[-1]) if len(display_wavelengths) else high
+    if irradiation_wavelength is not None and display_low <= float(irradiation_wavelength) <= display_high:
+        irradiation_wavelength = float(irradiation_wavelength)
         figure.add_vline(
             x=irradiation_wavelength, line={"color": PLOT_BROWN, "dash": "dot"},
             annotation_text=f"Nominal {irradiation_wavelength:g} nm",
@@ -1123,8 +1211,7 @@ def _spectra_led_figure(go, make_subplots, wavelengths, absorbance,
                         row=1, col=1, secondary_y=True)
     figure.update_yaxes(title_text="Absorbance", row=2, col=1)
     figure.update_xaxes(title_text="Wavelength (nm)", row=2, col=1)
-    figure.update_xaxes(range=[float(display_wavelengths[0]),
-                               float(display_wavelengths[-1])])
+    figure.update_xaxes(range=[display_low, display_high])
     figure.update_layout(height=900, uirevision="preprocessing-preview")
     return figure
 
@@ -1148,7 +1235,10 @@ def _input_checks(config):
         input_format(config, "measurement_spectra"),
     )
     timestamps = load_timestamps(
-        config.input_path("timestamps"), input_format(config, "timestamps")
+        config.input_path("timestamps"), input_format(config, "timestamps"),
+        display_name=(config.values["inputs"]["timestamps"].get("filename")
+                      if isinstance(config.values["inputs"]["timestamps"], dict)
+                      else str(config.input_path("timestamps"))),
     )
     count_ok = absorbance.shape[1] == len(timestamps)
     checks.append(_check(

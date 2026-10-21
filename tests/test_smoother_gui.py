@@ -255,7 +255,7 @@ class SpectralGuiTests(unittest.TestCase):
         self.assertEqual(by_id["upload-spectra"].children.children, "Drop spectra or a saved session")
         helpers = [item for item in components if getattr(item, "className", None) == "info-popup"]
         topics = {item.to_plotly_json()["props"]["aria-label"]: item for item in helpers}
-        for topic in ("Load files", "Stable spectrum", "PSS spectrum", "Metastable percentage",
+        for topic in ("Spectral data", "Stable spectrum", "PSS spectrum", "Metastable percentage",
                       "Composition error", "ε reference", "Reference error", "Reconstruct", "Copy selection"):
             helper = topics[f"Help: {topic}"]
             self.assertIsInstance(helper, html.Button)
@@ -264,6 +264,10 @@ class SpectralGuiTests(unittest.TestCase):
             self.assertEqual(tooltip.role, "tooltip")
             self.assertEqual(helper.to_plotly_json()["props"]["aria-describedby"], tooltip.id)
         self.assertEqual(len({item.children[1].id for item in helpers}), len(helpers))
+        for removed in ("Load files", "Negative values in CSV", "Save CSV", "Save figures"):
+            self.assertNotIn(f"Help: {removed}", topics)
+        self.assertIn("One .aqys session", topics["Help: Spectral data"].children[1].children)
+        self.assertIn("one dialog for each", topics["Help: Save data, sessions and figures"].children[1].children)
         help_text = " ".join(str(item.children[1].children) for item in helpers)
         self.assertIn("same total concentration and path length", help_text)
         self.assertIn("They do not include PSS measurement error", help_text)
@@ -537,6 +541,14 @@ global.window = {Plotly: {
   assert.equal(captured.layout.title.text, 'Reconstructed ε');
   assert.equal(captured.layout.showlegend, true);
   assert.equal(captured.layout.yaxis.title.text, 'ε');
+  let nativeSave;
+  window.autoqySaveImage = async (filename, blob) => {nativeSave = {filename, blob}; return 'Saved in shared folder.';};
+  window.fetch = async () => ({blob: async () => ({type: 'image/png'})});
+  window.showSaveFilePicker = () => {throw new Error('Unexpected separate browser save dialog');};
+  const nativeMessage = await window.autoqyDownloadPlot('nmr-plot', figure, 'png', [], [], [], [], [], []);
+  assert.equal(nativeMessage, 'Saved in shared folder.');
+  assert.equal(nativeSave.filename, 'reconstructed.png');
+  assert.equal(nativeSave.blob.type, 'image/png');
 })().catch(error => {console.error(error); process.exitCode = 1;});
 """
         result = subprocess.run([shutil.which("node"), "-"], input=program,

@@ -195,12 +195,15 @@ def load_spectrum(path, format_spec="spectragryph_tsv"):
     return wavelengths, values[:, 0]
 
 
-def load_timestamps(path, format_spec="ahk_csv"):
+def load_timestamps(path, format_spec="ahk_csv", *, display_name=None):
     spec = _format_spec(format_spec)
     if spec["type"] == "ahk_csv":
         data = pd.read_csv(path, float_precision="round_trip")
-        event_column = _column(data, spec.get("event_column", "Event"))
-        time_column = _column(data, spec.get("time_column", "ElapsedTime (s)"))
+        try:
+            event_column = _column(data, spec.get("event_column", "Event"))
+            time_column = _column(data, spec.get("time_column", "ElapsedTime (s)"))
+        except ValueError as error:
+            raise _timestamp_header_error(path, data, error, display_name) from error
         events = data[event_column].astype(str)
         on = data.loc[events == "LEDon", time_column].to_numpy(float)
         off = data.loc[events == "LEDoff", time_column].to_numpy(float)
@@ -220,6 +223,28 @@ def load_timestamps(path, format_spec="ahk_csv"):
     if not len(timestamps) or not np.isfinite(timestamps).all():
         raise ValueError(f"No finite timestamps found in {path}")
     return timestamps
+
+
+def _timestamp_header_error(path, data, error, display_name=None):
+    """Identify the offending file and show what the AHK reader actually saw."""
+    line_number, header = 1, ", ".join(map(str, data.columns))
+    with Path(path).open(encoding="utf-8-sig", errors="replace") as stream:
+        for line_number, line in enumerate(stream, 1):
+            if line.strip():
+                header = line.strip()
+                break
+    header = header[:240] + ("…" if len(header) > 240 else "")
+    columns = " ".join(map(str, data.columns)).lower()
+    hint = ("This looks like an ε spectrum, not an irradiation log. "
+            if "epsilon" in columns or "wavelength" in columns else "")
+    return ValueError(
+        f"Cannot read irradiation timestamps from {str(display_name or path)!r}: {error}. "
+        f"Unexpected header at line {line_number}: {header!r}. "
+        "Inspect this file. Crespi group AHK CSV requires Event and ElapsedTime (s) "
+        "columns with LEDon, LEDoff, and Measure events. "
+        + hint + "Choose the irradiation log in the timestamps field. If the file "
+        "contains elapsed irradiation times rather than events, select Generic CSV instead."
+    )
 
 
 def _format_spec(value):

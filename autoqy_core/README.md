@@ -41,6 +41,11 @@ default browser. The version is shown in each window.
 
 ## What an analysis needs
 
+**Preprocessing** previews each measurement, ε reference, and LED as soon as
+it can be read. Missing or invalid inputs do not hide the other curves;
+messages identify the input that needs attention. All required inputs must
+still be correct before you can run the analysis.
+
 For the usual LED-and-power workflow, prepare:
 
 - absorption spectra measured during irradiation;
@@ -63,6 +68,14 @@ the inputs inside the saved JSON. You can then move it to another computer
 with a compatible AutoQY installation and choose a new results folder.
 Turn this option off to save links to the original input files instead.
 Use Browse to replace an input that was already embedded in a loaded JSON.
+
+To recover the stored files, load the JSON and click **Restore input files as
+CSV…** in **1 · Project**. Choose a folder for the CSV copies. All data columns
+are kept, including ε errors and timestamp events. Instrument formats are
+converted to tables. Files are named by their role (for example,
+`measurement_spectra.csv`); a number is added if that name already exists.
+You do not need the original files or to run the analysis. This option is
+available only when the loaded JSON contains input data, rather than just links.
 
 The output setting `write_config` separately saves a settings snapshot beside
 the results. With `embed_inputs: true`, saved configurations and result JSON
@@ -89,10 +102,11 @@ use `python -m autoqy_core` followed by the same arguments. The window shortcuts
 
 ## Choose and compare fitting methods
 
-Start with **Concentrations (legacy pure NNLS)**, then compare it with
-**Full spectrum ODE**. NNLS means non-negative least squares: recovered
-concentrations cannot be negative. ODE refers to the reaction model that
-describes how concentrations change over time.
+New analyses start with **Full spectrum ODE**, which fits the reaction model
+directly to the spectra. Loaded JSON files keep their saved method. Compare
+with **Concentrations (legacy pure NNLS)** to check agreement. NNLS means
+non-negative least squares: recovered concentrations cannot be negative.
+ODE refers to the reaction model describing how concentrations change over time.
 
 | Method in Analysis | JSON value | How it works |
 |---|---|---|
@@ -197,6 +211,12 @@ irradiation. These need not be the same.
 4. To reconstruct a pure metastable spectrum, select stable and mixture/PSS spectra,
    enter the metastable percentage, then click **Reconstruct**.
 5. In **5 · Output**, choose **Content to save**, then **Save CSV** or a figure format.
+
+The **Spectral data** information icon explains loading; the main Output
+information icon explains saving. Open and Save As dialogs share the latest
+folder you choose, including spectrum/session loading, ε references, CSV,
+sessions, and PNG/SVG figures. Clicking an upload box uses the same local file
+chooser as **Choose files**. Dragging files onto it still works.
 
 The [beginner guide](../BEGINNERS-GUIDE.md) explains each step. Keep SVD off for
 independently prepared ε samples so their differences remain visible.

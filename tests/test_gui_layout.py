@@ -136,7 +136,7 @@ class GuiLayoutTests(unittest.TestCase):
     def test_analysis_fit_options_and_default(self):
         app = create_analysis_app()
         methods = _by_id(app.layout, {"type": "analysis-field", "name": "fit_method"})
-        self.assertEqual(methods.value, "concentrations")
+        self.assertEqual(methods.value, "ode_absorbance")
         self.assertEqual(
             {option["value"]: option["label"] for option in methods.options},
             {

@@ -37,6 +37,8 @@ AutoQY reads SpectraGryph text and SPECORD binary `.dat`, Cary `.DSW/.BSW`,
 Avantes `.Abs8`, CSV, and TSV files.
 
 Files loaded together are sorted by name: `sample2` comes before `sample10`.
+The file chooser and all Save As dialogs open in the latest folder you chose,
+including when loading an ε reference or saving a figure.
 Loading more files adds them to the current set. **Clear all spectra** removes
 the current set from the window; it does not delete your files.
 
@@ -278,6 +280,11 @@ without also sending the original spectra, reference files, or timestamps.
 If you already have `analysis.json`, load it instead of filling everything again.
 Keep related input files in the same experiment folder.
 
+To get CSV copies of the data stored in a JSON, load it and click **Restore input
+files as CSV…** here. Choose where to save them. ε error columns and timestamp
+events are kept. Existing files are kept too; new copies get numbered names.
+The button becomes available when the JSON contains the input data itself.
+
 ### 2 · Identity and data
 
 Give the analysis a name, then choose:
@@ -323,13 +330,12 @@ need an LED file.
 
 ### 4 · Fit
 
-Start with **Concentrations (legacy pure NNLS)**. This finds the amounts of
-reactant and product independently at each time, then fits the photochemical
-reaction model to calculate quantum yields.
+New analyses use **Full spectrum ODE** by default. It fits the changing
+spectra directly to the reaction model, including the starting mixture and
+total concentration. Loading a JSON keeps that analysis's saved method.
 
-Compare it with **Full spectrum ODE**, which fits the changing spectra
-directly to the same reaction model, including the initial composition and
-total concentration. Check the concentration curves and spectral residuals
+Compare it with **Concentrations (legacy pure NNLS)**, which finds reactant
+and product amounts independently at each time, then fits the reaction model. Check the concentration curves and spectral residuals
 alongside the reported yields. **Emission (legacy)** is also
 available for reproducing older analyses.
 
@@ -375,7 +381,8 @@ A small reported error does not prove the analysis is right.
 Check these plots:
 
 - **Concentrations**: do the amounts change sensibly over time?
-- **Preprocessing**: does the LED emit where the compounds absorb?
+- **Preprocessing**: does the LED emit where the compounds absorb? Each valid
+  input appears as you load it, even while other inputs are missing or need correction.
 - **Endpoint reconstruction**: does the calculated final spectrum match the measured one?
 - **Absorbance residuals**: these are measured minus fitted absorbance.
   Clear bands or patterns can point to wrong references, a bad baseline, or another absorbing compound.

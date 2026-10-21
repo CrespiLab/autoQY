@@ -64,7 +64,10 @@ def run_analysis(config, output_directory=None):
             config.input_path("led_emission"), input_format(config, "led_emission")
         )
     timestamps = load_timestamps(
-        config.input_path("timestamps"), input_format(config, "timestamps")
+        config.input_path("timestamps"), input_format(config, "timestamps"),
+        display_name=(config.values["inputs"]["timestamps"].get("filename")
+                      if isinstance(config.values["inputs"]["timestamps"], dict)
+                      else str(config.input_path("timestamps"))),
     )
     _validate_loaded_data(wavelengths, absorbance, timestamps, epsilon_r, epsilon_p)
 

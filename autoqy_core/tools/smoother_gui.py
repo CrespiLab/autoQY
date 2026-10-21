@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import sys
 from threading import Lock
 import time
 import zlib
@@ -71,6 +72,13 @@ def create_app(recovery_file=None):
         recovered = None
         recovery_message = f"Recovery could not be read: {error}"
 
+    # All native open/save dialogs share the most recently selected folder.
+    save_state = {"folder": (recovered or {}).get("dialog_folder") or (recovered or {}).get("source")}
+
+    def remember_file(path):
+        if path:
+            save_state["folder"] = str(Path(path).resolve().parent)
+
     assets = Path(__file__).parents[1] / "assets"
     project_version = get_project_version()
     app = Dash(__name__, assets_folder=str(assets), suppress_callback_exceptions=True)
@@ -89,10 +97,34 @@ def create_app(recovery_file=None):
             with session_lock:
                 if snapshot.get("generation", generation) != generation:
                     return "Session replaced; reload this page.", 409
+                snapshot["dialog_folder"] = save_state["folder"]
                 recovery.write(snapshot)
         except (OSError, ValueError, TypeError):
             return "Autosave failed; check available disk space and permissions.", 500
         return "", 204
+
+    @app.server.post("/_autoqy_spectral_image")
+    def save_spectral_image():
+        from flask import jsonify, request
+
+        name = request.args.get("filename", "")
+        suffix = Path(name).suffix.lower()
+        if Path(name).name != name or suffix not in {".png", ".svg"}:
+            return jsonify(error="Choose a PNG or SVG image filename."), 400
+        payload = request.get_data()
+        valid = (payload.startswith(b"\x89PNG\r\n\x1a\n") if suffix == ".png"
+                 else b"<svg" in payload[:1000])
+        if not valid:
+            return jsonify(error="The plot could not be rendered as an image."), 400
+        try:
+            selected = _choose_save_file(name, save_state["folder"])
+            if not selected:
+                return jsonify(message="Save cancelled.")
+            remember_file(selected)
+            Path(selected).write_bytes(payload)
+            return jsonify(message=f"Saved {selected}")
+        except Exception as error:
+            return jsonify(error=f"Could not save image: {error}"), 500
 
     @app.server.post("/_autoqy_heartbeat")
     def autoqy_heartbeat():
@@ -137,6 +169,14 @@ def create_app(recovery_file=None):
     navigator.sendBeacon('/_autoqy_window_closed');
   });
   document.addEventListener('click', (event) => {
+    const upload = event.target.closest('#upload-spectra, #epsilon-reference-upload');
+    if (upload && window.autoqyUseNativeDialogs) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const button = upload.id === 'upload-spectra' ? 'open-local-spectra' : 'open-epsilon-reference';
+      document.getElementById(button)?.click();
+      return;
+    }
     const popup = event.target.closest('.info-popup');
     if (popup) {
       event.preventDefault();
@@ -174,6 +214,14 @@ def create_app(recovery_file=None):
     }
   });
 })();
+window.autoqySaveImage = window.autoqyUseNativeDialogs ? async (filename, blob) => {
+  const response = await window.fetch('/_autoqy_spectral_image?filename=' + encodeURIComponent(filename), {
+    method: 'POST', headers: {'Content-Type': blob.type}, body: blob
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'Image save failed.');
+  return result.message;
+} : null;
 window.autoqyDownloadPlot = (
   graphId, figure, format, includeTitle, includeLegend, originStyle, exportGrid,
   startYAtZero, includeAxisLabels
@@ -292,7 +340,7 @@ window.autoqyDownloadPlot = (
   const suggestedName = `${filename}${extension}`;
   const mimeType = format === 'svg' ? 'image/svg+xml' : 'image/png';
   let fileHandlePromise = null;
-  if (window.showSaveFilePicker) {
+  if (!window.autoqySaveImage && window.showSaveFilePicker) {
     try {
       fileHandlePromise = window.showSaveFilePicker({
         suggestedName,
@@ -319,6 +367,14 @@ window.autoqyDownloadPlot = (
     window.Plotly.purge(holder);
     holder.remove();
   });
+
+  if (window.autoqySaveImage) {
+    return renderImage()
+      .then((dataUrl) => window.fetch(dataUrl))
+      .then((response) => response.blob())
+      .then((blob) => window.autoqySaveImage(suggestedName, blob))
+      .catch((error) => `Could not save image: ${error.message || error}`);
+  }
 
   const saveImage = (fileHandle) => renderImage().then((dataUrl) => {
     if (!fileHandle) {
@@ -373,6 +429,13 @@ window.autoqySaveText = (filename, text, mimeType) => {
     .catch((error) => error?.name === 'AbortError' ? 'Save cancelled.' : 'Could not save CSV.');
 };
 </script></body></html>"""
+
+    # Keep the existing browser picker on platforms without Windows dialogs.
+    app.index_string = app.index_string.replace(
+        "window.autoqySaveImage =",
+        f"window.autoqyUseNativeDialogs = {str(sys.platform == 'win32').lower()};\nwindow.autoqySaveImage =",
+        1,
+    )
 
     def info_popup(text, topic="More information"):
         tooltip_id = f"spectral-help-{uuid4().hex}"
@@ -440,15 +503,17 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 html.Details(open=True, className="panel tool-details", children=[
                     html.Summary([html.Span("1 · Data", className="step-label"),
                                   "Spectral data", info_popup(
-                                      "Load one or more spectra. File types are detected automatically; "
-                                      "folder loading also makes the source folder the default export location."
+                                      "Drop files or click to choose them. Supports SpectraGryph, SPECORD, "
+                                      "Cary .DSW/.BSW, Avantes .Abs8, TSV and CSV; file types are detected "
+                                      "automatically. Spectra are added in natural filename order. "
+                                      "One .aqys session replaces the current session; load it on its own. "
+                                      "Open and save dialogs start in the most recently chosen folder.",
+                                      "Spectral data"
                                   )]),
-                    control_with_info(dcc.Upload(
+                    dcc.Upload(
                         id="upload-spectra", className="upload-box", multiple=True,
                         children=html.Div("Drop spectra or a saved session"),
-                    ), "Click to choose files. Supports SpectraGryph, SPECORD, Cary .DSW/.BSW, "
-                       "Avantes .Abs8, TSV and CSV. Spectra are added in natural filename order. "
-                       "One .aqys session replaces the current session; load it on its own.", "Load files"),
+                    ),
                     html.Button("Choose files", id="open-local-spectra",
                                 className="button button-secondary"),
                     html.Button("Clear all spectra", id="clear-dataset",
@@ -616,6 +681,7 @@ window.autoqySaveText = (filename, text, mimeType) => {
                             "Load an AutoQY ε CSV from triplicate stable-isomer measurements. "
                             "It converts the selected UV spectra to ε using one scale from the stable peak. "
                             "Only wavelengths found in both files are used. Main treatment is applied once.", "ε reference"),
+                        html.Button("Choose ε reference", id="open-epsilon-reference", style={"display": "none"}),
                         html.Div(id="epsilon-input-message", className="message"),
                         html.Button("Clear ε reference", id="clear-epsilon-inputs", className="button button-secondary"),
                         html.Label(["Reference error", info_popup(
@@ -647,7 +713,10 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                       "When every concentration and path length is provided, the CSV "
                                       "also contains individual ε spectra and their statistics. "
                                       "Choose CSV content here for reconstruction, slice, or NMR exports. "
-                                      "Save a binary session to resume treatment later."
+                                      "Save CSV opens a folder and filename dialog. Stable + reconstructed ε "
+                                      "saves two files, with one dialog for each. Save figures exports the "
+                                      "selected content as PNG or SVG using the image options. "
+                                      "Save a binary session to resume treatment later.", "Save data, sessions and figures"
                                   )]),
                     html.Label("Content to save"),
                     dcc.Dropdown(id="csv-export-kind", clearable=False, value="processed",
@@ -665,21 +734,15 @@ window.autoqySaveText = (filename, text, mimeType) => {
                                 "value": "on",
                             }],
                         ),
-                        info_popup("By default, negative values are kept. This option changes them "
-                                   "to zero in the saved CSV only.", "Negative values in CSV"),
                     ]),
-                    control_with_info(html.Button("Save CSV", id="export-epsilon",
+                    html.Button("Save CSV", id="export-epsilon",
                                 className="button button-primary", disabled=True),
-                        "Choose a folder and filename in the save dialog. Stable + reconstructed ε "
-                        "saves two files, with one dialog for each.", "Save CSV"),
                     html.Div(id="epsilon-save-message", className="message"),
                     html.Button("Save session (.aqys)", id="save-session",
                                 className="button button-secondary"),
                     html.Div(id="session-save-message", className="message"),
                     html.Details(className="nested-tool", children=[
-                        html.Summary(["Save figures", info_popup(
-                            "Save the Content to save selection as PNG or SVG. Image export options "
-                            "apply to both formats.", "Save figures")]),
+                        html.Summary("Save figures"),
                         image_export_options("include-plot-title", "include-plot-legend",
                                              "origin-epsilon-export", "show-epsilon-export-grid", "zero-epsilon-export-y"),
                         html.Div(className="plot-download-actions", children=[
@@ -949,8 +1012,6 @@ window.autoqySaveText = (filename, text, mimeType) => {
         app.layout = layout
         set_props("session-reload", {"href": f"/?session={generation}"})
 
-    save_state = {"folder": None}
-
     @app.callback(
         Output("session-save-message", "children"),
         Input("save-session", "n_clicks"),
@@ -976,8 +1037,9 @@ window.autoqySaveText = (filename, text, mimeType) => {
             if not selected:
                 return "Session save cancelled."
             destination = Path(selected)
+            remember_file(selected)
+            snapshot["dialog_folder"] = save_state["folder"]
             SpectralRecovery(destination).write(snapshot)
-            save_state["folder"] = str(destination.parent)
             return f"Saved session: {destination}"
         except Exception as error:
             return f"Session save failed: {error}"
@@ -1144,10 +1206,11 @@ window.autoqySaveText = (filename, text, mimeType) => {
 
         try:
             if ctx.triggered_id == "open-local-spectra":
-                paths = _choose_files()
+                paths = _choose_files(save_state["folder"])
                 if not paths:
                     return (existing_data, "File selection cancelled.", no_update,
                             no_update, "", no_update, kinetics_start)
+                remember_file(paths[0])
                 sessions = [path for path in paths if Path(path).suffix.lower() == ".aqys"]
                 if sessions:
                     if len(paths) != 1:
@@ -1615,13 +1678,33 @@ window.autoqySaveText = (filename, text, mimeType) => {
                 destination = Path(selected)
                 if str(destination) in saved:
                     raise ValueError("Choose different files for the stable and metastable CSVs")
+                remember_file(selected)
                 destination.write_text(text, encoding="utf-8")
-                save_state["folder"] = str(destination.parent)
                 saved.append(str(destination))
             return "Saved " + ", ".join(saved), ""
         except Exception as error:
             suffix = " Already saved: " + ", ".join(saved) if saved else ""
             return "Save failed." + suffix, f"Export error: {type(error).__name__}: {error}"
+
+    @app.callback(
+        Output("epsilon-reference-upload", "contents"),
+        Output("epsilon-reference-upload", "filename"),
+        Output("epsilon-input-message", "children", allow_duplicate=True),
+        Input("open-epsilon-reference", "n_clicks"), prevent_initial_call=True,
+    )
+    def choose_epsilon_reference(_):
+        try:
+            paths = _choose_files(save_state["folder"])
+            if not paths:
+                return no_update, no_update, "File selection cancelled."
+            remember_file(paths[0])
+            if len(paths) != 1:
+                return no_update, no_update, "Choose one stable ε reference file."
+            path = Path(paths[0])
+            content = base64.b64encode(path.read_bytes()).decode("ascii")
+            return f"data:text/csv;base64,{content}", path.name, ""
+        except Exception as error:
+            return no_update, no_update, f"ε reference could not be opened: {error}"
 
     @app.callback(
         Output("nmr-spectra-store", "data", allow_duplicate=True),
