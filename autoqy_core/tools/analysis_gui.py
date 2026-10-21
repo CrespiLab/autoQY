@@ -380,9 +380,9 @@ def create_app():
                         )]),
                         pair("Maximum simulations", number("mc_samples", 256, min=32, step=1),
                              "Random seed", number("mc_seed", 0, min=0, step=1)),
-                        pair("Coverage probability", number("mc_coverage", .95, min=.5, max=.999, step=.01),
+                        pair("Coverage probability", number("mc_coverage", .95, min=.5, max=1, step="any"),
                              "Endpoint tolerance (yield fraction)",
-                             number("mc_tolerance", .005, min=.00001, step=.001)),
+                             number("mc_tolerance", .005, min=0, step="any")),
                         html.Small("Start with 256 simulations for a quick check. If the results ask for more, "
                                    "try 4096. Completed simulations are saved in the output folder and reused on the next run. "
                                    "Keep that folder and the same inputs and seed to continue, even after reopening the GUI. "

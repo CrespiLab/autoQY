@@ -336,6 +336,52 @@ class MonteCarloConfigurationTests(unittest.TestCase):
         self.assertEqual({o['value'] for o in dropdown.options},
                          {'none','deterministic_extremes','monte_carlo'})
 
+    def test_browser_number_controls_accept_defaults_and_saved_positive_decimals(self):
+        from decimal import Decimal
+        def walk(root):
+            if isinstance(root,(list,tuple)):
+                for child in root: yield from walk(child)
+            else:
+                yield root
+                if getattr(root,'children',None) is not None:
+                    yield from walk(root.children)
+        controls = {component.id['name']:component for component in walk(create_app().layout)
+                    if isinstance(getattr(component,'id',None),dict)
+                    and component.id.get('type') == 'analysis-field'}
+        def browser_accepts(control,value):
+            # HTML number inputs use min as the step base when min is present.
+            numeric = Decimal(str(value))
+            minimum, maximum = getattr(control,'min',None),getattr(control,'max',None)
+            if minimum is not None and numeric < Decimal(str(minimum)): return False
+            if maximum is not None and numeric > Decimal(str(maximum)): return False
+            step = getattr(control,'step',1)
+            if step == 'any': return True
+            base = minimum if minimum is not None else getattr(control,'value',0)
+            steps = (numeric-Decimal(str(base)))/Decimal(str(step))
+            return steps == steps.to_integral_value()
+        document = json.loads((EXAMPLE/'analysis.json').read_text(encoding='utf-8'))
+        form = _form_values(document)  # Older ε-range JSON has no Monte Carlo fields.
+        self.assertEqual(form['mc_tolerance'],.005)
+        for tolerance in (.005,.002,.000001,.00035):
+            for coverage in (.95,.955,.9999):
+                with self.subTest(tolerance=tolerance,coverage=coverage):
+                    self.assertTrue(browser_accepts(controls['mc_tolerance'],tolerance))
+                    self.assertTrue(browser_accepts(controls['mc_coverage'],coverage))
+                    form.update(epsilon_method='monte_carlo',mc_tolerance=tolerance,mc_coverage=coverage)
+                    saved = _configuration(form)
+                    validate_config(AnalysisConfig(saved,EXAMPLE))
+                    self.assertEqual(_form_values(saved)['mc_tolerance'],tolerance)
+                    self.assertEqual(_form_values(saved)['mc_coverage'],coverage)
+
+    def test_empty_tolerance_has_a_useful_message_without_hiding_zero_or_negative_values(self):
+        document = json.loads((EXAMPLE/'analysis.json').read_text(encoding='utf-8'))
+        form = _form_values(document)
+        form['epsilon_method'] = 'monte_carlo'
+        for invalid in (None,0,-.001):
+            form['mc_tolerance'] = invalid
+            with self.assertRaisesRegex(ConfigError,'Endpoint tolerance greater than zero'):
+                validate_config(AnalysisConfig(_configuration(form),EXAMPLE))
+
     def test_invalid_mc_settings_are_rejected(self):
         baseline = json.loads((EXAMPLE/'analysis.json').read_text(encoding='utf-8'))
         for setting in ({'samples':True},{'samples':0},{'samples':32.5},{'seed':-1},

@@ -195,7 +195,8 @@ def validate_config(config):
                 errors.append("uncertainty.epsilon.coverage_probability must be at least 0.5 and below 1")
             tolerance = epsilon_settings.get("endpoint_tolerance", .005)
             if not _positive(tolerance) or not math.isfinite(tolerance):
-                errors.append("uncertainty.epsilon.endpoint_tolerance must be positive")
+                errors.append("Monte Carlo: enter an Endpoint tolerance greater than zero "
+                              "(default: 0.005, or 0.5 percentage points)")
 
     for name in ("volume_ul", "path_length_cm", "irradiation_wavelength_nm"):
         if not _positive(experiment[name]):
