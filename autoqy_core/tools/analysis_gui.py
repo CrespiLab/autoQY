@@ -53,6 +53,9 @@ def create_app():
     window_state = {"close_requested_at": None, "last_heartbeat_at": None}
     window_lock = Lock()
     app.server.config["AUTOQY_WINDOW_STATE"] = (window_state, window_lock)
+    # Server-owned action state survives a lost browser callback response.
+    action_lock = Lock()
+    app.server.config["AUTOQY_ANALYSIS_LOCK"] = action_lock
     progress_state, progress_lock = {}, Lock()
     app.server.config["AUTOQY_MC_PROGRESS"] = (progress_state, progress_lock)
 
@@ -693,6 +696,16 @@ def create_app():
         return _monte_carlo_progress_view(html, snapshot)
 
     @app.callback(
+        Output("run-analysis", "disabled"),
+        Output("compare-fit-methods", "disabled"),
+        Output("save-analysis-json", "disabled"),
+        Input("analysis-progress-poll", "n_intervals"),
+    )
+    def update_action_controls(_):
+        busy = action_lock.locked()
+        return busy, busy, busy
+
+    @app.callback(
         Output("analysis-action-message", "children"),
         Output("analysis-action-message", "className"),
         Output("result-rp", "children"),
@@ -715,11 +728,24 @@ def create_app():
         State({"type": "analysis-field", "name": ALL}, "value"),
         State({"type": "analysis-field", "name": ALL}, "id"),
         State("analysis-embedded-inputs", "data"),
+        # Disable immediately on a click; the independent poll also restores
+        # controls if the browser never receives this request's final response.
         running=[(Output("run-analysis", "disabled"), True, False),
-                 (Output("compare-fit-methods", "disabled"), True, False)],
+                 (Output("compare-fit-methods", "disabled"), True, False),
+                 (Output("save-analysis-json", "disabled"), True, False)],
         prevent_initial_call=True,
     )
     def analyze(_, __, ___, current_values, field_ids, embedded):
+        # The poll controls button state; this lock also guards the short gap
+        # before the next poll, and concurrent requests from another tab.
+        if not action_lock.acquire(blocking=False):
+            return (no_update,) * 16
+        try:
+            return perform_action(current_values, field_ids, embedded)
+        finally:
+            action_lock.release()
+
+    def perform_action(current_values, field_ids, embedded):
         values = dict(zip((item["name"] for item in field_ids), current_values))
         blank_card = [html.Span("R → P"), html.Strong("—"), html.Small("Quantum yield")]
         blank_back = [html.Span("P → R"), html.Strong("—"), html.Small("Quantum yield")]
