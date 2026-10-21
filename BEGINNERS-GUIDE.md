@@ -439,8 +439,11 @@ Check these plots:
 Concentration plots use blue for reactant and orange for product. Open circles
 show concentrations recovered from the spectra; solid lines show the fitted
 reaction model. **ε ranges** shows the variation across the tested ε curves.
-**Monte Carlo** reports mean ± standard uncertainty; detailed data includes the coverage intervals. The PNG and SVG exports identify the
-two yields with the reaction directions Φ R→P and Φ P→R.
+**Monte Carlo** reports mean ± standard uncertainty. Shaded bands around the
+concentration fits and error bars on recovered concentrations show pointwise
+coverage intervals (95% by default). Detailed data includes these intervals.
+The PNG and SVG exports identify the two yields with the reaction directions
+Φ R→P and Φ P→R.
 The shaded band around the fraction residual shows a pointwise Monte Carlo
 coverage interval (95% by default), or the variation across the tested ε curves
 when using **ε ranges**.

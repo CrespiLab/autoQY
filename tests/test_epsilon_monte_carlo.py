@@ -338,8 +338,55 @@ class MonteCarloPipelineTests(unittest.TestCase):
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
         figures = _interactive_figures(go,make_subplots,self.output,self.data,99,395)
-        self.assertEqual(figures[0].layout.title.text,'Concentration fit')
+        self.assertEqual(figures[0].layout.title.text,'Concentration fit · 95% intervals')
+        self.assertEqual(sum(t.fill == 'tonexty' for t in figures[0].data), 2)
+        self.assertEqual(sum(t.error_y.visible is True for t in figures[0].data), 2)
         self.assertTrue(any(t.name == '95% interval' and t.fill == 'tonexty' for t in figures[1].data))
+
+    def test_concentration_intervals_keep_both_endpoints_outside_nominal_data(self):
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        measured = self.output.concentration_fit.concentrations
+        fitted = self.output.yield_fit.concentrations
+        u = replace(self.output.epsilon_uncertainty,
+                    concentration_data_minimum=measured + 2e-6,
+                    concentration_data_maximum=measured + 4e-6,
+                    concentration_fit_minimum=fitted + 2e-6,
+                    concentration_fit_maximum=fitted + 4e-6)
+        result = replace(self.output, epsilon_uncertainty=u)
+        concentration = _interactive_figures(go, make_subplots, result, self.data, 99, 395)[0]
+        for index, species in enumerate(('Reactant', 'Product')):
+            bar = next(t for t in concentration.data if t.name == f'{species} data interval')
+            np.testing.assert_allclose(np.asarray(bar.y) - bar.error_y.arrayminus,
+                                       u.concentration_data_minimum[:, index])
+            np.testing.assert_allclose(np.asarray(bar.y) + bar.error_y.array,
+                                       u.concentration_data_maximum[:, index])
+            self.assertTrue(np.all(np.asarray(bar.error_y.arrayminus) >= 0))
+            self.assertTrue(np.all(np.asarray(bar.error_y.array) >= 0))
+            points = next(t for t in concentration.data if t.name == f'{species} data')
+            np.testing.assert_array_equal(points.y, measured[:, index])
+        captured = []
+        with TemporaryDirectory() as folder, \
+             patch('matplotlib.figure.Figure.savefig', side_effect=lambda *a, **k: captured.append(plt.gcf())):
+            write_figure(Path(folder)/'skewed', result, self.data)
+        axis = captured[0].axes[0]
+        self.assertEqual(axis.get_title(), 'Concentration fit · 95% intervals')
+        self.assertEqual(len(axis.containers), 2)
+        for index, bars in enumerate(axis.containers):
+            segments = np.asarray(bars.lines[2][0].get_segments())
+            np.testing.assert_allclose(segments[:, 0, 1], u.concentration_data_minimum[:, index])
+            np.testing.assert_allclose(segments[:, 1, 1], u.concentration_data_maximum[:, index])
+        bands = [c for c in axis.collections if c.__class__.__name__ == 'FillBetweenPolyCollection']
+        self.assertEqual(len(bands), 2)
+
+    def test_monte_carlo_warning_refers_to_the_panel_that_is_present(self):
+        from autoqy_core.tools.analysis_gui import _fit_diagnostic_checks
+        checks = _fit_diagnostic_checks(self.output, self.data, {'analysis': {}})
+        titles = {c['title'] for c in checks}
+        self.assertIn('Monte Carlo uncertainty', titles)
+        references = [c['body'] for c in checks if 'Review ‘' in c['body']]
+        self.assertTrue(any('Review ‘Monte Carlo uncertainty’ below' in body for body in references))
+        self.assertTrue(all('Uncertainty when reference spectra are varied' not in c['body'] for c in checks))
 
     def test_approximate_interval_does_not_mark_stable_mean_and_sd_as_provisional(self):
         u = replace(self.output.epsilon_uncertainty, converged=True, interval_converged=False,

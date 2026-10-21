@@ -1587,8 +1587,7 @@ def _fit_diagnostic_checks(result, data, document):
             (reliability["level"], epsilon_check["level"]), key=severity.get
         )
         reliability["body"] += (
-            " The ε range analysis found a reliability issue. "
-            "See ‘Uncertainty when reference spectra are varied’ below."
+            f" Review ‘{epsilon_check['title']}’ below for details."
         )
     checks.append(reliability)
 
@@ -1940,7 +1939,7 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
     fraction_residual = measured_fraction - fitted_fraction
     uncertainty = result.epsilon_uncertainty
     is_mc = getattr(uncertainty, "method", "") == "monte_carlo"
-    show_ranges = uncertainty is not None and not is_mc
+    show_ranges = uncertainty is not None
     blue, orange = PLOT_BLUE, PLOT_ORANGE
 
     concentration = go.Figure()
@@ -1949,16 +1948,27 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
             _add_band(go, concentration, times,
                       uncertainty.concentration_fit_minimum[:, index],
                       uncertainty.concentration_fit_maximum[:, index], colour,
-                      f"{name} ε fit range")
+                      (f"{name} {uncertainty.coverage_probability * 100:g}% fit interval"
+                       if is_mc else f"{name} ε fit range"))
     for index, (name, colour) in enumerate((("Reactant", blue), ("Product", orange))):
         error_y = None
         if show_ranges:
+            lower = uncertainty.concentration_data_minimum[:, index]
+            upper = uncertainty.concentration_data_maximum[:, index]
+            centre = (lower + upper) / 2 if is_mc else measured[:, index]
             error_y = {
                 "type": "data", "symmetric": False, "visible": True,
-                "array": uncertainty.concentration_data_maximum[:, index] - measured[:, index],
-                "arrayminus": measured[:, index] - uncertainty.concentration_data_minimum[:, index],
+                "array": upper - centre, "arrayminus": centre - lower,
                 "color": _hex_rgba(colour, 0.38), "thickness": 1, "width": 2,
             }
+            if is_mc:
+                # Centre interval bars independently of the nominal data points.
+                concentration.add_trace(go.Scatter(
+                    x=times, y=centre, mode="markers", name=f"{name} data interval",
+                    marker={"size": 0, "opacity": 0}, error_y=error_y,
+                    hoverinfo="skip", showlegend=False,
+                ))
+                error_y = None
         concentration.add_trace(go.Scatter(
             x=times, y=measured[:, index], mode="markers", name=f"{name} data",
             marker={"symbol": "circle-open", "size": 7, "color": colour},
@@ -1969,8 +1979,9 @@ def _interactive_figures(go, make_subplots, result, data, residual_percentile,
             x=times, y=fitted[:, index], mode="lines", name=f"{name} fit",
             line={"color": colour, "width": 3},
         ))
-    _style_figure(concentration, "Concentration fit", "Irradiation time (s)",
-                  "Concentration (mol/L)")
+    title = (f"Concentration fit · {uncertainty.coverage_probability * 100:g}% intervals"
+             if is_mc else "Concentration fit")
+    _style_figure(concentration, title, "Irradiation time (s)", "Concentration (mol/L)")
 
     fraction = go.Figure()
     if uncertainty is not None:

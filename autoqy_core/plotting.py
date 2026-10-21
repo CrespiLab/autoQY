@@ -27,7 +27,7 @@ def write_figure(path, result, data, residual_percentile=100):
     absorbance_residual = measured_absorbance - fitted_absorbance
     uncertainty = result.epsilon_uncertainty
     is_mc = getattr(uncertainty, "method", "") == "monte_carlo"
-    show_ranges = uncertainty is not None and not is_mc
+    show_ranges = uncertainty is not None
 
     blue, orange = "#346aa9", "#e16203"
     figure, axes = plt.subplots(
@@ -38,12 +38,12 @@ def write_figure(path, result, data, residual_percentile=100):
 
     if show_ranges:
         for index, colour in enumerate((blue, orange)):
+            lower = uncertainty.concentration_data_minimum[:, index]
+            upper = uncertainty.concentration_data_maximum[:, index]
+            centre = (lower + upper) / 2 if is_mc else measured[:, index]
             concentration.errorbar(
-                times, measured[:, index],
-                yerr=np.vstack((
-                    measured[:, index] - uncertainty.concentration_data_minimum[:, index],
-                    uncertainty.concentration_data_maximum[:, index] - measured[:, index],
-                )),
+                times, centre,
+                yerr=np.vstack((centre - lower, upper - centre)),
                 fmt="none", ecolor=colour, elinewidth=0.8, alpha=0.35, capsize=2,
             )
             concentration.fill_between(
@@ -59,7 +59,9 @@ def write_figure(path, result, data, residual_percentile=100):
                        zorder=4, label="Reactant fit")
     concentration.plot(times, fitted[:, 1], color=orange, linewidth=2,
                        zorder=4, label="Product fit")
-    concentration.set(title=("Concentrations with ε ranges" if show_ranges else "Concentration fit"),
+    title = (f"Concentration fit · {uncertainty.coverage_probability * 100:g}% intervals"
+             if is_mc else "Concentrations with ε ranges" if show_ranges else "Concentration fit")
+    concentration.set(title=title,
                       xlabel="Irradiation time (s)",
                       ylabel="Concentration (mol/L)")
     concentration.legend(frameon=False, ncol=2, fontsize=9)
