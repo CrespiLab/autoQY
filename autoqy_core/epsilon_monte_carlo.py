@@ -216,14 +216,44 @@ def _endpoint_error(samples, coverage, yield_bounds=(0, 1)):
     return result
 
 
-def run_monte_carlo(data, reactant, product, *, error_metric="sd", samples=256,
+def _summary_precision(samples):
+    """MC standard errors for the mean and SD, with reporting-place tolerances.
+
+    Combine moment-based estimates with eight independent batch estimates.
+    The SD estimate uses the fourth central moment, allowing skewed and heavy
+    tailed draws. Twice each MC standard error must be below half a unit in
+    the last reported SD digit (JCGM 101:2008, 7.9 numerical-tolerance principle).
+    This checks the reported mean/SD; interval endpoints are checked separately.
+    """
+    from .output import uncertainty_decimal_place
+
+    values = np.asarray(samples, dtype=float)
+    sd = values.std(axis=0, ddof=1)
+    mean_error = sd / np.sqrt(len(values))
+    variance_error = ((values - values.mean(axis=0)) ** 2).std(axis=0, ddof=1) / np.sqrt(len(values))
+    sd_error = np.divide(variance_error, 2 * sd, out=np.zeros_like(sd), where=sd > 0)
+    groups = np.array_split(values, 8)
+    batch_mean_error = np.std([g.mean(axis=0) for g in groups], axis=0, ddof=1) / np.sqrt(8)
+    batch_sd_error = np.std([g.std(axis=0, ddof=1) for g in groups], axis=0, ddof=1) / np.sqrt(8)
+    errors = np.array([np.maximum(mean_error, batch_mean_error),
+                       np.maximum(sd_error, batch_sd_error)])
+    tolerances = np.array([.5 * 10. ** uncertainty_decimal_place(s * 100) / 100
+                           if s > 0 and np.isfinite(s) else 0. for s in sd])
+    # Identical draws have exactly zero sample spread; avoid round-off in batch means.
+    errors[:, np.ptp(values, axis=0) == 0] = 0
+    stable = len(values) >= 128 and np.all(np.isfinite(errors)) and np.all(2 * errors <= tolerances)
+    return bool(stable), errors, tolerances
+
+
+def run_monte_carlo(data, reactant, product, *, error_metric="sd", samples=2048,
                     seed=0, coverage=.95, tolerance=.005,
                     checkpoint_directory=None, progress_callback=None):
-    from .monte_carlo_checkpoint import MonteCarloCheckpoint, checkpoint_key
+    from .monte_carlo_checkpoint import MonteCarloCheckpoint, checkpoint_key, legacy_checkpoint_keys
 
     sample_pair, assumptions = paired_epsilon_sampler(reactant, product, error_metric)
     checkpoint = (MonteCarloCheckpoint(checkpoint_directory,
-                  checkpoint_key(data, reactant, product, error_metric, seed))
+                  checkpoint_key(data, reactant, product, error_metric, seed),
+                  legacy_keys=legacy_checkpoint_keys(data, reactant, product, error_metric, seed))
                   if checkpoint_directory is not None else nullcontext(None))
     with checkpoint as saved:
         return _run_monte_carlo(data, reactant, product, error_metric, samples, seed,
@@ -262,9 +292,8 @@ def _run_monte_carlo(data, reactant, product, error_metric, samples, seed,
     residuals = nominal.absorbance.T - model
     residuals -= residuals.mean(axis=0, keepdims=True)
     rows = np.searchsorted(data.wavelengths, nominal.wavelengths)
-    endpoint_error = (_endpoint_error([r[0] for r in records], coverage, data.yield_bounds)
-                      if len(records) >= 128 else np.full((2, 2), np.inf))
-    already_stable = not failures and len(records) >= 128 and np.all(2 * endpoint_error <= tolerance)
+    already_stable = (not failures and len(records) >= 128
+                      and _summary_precision([r[0] for r in records])[0])
     report("running")
     for iteration in (() if already_stable else range(attempted, samples)):
         attempted += 1
@@ -308,13 +337,13 @@ def _run_monte_carlo(data, reactant, product, error_metric, samples, seed,
             failures.append(failure)
         report("running")
         if len(records) >= 128 and attempted % 64 == 0:
-            endpoint_error = _endpoint_error([r[0] for r in records], coverage, data.yield_bounds)
-            if not failures and np.all(2 * endpoint_error <= tolerance):
+            if not failures and _summary_precision([r[0] for r in records])[0]:
                 break
     if len(records) < max(16, attempted // 2):
         raise ValueError(f"Only {len(records)} of {attempted} Monte Carlo fits succeeded. "
                          + (failures[0] if failures else "Increase the number of simulations."))
     yields = np.asarray([r[0] for r in records])
+    stable, summary_error, summary_tolerance = _summary_precision(yields)
     if len(records) >= 16:
         endpoint_error = _endpoint_error(yields, coverage, data.yield_bounds)
     tail = (1 - coverage) / 2
@@ -351,7 +380,9 @@ def _run_monte_carlo(data, reactant, product, error_metric, samples, seed,
         sample_mean=yields.mean(axis=0), sample_standard_deviation=std,
         attempted_samples=attempted, requested_samples=samples, failed_samples=len(failures),
         boundary_fractions=bounds.mean(axis=0), random_seed=seed,
-        converged=bool(not failures and len(records) >= 128 and np.all(2 * endpoint_error <= tolerance)),
+        converged=bool(not failures and stable),
+        interval_converged=bool(not failures and len(records) >= 128 and np.all(2 * endpoint_error <= tolerance)),
+        summary_mc_error=summary_error, summary_mc_tolerance=summary_tolerance,
         endpoint_mc_error=endpoint_error, scope=SCOPE, sampling_assumptions=assumptions,
         failure_messages=tuple(failures), reused_samples=reused,
         checkpoint_path=str(checkpoint.path) if checkpoint is not None else None,

@@ -1,7 +1,11 @@
 """Saved Monte Carlo runs must continue the original random sequence exactly."""
 
 from dataclasses import replace
+from contextlib import closing
 import json
+import hashlib
+import shutil
+import sqlite3
 from pathlib import Path
 import subprocess
 import sys
@@ -13,7 +17,8 @@ import numpy as np
 
 from autoqy_core.epsilon_monte_carlo import run_monte_carlo
 from autoqy_core.epsilon_uncertainty import load_epsilon_envelope
-from autoqy_core.monte_carlo_checkpoint import MonteCarloCheckpoint, checkpoint_key
+from autoqy_core.monte_carlo_checkpoint import (MonteCarloCheckpoint, checkpoint_key,
+                                               _calculation_signature, legacy_checkpoint_keys)
 from autoqy_core.pipeline import run_analysis_pipeline
 from autoqy_core.tools.analysis_gui import create_app
 from test_epsilon_monte_carlo import reference_frame
@@ -159,6 +164,43 @@ np.savez({str(output)!r},yields=r.epsilon_uncertainty.bound_yields)
         np.testing.assert_array_equal(changed.epsilon_uncertainty.bound_yields,
                                       self.fresh.epsilon_uncertainty.bound_yields)
         self.assertEqual(changed.epsilon_uncertainty.coverage_probability,.9)
+
+    def test_verified_legacy_draws_migrate_exactly_without_refitting(self):
+        with TemporaryDirectory() as original, TemporaryDirectory() as migrated:
+            output = self.run_saved(original)
+            source = Path(output.epsilon_uncertainty.checkpoint_path)
+            with closing(sqlite3.connect(source)) as connection:
+                rows = connection.execute('SELECT * FROM draws ORDER BY iteration').fetchall()
+            legacy = legacy_checkpoint_keys(self.data, *self.envelopes, 'sd', 3)
+            self.assertTrue(legacy)
+            with MonteCarloCheckpoint(migrated, legacy[0]) as old:
+                with old.connection:
+                    old.connection.executemany('INSERT INTO draws VALUES (?, ?, ?, ?)', rows)
+                old_path = old.path
+            original_hash = hashlib.sha256(old_path.read_bytes()).hexdigest()
+            with patch('autoqy_core.pipeline.run_analysis_pipeline', wraps=run_analysis_pipeline) as fit:
+                output = self.run_saved(migrated)
+            self.assertEqual(fit.call_count, 1)
+            self.assertEqual(output.epsilon_uncertainty.reused_samples, 32)
+            self.assert_same_draws(output)
+            self.assertEqual(hashlib.sha256(old_path.read_bytes()).hexdigest(), original_hash)
+            with closing(sqlite3.connect(output.epsilon_uncertainty.checkpoint_path)) as connection:
+                self.assertEqual(connection.execute('SELECT * FROM draws ORDER BY iteration').fetchall(), rows)
+
+    def test_calculation_signature_ignores_stopping_but_detects_sampling_changes(self):
+        package = Path(__file__).parents[1]/'autoqy_core'
+        with TemporaryDirectory() as folder:
+            for name in ('epsilon_monte_carlo.py', 'epsilon_uncertainty.py', 'kinetics.py', 'pipeline.py', 'spectra.py'):
+                shutil.copy2(package/name, Path(folder)/name)
+            path = Path(folder)/'epsilon_monte_carlo.py'
+            text = path.read_text(encoding='utf-8')
+            original = _calculation_signature(folder)
+            path.write_text(text.replace('attempted % 64', 'attempted % 32'), encoding='utf-8')
+            self.assertEqual(_calculation_signature(folder), original)
+            path.write_text(text.replace('rng.random()', 'rng.random() / 2'), encoding='utf-8')
+            self.assertNotEqual(_calculation_signature(folder), original)
+        with patch('autoqy_core.monte_carlo_checkpoint._calculation_signature', return_value='changed'):
+            self.assertEqual(legacy_checkpoint_keys(self.data, *self.envelopes, 'sd', 3), ())
 
 
 class MonteCarloProgressGuiTests(unittest.TestCase):

@@ -369,11 +369,15 @@ older file is missing those details.
 
 Monte Carlo shows the mean ± standard uncertainty (1 SD). The error uses
 one significant digit, or two when it starts with 1 or 2, and the mean uses
-the same decimal place. The detailed results include the coverage interval,
-yield-limit counts, and stability checks. If it asks for
-more simulations, set **Maximum simulations** to 4096 and run again, keeping
-the other settings unchanged. It can stop early when the uncertainty range passes
-its check. The default 256 is useful for a quick first run.
+the same decimal place. The default maximum is 2048 simulations. AutoQY checks
+the precision of the mean and error as it runs and can stop early. When the
+check passes, the remaining simulation error is small enough for the displayed
+precision. If it reaches the limit first, **Technical details** shows how much
+simulation error remains.
+
+The coverage interval has a separate endpoint check in **Technical details**.
+Its limits can remain approximate even when the mean and error pass their check.
+Failed fits and yields reaching their allowed limits also appear in the results.
 
 A live counter shows how many simulations have finished and how many were reused.
 Each completed simulation is saved automatically in `.autoqy-monte-carlo`
@@ -385,7 +389,8 @@ An interrupted run continues from its last completed simulation.
 
 Changes to the input data, uncertainty inputs, fit method, or seed start
 a separate saved run. Coverage and precision settings can reuse the same
-draws. Saved runs are also separated when the calculation software changes.
+draws. Changes to sampling or fitting code start a separate saved run. Updates to
+messages or stopping checks keep compatible saved simulations.
 To update existing result files, enable **Allow replacing existing results** or
 choose a new **Output stem** while keeping the output folder.
 

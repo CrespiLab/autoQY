@@ -1,5 +1,6 @@
 """Durable, input-specific Monte Carlo draws, without executable serialization."""
 
+import ast
 from dataclasses import fields
 import hashlib
 from io import BytesIO
@@ -12,7 +13,49 @@ import numpy as np
 import scipy
 
 
-def checkpoint_key(data, reactant, product, error_metric, seed):
+def _calculation_signature(directory=None):
+    """Hash sampling and fitting code independently of stopping and reporting.
+
+    AST serialization ignores line endings, formatting, and source locations.
+    The draw's model preparation and try/except body preserve the random draw
+    order and fit inputs. Changes to those invalidate saved draws.
+    """
+    directory = Path(directory) if directory is not None else Path(__file__).parent
+    tree = ast.parse((directory / 'epsilon_monte_carlo.py').read_text(encoding='utf-8'))
+    parts = []
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            parts.append(node)
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            if not (isinstance(node, ast.Assign) and any(
+                    isinstance(t, ast.Name) and t.id == 'SCOPE' for t in node.targets)):
+                parts.append(node)
+        elif isinstance(node, ast.FunctionDef):
+            if node.name == '_run_monte_carlo':
+                parts.extend(item for item in node.body if isinstance(item, ast.Assign) and any(
+                    isinstance(t, ast.Name) and t.id == 'rng' for t in item.targets))
+                start = next(i for i, item in enumerate(node.body)
+                             if isinstance(item, ast.Assign) and any(
+                                 isinstance(t, ast.Name) and t.id == 'nominal' for t in item.targets))
+                end = next(i for i, item in enumerate(node.body)
+                           if isinstance(item, ast.Assign) and any(
+                               isinstance(t, ast.Name) and t.id == 'rows' for t in item.targets))
+                parts.extend(node.body[start:end + 1])
+                loop = next(item for item in node.body if isinstance(item, ast.For))
+                parts.append(next(item for item in loop.body if isinstance(item, ast.Try)))
+            elif node.name not in ('_endpoint_error', '_summary_precision', 'run_monte_carlo'):
+                parts.append(node)
+    epsilon_tree = ast.parse((directory / 'epsilon_uncertainty.py').read_text(encoding='utf-8'))
+    parts.extend(node for node in epsilon_tree.body
+                 if isinstance(node, (ast.FunctionDef, ast.Import, ast.ImportFrom)))
+    code = '\n'.join(ast.dump(node, include_attributes=False) for node in parts)
+    for name in ('kinetics.py', 'pipeline.py', 'spectra.py'):
+        code += ast.dump(ast.parse((directory / name).read_text(encoding='utf-8')),
+                         include_attributes=False)
+    return hashlib.sha256(code.encode('utf-8')).hexdigest()
+
+
+def _fingerprint(data, reactant, product, error_metric, seed, version, code_hashes):
     digest = hashlib.sha256()
 
     def add(value):
@@ -29,18 +72,32 @@ def checkpoint_key(data, reactant, product, error_metric, seed):
             encoded = repr(value).encode('utf-8')
             digest.update(str(len(encoded)).encode('ascii') + b':' + encoded)
 
-    add(('AutoQY Monte Carlo checkpoint 1', sys.version, np.__version__, scipy.__version__,
+    add((f'AutoQY Monte Carlo checkpoint {version}', sys.version, np.__version__, scipy.__version__,
          error_metric, seed))
     for field in fields(data):
         add(field.name)
         add(getattr(data, field.name))
     for envelope in (reactant, product):
         add(hashlib.sha256(Path(envelope.source_path).read_bytes()).hexdigest())
-    # Keep saved draws separate when numerical or sampling implementations change.
-    for name in ('epsilon_monte_carlo.py', 'kinetics.py', 'pipeline.py', 'spectra.py',
-                 'epsilon_uncertainty.py', 'monte_carlo_checkpoint.py'):
-        add(hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest())
+    for code_hash in code_hashes:
+        add(code_hash)
     return digest.hexdigest()
+
+
+def checkpoint_key(data, reactant, product, error_metric, seed):
+    return _fingerprint(data, reactant, product, error_metric, seed, 2,
+                        (_calculation_signature(),))
+
+
+def legacy_checkpoint_keys(data, reactant, product, error_metric, seed):
+    from .monte_carlo_legacy import CALCULATION_SIGNATURE, SOURCE_PROFILES
+
+    # Only explicitly verified, numerically identical legacy implementations
+    # may migrate. Inputs, seed, Python, NumPy and SciPy must still match exactly.
+    if _calculation_signature() != CALCULATION_SIGNATURE:
+        return ()
+    return tuple(_fingerprint(data, reactant, product, error_metric, seed, 1, profile)
+                 for profile in SOURCE_PROFILES)
 
 
 def _pack(record):
@@ -58,9 +115,10 @@ def _unpack(payload):
 
 
 class MonteCarloCheckpoint:
-    def __init__(self, directory, key):
+    def __init__(self, directory, key, legacy_keys=()):
         self.path = Path(directory) / f'{key}.sqlite3'
         self.key = key
+        self.legacy_keys = tuple(legacy_keys)
         self.connection = self.guard = None
 
     def __enter__(self):
@@ -80,6 +138,8 @@ class MonteCarloCheckpoint:
             key = self.connection.execute('SELECT value FROM metadata WHERE key=?', ('fingerprint',)).fetchone()
             if key != (self.key,):
                 raise ValueError('The saved simulations do not match this analysis. Choose a different output folder.')
+            if not self.connection.execute('SELECT 1 FROM draws LIMIT 1').fetchone():
+                self._import_legacy()
             return self
         except sqlite3.OperationalError as error:
             self.__exit__(None, None, None)
@@ -90,6 +150,21 @@ class MonteCarloCheckpoint:
         except BaseException:
             self.__exit__(None, None, None)
             raise
+
+    def _import_legacy(self):
+        for key in self.legacy_keys:
+            if key == self.key or not self.path.with_name(f'{key}.sqlite3').exists():
+                continue
+            # Lock and verify the original database, then copy all rows atomically.
+            # Keep its bytes intact, including every saved draw and RNG state.
+            with MonteCarloCheckpoint(self.path.parent, key) as previous:
+                with self.connection:
+                    self.connection.executemany('INSERT INTO draws VALUES (?, ?, ?, ?)',
+                        previous.connection.execute('SELECT iteration, result, error, rng_state '
+                                                    'FROM draws ORDER BY iteration'))
+                    self.connection.execute('INSERT OR REPLACE INTO metadata VALUES (?, ?)',
+                                            ('migrated_from', key))
+            break
 
     def __exit__(self, *args):
         if self.connection is not None:

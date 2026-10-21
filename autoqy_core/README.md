@@ -100,15 +100,22 @@ the two isomers in either reaction direction.
 The GUI and figures show the Monte Carlo mean ± standard uncertainty (1 SD).
 The error uses one significant digit, or two when it starts with 1 or 2; the
 mean uses the same decimal place. Detailed JSON retains the nominal fit,
-full-precision values, and asymmetric coverage interval. Diagnostics report failed fits, yield-limit
-hits, and whether the uncertainty range has passed its stability check. Start
-with the default limit of 256 for a quick check. If all fits succeed but the
-range needs more simulations, set **Maximum simulations** to 4096 and run again.
-Keep the same random seed and other settings. The calculation checks the range
-after at least 128 successful fits and can stop early once it passes. More
-simulations improve the numerical estimate of the uncertainty. The kinetic
-solver reuses fixed wavelength weights and baseline projections to shorten
-repeated fits. A saved random seed makes the calculation reproducible.
+full-precision values, and asymmetric coverage interval. The default maximum is
+2048 simulations. After at least 128 successful fits, AutoQY checks the numerical
+precision of both mean yields and their SDs every 64 fits. It stops early when
+twice their estimated simulation error is below half a unit in the last
+reported SD digit. Batch estimates and moment-based estimates are combined;
+the larger error estimate is used. This applies the numerical-tolerance
+principle in [JCGM 101:2008, section 7.9](https://www.bipm.org/documents/20126/2071204/JCGM_101_2008_E.pdf)
+to the reported mean and SD.
+
+The interval endpoints have their own precision check in **Technical details**.
+An approximate interval can accompany a mean and SD that have passed their check.
+If the simulation limit is reached first, the results state that the mean/SD
+precision check has not passed and show the remaining simulation error in
+**Technical details**. Failed fits and yield-limit hits remain visible.
+The kinetic solver reuses fixed wavelength weights and baseline projections
+to shorten repeated fits. A saved random seed makes the calculation reproducible.
 Detailed output includes `_uncertainty.csv` with the successful simulated yields.
 
 A live counter shows how many simulations have finished and how many were reused.
@@ -121,7 +128,8 @@ An interrupted run continues from its last completed simulation.
 
 Changes to the input data, uncertainty inputs, fit method, or seed start
 a separate saved run. Coverage and precision settings can reuse the same
-draws. Saved runs are also separated when the calculation software changes.
+draws. Changes to sampling or fitting code start a separate saved run. Updates to
+messages or stopping checks keep compatible saved simulations.
 To update existing result files, enable **Allow replacing existing results** or
 choose a new **Output stem** while keeping the output folder.
 
@@ -133,10 +141,11 @@ add the stable ε reference, enter **Composition error (± percentage points)**,
 and reconstruct and save the ε CSV again. Load the new CSV in Analysis.
 **ε ranges** remains available for files that contain the lower and upper ε curves.
 
-The endpoint tolerance defaults to 0.005 in yield fraction (0.5 percentage
-points). The stability check uses batch estimates and binomial order-statistic
-brackets, requiring twice the estimated endpoint sampling error to fall below
-the tolerance.
+The interval endpoint tolerance defaults to 0.005 in yield fraction (0.5
+percentage points). This separate check uses batch estimates and binomial
+order-statistic brackets, requiring twice the estimated endpoint sampling
+error to fall below the tolerance. It reports the precision of the coverage
+interval; automatic stopping follows the mean and SD precision check.
 
 The [NIST Uncertainty Machine manual](https://uncertainty.nist.gov/NISTUncertaintyMachine-UserManual.pdf)
 describes propagation through a joint input distribution. AutoQY uses this model:
@@ -166,7 +175,7 @@ Add these settings to the analysis configuration:
   "epsilon": {
     "method": "monte_carlo",
     "error_metric": "sd",
-    "samples": 256,
+    "samples": 2048,
     "seed": 0,
     "coverage_probability": 0.95,
     "endpoint_tolerance": 0.005

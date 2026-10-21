@@ -74,17 +74,19 @@ class MonteCarloMessageTests(unittest.TestCase):
         values.update(changes)
         return SimpleNamespace(**values)
 
-    def test_successful_unstable_run_has_one_concrete_next_step(self):
+    def test_limit_reports_remaining_precision_without_automatic_doubling(self):
         text = ' '.join(monte_carlo_messages(self.summary()))
         self.assertIn('All 256 simulations finished successfully.', text)
-        self.assertIn('Set Maximum simulations to 4096 and run again.', text)
-        self.assertIn('provisional', text)
+        self.assertIn('simulation limit was reached', text)
+        self.assertIn('remaining simulation error', text)
+        self.assertNotIn('Set Maximum simulations', text)
+        self.assertNotIn('provisional', text)
         self.assertIn('1 SD', text)
         self.assertNotIn('endpoint', text)
 
     def test_stable_run_does_not_ask_for_more_simulations(self):
         text = ' '.join(monte_carlo_messages(self.summary(converged=True)))
-        self.assertIn('passed the stability check', text)
+        self.assertIn('passed the precision check', text)
         self.assertNotIn('run again', text)
 
     def test_failed_fits_need_review_before_more_simulations(self):
@@ -94,9 +96,9 @@ class MonteCarloMessageTests(unittest.TestCase):
         self.assertIn('Technical details', text)
         self.assertNotIn('Set Maximum simulations', text)
 
-    def test_larger_limit_recommendation_stays_within_supported_maximum(self):
-        text = ' '.join(monte_carlo_messages(self.summary(requested_samples=8192)))
-        self.assertIn('16384', text)
-        text = ' '.join(monte_carlo_messages(self.summary(requested_samples=100000)))
-        self.assertIn('Review Technical details', text)
-        self.assertNotIn('200000', text)
+    def test_no_repeated_doubling_at_large_limits(self):
+        for limit in (4096, 8192, 100000):
+            text = ' '.join(monte_carlo_messages(self.summary(requested_samples=limit)))
+            self.assertIn('Technical details', text)
+            self.assertNotIn('run again', text)
+            self.assertNotIn('Set Maximum simulations', text)

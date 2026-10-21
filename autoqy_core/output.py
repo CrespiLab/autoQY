@@ -7,11 +7,9 @@ import numpy as np
 import pandas as pd
 
 
-def format_value_uncertainty(value, uncertainty, two_digit_threshold=3):
-    """Round uncertainty and value to a scientifically matching decimal place."""
-    value, uncertainty = float(value), abs(float(uncertainty))
-    if not math.isfinite(uncertainty) or uncertainty == 0:
-        return f"{value:g}", f"{uncertainty:g}"
+def uncertainty_decimal_place(uncertainty, two_digit_threshold=3):
+    """Decimal place of the last reported uncertainty digit (for a positive SD)."""
+    uncertainty = abs(float(uncertainty))
     exponent = math.floor(math.log10(uncertainty))
     leading = uncertainty / 10 ** exponent
     significant_digits = 2 if leading < two_digit_threshold else 1
@@ -22,7 +20,16 @@ def format_value_uncertainty(value, uncertainty, two_digit_threshold=3):
     # uncertainty rather than retaining spurious decimal places.
     rounded_exponent = math.floor(math.log10(rounded_uncertainty))
     place = rounded_exponent - significant_digits + 1
-    rounded_uncertainty = round(rounded_uncertainty, -place)
+    return place
+
+
+def format_value_uncertainty(value, uncertainty, two_digit_threshold=3):
+    """Round uncertainty and value to a scientifically matching decimal place."""
+    value, uncertainty = float(value), abs(float(uncertainty))
+    if not math.isfinite(uncertainty) or uncertainty == 0:
+        return f"{value:g}", f"{uncertainty:g}"
+    place = uncertainty_decimal_place(uncertainty, two_digit_threshold)
+    rounded_uncertainty = round(uncertainty, -place)
     rounded_value = round(value, -place)
     decimals = max(0, -place)
     return f"{rounded_value:.{decimals}f}", f"{rounded_uncertainty:.{decimals}f}"
@@ -66,16 +73,10 @@ def monte_carlo_messages(uncertainty):
     else:
         messages = [f"All {u.attempted_samples} simulations finished successfully."]
     if u.converged:
-        messages.append("The uncertainty range passed the stability check.")
+        messages.append("The mean and error passed the precision check.")
     elif not u.failed_samples:
-        if u.requested_samples < 100000:
-            next_limit = min(100000, max(4096, u.requested_samples * 2))
-            messages.append("More simulations are needed to check the uncertainty range. "
-                            f"Set Maximum simulations to {next_limit} and run again. "
-                            "Treat the current results as provisional.")
-        else:
-            messages.append("The uncertainty range has not stabilized at the maximum simulation limit. "
-                            "Review Technical details and the input uncertainties before reporting these results.")
+        messages.append("The simulation limit was reached before the mean and error passed the precision check. "
+                        "Their remaining simulation error is shown in Technical details.")
     if np.any(u.boundary_fractions):
         limits = "; ".join(f"{name}: {fraction * 100:.2g}%" for name, fraction in
                            zip(("R→P", "P→R"), u.boundary_fractions) if fraction > 0)
@@ -180,6 +181,7 @@ def result_summary(result, data, irradiation_wavelength_nm):
         summary["quantum_yield_error_kind"] = "Monte Carlo standard uncertainty (1 SD)"
         summary["quantum_yield_interval_percent"] = {
             "coverage_probability": uncertainty.coverage_probability,
+            "endpoints_stable": uncertainty.interval_converged,
             "lower": _yield_pair(uncertainty.interval_lower * 100),
             "upper": _yield_pair(uncertainty.interval_upper * 100),
         }
@@ -195,7 +197,13 @@ def result_summary(result, data, irradiation_wavelength_nm):
             "checkpoint_file": uncertainty.checkpoint_path,
             "boundary_hit_fraction": _yield_pair(uncertainty.boundary_fractions),
             "seed": uncertainty.random_seed,
-            "endpoints_stable": uncertainty.converged,
+            "mean_and_error_stable": uncertainty.converged,
+            "endpoints_stable": uncertainty.interval_converged,
+            "summary_mc_standard_error_percentage_points": {
+                "mean": _yield_pair(uncertainty.summary_mc_error[0] * 100),
+                "standard_uncertainty": _yield_pair(uncertainty.summary_mc_error[1] * 100),
+            },
+            "summary_mc_tolerance_percentage_points": _yield_pair(uncertainty.summary_mc_tolerance * 100),
             "endpoint_mc_standard_error_percentage_points": {
                 "lower": _yield_pair(uncertainty.endpoint_mc_error[0] * 100),
                 "upper": _yield_pair(uncertainty.endpoint_mc_error[1] * 100),
@@ -225,6 +233,11 @@ def write_results(path, result, data, irradiation_wavelength_nm):
         uncertainty_text = "\n".join(monte_carlo_messages(uncertainty)) + "\n"
         uncertainty_text += ("Included errors: reference spectra, NMR composition, irradiation input and kinetic fitting.\n"
                              "The PSS reconstruction absorbance is held fixed.\n")
+        mc_error = uncertainty.summary_mc_error * 100
+        uncertainty_text += (f"Interval endpoint precision check: {'passed' if uncertainty.interval_converged else 'not passed; interval limits are approximate'}.\n"
+                             "Remaining simulation error (1 SD, percentage points): "
+                             f"mean R->P {mc_error[0, 0]:.2g}, P->R {mc_error[0, 1]:.2g}; "
+                             f"SD R->P {mc_error[1, 0]:.2g}, P->R {mc_error[1, 1]:.2g}.\n")
     elif uncertainty is not None:
         uncertainty_text = "Error: combined ε-range, fit, and irradiation-input sensitivity.\n"
     if data.photon_flux_mol_s is None:

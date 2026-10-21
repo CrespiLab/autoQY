@@ -373,20 +373,20 @@ def create_app():
                         html.Summary(["Monte Carlo settings", info_popup(
                             "Results show the mean ± estimated error (1 SD). The shaded band shows "
                             "the uncertainty range, with 95% coverage by default. The calculation checks "
-                            "this range after at least 128 successful simulations and can stop early "
-                            "when it passes. If more simulations are needed, the results suggest a "
-                            "higher maximum. Keeping the same random seed lets you repeat a run. "
+                            "the precision of the mean and SD after at least 128 successful simulations "
+                            "and stops early when they pass. Interval endpoint precision is checked "
+                            "separately in Technical details. Keeping the same random seed lets you repeat a run. "
                             "Enter power and NMR errors as 1 SD."
                         )]),
-                        pair("Maximum simulations", number("mc_samples", 256, min=32, step=1),
+                        pair("Maximum simulations", number("mc_samples", 2048, min=32, step=1),
                              "Random seed", number("mc_seed", 0, min=0, step=1)),
                         pair("Coverage probability", number("mc_coverage", .95, min=.5, max=1, step="any"),
-                             "Endpoint tolerance (yield fraction)",
+                             "Interval endpoint tolerance (yield fraction)",
                              number("mc_tolerance", .005, min=0, step="any")),
-                        html.Small("Start with 256 simulations for a quick check. If the results ask for more, "
-                                   "try 4096. Completed simulations are saved in the output folder and reused on the next run. "
+                        html.Small("The default maximum is 2048; the calculation stops early when the mean and error pass their precision check. "
+                                   "Completed simulations are saved in the output folder and reused on the next run. "
                                    "Keep that folder and the same inputs and seed to continue, even after reopening the GUI. "
-                                   "The calculation can stop early once the uncertainty range passes its check.",
+                                   "Endpoint tolerance controls the separate interval check in Technical details.",
                                    className="helper-text"),
                     ]),
                 ]),
@@ -871,12 +871,12 @@ def _monte_carlo_progress_view(html, state):
         details.append(f"{state['reused']} reused from saved simulations")
     if state.get("failed"):
         details.append(f"{state['failed']} failed")
-    saved = ("Completed simulations are saved. Raising the limit continues this run."
+    saved = ("Completed simulations are saved for reuse."
              if state.get("checkpoint_path") else "")
     counter = (f"{attempted} simulations completed · maximum {maximum}" if phase == "complete"
                else f"{attempted} of {maximum} simulations completed")
     if phase == "complete" and state.get("converged"):
-        details.append("uncertainty range checked")
+        details.append("mean and error precision checked")
     return [html.Strong(f"{title} · {method}"),
             html.Div(counter),
             html.Progress(value=attempted, max=max(attempted, 1) if phase == "complete" else maximum,
@@ -980,7 +980,7 @@ def _configuration(values, embedded=None, *, preprocessing_only=False):
             "plots": {"absorbance_residual_percentile": values.get("residual_percentile")},
             "uncertainty": {"epsilon": {"method": values.get("epsilon_method"),
                                           "error_metric": values.get("epsilon_metric"),
-                                          **({"samples": values.get("mc_samples", 256),
+                                          **({"samples": values.get("mc_samples", 2048),
                                               "seed": values.get("mc_seed", 0),
                                               "coverage_probability": values.get("mc_coverage", .95),
                                               "endpoint_tolerance": values.get("mc_tolerance", .005)}
@@ -1052,7 +1052,7 @@ def _form_values(document):
         "epsilon_method": document.get("uncertainty", {}).get("epsilon", {}).get("method", "none"),
         "epsilon_metric": document.get("uncertainty", {}).get("epsilon", {}).get("error_metric", "sd"),
         **{field: document.get("uncertainty", {}).get("epsilon", {}).get(key, default)
-           for field, key, default in (("mc_samples", "samples", 256), ("mc_seed", "seed", 0),
+           for field, key, default in (("mc_samples", "samples", 2048), ("mc_seed", "seed", 0),
                                        ("mc_coverage", "coverage_probability", .95),
                                        ("mc_tolerance", "endpoint_tolerance", .005))},
         "output_directory": output["directory"],
@@ -1656,7 +1656,13 @@ def _monte_carlo_reliability_check(u):
         level = "stop"
         messages.append("Some simulated fits cannot reliably separate the quantum yields.")
     check = _check(level, "Monte Carlo uncertainty", " ".join(messages))
-    check["details"] = (f"Seed {u.random_seed}. Largest estimated endpoint sampling error "
+    errors = u.summary_mc_error * 100
+    check["details"] = (f"Seed {u.random_seed}. Remaining simulation error (1 SD, percentage points): "
+                        f"mean R→P {errors[0, 0]:.2g}, P→R {errors[0, 1]:.2g}; "
+                        f"SD R→P {errors[1, 0]:.2g}, P→R {errors[1, 1]:.2g}. "
+                        f"Mean/SD precision check: {'passed' if u.converged else 'not passed'}. "
+                        f"Interval endpoint precision check: {'passed' if u.interval_converged else 'not passed; interval limits are approximate'}. "
+                        f"Largest estimated endpoint sampling error "
                         f"{np.max(u.endpoint_mc_error) * 100:.3g} percentage points. "
                         + u.scope + " " + " ".join(u.sampling_assumptions)
                         + " ".join(u.failure_messages[:5]))
@@ -2022,7 +2028,7 @@ def _fit_note(summary):
     if uncertainty and uncertainty["method"] == "monte_carlo":
         mc = summary["monte_carlo"]
         return (f"{mc['successful_simulations']} Monte Carlo fits · "
-                + ("uncertainty range checked" if mc["endpoints_stable"] else "review uncertainty check"))
+                + ("mean and error checked" if mc["mean_and_error_stable"] else "review mean/error precision"))
     return (f"{uncertainty['bound_combination_count']} ε combinations"
             if uncertainty else "Power + optimizer uncertainty")
 

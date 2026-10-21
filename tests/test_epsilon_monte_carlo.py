@@ -18,7 +18,7 @@ from autoqy_core.config import AnalysisConfig, ConfigError, validate_config
 from autoqy_core.epsilon import (calculate_epsilon_statistics, export_epsilon_csv,
                                 export_nmr_subtraction_csv, reconstruct_product_from_nmr)
 from autoqy_core.epsilon_monte_carlo import (
-    _endpoint_error, _positive_normal, _reference_sampler, _reconstruction_sampler,
+    _endpoint_error, _summary_precision, _positive_normal, _reference_sampler, _reconstruction_sampler,
     paired_epsilon_sampler, run_monte_carlo,
 )
 from autoqy_core.epsilon_uncertainty import load_epsilon_envelope
@@ -46,6 +46,27 @@ def reference_frame(mean, error=.02):
 
 
 class MonteCarloSamplingTests(unittest.TestCase):
+    def test_mean_and_sd_precision_is_separate_from_interval_endpoint_precision(self):
+        values = np.random.default_rng(4).normal([.5, .75], [.0075, .05], size=(2048, 2))
+        stable, errors, tolerances = _summary_precision(values)
+        self.assertTrue(stable)
+        self.assertTrue(np.all(2 * errors <= tolerances))
+        self.assertFalse(_summary_precision(values[:256])[0])
+        self.assertTrue(np.any(2 * _endpoint_error(values, .95) > 1e-6))
+
+    def test_sd_precision_accounts_for_non_gaussian_fourth_moment(self):
+        values = np.random.default_rng(2).standard_t(3, size=(2048, 2)) * .01 + .5
+        _, errors, _ = _summary_precision(values)
+        sd = values.std(axis=0, ddof=1)
+        expected = ((values - values.mean(axis=0)) ** 2).std(axis=0, ddof=1) / (2 * sd * np.sqrt(len(values)))
+        self.assertTrue(np.all(errors[1] >= expected * (1 - 1e-14)))
+        self.assertTrue(np.any(errors[1] > sd / np.sqrt(2 * (len(values) - 1)) * 2))
+
+    def test_identical_draws_have_no_simulation_error(self):
+        stable, errors, tolerances = _summary_precision(np.tile([.3, .18], (128, 1)))
+        self.assertTrue(stable)
+        np.testing.assert_array_equal(errors, np.zeros((2, 2)))
+
     def test_positive_normal_is_truncated_not_clipped_and_matches_quantiles(self):
         probabilities = (np.arange(10000) + .5) / 10000
         samples = _positive_normal(-.5, 1., probabilities)
@@ -267,7 +288,9 @@ class MonteCarloPipelineTests(unittest.TestCase):
             write_results(stem.with_suffix('.txt'),self.output,self.data,395)
             text = stem.with_suffix('.txt').read_text(encoding='utf-8')
             self.assertIn('PSS reconstruction absorbance is held fixed',text)
-            self.assertIn('Set Maximum simulations to 4096 and run again',text)
+            self.assertIn('simulation limit was reached',text)
+            self.assertNotIn('Set Maximum simulations',text)
+            self.assertNotIn('provisional',text)
             paths = write_detailed_data(stem,self.output,self.data)
             self.assertEqual(len(paths),3)
             self.assertEqual(len(pd.read_csv(paths[-1])),32)
@@ -291,6 +314,35 @@ class MonteCarloPipelineTests(unittest.TestCase):
         figures = _interactive_figures(go,make_subplots,self.output,self.data,99,395)
         self.assertEqual(figures[0].layout.title.text,'Concentration fit')
         self.assertTrue(any(t.name == '95% interval' and t.fill == 'tonexty' for t in figures[1].data))
+
+    def test_approximate_interval_does_not_mark_stable_mean_and_sd_as_provisional(self):
+        u = replace(self.output.epsilon_uncertainty, converged=True, interval_converged=False,
+                    bound_jacobian_conditions=np.ones(32), boundary_fractions=np.zeros(2))
+        result = replace(self.output, epsilon_uncertainty=u)
+        check = _epsilon_reliability_check(result)
+        self.assertEqual(check['level'], 'ok')
+        self.assertIn('mean and error passed', check['body'])
+        self.assertNotIn('More simulations', check['body'])
+        self.assertIn('interval limits are approximate', check['details'])
+        summary = result_summary(result, self.data, 395)
+        self.assertTrue(summary['monte_carlo']['mean_and_error_stable'])
+        self.assertFalse(summary['monte_carlo']['endpoints_stable'])
+        self.assertFalse(summary['quantum_yield_interval_percent']['endpoints_stable'])
+
+    def test_sampling_stops_on_summary_precision_even_with_unresolved_endpoints(self):
+        nominal = run_analysis_pipeline(self.data)
+        rng = np.random.default_rng(4)
+        draws = iter(rng.normal([.5, .75], [.0075, .05], size=(2048, 2)))
+        def pipeline(data, **kwargs):
+            return (replace(nominal, yield_fit=replace(nominal.yield_fit, values=next(draws)))
+                    if kwargs else nominal)
+        with patch('autoqy_core.pipeline.run_analysis_pipeline', side_effect=pipeline):
+            result = run_monte_carlo(self.data, *self.envelopes, samples=2048, tolerance=1e-6)
+        u = result.epsilon_uncertainty
+        self.assertTrue(u.converged)
+        self.assertFalse(u.interval_converged)
+        self.assertLess(u.attempted_samples, 2048)
+
 
     def test_runner_wires_mc_settings_and_protects_additional_output_file(self):
         from autoqy_core.runner import run_analysis, _write_outputs
@@ -362,6 +414,8 @@ class MonteCarloConfigurationTests(unittest.TestCase):
         document = json.loads((EXAMPLE/'analysis.json').read_text(encoding='utf-8'))
         form = _form_values(document)  # Older ε-range JSON has no Monte Carlo fields.
         self.assertEqual(form['mc_tolerance'],.005)
+        self.assertEqual(form['mc_samples'],2048)
+        self.assertEqual(controls['mc_samples'].value,2048)
         for tolerance in (.005,.002,.000001,.00035):
             for coverage in (.95,.955,.9999):
                 with self.subTest(tolerance=tolerance,coverage=coverage):

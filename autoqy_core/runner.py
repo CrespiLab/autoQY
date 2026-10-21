@@ -110,7 +110,7 @@ def run_analysis(config, output_directory=None, *, progress_callback=None, check
         from .epsilon_monte_carlo import run_monte_carlo
         result = run_monte_carlo(
             data, *epsilon_envelopes, error_metric=epsilon_metric,
-            samples=epsilon_settings.get("samples", 256),
+            samples=epsilon_settings.get("samples", 2048),
             seed=epsilon_settings.get("seed", 0),
             coverage=epsilon_settings.get("coverage_probability", .95),
             tolerance=epsilon_settings.get("endpoint_tolerance", .005),
